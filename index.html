@@ -2488,7 +2488,7 @@
         <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
             <h1 style="color:var(--text-main); font-weight:800; margin:0;" class="shimmer-text">Factory</h1>
             <div style="display:flex; gap:10px;">
-                <button class="btn-theme" onclick="openFactorySettings()">⚙️ Formulas</button>
+                <button class="btn-theme" onclick="openFactorySettings()">🔬</button>
             </div>
         </header>
 
@@ -2622,7 +2622,7 @@
         <div class="section liquid-card">
             <div class="section-header">
                 <h3 style="color:var(--text-main); margin:0;">Raw Material Inventory</h3>
-                <button class="btn-theme" style="font-size:0.8rem;" onclick="openFactoryInventoryModal()">+ Add Material</button>
+                <button class="btn-theme" style="font-size:0.8rem;" onclick="openFactoryInventoryModal()">🌍</button>
             </div>
             
             <div style="overflow-x: auto;">
@@ -2716,7 +2716,7 @@
     <div id="tab-payments" class="hidden">
         <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
             <h1 style="color:var(--text-main); font-weight:800; margin:0;" class="shimmer-text">Payments</h1>
-            <button class="btn-theme" onclick="openEntityManagement()">+ Manage Entities</button>
+            <button class="btn-theme" onclick="openEntityManagement()">✨</button>
         </header>
 
         <!-- Net Cash Dashboard -->
@@ -2726,32 +2726,32 @@
             
             <div class="formula-breakdown">
                 <div class="formula-item">
-                    <span>A. Cash Production Value:</span>
+                    <span>Cash Production Value:</span>
                     <span class="formula-value" id="formulaA">Rs 0.00</span>
                 </div>
                 <div class="formula-item">
-                    <span>B. Sales Tab Credits:</span>
+                    <span>Sales Tab Credits:</span>
                     <span class="formula-value" id="formulaB">Rs 0.00</span>
                 </div>
                 <div class="formula-item">
-                    <span>C. Calculator Tab Credits:</span>
+                    <span>Calculator Tab Credits:</span>
                     <span class="formula-value" id="formulaC">Rs 0.00</span>
                 </div>
                 <div class="formula-item">
-                    <span>D. Sales Tab Cash Received:</span>
+                    <span>Sales Tab Cash Received:</span>
                     <span class="formula-value" id="formulaD">Rs 0.00</span>
                 </div>
                 <div class="formula-item">
-                    <span>E. Calculator Discrepancies:</span>
+                    <span>Calculator Discrepancies:</span>
                     <span class="formula-value" id="formulaE">Rs 0.00</span>
                 </div>
                 <div class="formula-item">
-                    <span>F. Payment Flows (In - Out):</span>
+                    <span>Payment Flows (In - Out):</span>
                     <span class="formula-value" id="formulaF">Rs 0.00</span>
                 </div>
                 <hr style="margin: 10px 0; border-color: var(--glass-border);">
                 <div class="formula-item" style="font-weight:800; color:var(--text-main);">
-                    <span>Net Cash = A - B - C + D + E + F</span>
+                    <span>Net Cash</span>
                     <span class="formula-value" id="formulaFinal">Rs 0.00</span>
                 </div>
             </div>
@@ -2803,11 +2803,11 @@
                 <div class="payment-type-container">
                     <div class="payment-option">
                         <input type="radio" id="payment-type-out" name="paymentTransactionType" value="OUT" checked>
-                        <label for="payment-type-out">Payment OUT (We pay them)</label>
+                        <label for="payment-type-out">Payment out</label>
                     </div>
                     <div class="payment-option">
                         <input type="radio" id="payment-type-in" name="paymentTransactionType" value="IN">
-                        <label for="payment-type-in">Payment IN (They pay us)</label>
+                        <label for="payment-type-in">Payment IN</label>
                     </div>
                 </div>
             </div>
@@ -5371,6 +5371,156 @@
             updateMfgPieChart();
         }
     }
+        // --- MISSING FACTORY FUNCTIONS ---
+
+    function updateFactoryUnitsAvailableStats() {
+        // Calculate stats for Standard Store
+        const stdTrack = factoryUnitTracking.standard;
+        const stdCost = calculateSalesCostPerKg('standard') || 0; // Using the "divided by X" logic if applicable
+        const stdSale = factorySalePrices.standard || 0;
+        const stdProfitUnit = stdSale - stdCost;
+        
+        // Helper to safe fix numbers
+        const val = (n) => safeValue(n);
+
+        document.getElementById('factoryStdUnits').innerText = val(stdTrack.available).toFixed(2);
+        document.getElementById('factoryStdUsedUnits').innerText = val(stdTrack.consumed).toFixed(2);
+        document.getElementById('factoryStdUnitCost').innerText = formatCurrency(stdCost);
+        document.getElementById('factoryStdTotalVal').innerText = formatCurrency(stdTrack.available * stdCost);
+        // Assuming Output is total produced for stats
+        document.getElementById('factoryStdOutput').innerText = val(stdTrack.produced).toFixed(2);
+        // Raw used (approximate based on current formula weight)
+        // Note: Ideally this should come from history, but using current formula as proxy for display
+        const stdFormula = factoryDefaultFormulas['standard'] || [];
+        const stdWeight = stdFormula.reduce((sum, i) => sum + i.quantity, 0);
+        document.getElementById('factoryStdRawUsed').innerText = (val(stdTrack.produced) * stdWeight).toFixed(2) + ' kg';
+        
+        document.getElementById('factoryStdMatVal').innerText = formatCurrency(stdTrack.available * stdCost); // Approx value
+        document.getElementById('factoryStdProfit').innerText = formatCurrency(stdTrack.available * stdProfitUnit);
+        document.getElementById('factoryStdProfitUnit').innerText = formatCurrency(stdProfitUnit);
+
+        // Calculate stats for Asaan Store
+        const asaanTrack = factoryUnitTracking.asaan;
+        const asaanCost = calculateSalesCostPerKg('asaan') || 0;
+        const asaanSale = factorySalePrices.asaan || 0;
+        const asaanProfitUnit = asaanSale - asaanCost;
+
+        document.getElementById('factoryAsaanUnits').innerText = val(asaanTrack.available).toFixed(2);
+        document.getElementById('factoryAsaanUsedUnits').innerText = val(asaanTrack.consumed).toFixed(2);
+        document.getElementById('factoryAsaanUnitCost').innerText = formatCurrency(asaanCost);
+        document.getElementById('factoryAsaanTotalVal').innerText = formatCurrency(asaanTrack.available * asaanCost);
+        document.getElementById('factoryAsaanOutput').innerText = val(asaanTrack.produced).toFixed(2);
+        
+        const asaanFormula = factoryDefaultFormulas['asaan'] || [];
+        const asaanWeight = asaanFormula.reduce((sum, i) => sum + i.quantity, 0);
+        document.getElementById('factoryAsaanRawUsed').innerText = (val(asaanTrack.produced) * asaanWeight).toFixed(2) + ' kg';
+
+        document.getElementById('factoryAsaanMatVal').innerText = formatCurrency(asaanTrack.available * asaanCost);
+        document.getElementById('factoryAsaanProfit').innerText = formatCurrency(asaanTrack.available * asaanProfitUnit);
+        document.getElementById('factoryAsaanProfitUnit').innerText = formatCurrency(asaanProfitUnit);
+    }
+
+    function updateFactorySummaryCard() {
+        const mode = currentFactorySummaryMode;
+        
+        // Date Logic
+        const selectedDateVal = document.getElementById('factory-date').value || new Date().toISOString().split('T')[0];
+        const selectedDate = new Date(selectedDateVal);
+        const selectedYear = selectedDate.getFullYear();
+        const selectedMonth = selectedDate.getMonth();
+        const selectedDay = selectedDate.getDate();
+        
+        // Filter Production History (Produced Units)
+        const producedFiltered = factoryProductionHistory.filter(item => {
+            const d = new Date(item.date);
+            const dYear = d.getFullYear();
+            const dMonth = d.getMonth();
+            const dDay = d.getDate();
+            
+            if (mode === 'daily') return item.date === selectedDateVal;
+            if (mode === 'weekly') {
+                const weekStart = new Date(selectedDate);
+                weekStart.setDate(selectedDay - 6);
+                return d >= weekStart && d <= selectedDate;
+            }
+            if (mode === 'monthly') return dYear === selectedYear && dMonth === selectedMonth;
+            if (mode === 'yearly') return dYear === selectedYear;
+            return true; // all
+        });
+
+        // Filter Consumption History (From Production Tab)
+        const consumedFiltered = db.filter(item => {
+            const d = new Date(item.date);
+            const dYear = d.getFullYear();
+            const dMonth = d.getMonth();
+            const dDay = d.getDate();
+            
+            // Note: db items use 'date' string YYYY-MM-DD
+            if (mode === 'daily') return item.date === selectedDateVal;
+            if (mode === 'weekly') {
+                const weekStart = new Date(selectedDate);
+                weekStart.setDate(selectedDay - 6);
+                return d >= weekStart && d <= selectedDate;
+            }
+            if (mode === 'monthly') return dYear === selectedYear && dMonth === selectedMonth;
+            if (mode === 'yearly') return dYear === selectedYear;
+            return true; // all
+        });
+
+        // Aggregate Data
+        let totalUnitsProduced = 0;
+        let totalCostProduced = 0;
+        let totalRawWeightUsed = 0;
+        let totalMaterialsValue = 0;
+        
+        producedFiltered.forEach(h => {
+            totalUnitsProduced += (h.units || 0);
+            totalCostProduced += (h.totalCost || 0);
+            totalRawWeightUsed += (h.rawMaterialsUsed || 0);
+            totalMaterialsValue += (h.materialsCost || 0);
+        });
+
+        let totalUnitsConsumed = 0;
+        consumedFiltered.forEach(c => {
+            totalUnitsConsumed += (c.formulaUnits || 0);
+        });
+
+        // Derived Metrics
+        const avgCostPerUnit = totalUnitsProduced > 0 ? totalCostProduced / totalUnitsProduced : 0;
+        
+        // Calculate Profit (Based on Units Consumed in Sales/Production vs their Cost)
+        // Or simpler: (Avg Sale Price - Avg Cost) * Units Produced (Potential)
+        // Let's use Potential Profit of Produced goods for Factory View
+        let potentialRevenue = 0;
+        producedFiltered.forEach(h => {
+            const salePrice = h.store === 'asaan' ? (factorySalePrices.asaan || 0) : (factorySalePrices.standard || 0);
+            potentialRevenue += (h.units * salePrice);
+        });
+        const totalProfit = potentialRevenue - totalCostProduced;
+        const avgProfitPerUnit = totalUnitsProduced > 0 ? totalProfit / totalUnitsProduced : 0;
+
+        // Update DOM
+        document.getElementById('factorySumUnits').innerText = totalUnitsProduced.toFixed(2);
+        document.getElementById('factorySumUsedUnits').innerText = totalUnitsConsumed.toFixed(2);
+        document.getElementById('factorySumUnitCost').innerText = formatCurrency(avgCostPerUnit);
+        document.getElementById('factorySumTotalCost').innerText = formatCurrency(totalCostProduced);
+        
+        // Output Qty implies weight produced? 
+        // We'll map "Output Quantity" to Total Units for now, or calculate weight if formula available
+        // Let's stick to Units for consistency in this view
+        document.getElementById('factorySumOutput').innerText = totalUnitsProduced.toFixed(2) + " units"; 
+        
+        document.getElementById('factorySumRawUsed').innerText = totalRawWeightUsed.toFixed(2) + " kg";
+        document.getElementById('factorySumMatVal').innerText = formatCurrency(totalMaterialsValue);
+        document.getElementById('factorySumProfit').innerText = formatCurrency(totalProfit);
+        document.getElementById('factorySumProfitUnit').innerText = formatCurrency(avgProfitPerUnit);
+    }
+    
+    // --- REFRESH FACTORY TAB WRAPPER ---
+    function refreshFactoryTab() {
+        initFactoryTab();
+    }
+
 
     // --- PRODUCTION VIEW TOGGLE ---
     function setProductionView(view, event) {
