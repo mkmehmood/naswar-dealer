@@ -1555,7 +1555,42 @@
             #compositionChart {
                 max-width: 100% !important;
             }
-        }
+        /* Add this to your existing media query section */
+@media (max-width: 768px) {
+    /* Entity List Table Mobile Fix */
+    #entityListTable {
+        font-size: 0.7rem;
+    }
+    
+    #entityListTable th,
+    #entityListTable td {
+        padding: 6px 4px;
+    }
+    
+    .entity-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important;
+        gap: 8px;
+    }
+    
+    .entity-card {
+        padding: 10px !important;
+    }
+    
+    .entity-card .customer-name {
+        font-size: 0.8rem !important;
+    }
+    
+    .entity-card .btn-sm {
+        font-size: 0.65rem !important;
+        padding: 3px 5px !important;
+    }
+    
+    /* Adjust actions column for mobile */
+    #entityListTable td:last-child .btn-theme {
+        padding: 2px 6px !important;
+        font-size: 0.6rem !important;
+    }
+}
 
         /* All Times Summary Styles */
         .all-times-summary {
@@ -2814,7 +2849,42 @@
             
             <button class="btn btn-main" onclick="savePaymentTransaction()">Save Transaction</button>
         </div>
-
+<!-- ENTITY LIST CARD -->
+<div class="section liquid-card">
+    <div class="section-header">
+        <h3 style="color:var(--text-main); margin:0;">Entities & Balances</h3>
+        <div style="display:flex; gap:8px;">
+            <button class="btn-theme" onclick="refreshEntityBalances()" title="Refresh Balances">↻</button>
+            <button class="btn-theme" onclick="toggleEntityListView()" id="entityListViewToggle" title="Toggle View">☰</button>
+        </div>
+    </div>
+    
+    <!-- Search Bar for Entities -->
+    <input type="text" id="entity-list-search" class="search-bar" placeholder="Search entities by name..." oninput="filterEntityList()" style="margin-bottom:15px;">
+    
+    <!-- Entity List Table -->
+    <div style="overflow-x: auto; max-height: 400px; overflow-y: auto;">
+        <table class="comp-table" style="font-size:0.8rem;" id="entityListTable">
+            <thead>
+                <tr>
+                    <th style="text-align:left;">Entity Name</th>
+                    <th>Balance</th>
+                    <th>Total Transactions</th>
+                    <th style="text-align:center;">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="entityListBody">
+                <!-- Entity rows will be populated by JavaScript -->
+            </tbody>
+            <tfoot id="entityListFooter" style="display:none;">
+                <tr style="background:var(--input-bg);">
+                    <td colspan="2" style="text-align:right; font-weight:800; padding-right:15px;">TOTAL BALANCE:</td>
+                    <td colspan="2" style="text-align:center; font-weight:800;" id="entityListTotalBalance">Rs 0.00</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
         <!-- Summary Reports -->
         <div class="section-header">
             <h3>Payment Summary</h3>
@@ -5037,7 +5107,334 @@
             }
         });
     }
+// --- PAYMENTS TAB: ENTITY LIST MANAGEMENT ---
+let entityListViewType = 'table'; // 'table' or 'cards'
 
+function toggleEntityListView() {
+    const toggleBtn = document.getElementById('entityListViewToggle');
+    const table = document.getElementById('entityListTable');
+    const entityListBody = document.getElementById('entityListBody');
+    
+    if (entityListViewType === 'table') {
+        entityListViewType = 'cards';
+        toggleBtn.innerHTML = '📃';
+        toggleBtn.title = "Table View";
+        if (table) table.style.display = 'card view';
+        renderEntityCards();
+    } else {
+        entityListViewType = 'table';
+        toggleBtn.innerHTML = '☰';
+        toggleBtn.title = "Card View";
+        if (table) table.style.display = '';
+        renderEntityList();
+    }
+}
+
+function refreshEntityList() {
+    if (entityListViewType === 'table') {
+        renderEntityList();
+    } else {
+        renderEntityCards();
+    }
+}
+
+function renderEntityList() {
+    const tbody = document.getElementById('entityListBody');
+    const footer = document.getElementById('entityListFooter');
+    
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    if (!paymentEntities || paymentEntities.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" style="text-align:center; padding:20px; color:var(--text-muted);">
+                    No entities found. Click the <span style="color:var(--accent);">✨</span> button to add entities.
+                </td>
+            </tr>
+        `;
+        if (footer) footer.style.display = 'none';
+        return;
+    }
+    
+    let totalBalance = 0;
+    
+    // Sort entities by name
+    const sortedEntities = [...paymentEntities].sort((a, b) => a.name.localeCompare(b.name));
+    
+    sortedEntities.forEach(entity => {
+        // Calculate entity balance
+        const entityTransactions = paymentTransactions.filter(t => t.entityId === entity.id);
+        let entityIn = 0, entityOut = 0;
+        
+        entityTransactions.forEach(transaction => {
+            if (transaction.type === 'IN') {
+                entityIn += transaction.amount;
+            } else if (transaction.type === 'OUT') {
+                entityOut += transaction.amount;
+            }
+        });
+        
+        const netBalance = entityIn - entityOut;
+        totalBalance += netBalance;
+        
+        const balanceColor = netBalance >= 0 ? 'profit-val' : 'cost-val';
+        const balancePrefix = netBalance >= 0 ? '+' : '';
+        
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td style="text-align:left;">
+                <div style="display:flex; flex-direction:column; gap:2px;">
+                    <strong>${entity.name}</strong>
+                    ${entity.phone ? `<div style="font-size:0.7rem; color:var(--text-muted);">${entity.phone}</div>` : ''}
+                </div>
+            </td>
+            <td style="text-align:center; font-weight:800;" class="${balanceColor}">
+                ${balancePrefix}Rs ${Math.abs(netBalance).toFixed(2)}
+            </td>
+            <td style="text-align:center; color:var(--text-muted); font-weight:700;">
+                ${entityTransactions.length}
+            </td>
+            <td style="text-align:center;">
+                <div style="display:flex; gap:5px; justify-content:center;">
+                    <button class="btn-theme" onclick="selectEntity(${entity.id})" style="padding:2px 8px; font-size:0.7rem;" title="Select">Select</button>
+                    <button class="btn-theme" onclick="editEntity(${entity.id})" style="padding:2px 8px; font-size:0.7rem;" title="Edit">Edit</button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+    
+    // Update footer total balance
+    if (footer) {
+        const totalBalanceColor = totalBalance >= 0 ? 'profit-val' : 'cost-val';
+        const totalBalancePrefix = totalBalance >= 0 ? '+' : '';
+        
+        const totalBalanceElement = document.getElementById('entityListTotalBalance');
+        if (totalBalanceElement) {
+            totalBalanceElement.textContent = `${totalBalancePrefix}Rs ${Math.abs(totalBalance).toFixed(2)}`;
+            totalBalanceElement.className = totalBalanceColor;
+        }
+        
+        footer.style.display = 'table-row';
+    }
+}
+
+function renderEntityCards() {
+    const entityListBody = document.getElementById('entityListBody');
+    const footer = document.getElementById('entityListFooter');
+    
+    if (!entityListBody) return;
+    
+    entityListBody.innerHTML = '';
+    
+    if (!paymentEntities || paymentEntities.length === 0) {
+        entityListBody.innerHTML = `
+            <tr>
+                <td colspan="4" style="text-align:center; padding:20px; color:var(--text-muted);">
+                    No entities found. Click the <span style="color:var(--accent);">✨</span> button to add entities.
+                </td>
+            </tr>
+        `;
+        if (footer) footer.style.display = 'none';
+        return;
+    }
+    
+    // Sort entities by name
+    const sortedEntities = [...paymentEntities].sort((a, b) => a.name.localeCompare(b.name));
+    
+    // Create a responsive grid for cards
+    const cardsContainer = document.createElement('div');
+    cardsContainer.className = 'entity-grid';
+    cardsContainer.style.gridTemplateColumns = 'repeat(auto-fill, minmax(200px, 1fr))';
+    
+    sortedEntities.forEach(entity => {
+        // Calculate entity balance
+        const entityTransactions = paymentTransactions.filter(t => t.entityId === entity.id);
+        let entityIn = 0, entityOut = 0;
+        
+        entityTransactions.forEach(transaction => {
+            if (transaction.type === 'IN') {
+                entityIn += transaction.amount;
+            } else if (transaction.type === 'OUT') {
+                entityOut += transaction.amount;
+            }
+        });
+        
+        const netBalance = entityIn - entityOut;
+        const balanceColor = netBalance >= 0 ? 'profit-val' : 'cost-val';
+        const balancePrefix = netBalance >= 0 ? '+' : '';
+        
+        const card = document.createElement('div');
+        card.className = 'entity-card liquid-card';
+        card.style.position = 'relative';
+        card.style.padding = '12px';
+        card.style.minHeight = 'auto';
+        
+        card.innerHTML = `
+            <div class="customer-name" style="margin-bottom:8px; font-size:0.9rem;">
+                ${entity.name}
+            </div>
+            
+            ${entity.phone ? `
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:5px;">
+                📱 ${entity.phone}
+            </div>
+            ` : ''}
+            
+            <hr style="margin:8px 0;">
+            
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                <span style="font-size:0.75rem; color:var(--text-muted);">Balance:</span>
+                <span class="${balanceColor}" style="font-weight:800; font-size:0.9rem;">
+                    ${balancePrefix}Rs ${Math.abs(netBalance).toFixed(2)}
+                </span>
+            </div>
+            
+            <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+                <span style="font-size:0.75rem; color:var(--text-muted);">Transactions:</span>
+                <span style="font-weight:700; color:var(--text-main);">${entityTransactions.length}</span>
+            </div>
+            
+            <div style="display:flex; gap:5px;">
+                <button class="btn btn-sm" style="flex:1; padding:4px 6px; font-size:0.7rem; background:var(--accent); color:white;" 
+                        onclick="selectEntity(${entity.id})">
+                    Select
+                </button>
+                <button class="btn btn-sm" style="flex:1; padding:4px 6px; font-size:0.7rem; background:var(--input-bg); color:var(--text-main);" 
+                        onclick="editEntity(${entity.id})">
+                    Edit
+                </button>
+            </div>
+        `;
+        
+        cardsContainer.appendChild(card);
+    });
+    
+    // Clear and add the container
+    entityListBody.innerHTML = '';
+    const row = document.createElement('tr');
+    const cell = document.createElement('td');
+    cell.colSpan = 4;
+    cell.style.padding = '0';
+    cell.appendChild(cardsContainer);
+    row.appendChild(cell);
+    entityListBody.appendChild(row);
+    
+    // Hide footer in card view
+    if (footer) {
+        footer.style.display = 'none';
+    }
+}
+
+function filterEntityList() {
+    const searchTerm = document.getElementById('entity-list-search')?.value.toLowerCase() || '';
+    
+    if (entityListViewType === 'table') {
+        const rows = document.querySelectorAll('#entityListBody tr');
+        rows.forEach(row => {
+            const entityName = row.querySelector('strong')?.textContent.toLowerCase() || '';
+            const phone = row.querySelector('div[style*="font-size:0.7rem"]')?.textContent.toLowerCase() || '';
+            
+            if (entityName.includes(searchTerm) || phone.includes(searchTerm)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    } else {
+        const cards = document.querySelectorAll('#entityListBody .entity-card');
+        cards.forEach(card => {
+            const cardText = card.textContent.toLowerCase();
+            if (cardText.includes(searchTerm)) {
+                card.style.display = '';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    }
+}
+
+function refreshEntityBalances() {
+    refreshEntityList();
+    alert("Entity balances refreshed!");
+}
+
+function viewEntityTransactions(entityId) {
+    const entity = paymentEntities.find(e => e.id === entityId);
+    if (!entity) return;
+    
+    const entityTransactions = paymentTransactions.filter(t => t.entityId === entityId);
+    
+    let message = `Transactions for ${entity.name}\n\n`;
+    
+    if (entityTransactions.length === 0) {
+        message += "No transactions found.";
+    } else {
+        entityTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+        
+        let totalIn = 0, totalOut = 0;
+        
+        entityTransactions.forEach((t, index) => {
+            const typeText = t.type === 'IN' ? 'RECEIVED' : 'PAID';
+            const amount = t.amount.toFixed(2);
+            
+            message += `${index + 1}. ${t.date} ${t.time || ''}\n`;
+            message += `   ${typeText}: Rs ${amount}\n`;
+            message += `   Description: ${t.description}\n`;
+            message += `   ---\n`;
+            
+            if (t.type === 'IN') totalIn += t.amount;
+            else totalOut += t.amount;
+        });
+        
+        const netBalance = totalIn - totalOut;
+        message += `\nSUMMARY:\n`;
+        message += `Total Received: Rs ${totalIn.toFixed(2)}\n`;
+        message += `Total Paid: Rs ${totalOut.toFixed(2)}\n`;
+        message += `Net Balance: Rs ${netBalance.toFixed(2)}\n`;
+    }
+    
+    alert(message);
+}
+
+// FIXED: Update the refreshPaymentTab function - RESTORE original version
+function refreshPaymentTab() {
+    renderEntities();
+    calculateNetCash();
+    calculatePaymentSummaries();
+    refreshEntityList();
+    
+    // Render transaction history
+    const historyList = document.getElementById('paymentHistoryList');
+    if (historyList) {
+        historyList.innerHTML = '';
+        
+        // Sort by date (newest first)
+        const sortedTransactions = [...paymentTransactions].sort((a, b) => b.timestamp - a.timestamp);
+        
+        sortedTransactions.forEach(transaction => {
+            const entity = paymentEntities.find(e => e.id === transaction.entityId);
+            
+            const card = document.createElement('div');
+            card.className = 'card liquid-card';
+            card.innerHTML = `
+                <h4>${transaction.date} @ ${transaction.time}</h4>
+                <div class="customer-name">${entity ? entity.name : 'Unknown Entity'}</div>
+                <p><span>Description:</span> <span>${transaction.description}</span></p>
+                <hr>
+                <p><span>Amount:</span> <span class="${transaction.type === 'IN' ? 'profit-val' : 'cost-val'}">Rs ${safeValue(transaction.amount).toFixed(2)}</span></p>
+                <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="deletePaymentTransaction(${transaction.id})">Delete</button>
+            `;
+            historyList.appendChild(card);
+        });
+        
+        if (sortedTransactions.length === 0) {
+            historyList.innerHTML = '<p style="text-align:center; color:var(--text-muted); width:100%; font-size:0.85rem;">No payment transactions found.</p>';
+        }
+    }
+}
     // --- Backup & Restore ---
     function unifiedBackup() {
         const data = { 
