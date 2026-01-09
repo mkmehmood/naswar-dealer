@@ -1,27 +1,15 @@
 {
-  "name": "Gull And Zubair",
-  "short_name": "Gull And Zubair",
-  "description": "Production, Sales, and Factory Management for Naswar Business",
-  "start_url": "https://mkmehmood.github.io/naswar-dealer/",
-  "scope": "/naswar-dealer/",
-  "display": "standalone",
-  "background_color": "#2563eb",
-  "theme_color": "#2563eb",
-  "orientation": "portrait-primary",
-  "lang": "en",
+  "background_color": "#ffffff",
   "dir": "ltr",
+  "display": "standalone",
+  "name": "Gull And Zubair",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "short_name": "Gull And Zubair",
+  "start_url": "https://mkmehmood.github.io/naswar-dealer/",
+  "theme_color": "#2563eb",
+  "lang": "en",
   "categories": [
-    "business",
-    "finance",
-    "productivity"
-  ],
-  "icon":
-
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable any"
-    }
+    "business"
   ]
 }
