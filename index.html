@@ -1567,6 +1567,156 @@
         .factory-date-selector {
             margin-bottom: 15px;
         }
+        
+        /* Entity Grid Styles */
+        .entity-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+            margin-top: 15px;
+        }
+        
+        .entity-card {
+            background: var(--card-hover);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 15px;
+            position: relative;
+            transition: all 0.3s;
+            backdrop-filter: var(--backdrop-blur);
+        }
+        
+        .entity-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow);
+        }
+        
+        .entity-type-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.6rem;
+            font-weight: 800;
+            color: white;
+            text-transform: uppercase;
+            backdrop-filter: var(--backdrop-blur);
+        }
+        
+        .entity-type-payee {
+            background: linear-gradient(135deg, var(--danger) 0%, #b91c1c 100%);
+        }
+        
+        .entity-type-payor {
+            background: linear-gradient(135deg, var(--accent-emerald) 0%, #047857 100%);
+        }
+        
+        /* Net Cash Dashboard Styles */
+        .net-cash-dashboard {
+            background: linear-gradient(135deg, rgba(37, 99, 235, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%);
+            border: 2px solid var(--highlight-border);
+            padding: 25px;
+            margin-bottom: 25px;
+        }
+        
+        .net-cash-value {
+            font-size: 3rem;
+            font-weight: 800;
+            text-align: center;
+            margin: 20px 0;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-emerald) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .formula-breakdown {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 15px;
+            border-top: 1px solid var(--glass-border);
+            padding-top: 15px;
+        }
+        
+        .formula-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+        }
+        
+        .formula-value {
+            font-weight: 700;
+        }
+        
+        /* Horizontal Entity Scroller */
+        .entity-scroller {
+            display: flex;
+            overflow-x: auto;
+            gap: 10px;
+            padding: 10px 0;
+            margin: 15px 0;
+            scrollbar-width: thin;
+        }
+        
+        .entity-scroller::-webkit-scrollbar {
+            height: 6px;
+        }
+        
+        .entity-scroller::-webkit-scrollbar-track {
+            background: var(--input-bg);
+            border-radius: 3px;
+        }
+        
+        .entity-scroller::-webkit-scrollbar-thumb {
+            background: var(--accent);
+            border-radius: 3px;
+        }
+        
+        .entity-chip {
+            flex: 0 0 auto;
+            padding: 8px 16px;
+            background: var(--input-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            font-size: 0.8rem;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .entity-chip:hover {
+            background: var(--card-hover);
+            transform: translateY(-2px);
+        }
+        
+        .entity-chip.active {
+            background: linear-gradient(135deg, var(--accent) 0%, #1d4ed8 100%);
+            color: white;
+            border-color: transparent;
+        }
+        
+        /* Payment Transaction Cards */
+        .transaction-badge {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 9px;
+            font-weight: 800;
+            color: white;
+            text-transform: uppercase;
+            backdrop-filter: var(--backdrop-blur);
+        }
+        
+        .transaction-in {
+            background: linear-gradient(135deg, var(--accent-emerald) 0%, #047857 100%);
+        }
+        
+        .transaction-out {
+            background: linear-gradient(135deg, var(--danger) 0%, #b91c1c 100%);
+        }
     </style>
 </head>
 <body>
@@ -1707,6 +1857,46 @@
     </div>
 </div>
 
+<!-- Entity Management Overlay -->
+<div id="entityManagementOverlay" class="factory-overlay">
+    <div class="factory-overlay-card liquid-card">
+        <div class="section-header">
+            <h3 id="entityManagementModalTitle">Add Entity</h3>
+            <button class="btn-theme" onclick="closeEntityManagement()">✕</button>
+        </div>
+        
+        <div class="grid-inputs">
+            <div class="field">
+                <label>Entity Name</label>
+                <input type="text" id="entityName" placeholder="Name">
+            </div>
+            <div class="field">
+                <label>Type</label>
+                <select id="entityType">
+                    <option value="payee">Payee (We pay them)</option>
+                    <option value="payor">Payor (They pay us)</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="grid-inputs">
+            <div class="field">
+                <label>Phone Number</label>
+                <input type="tel" id="entityPhone" placeholder="Phone">
+            </div>
+            <div class="field">
+                <label>Wallet Details</label>
+                <input type="text" id="entityWallet" placeholder="Wallet/Account Details">
+            </div>
+        </div>
+        
+        <div style="margin-top:20px; display:flex; gap:10px;">
+            <button class="btn btn-danger" id="deleteEntityBtn" onclick="deleteEntity()" style="display:none; flex:1;">Delete</button>
+            <button class="btn btn-noman" onclick="saveEntity()" style="flex:2;">Save Entity</button>
+        </div>
+    </div>
+</div>
+
 <!-- AESTHETIC SPLASH SCREEN -->
 <div id="splash-screen">
     <!-- Flower Decorations -->
@@ -1745,6 +1935,7 @@
         <button class="tab-btn" onclick="showTab('sales')">SALES</button>
         <button class="tab-btn" onclick="showTab('calc')">CALCULATOR</button>
         <button class="tab-btn" onclick="showTab('factory')">FACTORY</button>
+        <button class="tab-btn" onclick="showTab('payments')">PAYMENTS</button>
     </div>
 
     <!-- PRODUCTION TAB -->
@@ -1790,6 +1981,21 @@
                         <option value="STORE_B">MAHMOOD</option>
                         <option value="STORE_C">ASAAN</option>
                     </select>
+                </div>
+            </div>
+
+            <!-- Payment Status Toggle (Visible only for STORE_C) -->
+            <div id="paymentStatusContainer" class="hidden" style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 8px; font-size: 0.7rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">Payment Status:</label>
+                <div class="payment-type-container">
+                    <div class="payment-option">
+                        <input type="radio" id="production-payment-cash" name="production-payment-type" value="CASH" checked>
+                        <label for="production-payment-cash">Cash</label>
+                    </div>
+                    <div class="payment-option">
+                        <input type="radio" id="production-payment-credit" name="production-payment-type" value="CREDIT">
+                        <label for="production-payment-credit">Credit</label>
+                    </div>
                 </div>
             </div>
 
@@ -2505,6 +2711,156 @@
             </div>
         </div>
     </div>
+
+    <!-- PAYMENTS TAB -->
+    <div id="tab-payments" class="hidden">
+        <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+            <h1 style="color:var(--text-main); font-weight:800; margin:0;" class="shimmer-text">Payments</h1>
+            <button class="btn-theme" onclick="openEntityManagement()">+ Manage Entities</button>
+        </header>
+
+        <!-- Net Cash Dashboard -->
+        <div class="section liquid-card net-cash-dashboard">
+            <h3 style="color:var(--accent); margin-top:0; text-align:center;">CASH IN HAND</h3>
+            <div class="net-cash-value" id="netCashValue">Rs 0.00</div>
+            
+            <div class="formula-breakdown">
+                <div class="formula-item">
+                    <span>A. Cash Production Value:</span>
+                    <span class="formula-value" id="formulaA">Rs 0.00</span>
+                </div>
+                <div class="formula-item">
+                    <span>B. Sales Tab Credits:</span>
+                    <span class="formula-value" id="formulaB">Rs 0.00</span>
+                </div>
+                <div class="formula-item">
+                    <span>C. Calculator Tab Credits:</span>
+                    <span class="formula-value" id="formulaC">Rs 0.00</span>
+                </div>
+                <div class="formula-item">
+                    <span>D. Sales Tab Cash Received:</span>
+                    <span class="formula-value" id="formulaD">Rs 0.00</span>
+                </div>
+                <div class="formula-item">
+                    <span>E. Calculator Discrepancies:</span>
+                    <span class="formula-value" id="formulaE">Rs 0.00</span>
+                </div>
+                <div class="formula-item">
+                    <span>F. Payment Flows (In - Out):</span>
+                    <span class="formula-value" id="formulaF">Rs 0.00</span>
+                </div>
+                <hr style="margin: 10px 0; border-color: var(--glass-border);">
+                <div class="formula-item" style="font-weight:800; color:var(--text-main);">
+                    <span>Net Cash = A - B - C + D + E + F</span>
+                    <span class="formula-value" id="formulaFinal">Rs 0.00</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Entity Selection -->
+        <div class="section liquid-card">
+            <div class="section-header">
+                <h3 style="color:var(--text-main); margin:0;">Quick Entity Selection</h3>
+            </div>
+            <div class="entity-scroller" id="entityScroller">
+                <!-- Entities will be populated by JavaScript -->
+            </div>
+            <div style="text-align:center; margin-top:10px; font-size:0.75rem; color:var(--text-muted);">
+                Click an entity to select it for transaction
+            </div>
+        </div>
+
+        <!-- Transaction Entry -->
+        <div class="section liquid-card">
+            <h3 style="color:var(--accent); margin-top:0;">New Payment Transaction</h3>
+            
+            <div class="grid-inputs">
+                <div class="field">
+                    <label>Entity</label>
+                    <select id="paymentEntity" class="store-selector">
+                        <option value="">Select Entity</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Date</label>
+                    <input type="date" id="paymentDate">
+                </div>
+            </div>
+            
+            <div class="grid-inputs">
+                <div class="field">
+                    <label>Amount (Rs)</label>
+                    <input type="number" id="paymentAmount" step="0.01" min="0">
+                </div>
+                <div class="field">
+                    <label>Description</label>
+                    <input type="text" id="paymentDescription" placeholder="Purpose of payment">
+                </div>
+            </div>
+            
+            <div class="field" style="margin-bottom: 15px;">
+                <label>Transaction Type:</label>
+                <div class="payment-type-container">
+                    <div class="payment-option">
+                        <input type="radio" id="payment-type-out" name="paymentTransactionType" value="OUT" checked>
+                        <label for="payment-type-out">Payment OUT (We pay them)</label>
+                    </div>
+                    <div class="payment-option">
+                        <input type="radio" id="payment-type-in" name="paymentTransactionType" value="IN">
+                        <label for="payment-type-in">Payment IN (They pay us)</label>
+                    </div>
+                </div>
+            </div>
+            
+            <button class="btn btn-main" onclick="savePaymentTransaction()">Save Transaction</button>
+        </div>
+
+        <!-- Summary Reports -->
+        <div class="section-header">
+            <h3>Payment Summary</h3>
+        </div>
+        <div class="report-grid">
+            <div class="card highlight-card liquid-card">
+                <h4>Daily Payments</h4>
+                <p><span>Total IN:</span> <span class="profit-val" id="payments-day-in">Rs 0.00</span></p>
+                <p><span>Total OUT:</span> <span class="cost-val" id="payments-day-out">Rs 0.00</span></p>
+                <p><span>Net Flow:</span> <span class="rev-val" id="payments-day-net">Rs 0.00</span></p>
+                <p><span>Transaction Count:</span> <span class="qty-val" id="payments-day-count">0</span></p>
+            </div>
+            <div class="card liquid-card">
+                <h4>Weekly Payments</h4>
+                <p><span>Total IN:</span> <span class="profit-val" id="payments-week-in">Rs 0.00</span></p>
+                <p><span>Total OUT:</span> <span class="cost-val" id="payments-week-out">Rs 0.00</span></p>
+                <p><span>Net Flow:</span> <span class="rev-val" id="payments-week-net">Rs 0.00</span></p>
+                <p><span>Transaction Count:</span> <span class="qty-val" id="payments-week-count">0</span></p>
+            </div>
+            <div class="card liquid-card">
+                <h4>Monthly Payments</h4>
+                <p><span>Total IN:</span> <span class="profit-val" id="payments-month-in">Rs 0.00</span></p>
+                <p><span>Total OUT:</span> <span class="cost-val" id="payments-month-out">Rs 0.00</span></p>
+                <p><span>Net Flow:</span> <span class="rev-val" id="payments-month-net">Rs 0.00</span></p>
+                <p><span>Transaction Count:</span> <span class="qty-val" id="payments-month-count">0</span></p>
+            </div>
+            <div class="card liquid-card">
+                <h4>Yearly Payments</h4>
+                <p><span>Total IN:</span> <span class="profit-val" id="payments-year-in">Rs 0.00</span></p>
+                <p><span>Total OUT:</span> <span class="cost-val" id="payments-year-out">Rs 0.00</span></p>
+                <p><span>Net Flow:</span> <span class="rev-val" id="payments-year-net">Rs 0.00</span></p>
+                <p><span>Transaction Count:</span> <span class="qty-val" id="payments-year-count">0</span></p>
+            </div>
+        </div>
+
+        <!-- Transaction History -->
+        <div class="section-header" style="margin-top:25px;">
+            <h3>Payment History</h3>
+        </div>
+        
+        <div class="section liquid-card">
+            <input type="text" id="payment-search" class="search-bar" placeholder=" Search payment history by entity or description..." oninput="filterPaymentHistory()">
+        </div>
+
+        <div id="paymentHistoryList" class="report-grid"></div>
+    </div>
 </div>
 
 <script>
@@ -2555,6 +2911,10 @@
         }
     };
     
+    // NEW: Payment entities and transactions
+    let paymentEntities = JSON.parse(localStorage.getItem('payment_entities')) || [];
+    let paymentTransactions = JSON.parse(localStorage.getItem('payment_transactions')) || [];
+    
     // Default settings
     let defaultSettings = JSON.parse(localStorage.getItem('naswar_default_settings')) || {
         production: {
@@ -2593,6 +2953,10 @@
     let editingFactoryInventoryId = null;
     let currentFactoryDate = new Date().toISOString().split('T')[0]; // Default to today
     
+    // Payment tab variables
+    let editingEntityId = null;
+    let selectedEntityId = null;
+    
     // Percentage toggle states
     let mfgPieChartShowPercentage = false;
     let custPaymentChartShowPercentage = false;
@@ -2624,302 +2988,619 @@
         }, 3800);
     }
 
-    // --- FACTORY DATE SELECTION FUNCTIONALITY ---
-    function refreshFactoryTab() {
-        currentFactoryDate = document.getElementById('factory-date').value;
-        updateFactorySummaryCard();
-        updateFactoryUnitsAvailableStats();
-        renderFactoryHistory();
+    // --- PRODUCTION TAB: CREDIT SALES FEATURE ---
+    function updatePaymentStatusVisibility() {
+        const storeSelector = document.getElementById('storeSelector');
+        const paymentStatusContainer = document.getElementById('paymentStatusContainer');
+        
+        if (storeSelector.value === 'STORE_C') {
+            paymentStatusContainer.classList.remove('hidden');
+        } else {
+            paymentStatusContainer.classList.add('hidden');
+            // Reset to cash when not STORE_C
+            document.getElementById('production-payment-cash').checked = true;
+        }
     }
 
-    // --- FIXED: Factory Performance Summary Calculations ---
-    function updateFactorySummaryCard() {
-        const selectedDate = currentFactoryDate || new Date().toISOString().split('T')[0];
+    // Update recordEntry to include payment status
+    function recordEntry() {
+        const net = parseFloat(document.getElementById('net-wt').value) || 0;
+        const inputDate = document.getElementById('sys-date').value;
+        const store = document.getElementById('storeSelector').value;
+        const formulaUnits = parseFloat(document.getElementById('formula-units').value) || 0;
+        
+        let formulaStore = 'standard';
+        let salePrice = 0;
+        
+        if (store === 'STORE_C') {
+            formulaStore = 'asaan';
+            salePrice = factorySalePrices.asaan || 0;
+        } else {
+            salePrice = factorySalePrices.standard || 0;
+        }
+
+        const validation = validateFormulaAvailability(store, formulaUnits);
+        if (!validation.sufficient) {
+            alert(`Insufficient formula units! Available: ${validation.available}, Requested: ${formulaUnits}`);
+            return;
+        }
+
+        const costData = calculateDynamicCost(store, formulaUnits, net);
+
+        if (net <= 0) {
+            alert("Net production must be greater than zero. Please check weights.");
+            return;
+        }
+        if (!inputDate) {
+            alert("Please select a date.");
+            return;
+        }
+        if (salePrice <= 0) {
+            alert("Please set a sale price in Factory Formulas first.");
+            return;
+        }
+        if (formulaUnits <= 0) {
+            alert("Please enter formula units used.");
+            return;
+        }
+
+        const totalCost = net * costData.dynamicCostPerKg;
+        const totalSale = net * salePrice;
+        const profit = totalSale - totalCost;
+        
+        // Get payment status (only for STORE_C)
+        let paymentStatus = 'CASH';
+        if (store === 'STORE_C') {
+            const paymentType = document.querySelector('input[name="production-payment-type"]:checked');
+            paymentStatus = paymentType ? paymentType.value : 'CASH';
+        }
+
+        const now = new Date();
+        let hours = now.getHours();
+        const minutes = now.getMinutes();
+        const seconds = now.getSeconds();
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12;
+        hours = hours ? hours : 12;
+        const timeString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} ${ampm}`;
+
+        db.push({
+            id: Date.now(), 
+            date: inputDate,
+            time: timeString,
+            store: store,
+            net, 
+            cp: costData.dynamicCostPerKg, 
+            sp: salePrice, 
+            totalCost, 
+            totalSale, 
+            profit,
+            formulaUnits: formulaUnits,
+            formulaStore: costData.formulaStore,
+            formulaCost: costData.totalFormulaCost,
+            paymentStatus: paymentStatus, // NEW: Add payment status
+            timestamp: new Date(inputDate).getTime()
+        });
+        
+        localStorage.setItem('mfg_pro_pkr', JSON.stringify(db));
+        
+        syncFactoryProductionStats();
+        
+        document.getElementById('gross-wt').value = '';
+        document.getElementById('cont-wt').value = '';
+        document.getElementById('net-wt').value = '';
+        document.getElementById('formula-units').value = '1';
+        document.getElementById('display-cost-value').innerText = 'Rs 0.00';
+        document.getElementById('profit-per-kg').innerText = 'Rs 0.00';
+        document.getElementById('formula-unit-cost-display').innerText = 'Rs 0.00/unit';
+        document.getElementById('total-formula-cost-display').innerText = 'Rs 0.00';
+        document.getElementById('dynamic-cost-per-kg').innerText = 'Rs 0.00/kg';
+        
+        refreshAllDisplays();
+        alert("Production record saved successfully!");
+    }
+
+    // Update refreshUI to show payment status in history
+    function refreshUI() {
+        const selectedDate = document.getElementById('sys-date').value;
+        if (!selectedDate) return;
+        
         const selectedDateObj = new Date(selectedDate);
         const selectedYear = selectedDateObj.getFullYear();
         const selectedMonth = selectedDateObj.getMonth();
         const selectedDay = selectedDateObj.getDate();
         
-        // Get the appropriate date range based on mode
-        let startDate = new Date(selectedDateObj);
-        let endDate = new Date(selectedDateObj);
+        const weekStart = new Date(selectedDateObj);
+        weekStart.setDate(selectedDay - 6);
         
-        switch(currentFactorySummaryMode) {
-            case 'daily':
-                startDate = new Date(selectedDateObj);
-                endDate = new Date(selectedDateObj);
-                break;
-            case 'weekly':
-                startDate = new Date(selectedDateObj);
-                startDate.setDate(selectedDay - 6);
-                endDate = new Date(selectedDateObj);
-                break;
-            case 'monthly':
-                startDate = new Date(selectedYear, selectedMonth, 1);
-                endDate = new Date(selectedYear, selectedMonth + 1, 0);
-                break;
-            case 'yearly':
-                startDate = new Date(selectedYear, 0, 1);
-                endDate = new Date(selectedYear, 11, 31);
-                break;
-            case 'all':
-                // All times - no date filtering
-                startDate = null;
-                endDate = null;
-                break;
+        let stats = { 
+            day: {q:0, p:0, c:0, v:0, fu:0, fc:0}, 
+            week: {q:0, p:0, c:0, v:0, fu:0, fc:0}, 
+            month: {q:0, p:0, c:0, v:0, fu:0, fc:0}, 
+            year: {q:0, p:0, c:0, v:0, fu:0, fc:0},
+            all: {q:0, p:0, c:0, v:0, fu:0, fc:0}
+        };
+        
+        const histContainer = document.getElementById('prodHistoryList');
+        
+        let filteredData = currentProductionView === 'combined' ? db : db.filter(item => item.store === currentStore);
+
+        const sortedDb = [...filteredData].sort((a,b) => {
+            if (a.date === selectedDate && b.date !== selectedDate) return -1;
+            if (a.date !== selectedDate && b.date === selectedDate) return 1;
+            return new Date(b.date) - new Date(a.date) || b.id - a.id;
+        });
+
+        let htmlBuffer = '';
+
+        sortedDb.forEach(item => {
+            const rowDate = new Date(item.date);
+            const rowYear = rowDate.getFullYear();
+            const rowMonth = rowDate.getMonth();
+            
+            if(item.date === selectedDate) { 
+                stats.day.q += item.net; stats.day.p += item.profit; stats.day.c += item.totalCost;
+                stats.day.v += item.totalSale; stats.day.fu += (item.formulaUnits || 0); stats.day.fc += (item.formulaCost || 0);
+            }
+            if(rowDate >= weekStart && rowDate <= selectedDateObj) { 
+                stats.week.q += item.net; stats.week.p += item.profit; stats.week.c += item.totalCost;
+                stats.week.v += item.totalSale; stats.week.fu += (item.formulaUnits || 0); stats.week.fc += (item.formulaCost || 0);
+            }
+            if(rowYear === selectedYear && rowMonth === selectedMonth) { 
+                stats.month.q += item.net; stats.month.p += item.profit; stats.month.c += item.totalCost;
+                stats.month.v += item.totalSale; stats.month.fu += (item.formulaUnits || 0); stats.month.fc += (item.formulaCost || 0);
+            }
+            if(rowYear === selectedYear) { 
+                stats.year.q += item.net; stats.year.p += item.profit; stats.year.c += item.totalCost;
+                stats.year.v += item.totalSale; stats.year.fu += (item.formulaUnits || 0); stats.year.fc += (item.formulaCost || 0);
+            }
+            
+            stats.all.q += item.net; stats.all.p += item.profit; stats.all.c += item.totalCost;
+            stats.all.v += item.totalSale; stats.all.fu += (item.formulaUnits || 0); stats.all.fc += (item.formulaCost || 0);
+
+            const isSelected = item.date === selectedDate;
+            const highlightClass = isSelected ? 'highlight-card' : '';
+            const dateDisplay = isSelected ? `${item.date} (Selected)` : item.date;
+            const storeBadgeClass = item.store === 'STORE_A' ? 'store-a' : item.store === 'STORE_B' ? 'store-b' : 'store-c';
+            const storeLabel = item.store === 'STORE_A' ? 'ZUBAIR' : item.store === 'STORE_B' ? 'MAHMOOD' : 'ASAAN';
+            
+            // Add payment status badge for STORE_C
+            let paymentBadge = '';
+            if (item.store === 'STORE_C' && item.paymentStatus === 'CREDIT') {
+                paymentBadge = `<span class="payment-badge credit" style="top: 35px; right: 12px;">CREDIT</span>`;
+            }
+
+            htmlBuffer += `
+                <div class="card liquid-card ${highlightClass}">
+                    ${currentProductionView === 'combined' ? `<span class="store-badge ${storeBadgeClass}">${storeLabel}</span>` : ''}
+                    ${paymentBadge}
+                    <h4>${dateDisplay} @ ${item.time}</h4>
+                    <p><span>Net Weight:</span> <span class="qty-val">${item.net.toFixed(3)} kg</span></p>
+                    <p><span>Cost Price:</span> <span class="cost-val">Rs ${item.cp.toFixed(2)}/kg</span></p>
+                    <p><span>Sale Price:</span> <span class="rev-val">Rs ${item.sp.toFixed(2)}/kg</span></p>
+                    <hr>
+                    <p><span>Total Cost:</span> <span class="cost-val">Rs ${item.totalCost.toFixed(2)}</span></p>
+                    <p><span>Total Value:</span> <span class="rev-val">Rs ${item.totalSale.toFixed(2)}</span></p>
+                    <p><span>Net Profit:</span> <span class="profit-val">Rs ${item.profit.toFixed(2)}</span></p>
+                    ${item.paymentStatus === 'CREDIT' ? `<p><span>Payment:</span> <span class="cost-val" style="color:var(--credit-color);">Credit</span></p>` : ''}
+                    ${item.formulaUnits ? `<p><span>Formula Units:</span> <span class="qty-val">${item.formulaUnits.toFixed(3)}</span></p>` : ''}
+                    ${item.formulaCost ? `<p><span>Formula Cost:</span> <span class="cost-val">Rs ${item.formulaCost.toFixed(2)}</span></p>` : ''}
+                    <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="deleteProdEntry(${item.id})">Delete</button>
+                </div>
+            `;
+        });
+        
+        histContainer.innerHTML = htmlBuffer || `<p style="text-align:center; color:var(--text-muted); width:100%; font-size:0.85rem;">No records found for this selection.</p>`;
+
+        const updateStats = (idPrefix, statObj) => {
+            document.getElementById(`${idPrefix}-qty`).innerText = `${safeValue(statObj.q).toFixed(3)} kg`;
+            document.getElementById(`${idPrefix}-value`).innerText = `Rs ${safeValue(statObj.v).toFixed(2)}`;
+            document.getElementById(`${idPrefix}-cost`).innerText = `Rs ${safeValue(statObj.c).toFixed(2)}`;
+            document.getElementById(`${idPrefix}-profit`).innerText = `Rs ${safeValue(statObj.p).toFixed(2)}`;
+            document.getElementById(`${idPrefix}-formula-units`).innerText = `${safeValue(statObj.fu).toFixed(3)}`;
+            document.getElementById(`${idPrefix}-formula-cost`).innerText = `Rs ${safeValue(statObj.fc).toFixed(2)}`;
+        };
+
+        updateStats('day', stats.day);
+        updateStats('week', stats.week);
+        updateStats('month', stats.month);
+        updateStats('year', stats.year);
+        updateStats('all', stats.all);
+        
+        updateMfgCharts();
+        if (currentProductionView === 'combined') {
+            updateAllStoresOverview(currentOverviewMode);
         }
+        
+        updateUnitsAvailableIndicator();
+    }
 
-        // Initialize stats for both stores
-        const stats = {
-            standard: {
-                unitsProduced: 0,
-                unitsConsumed: 0,
-                totalProductionCost: 0,
-                rawMaterialsUsed: 0,
-                materialsValue: 0,
-                outputQuantity: 0,
-                totalSaleValue: 0,
-                totalProfit: 0
-            },
-            asaan: {
-                unitsProduced: 0,
-                unitsConsumed: 0,
-                totalProductionCost: 0,
-                rawMaterialsUsed: 0,
-                materialsValue: 0,
-                outputQuantity: 0,
-                totalSaleValue: 0,
-                totalProfit: 0
+    // --- PAYMENTS TAB: ENTITY MANAGEMENT ---
+    function openEntityManagement() {
+        document.getElementById('entityManagementOverlay').style.display = 'flex';
+        document.getElementById('entityManagementModalTitle').innerText = 'Add Entity';
+        document.getElementById('deleteEntityBtn').style.display = 'none';
+        clearEntityForm();
+        editingEntityId = null;
+    }
+    
+    function closeEntityManagement() {
+        document.getElementById('entityManagementOverlay').style.display = 'none';
+    }
+    
+    function clearEntityForm() {
+        document.getElementById('entityName').value = '';
+        document.getElementById('entityType').value = 'payee';
+        document.getElementById('entityPhone').value = '';
+        document.getElementById('entityWallet').value = '';
+    }
+    
+    function saveEntity() {
+        const name = document.getElementById('entityName').value.trim();
+        const type = document.getElementById('entityType').value;
+        const phone = document.getElementById('entityPhone').value.trim();
+        const wallet = document.getElementById('entityWallet').value.trim();
+        
+        if (!name) {
+            alert("Please enter entity name");
+            return;
+        }
+        
+        if (editingEntityId) {
+            // Update existing entity
+            const index = paymentEntities.findIndex(e => e.id === editingEntityId);
+            if (index !== -1) {
+                paymentEntities[index] = {
+                    ...paymentEntities[index],
+                    name,
+                    type,
+                    phone,
+                    wallet,
+                    updatedAt: Date.now()
+                };
             }
-        };
-
-        // 1. Calculate factory production data for selected period
-        factoryProductionHistory.forEach(entry => {
-            const entryDate = new Date(entry.date);
-            
-            // Check if entry is within date range
-            let includeEntry = false;
-            if (currentFactorySummaryMode === 'all') {
-                includeEntry = true;
-            } else if (startDate && endDate) {
-                includeEntry = entryDate >= startDate && entryDate <= endDate;
-            }
-            
-            if (includeEntry && stats[entry.store]) {
-                stats[entry.store].unitsProduced += entry.units;
-                stats[entry.store].totalProductionCost += entry.totalCost;
-                stats[entry.store].rawMaterialsUsed += entry.rawMaterialsUsed;
-                stats[entry.store].materialsValue += entry.materialsCost || 0;
-            }
-        });
-
-        // 2. Calculate production tab consumption data for selected period
-        db.forEach(productionEntry => {
-            const productionDate = new Date(productionEntry.date);
-            const entryStore = productionEntry.formulaStore || 'standard';
-            
-            // Check if entry is within date range
-            let includeEntry = false;
-            if (currentFactorySummaryMode === 'all') {
-                includeEntry = true;
-            } else if (startDate && endDate) {
-                includeEntry = productionDate >= startDate && productionDate <= endDate;
-            }
-            
-            if (includeEntry && stats[entryStore]) {
-                stats[entryStore].unitsConsumed += productionEntry.formulaUnits || 0;
-                stats[entryStore].outputQuantity += productionEntry.net || 0;
-                stats[entryStore].totalSaleValue += productionEntry.totalSale || 0;
-                
-                // Calculate profit for this production entry
-                const productionProfit = productionEntry.profit || 0;
-                stats[entryStore].totalProfit += productionProfit;
-            }
-        });
-
-        // 3. Calculate derived metrics for each store
-        ['standard', 'asaan'].forEach(store => {
-            const storeStats = stats[store];
-            
-            // Available Units = Total produced units - used units by production tab
-            storeStats.availableUnits = Math.max(0, storeStats.unitsProduced - storeStats.unitsConsumed);
-            
-            // Used Units = produced units - available units (or simply unitsConsumed)
-            storeStats.usedUnits = storeStats.unitsConsumed;
-            
-            // Per Unit Cost = (raw material cost + additional cost) / weight of the unit
-            // Get formula weight for this store
-            const formula = factoryDefaultFormulas[store] || [];
-            let unitWeight = 0;
-            formula.forEach(item => {
-                unitWeight += item.quantity || 0;
+        } else {
+            // Add new entity
+            paymentEntities.push({
+                id: Date.now(),
+                name,
+                type,
+                phone,
+                wallet,
+                createdAt: Date.now(),
+                updatedAt: Date.now()
             });
-            
-            const additionalCost = factoryAdditionalCosts[store] || 0;
-            const rawMaterialCostPerUnit = storeStats.unitsProduced > 0 ? 
-                (storeStats.materialsValue / storeStats.unitsProduced) : 0;
-            
-            storeStats.perUnitCost = unitWeight > 0 ? 
-                (rawMaterialCostPerUnit + additionalCost) / unitWeight : 0;
-            
-            // Total Cost Value = sum of the prices of the raw material quantity used
-            storeStats.totalCostValue = storeStats.materialsValue;
-            
-            // Output Quantity = the net production of the production tab (already calculated)
-            
-            // Raw Materials Used = sum of the raw material quantity (already calculated)
-            
-            // Materials Value = sum of the raw material value used (already calculated)
-            
-            // Total Profit = total sale value of the net production - total cost price of units used
-            // This is already calculated from production tab data
-            
-            // Profit Per Unit = per kg sale value - per kg cost price of units used
-            const totalCostOfUsedUnits = storeStats.perUnitCost * unitWeight * storeStats.usedUnits;
-            const avgSalePricePerKg = storeStats.outputQuantity > 0 ? 
-                storeStats.totalSaleValue / storeStats.outputQuantity : 0;
-            const avgCostPricePerKg = storeStats.outputQuantity > 0 ? 
-                totalCostOfUsedUnits / storeStats.outputQuantity : 0;
-            
-            storeStats.profitPerUnit = avgSalePricePerKg - avgCostPricePerKg;
-        });
-
-        // 4. Update the display with calculated values
-        // For now, show combined stats of both stores
-        const combinedStats = {
-            availableUnits: stats.standard.availableUnits + stats.asaan.availableUnits,
-            usedUnits: stats.standard.usedUnits + stats.asaan.usedUnits,
-            perUnitCost: (stats.standard.perUnitCost + stats.asaan.perUnitCost) / 2,
-            totalCostValue: stats.standard.totalCostValue + stats.asaan.totalCostValue,
-            outputQuantity: stats.standard.outputQuantity + stats.asaan.outputQuantity,
-            rawMaterialsUsed: stats.standard.rawMaterialsUsed + stats.asaan.rawMaterialsUsed,
-            materialsValue: stats.standard.materialsValue + stats.asaan.materialsValue,
-            totalProfit: stats.standard.totalProfit + stats.asaan.totalProfit,
-            profitPerUnit: (stats.standard.profitPerUnit + stats.asaan.profitPerUnit) / 2
-        };
-
-        // Prevent NaN/undefined errors
-        const safeValue = (value) => isNaN(value) || !isFinite(value) ? 0 : value;
-
-        document.getElementById('factorySumUnits').innerText = safeValue(combinedStats.availableUnits);
-        document.getElementById('factorySumUsedUnits').innerText = safeValue(combinedStats.usedUnits);
-        document.getElementById('factorySumUnitCost').innerText = `PKR ${safeValue(combinedStats.perUnitCost).toFixed(2)}`;
-        document.getElementById('factorySumTotalCost').innerText = `PKR ${safeValue(combinedStats.totalCostValue).toFixed(2)}`;
-        document.getElementById('factorySumOutput').innerText = `${safeValue(combinedStats.outputQuantity).toFixed(2)} kg`;
-        document.getElementById('factorySumRawUsed').innerText = `${safeValue(combinedStats.rawMaterialsUsed).toFixed(2)} kg`;
-        document.getElementById('factorySumMatVal').innerText = `PKR ${safeValue(combinedStats.materialsValue).toFixed(2)}`;
-        document.getElementById('factorySumProfit').innerText = `PKR ${safeValue(combinedStats.totalProfit).toFixed(2)}`;
-        document.getElementById('factorySumProfitUnit').innerText = `PKR ${safeValue(combinedStats.profitPerUnit).toFixed(2)}`;
-    }
-
-    // --- FIXED: Factory Units Available Statistics ---
-    function updateFactoryUnitsAvailableStats() {
-        const selectedDate = currentFactoryDate || new Date().toISOString().split('T')[0];
-        const selectedDateObj = new Date(selectedDate);
+        }
         
-        ['standard', 'asaan'].forEach(store => {
-            // Calculate all-time stats first
-            const allTimeStats = calculateFactoryStatsForStore(store, null, null);
-            
-            // Calculate today's stats
-            const todayStart = new Date(selectedDateObj);
-            const todayEnd = new Date(selectedDateObj);
-            todayEnd.setHours(23, 59, 59, 999);
-            
-            const todayStats = calculateFactoryStatsForStore(store, todayStart, todayEnd);
-            
-            const prefix = store === 'standard' ? 'factoryStd' : 'factoryAsaan';
-            
-            // Show all-time available units
-            document.getElementById(prefix + 'Units').innerText = safeValue(allTimeStats.availableUnits);
-            document.getElementById(prefix + 'UsedUnits').innerText = safeValue(allTimeStats.usedUnits);
-            document.getElementById(prefix + 'UnitCost').innerText = `PKR ${safeValue(allTimeStats.perUnitCost).toFixed(2)}`;
-            document.getElementById(prefix + 'TotalVal').innerText = `PKR ${safeValue(allTimeStats.totalProductionCost).toFixed(2)}`;
-            document.getElementById(prefix + 'Output').innerText = `${safeValue(allTimeStats.outputQuantity).toFixed(2)} kg`;
-            document.getElementById(prefix + 'RawUsed').innerText = `${safeValue(allTimeStats.rawMaterialsUsed).toFixed(2)} kg`;
-            document.getElementById(prefix + 'MatVal').innerText = `PKR ${safeValue(allTimeStats.materialsValue).toFixed(2)}`;
-            document.getElementById(prefix + 'Profit').innerText = `PKR ${safeValue(allTimeStats.totalProfit).toFixed(2)}`;
-            document.getElementById(prefix + 'ProfitUnit').innerText = `PKR ${safeValue(allTimeStats.profitPerUnit).toFixed(2)}`;
-        });
+        localStorage.setItem('payment_entities', JSON.stringify(paymentEntities));
+        closeEntityManagement();
+        refreshPaymentTab();
+        alert("Entity saved successfully!");
     }
-
-    // Helper function to calculate factory stats for a specific store and date range
-    function calculateFactoryStatsForStore(store, startDate, endDate) {
-        const stats = {
-            unitsProduced: 0,
-            unitsConsumed: 0,
-            totalProductionCost: 0,
-            rawMaterialsUsed: 0,
-            materialsValue: 0,
-            outputQuantity: 0,
-            totalSaleValue: 0,
-            totalProfit: 0
-        };
-
-        // Calculate factory production
-        factoryProductionHistory.forEach(entry => {
-            if (entry.store === store) {
-                const entryDate = new Date(entry.date);
-                const includeEntry = !startDate || !endDate || (entryDate >= startDate && entryDate <= endDate);
-                
-                if (includeEntry) {
-                    stats.unitsProduced += entry.units;
-                    stats.totalProductionCost += entry.totalCost;
-                    stats.rawMaterialsUsed += entry.rawMaterialsUsed;
-                    stats.materialsValue += entry.materialsCost || 0;
-                }
+    
+    function deleteEntity() {
+        if (editingEntityId && confirm("Are you sure you want to delete this entity?")) {
+            paymentEntities = paymentEntities.filter(e => e.id !== editingEntityId);
+            localStorage.setItem('payment_entities', JSON.stringify(paymentEntities));
+            closeEntityManagement();
+            refreshPaymentTab();
+            alert("Entity deleted successfully!");
+        }
+    }
+    
+    function editEntity(id) {
+        const entity = paymentEntities.find(e => e.id === id);
+        if (entity) {
+            openEntityManagement();
+            document.getElementById('entityManagementModalTitle').innerText = 'Edit Entity';
+            document.getElementById('deleteEntityBtn').style.display = 'block';
+            
+            document.getElementById('entityName').value = entity.name;
+            document.getElementById('entityType').value = entity.type;
+            document.getElementById('entityPhone').value = entity.phone || '';
+            document.getElementById('entityWallet').value = entity.wallet || '';
+            editingEntityId = id;
+        }
+    }
+    
+    function selectEntity(id) {
+        selectedEntityId = id;
+        const entitySelect = document.getElementById('paymentEntity');
+        entitySelect.value = id;
+        
+        // Update chip selection
+        document.querySelectorAll('.entity-chip').forEach(chip => {
+            chip.classList.remove('active');
+            if (chip.dataset.id == id) {
+                chip.classList.add('active');
             }
         });
-
-        // Calculate production tab consumption
-        db.forEach(productionEntry => {
-            const productionStore = productionEntry.formulaStore || 'standard';
-            if (productionStore === store) {
-                const productionDate = new Date(productionEntry.date);
-                const includeEntry = !startDate || !endDate || (productionDate >= startDate && productionDate <= endDate);
-                
-                if (includeEntry) {
-                    stats.unitsConsumed += productionEntry.formulaUnits || 0;
-                    stats.outputQuantity += productionEntry.net || 0;
-                    stats.totalSaleValue += productionEntry.totalSale || 0;
-                    stats.totalProfit += productionEntry.profit || 0;
-                }
-            }
+    }
+    
+    function renderEntities() {
+        const entityScroller = document.getElementById('entityScroller');
+        const entitySelect = document.getElementById('paymentEntity');
+        
+        entityScroller.innerHTML = '';
+        entitySelect.innerHTML = '<option value="">Select Entity</option>';
+        
+        paymentEntities.forEach(entity => {
+            // Add to scroller
+            const chip = document.createElement('div');
+            chip.className = `entity-chip ${selectedEntityId === entity.id ? 'active' : ''}`;
+            chip.dataset.id = entity.id;
+            chip.innerHTML = `${entity.name} <span style="font-size:0.7rem; opacity:0.7;">(${entity.type === 'payee' ? 'Payee' : 'Payor'})</span>`;
+            chip.onclick = () => selectEntity(entity.id);
+            entityScroller.appendChild(chip);
+            
+            // Add to dropdown
+            const option = document.createElement('option');
+            option.value = entity.id;
+            option.textContent = `${entity.name} (${entity.type === 'payee' ? 'Payee' : 'Payor'})`;
+            entitySelect.appendChild(option);
         });
-
-        // Calculate derived metrics
-        stats.availableUnits = Math.max(0, stats.unitsProduced - stats.unitsConsumed);
-        stats.usedUnits = stats.unitsConsumed;
-        
-        // Calculate per unit cost
-        const formula = factoryDefaultFormulas[store] || [];
-        let unitWeight = 0;
-        formula.forEach(item => {
-            unitWeight += item.quantity || 0;
-        });
-        
-        const additionalCost = factoryAdditionalCosts[store] || 0;
-        const rawMaterialCostPerUnit = stats.unitsProduced > 0 ? 
-            (stats.materialsValue / stats.unitsProduced) : 0;
-        
-        stats.perUnitCost = unitWeight > 0 ? 
-            (rawMaterialCostPerUnit + additionalCost) / unitWeight : 0;
-        
-        // Calculate profit per unit
-        const totalCostOfUsedUnits = stats.perUnitCost * unitWeight * stats.usedUnits;
-        const avgSalePricePerKg = stats.outputQuantity > 0 ? 
-            stats.totalSaleValue / stats.outputQuantity : 0;
-        const avgCostPricePerKg = stats.outputQuantity > 0 ? 
-            totalCostOfUsedUnits / stats.outputQuantity : 0;
-        
-        stats.profitPerUnit = avgSalePricePerKg - avgCostPricePerKg;
-        
-        return stats;
     }
 
-    // Helper function to prevent NaN/undefined errors
-    function safeValue(value) {
-        return isNaN(value) || !isFinite(value) ? 0 : value;
+    // --- PAYMENTS TAB: TRANSACTION MANAGEMENT ---
+    function savePaymentTransaction() {
+        const entityId = parseInt(document.getElementById('paymentEntity').value);
+        const date = document.getElementById('paymentDate').value;
+        const amount = parseFloat(document.getElementById('paymentAmount').value) || 0;
+        const description = document.getElementById('paymentDescription').value.trim();
+        const type = document.querySelector('input[name="paymentTransactionType"]:checked').value;
+        
+        if (!entityId) {
+            alert("Please select an entity");
+            return;
+        }
+        if (!date) {
+            alert("Please select a date");
+            return;
+        }
+        if (amount <= 0) {
+            alert("Please enter a valid amount");
+            return;
+        }
+        if (!description) {
+            alert("Please enter a description");
+            return;
+        }
+        
+        const entity = paymentEntities.find(e => e.id === entityId);
+        if (!entity) {
+            alert("Selected entity not found");
+            return;
+        }
+        
+        const now = new Date();
+        let hours = now.getHours();
+        const minutes = now.getMinutes();
+        const seconds = now.getSeconds();
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12;
+        hours = hours ? hours : 12;
+        const timeString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} ${ampm}`;
+        
+        paymentTransactions.push({
+            id: Date.now(),
+            entityId: entityId,
+            entityName: entity.name,
+            entityType: entity.type,
+            date: date,
+            time: timeString,
+            amount: amount,
+            description: description,
+            type: type, // 'IN' or 'OUT'
+            timestamp: new Date(date).getTime()
+        });
+        
+        localStorage.setItem('payment_transactions', JSON.stringify(paymentTransactions));
+        
+        // Clear form
+        document.getElementById('paymentAmount').value = '';
+        document.getElementById('paymentDescription').value = '';
+        document.getElementById('payment-type-out').checked = true;
+        
+        refreshPaymentTab();
+        calculateNetCash();
+        alert("Payment transaction saved successfully!");
+    }
+    
+    function deletePaymentTransaction(id) {
+        if (confirm("Are you sure you want to delete this payment transaction?")) {
+            paymentTransactions = paymentTransactions.filter(t => t.id !== id);
+            localStorage.setItem('payment_transactions', JSON.stringify(paymentTransactions));
+            refreshPaymentTab();
+            calculateNetCash();
+            alert("Transaction deleted successfully!");
+        }
+    }
+    
+    function filterPaymentHistory() {
+        const searchTerm = document.getElementById('payment-search').value.toLowerCase();
+        const allCards = document.querySelectorAll('#paymentHistoryList .card');
+        
+        allCards.forEach(card => {
+            const cardText = card.textContent.toLowerCase();
+            if (cardText.includes(searchTerm)) {
+                card.style.display = '';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    }
+
+    // --- PAYMENTS TAB: NET CASH CALCULATION ---
+    function calculateNetCash() {
+        // A: Cash Production Value
+        let A = 0;
+        db.forEach(item => {
+            // Only count if payment is CASH or not STORE_C (since only STORE_C can have credit)
+            if (item.store !== 'STORE_C' || item.paymentStatus !== 'CREDIT') {
+                A += item.totalSale || 0;
+            }
+        });
+        
+        // B: Sales Tab Credits (pending)
+        let B = 0;
+        customerSales.forEach(sale => {
+            if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
+                B += sale.totalValue || 0;
+            }
+        });
+        
+        // C: Calculator Tab Credits
+        let C = 0;
+        salesHistory.forEach(item => {
+            C += item.creditValue || 0;
+        });
+        
+        // D: Sales Tab Cash Received
+        let D = 0;
+        customerSales.forEach(sale => {
+            if (sale.paymentType === 'CASH' || sale.creditReceived) {
+                D += sale.totalValue || 0;
+            }
+        });
+        
+        // E: Calculator Discrepancies
+        let E = 0;
+        salesHistory.forEach(item => {
+            if (item.received && item.totalExpected) {
+                const diff = item.received - item.totalExpected;
+                E += diff; // Positive adds, negative subtracts
+            }
+        });
+        
+        // F: Payment Flows (Incoming - Outgoing)
+        let F = 0;
+        paymentTransactions.forEach(transaction => {
+            if (transaction.type === 'IN') {
+                F += transaction.amount;
+            } else if (transaction.type === 'OUT') {
+                F -= transaction.amount;
+            }
+        });
+        
+        // Final Calculation
+        const netCash = A - B - C + D + E + F;
+        
+        // Update display
+        document.getElementById('formulaA').textContent = `Rs ${safeValue(A).toFixed(2)}`;
+        document.getElementById('formulaB').textContent = `Rs ${safeValue(B).toFixed(2)}`;
+        document.getElementById('formulaC').textContent = `Rs ${safeValue(C).toFixed(2)}`;
+        document.getElementById('formulaD').textContent = `Rs ${safeValue(D).toFixed(2)}`;
+        document.getElementById('formulaE').textContent = `Rs ${safeValue(E).toFixed(2)}`;
+        document.getElementById('formulaF').textContent = `Rs ${safeValue(F).toFixed(2)}`;
+        document.getElementById('formulaFinal').textContent = `Rs ${safeValue(netCash).toFixed(2)}`;
+        document.getElementById('netCashValue').textContent = `Rs ${safeValue(netCash).toFixed(2)}`;
+        
+        return { A, B, C, D, E, F, netCash };
+    }
+
+    // --- PAYMENTS TAB: SUMMARY CALCULATIONS ---
+    function calculatePaymentSummaries() {
+        const today = new Date().toISOString().split('T')[0];
+        const todayObj = new Date();
+        const year = todayObj.getFullYear();
+        const month = todayObj.getMonth();
+        const day = todayObj.getDate();
+        
+        const weekStart = new Date(todayObj);
+        weekStart.setDate(day - 6);
+        
+        const summaries = {
+            day: { in: 0, out: 0, count: 0 },
+            week: { in: 0, out: 0, count: 0 },
+            month: { in: 0, out: 0, count: 0 },
+            year: { in: 0, out: 0, count: 0 }
+        };
+        
+        paymentTransactions.forEach(transaction => {
+            const transDate = new Date(transaction.date);
+            const transYear = transDate.getFullYear();
+            const transMonth = transDate.getMonth();
+            const transDay = transDate.getDate();
+            
+            // Daily
+            if (transaction.date === today) {
+                if (transaction.type === 'IN') summaries.day.in += transaction.amount;
+                else summaries.day.out += transaction.amount;
+                summaries.day.count++;
+            }
+            
+            // Weekly
+            if (transDate >= weekStart && transDate <= todayObj) {
+                if (transaction.type === 'IN') summaries.week.in += transaction.amount;
+                else summaries.week.out += transaction.amount;
+                summaries.week.count++;
+            }
+            
+            // Monthly
+            if (transYear === year && transMonth === month) {
+                if (transaction.type === 'IN') summaries.month.in += transaction.amount;
+                else summaries.month.out += transaction.amount;
+                summaries.month.count++;
+            }
+            
+            // Yearly
+            if (transYear === year) {
+                if (transaction.type === 'IN') summaries.year.in += transaction.amount;
+                else summaries.year.out += transaction.amount;
+                summaries.year.count++;
+            }
+        });
+        
+        // Update displays
+        const updateSummary = (prefix, data) => {
+            document.getElementById(`${prefix}-in`).textContent = `Rs ${safeValue(data.in).toFixed(2)}`;
+            document.getElementById(`${prefix}-out`).textContent = `Rs ${safeValue(data.out).toFixed(2)}`;
+            document.getElementById(`${prefix}-net`).textContent = `Rs ${safeValue(data.in - data.out).toFixed(2)}`;
+            document.getElementById(`${prefix}-count`).textContent = data.count;
+        };
+        
+        updateSummary('payments-day', summaries.day);
+        updateSummary('payments-week', summaries.week);
+        updateSummary('payments-month', summaries.month);
+        updateSummary('payments-year', summaries.year);
+    }
+
+    // --- PAYMENTS TAB: REFRESH FUNCTION ---
+    function refreshPaymentTab() {
+        renderEntities();
+        calculateNetCash();
+        calculatePaymentSummaries();
+        
+        // Render transaction history
+        const historyList = document.getElementById('paymentHistoryList');
+        historyList.innerHTML = '';
+        
+        // Sort by date (newest first)
+        const sortedTransactions = [...paymentTransactions].sort((a, b) => b.timestamp - a.timestamp);
+        
+        sortedTransactions.forEach(transaction => {
+            const entity = paymentEntities.find(e => e.id === transaction.entityId);
+            const badgeClass = transaction.type === 'IN' ? 'transaction-in' : 'transaction-out';
+            const badgeText = transaction.type === 'IN' ? 'IN' : 'OUT';
+            
+            const card = document.createElement('div');
+            card.className = 'card liquid-card';
+            card.innerHTML = `
+                <span class="transaction-badge ${badgeClass}">${badgeText}</span>
+                <h4>${transaction.date} @ ${transaction.time}</h4>
+                <div class="customer-name">${entity ? entity.name : 'Unknown Entity'}</div>
+                <p><span>Type:</span> <span>${entity ? (entity.type === 'payee' ? 'Payee' : 'Payor') : 'Unknown'}</span></p>
+                <p><span>Description:</span> <span>${transaction.description}</span></p>
+                <hr>
+                <p><span>Amount:</span> <span class="${transaction.type === 'IN' ? 'profit-val' : 'cost-val'}">Rs ${safeValue(transaction.amount).toFixed(2)}</span></p>
+                <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="deletePaymentTransaction(${transaction.id})">Delete</button>
+            `;
+            historyList.appendChild(card);
+        });
+        
+        if (sortedTransactions.length === 0) {
+            historyList.innerHTML = '<p style="text-align:center; color:var(--text-muted); width:100%; font-size:0.85rem;">No payment transactions found.</p>';
+        }
     }
 
     // --- FACTORY FORMULA FUNCTIONS (UPDATED) ---
@@ -3662,6 +4343,7 @@
         document.getElementById('profit-sale-price').innerText = `Rs ${safeValue(salePrice).toFixed(2)}/kg`;
         
         calculateDynamicProductionCost();
+        updatePaymentStatusVisibility(); // NEW: Show/hide payment status toggle
     }
     
     // --- PRODUCTION TAB UPDATES (FIXED) ---
@@ -3674,97 +4356,7 @@
         
         calculateDynamicProductionCost();
     }
-    
-    // Update the recordEntry function to use dynamic cost calculation
-    function recordEntry() {
-        const net = parseFloat(document.getElementById('net-wt').value) || 0;
-        const inputDate = document.getElementById('sys-date').value;
-        const store = document.getElementById('storeSelector').value;
-        const formulaUnits = parseFloat(document.getElementById('formula-units').value) || 0;
-        
-        let formulaStore = 'standard';
-        let salePrice = 0;
-        
-        if (store === 'STORE_C') {
-            formulaStore = 'asaan';
-            salePrice = factorySalePrices.asaan || 0;
-        } else {
-            salePrice = factorySalePrices.standard || 0;
-        }
 
-        const validation = validateFormulaAvailability(store, formulaUnits);
-        if (!validation.sufficient) {
-            alert(`Insufficient formula units! Available: ${validation.available}, Requested: ${formulaUnits}`);
-            return;
-        }
-
-        const costData = calculateDynamicCost(store, formulaUnits, net);
-
-        if (net <= 0) {
-            alert("Net production must be greater than zero. Please check weights.");
-            return;
-        }
-        if (!inputDate) {
-            alert("Please select a date.");
-            return;
-        }
-        if (salePrice <= 0) {
-            alert("Please set a sale price in Factory Formulas first.");
-            return;
-        }
-        if (formulaUnits <= 0) {
-            alert("Please enter formula units used.");
-            return;
-        }
-
-        const totalCost = net * costData.dynamicCostPerKg;
-        const totalSale = net * salePrice;
-        const profit = totalSale - totalCost;
-
-        const now = new Date();
-        let hours = now.getHours();
-        const minutes = now.getMinutes();
-        const seconds = now.getSeconds();
-        const ampm = hours >= 12 ? 'PM' : 'AM';
-        hours = hours % 12;
-        hours = hours ? hours : 12;
-        const timeString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} ${ampm}`;
-
-        db.push({
-            id: Date.now(), 
-            date: inputDate,
-            time: timeString,
-            store: store,
-            net, 
-            cp: costData.dynamicCostPerKg, 
-            sp: salePrice, 
-            totalCost, 
-            totalSale, 
-            profit,
-            formulaUnits: formulaUnits,
-            formulaStore: costData.formulaStore,
-            formulaCost: costData.totalFormulaCost,
-            timestamp: new Date(inputDate).getTime()
-        });
-        
-        localStorage.setItem('mfg_pro_pkr', JSON.stringify(db));
-        
-        syncFactoryProductionStats();
-        
-        document.getElementById('gross-wt').value = '';
-        document.getElementById('cont-wt').value = '';
-        document.getElementById('net-wt').value = '';
-        document.getElementById('formula-units').value = '1';
-        document.getElementById('display-cost-value').innerText = 'Rs 0.00';
-        document.getElementById('profit-per-kg').innerText = 'Rs 0.00';
-        document.getElementById('formula-unit-cost-display').innerText = 'Rs 0.00/unit';
-        document.getElementById('total-formula-cost-display').innerText = 'Rs 0.00';
-        document.getElementById('dynamic-cost-per-kg').innerText = 'Rs 0.00/kg';
-        
-        refreshAllDisplays();
-        alert("Production record saved successfully!");
-    }
-    
     function deleteProdEntry(id) {
         const entryToDelete = db.find(item => item.id === id);
         
@@ -3869,40 +4461,7 @@
         refreshCustomerSales();
         alert("Sale transaction saved!");
     }
-    function getLocalStorage(key, defaultValue = null) {
-    try {
-        const item = localStorage.getItem(key);
-        return item ? JSON.parse(item) : defaultValue;
-    } catch (error) {
-        console.error(`Error reading ${key} from localStorage:`, error);
-        return defaultValue;
-    }
-}
 
-function setLocalStorage(key, value) {
-    try {
-        localStorage.setItem(key, JSON.stringify(value));
-    } catch (error) {
-        console.error(`Error writing ${key} to localStorage:`, error);
-        alert('Storage is full. Please backup and clear old data.');
-    }
-}
-function validateNumberInput(input, min = 0, max = Infinity) {
-    const value = parseFloat(input.value);
-    if (isNaN(value)) {
-        input.value = min;
-        return min;
-    }
-    if (value < min) {
-        input.value = min;
-        return min;
-    }
-    if (value > max) {
-        input.value = max;
-        return max;
-    }
-    return value;
-}
     // --- CALCULATOR TAB UPDATES (USING DIVIDED BY X LOGIC) ---
     function calculateSales() {
         const seller = document.getElementById('sellerSelect').value;
@@ -4492,6 +5051,8 @@ function validateNumberInput(input, min = 0, max = Infinity) {
             factoryCostAdjustmentFactor: factoryCostAdjustmentFactor,
             factorySalePrices: factorySalePrices,
             factoryUnitTracking: factoryUnitTracking,
+            paymentEntities: paymentEntities,
+            paymentTransactions: paymentTransactions,
             settings: JSON.parse(localStorage.getItem('naswar_default_settings')) || defaultSettings
         };
         const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
@@ -4541,6 +5102,17 @@ function validateNumberInput(input, min = 0, max = Infinity) {
                             localStorage.setItem('naswar_default_settings', JSON.stringify(data.settings));
                         }
                         
+                        // NEW: Restore payment data
+                        if (data.paymentEntities) {
+                            localStorage.setItem('payment_entities', JSON.stringify(data.paymentEntities));
+                            paymentEntities = data.paymentEntities;
+                        }
+                        
+                        if (data.paymentTransactions) {
+                            localStorage.setItem('payment_transactions', JSON.stringify(data.paymentTransactions));
+                            paymentTransactions = data.paymentTransactions;
+                        }
+                        
                         db = JSON.parse(localStorage.getItem('mfg_pro_pkr')) || [];
                         salesHistory = JSON.parse(localStorage.getItem('noman_history')) || [];
                         customerSales = JSON.parse(localStorage.getItem('customer_sales')) || [];
@@ -4574,13 +5146,15 @@ function validateNumberInput(input, min = 0, max = Infinity) {
         document.getElementById('tab-sales').className = tab === 'sales' ? '' : 'hidden';
         document.getElementById('tab-calc').className = tab === 'calc' ? '' : 'hidden';
         document.getElementById('tab-factory').className = tab === 'factory' ? '' : 'hidden';
+        document.getElementById('tab-payments').className = tab === 'payments' ? '' : 'hidden';
         
         document.querySelectorAll('.tab-btn').forEach((btn, i) => {
             btn.classList.toggle('active', 
                 (tab === 'prod' && i === 0) || 
                 (tab === 'sales' && i === 1) || 
                 (tab === 'calc' && i === 2) ||
-                (tab === 'factory' && i === 3)
+                (tab === 'factory' && i === 3) ||
+                (tab === 'payments' && i === 4)
             );
         });
         
@@ -4591,6 +5165,7 @@ function validateNumberInput(input, min = 0, max = Infinity) {
         if(tab === 'calc') loadSalesData(currentCompMode);
         if(tab === 'prod') refreshUI();
         if(tab === 'factory') initFactoryTab();
+        if(tab === 'payments') refreshPaymentTab();
     }
     
     function initFactoryTab() {
@@ -4600,113 +5175,6 @@ function validateNumberInput(input, min = 0, max = Infinity) {
         calculateFactoryProduction();
         renderFactoryHistory();
         updateAllTabsWithFactoryCosts();
-    }
-
-    // --- UPDATED REFRESH UI WITH ENHANCED SUMMARY AND ALL TIMES ---
-    function refreshUI() {
-        const selectedDate = document.getElementById('sys-date').value;
-        if (!selectedDate) return;
-        
-        const selectedDateObj = new Date(selectedDate);
-        const selectedYear = selectedDateObj.getFullYear();
-        const selectedMonth = selectedDateObj.getMonth();
-        const selectedDay = selectedDateObj.getDate();
-        
-        const weekStart = new Date(selectedDateObj);
-        weekStart.setDate(selectedDay - 6);
-        
-        let stats = { 
-            day: {q:0, p:0, c:0, v:0, fu:0, fc:0}, 
-            week: {q:0, p:0, c:0, v:0, fu:0, fc:0}, 
-            month: {q:0, p:0, c:0, v:0, fu:0, fc:0}, 
-            year: {q:0, p:0, c:0, v:0, fu:0, fc:0},
-            all: {q:0, p:0, c:0, v:0, fu:0, fc:0}
-        };
-        
-        const histContainer = document.getElementById('prodHistoryList');
-        
-        let filteredData = currentProductionView === 'combined' ? db : db.filter(item => item.store === currentStore);
-
-        const sortedDb = [...filteredData].sort((a,b) => {
-            if (a.date === selectedDate && b.date !== selectedDate) return -1;
-            if (a.date !== selectedDate && b.date === selectedDate) return 1;
-            return new Date(b.date) - new Date(a.date) || b.id - a.id;
-        });
-
-        let htmlBuffer = '';
-
-        sortedDb.forEach(item => {
-            const rowDate = new Date(item.date);
-            const rowYear = rowDate.getFullYear();
-            const rowMonth = rowDate.getMonth();
-            
-            if(item.date === selectedDate) { 
-                stats.day.q += item.net; stats.day.p += item.profit; stats.day.c += item.totalCost;
-                stats.day.v += item.totalSale; stats.day.fu += (item.formulaUnits || 0); stats.day.fc += (item.formulaCost || 0);
-            }
-            if(rowDate >= weekStart && rowDate <= selectedDateObj) { 
-                stats.week.q += item.net; stats.week.p += item.profit; stats.week.c += item.totalCost;
-                stats.week.v += item.totalSale; stats.week.fu += (item.formulaUnits || 0); stats.week.fc += (item.formulaCost || 0);
-            }
-            if(rowYear === selectedYear && rowMonth === selectedMonth) { 
-                stats.month.q += item.net; stats.month.p += item.profit; stats.month.c += item.totalCost;
-                stats.month.v += item.totalSale; stats.month.fu += (item.formulaUnits || 0); stats.month.fc += (item.formulaCost || 0);
-            }
-            if(rowYear === selectedYear) { 
-                stats.year.q += item.net; stats.year.p += item.profit; stats.year.c += item.totalCost;
-                stats.year.v += item.totalSale; stats.year.fu += (item.formulaUnits || 0); stats.year.fc += (item.formulaCost || 0);
-            }
-            
-            stats.all.q += item.net; stats.all.p += item.profit; stats.all.c += item.totalCost;
-            stats.all.v += item.totalSale; stats.all.fu += (item.formulaUnits || 0); stats.all.fc += (item.formulaCost || 0);
-
-            const isSelected = item.date === selectedDate;
-            const highlightClass = isSelected ? 'highlight-card' : '';
-            const dateDisplay = isSelected ? `${item.date} (Selected)` : item.date;
-            const storeBadgeClass = item.store === 'STORE_A' ? 'store-a' : item.store === 'STORE_B' ? 'store-b' : 'store-c';
-            const storeLabel = item.store === 'STORE_A' ? 'ZUBAIR' : item.store === 'STORE_B' ? 'MAHMOOD' : 'ASAAN';
-
-            htmlBuffer += `
-                <div class="card liquid-card ${highlightClass}">
-                    ${currentProductionView === 'combined' ? `<span class="store-badge ${storeBadgeClass}">${storeLabel}</span>` : ''}
-                    <h4>${dateDisplay} @ ${item.time}</h4>
-                    <p><span>Net Weight:</span> <span class="qty-val">${item.net.toFixed(3)} kg</span></p>
-                    <p><span>Cost Price:</span> <span class="cost-val">Rs ${item.cp.toFixed(2)}/kg</span></p>
-                    <p><span>Sale Price:</span> <span class="rev-val">Rs ${item.sp.toFixed(2)}/kg</span></p>
-                    <hr>
-                    <p><span>Total Cost:</span> <span class="cost-val">Rs ${item.totalCost.toFixed(2)}</span></p>
-                    <p><span>Total Value:</span> <span class="rev-val">Rs ${item.totalSale.toFixed(2)}</span></p>
-                    <p><span>Net Profit:</span> <span class="profit-val">Rs ${item.profit.toFixed(2)}</span></p>
-                    ${item.formulaUnits ? `<p><span>Formula Units:</span> <span class="qty-val">${item.formulaUnits.toFixed(3)}</span></p>` : ''}
-                    ${item.formulaCost ? `<p><span>Formula Cost:</span> <span class="cost-val">Rs ${item.formulaCost.toFixed(2)}</span></p>` : ''}
-                    <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="deleteProdEntry(${item.id})">Delete</button>
-                </div>
-            `;
-        });
-        
-        histContainer.innerHTML = htmlBuffer || `<p style="text-align:center; color:var(--text-muted); width:100%; font-size:0.85rem;">No records found for this selection.</p>`;
-
-        const updateStats = (idPrefix, statObj) => {
-            document.getElementById(`${idPrefix}-qty`).innerText = `${safeValue(statObj.q).toFixed(3)} kg`;
-            document.getElementById(`${idPrefix}-value`).innerText = `Rs ${safeValue(statObj.v).toFixed(2)}`;
-            document.getElementById(`${idPrefix}-cost`).innerText = `Rs ${safeValue(statObj.c).toFixed(2)}`;
-            document.getElementById(`${idPrefix}-profit`).innerText = `Rs ${safeValue(statObj.p).toFixed(2)}`;
-            document.getElementById(`${idPrefix}-formula-units`).innerText = `${safeValue(statObj.fu).toFixed(3)}`;
-            document.getElementById(`${idPrefix}-formula-cost`).innerText = `Rs ${safeValue(statObj.fc).toFixed(2)}`;
-        };
-
-        updateStats('day', stats.day);
-        updateStats('week', stats.week);
-        updateStats('month', stats.month);
-        updateStats('year', stats.year);
-        updateStats('all', stats.all);
-        
-        updateMfgCharts();
-        if (currentProductionView === 'combined') {
-            updateAllStoresOverview(currentOverviewMode);
-        }
-        
-        updateUnitsAvailableIndicator();
     }
 
     // --- CHARTS AND GRAPHS FUNCTIONS (UPDATED WITH ALL TIMES) ---
@@ -5826,12 +6294,19 @@ function validateNumberInput(input, min = 0, max = Infinity) {
         return 'PKR ' + num.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0});
     }
 
+    function safeValue(value) {
+        return isNaN(value) || !isFinite(value) ? 0 : value;
+    }
+
     // --- REFRESH ALL DISPLAYS ---
     function refreshAllDisplays() {
         refreshUI();
         refreshCustomerSales();
         loadSalesData(currentCompMode);
         initFactoryTab();
+        if (document.getElementById('tab-payments').className !== 'hidden') {
+            refreshPaymentTab();
+        }
     }
 
     // --- INITIALIZATION ---
@@ -5848,11 +6323,16 @@ function validateNumberInput(input, min = 0, max = Infinity) {
         document.getElementById('sale-date').value = dateString;
         document.getElementById('cust-date').value = dateString;
         document.getElementById('factory-date').value = dateString;
+        document.getElementById('paymentDate').value = dateString;
         currentFactoryDate = dateString;
         
         setProductionView('combined');
         syncFactoryProductionStats();
         updateAllTabsWithFactoryCosts();
+        
+        // Add event listener to store selector for payment status visibility
+        document.getElementById('storeSelector').addEventListener('change', updatePaymentStatusVisibility);
+        
         refreshAllDisplays();
     };
 
