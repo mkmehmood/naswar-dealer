@@ -4,9 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GULL AND ZUBAIR NASWAR DEALERS</title>
-
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#2563eb"	>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700;800&amp;family=Great+Vibes&amp;family=Playfair+Display:wght@400;700&amp;display=swap" rel="stylesheet">
     
@@ -2260,18 +2257,37 @@
             </div>
             
             <div class="field" style="margin-bottom: 15px;">
-                <label>Payment:</label>
-                <div class="payment-type-container">
-                    <div class="payment-option">
-                        <input type="radio" id="payment-cash" name="payment-type" value="CASH" checked>
-                        <label for="payment-cash">Cash</label>
-                    </div>
-                    <div class="payment-option">
-                        <input type="radio" id="payment-credit" name="payment-type" value="CREDIT">
-                        <label for="payment-credit">Credit</label>
-                    </div>
-                </div>
-            </div>
+    <label>Payment:</label>
+    <div class="payment-type-container">
+        <div class="payment-option">
+            <input type="radio" id="payment-cash" name="payment-type" value="CASH" checked>
+            <label for="payment-cash">Cash</label>
+        </div>
+        <div class="payment-option">
+            <input type="radio" id="payment-credit" name="payment-type" value="CREDIT">
+            <label for="payment-credit">Credit</label>
+        </div>
+    </div>
+</div>
+
+<!-- NEW: Sales Representative Filter -->
+<div class="field" style="margin-bottom: 15px;">
+    <label>Sales Representative:</label>
+    <div class="payment-type-container">
+        <div class="payment-option">
+            <input type="radio" id="sales-rep-none" name="sales-rep" value="NONE" checked>
+            <label for="sales-rep-none">Normal Sale</label>
+        </div>
+        <div class="payment-option">
+            <input type="radio" id="sales-rep-noran" name="sales-rep" value="NORAN_SHAH">
+            <label for="sales-rep-noran">Noran Shah</label>
+        </div>
+        <div class="payment-option">
+            <input type="radio" id="sales-rep-noman" name="sales-rep" value="NOMAN_SHAH">
+            <label for="sales-rep-noman">Noman Shah</label>
+        </div>
+    </div>
+</div>
 
             <!-- Cost and Profit Display -->
 
@@ -2758,42 +2774,61 @@
         </header>
 
         <!-- Net Cash Dashboard -->
-        <div class="section liquid-card net-cash-dashboard">
-            <h3 style="color:var(--accent); margin-top:0; text-align:center;">CASH IN HAND</h3>
-            <div class="net-cash-value" id="netCashValue">Rs 0.00</div>
-            
-            <div class="formula-breakdown">
-                <div class="formula-item">
-                    <span>Cash Production Value:</span>
-                    <span class="formula-value" id="formulaA">Rs 0.00</span>
-                </div>
-                <div class="formula-item">
-                    <span>Sales Tab Credits:</span>
-                    <span class="formula-value" id="formulaB">Rs 0.00</span>
-                </div>
-                <div class="formula-item">
-                    <span>Calculator Tab Credits:</span>
-                    <span class="formula-value" id="formulaC">Rs 0.00</span>
-                </div>
-                <div class="formula-item">
-                    <span>Sales Tab Cash Received:</span>
-                    <span class="formula-value" id="formulaD">Rs 0.00</span>
-                </div>
-                <div class="formula-item">
-                    <span>Calculator Discrepancies:</span>
-                    <span class="formula-value" id="formulaE">Rs 0.00</span>
-                </div>
-                <div class="formula-item">
-                    <span>Payment Flows (In - Out):</span>
-                    <span class="formula-value" id="formulaF">Rs 0.00</span>
-                </div>
-                <hr style="margin: 10px 0; border-color: var(--glass-border);">
-                <div class="formula-item" style="font-weight:800; color:var(--text-main);">
-                    <span>Net Cash</span>
-                    <span class="formula-value" id="formulaFinal">Rs 0.00</span>
-                </div>
-            </div>
+<div class="section liquid-card net-cash-dashboard">
+    <h3 style="color:var(--accent); margin-top:0; text-align:center;">
+        CASH IN HAND 
+        <span style="font-size:0.7rem; color:var(--text-muted); display:block; margin-top:5px;">Calculated from all-time data</span>
+    </h3>
+    <div class="net-cash-value" id="netCashValue">Rs 0.00</div>
+    <!-- ... rest of the formula breakdown ... -->
+</div>
+    
+    <div class="formula-breakdown">
+        <div class="formula-item">
+            <span>Total Production Sale Value:</span>
+            <span class="formula-value" id="formulaA">Rs 0.00</span>
         </div>
+        <div class="formula-item">
+            <span>Production Credit Sales:</span>
+            <span class="formula-value" id="formulaB">Rs 0.00</span>
+        </div>
+        <div class="formula-item">
+            <span>Sales Credits (Excl. Reps):</span>
+            <span class="formula-value" id="formulaC">Rs 0.00</span>
+        </div>
+        <div class="formula-item">
+            <span>Sales Cash (Excl. Reps):</span>
+            <span class="formula-value" id="formulaD">Rs 0.00</span>
+        </div>
+        <div class="formula-item">
+            <span>Calculator Credits:</span>
+            <span class="formula-value" id="formulaE">Rs 0.00</span>
+        </div>
+        <div class="formula-item">
+            <span>Calculator Cash Received:</span>
+            <span class="formula-value" id="formulaF">Rs 0.00</span>
+        </div>
+        <div class="formula-item">
+            <span>Calculator Discrepancies:</span>
+            <span class="formula-value" id="formulaG">Rs 0.00</span>
+        </div>
+        <div class="formula-item">
+            <span>Payment Inflows:</span>
+            <span class="formula-value" id="formulaH">Rs 0.00</span>
+        </div>
+        <div class="formula-item">
+            <span>Payment Outflows:</span>
+            <span class="formula-value" id="formulaI">Rs 0.00</span>
+        </div>
+        <hr style="margin: 10px 0; border-color: var(--glass-border);">
+        <div class="formula-item" style="font-weight:800; color:var(--text-main);">
+            <span>Net Cash In Hand</span>
+            <span class="formula-value" id="formulaFinal">Rs 0.00</span>
+        </div>
+    </div>
+        </div>
+    </div>
+</div>
 
         <!-- Entity Selection -->
         <div class="section liquid-card">
@@ -3503,73 +3538,126 @@
         });
     }
 
-    // --- PAYMENTS TAB: NET CASH CALCULATION ---
-    function calculateNetCash() {
-        // A: Cash Production Value
-        let A = 0;
-        db.forEach(item => {
-            // Only count if payment is CASH or not STORE_C (since only STORE_C can have credit)
-            if (item.store !== 'STORE_C' || item.paymentStatus !== 'CREDIT') {
-                A += item.totalSale || 0;
+    // --- PAYMENTS TAB: NET CASH CALCULATION (ALL-TIME) ---
+function calculateNetCash() {
+    // A: Total Production Sale Value (all stores, all time)
+    let A = 0;
+    db.forEach(item => {
+        A += item.totalSale || 0;
+    });
+    
+    // B: Production Credit Sales (only STORE_C with CREDIT status, all time)
+    let B = 0;
+    let productionCreditCount = 0;
+    let recentCredits = [];
+    
+    db.forEach(item => {
+        if (item.store === 'STORE_C' && item.paymentStatus === 'CREDIT') {
+            B += item.totalSale || 0;
+            productionCreditCount++;
+            
+            // Store recent credit info (max 5, most recent first)
+            if (recentCredits.length < 5) {
+                recentCredits.push({
+                    date: item.date,
+                    amount: item.totalSale || 0,
+                    weight: item.net || 0
+                });
             }
-        });
+        }
+    });
+    
+    // Sort recent credits by date (newest first)
+    recentCredits.sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    // C: Sales Tab Credits (excluding Noran/Noman sales, all time)
+    let C = 0;
+    customerSales.forEach(sale => {
+        if (sale.salesType === 'NORMAL' && 
+            sale.paymentType === 'CREDIT' && 
+            !sale.creditReceived) {
+            C += sale.totalValue || 0;
+        }
+    });
+    
+    // D: Sales Tab Cash (excluding Noran/Noman sales, all time)
+    let D = 0;
+    customerSales.forEach(sale => {
+        if (sale.salesType === 'NORMAL' && 
+            (sale.paymentType === 'CASH' || sale.creditReceived)) {
+            D += sale.totalValue || 0;
+        }
+    });
+    
+    // E: Calculator Tab Credits (all time)
+    let E = 0;
+    salesHistory.forEach(item => {
+        E += item.creditValue || 0;
+    });
+    
+    // F: Calculator Tab Cash Received (all time)
+    let F = 0;
+    salesHistory.forEach(item => {
+        // Cash sales from calculator
+        const cashQty = (item.cashQty || 0);
+        const unitPrice = item.unitPrice || 0;
+        const cashValue = cashQty * unitPrice;
+        F += cashValue;
         
-        // B: Sales Tab Credits (pending)
-        let B = 0;
-        customerSales.forEach(sale => {
-            if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
-                B += sale.totalValue || 0;
-            }
-        });
-        
-        // C: Calculator Tab Credits
-        let C = 0;
-        salesHistory.forEach(item => {
-            C += item.creditValue || 0;
-        });
-        
-        // D: Sales Tab Cash Received
-        let D = 0;
-        customerSales.forEach(sale => {
-            if (sale.paymentType === 'CASH' || sale.creditReceived) {
-                D += sale.totalValue || 0;
-            }
-        });
-        
-        // E: Calculator Discrepancies
-        let E = 0;
-        salesHistory.forEach(item => {
-            if (item.received && item.totalExpected) {
-                const diff = item.received - item.totalExpected;
-                E += diff; // Positive adds, negative subtracts
-            }
-        });
-        
-        // F: Payment Flows (Incoming - Outgoing)
-        let F = 0;
-        paymentTransactions.forEach(transaction => {
-            if (transaction.type === 'IN') {
-                F += transaction.amount;
-            } else if (transaction.type === 'OUT') {
-                F -= transaction.amount;
-            }
-        });
-        
-        // Final Calculation
-        const netCash = A - B - C + D + E + F;
-        
-        // Update display
-        document.getElementById('formulaA').textContent = `Rs ${safeValue(A).toFixed(2)}`;
-        document.getElementById('formulaB').textContent = `Rs ${safeValue(B).toFixed(2)}`;
-        document.getElementById('formulaC').textContent = `Rs ${safeValue(C).toFixed(2)}`;
-        document.getElementById('formulaD').textContent = `Rs ${safeValue(D).toFixed(2)}`;
-        document.getElementById('formulaE').textContent = `Rs ${safeValue(E).toFixed(2)}`;
-        document.getElementById('formulaF').textContent = `Rs ${safeValue(F).toFixed(2)}`;
-        document.getElementById('formulaFinal').textContent = `Rs ${safeValue(netCash).toFixed(2)}`;
-        document.getElementById('netCashValue').textContent = `Rs ${safeValue(netCash).toFixed(2)}`;
-        
-        return { A, B, C, D, E, F, netCash };
+        // Plus any previous credit received
+        F += (item.prevColl || 0);
+    });
+    
+    // G: Calculator Discrepancies (all time)
+    let G = 0;
+    salesHistory.forEach(item => {
+        if (item.received && item.totalExpected) {
+            const diff = item.received - item.totalExpected;
+            G += diff; // Positive adds, negative subtracts
+        }
+    });
+    
+    // H: Payment Inflows (all time)
+    let H = 0;
+    paymentTransactions.forEach(transaction => {
+        if (transaction.type === 'IN') {
+            H += transaction.amount;
+        }
+    });
+    
+    // I: Payment Outflows (all time)
+    let I = 0;
+    paymentTransactions.forEach(transaction => {
+        if (transaction.type === 'OUT') {
+            I += transaction.amount;
+        }
+    });
+    
+    // Final Calculation based on new logic:
+    // Net Cash = Total Production Sale - Production Credits - Sales Credits + Sales Cash - Calculator Credits + Calculator Cash + Calculator Discrepancies + Payment In - Payment Out
+    const netCash = A - B - C + D - E + F + G + H - I;
+    
+    // Update display
+    document.getElementById('formulaA').textContent = `Rs ${safeValue(A).toFixed(2)}`;
+    document.getElementById('formulaB').textContent = `Rs ${safeValue(B).toFixed(2)}`;
+    document.getElementById('formulaC').textContent = `Rs ${safeValue(C).toFixed(2)}`;
+    document.getElementById('formulaD').textContent = `Rs ${safeValue(D).toFixed(2)}`;
+    document.getElementById('formulaE').textContent = `Rs ${safeValue(E).toFixed(2)}`;
+    document.getElementById('formulaF').textContent = `Rs ${safeValue(F).toFixed(2)}`;
+    document.getElementById('formulaG').textContent = `Rs ${safeValue(G).toFixed(2)}`;
+    document.getElementById('formulaH').textContent = `Rs ${safeValue(H).toFixed(2)}`;
+    document.getElementById('formulaI').textContent = `Rs ${safeValue(I).toFixed(2)}`;
+    document.getElementById('formulaFinal').textContent = `Rs ${safeValue(netCash).toFixed(2)}`;
+    document.getElementById('netCashValue').textContent = `Rs ${safeValue(netCash).toFixed(2)}`;
+    
+    // Show all-time indicator
+    const cashTitle = document.querySelector('.net-cash-dashboard h3');
+    if (cashTitle) {
+        cashTitle.innerHTML = 'CASH IN HAND <span style="font-size:0.7rem; color:var(--text-muted);"></span>';
     }
+    
+    return { A, B, C, D, E, F, G, H, I, netCash };
+}
 
     // --- PAYMENTS TAB: SUMMARY CALCULATIONS ---
     function calculatePaymentSummaries() {
@@ -4468,72 +4556,75 @@
     
     // Update saveCustomerSale to use divided by X logic
     function saveCustomerSale() {
-        const date = document.getElementById('cust-date').value;
-        const name = document.getElementById('cust-name').value.trim();
-        const qty = parseFloat(document.getElementById('cust-quantity').value) || 0;
-        const supplyStore = document.querySelector('input[name="supply-store"]:checked').value;
-        const paymentType = document.querySelector('input[name="payment-type"]:checked').value;
-        
-        let formulaStore = 'standard';
-        if (supplyStore === 'STORE_C') {
-            formulaStore = 'asaan';
-        }
-        
-        const costPerKg = calculateSalesCostPerKg(formulaStore);
-        const salePrice = formulaStore === 'asaan' ? factorySalePrices.asaan : factorySalePrices.standard;
-
-        if (!date || !name || qty <= 0) {
-            alert("Please fill all fields correctly.");
-            return;
-        }
-        
-        if (salePrice <= 0) {
-            alert("Please set a sale price in Factory Formulas first.");
-            return;
-        }
-
-        const totalCost = qty * costPerKg;
-        const totalValue = qty * salePrice;
-        const profit = totalValue - totalCost;
-
-        const now = new Date();
-        let hours = now.getHours();
-        const minutes = now.getMinutes();
-        const seconds = now.getSeconds();
-        const ampm = hours >= 12 ? 'PM' : 'AM';
-        hours = hours % 12;
-        hours = hours ? hours : 12;
-        const timeString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} ${ampm}`;
-
-        customerSales.push({
-            id: Date.now(),
-            date: date,
-            time: timeString,
-            customerName: name,
-            quantity: qty,
-            costPrice: costPerKg,
-            salePrice: salePrice,
-            totalCost: totalCost,
-            totalValue: totalValue,
-            profit: profit,
-            paymentType: paymentType,
-            supplyStore: supplyStore,
-            creditReceived: paymentType === 'CREDIT' ? false : true,
-            timestamp: new Date(date).getTime()
-        });
-
-        localStorage.setItem('customer_sales', JSON.stringify(customerSales));
-
-        document.getElementById('cust-name').value = '';
-        document.getElementById('cust-quantity').value = '';
-        document.getElementById('cust-total-cost').innerText = '0.00';
-        document.getElementById('cust-total-value').innerText = '0.00';
-        document.getElementById('cust-profit').innerText = '0.00';
-        document.getElementById('payment-cash').checked = true;
-
-        refreshCustomerSales();
-        alert("Sale transaction saved!");
+    const date = document.getElementById('cust-date').value;
+    const name = document.getElementById('cust-name').value.trim();
+    const qty = parseFloat(document.getElementById('cust-quantity').value) || 0;
+    const supplyStore = document.querySelector('input[name="supply-store"]:checked').value;
+    const paymentType = document.querySelector('input[name="payment-type"]:checked').value;
+    const salesRep = document.querySelector('input[name="sales-rep"]:checked').value; // NEW
+    
+    let formulaStore = 'standard';
+    if (supplyStore === 'STORE_C') {
+        formulaStore = 'asaan';
     }
+    
+    const costPerKg = calculateSalesCostPerKg(formulaStore);
+    const salePrice = formulaStore === 'asaan' ? factorySalePrices.asaan : factorySalePrices.standard;
+
+    if (!date || !name || qty <= 0) {
+        alert("Please fill all fields correctly.");
+        return;
+    }
+    
+    if (salePrice <= 0) {
+        alert("Please set a sale price in Factory Formulas first.");
+        return;
+    }
+
+    const totalCost = qty * costPerKg;
+    const totalValue = qty * salePrice;
+    const profit = totalValue - totalCost;
+
+    const now = new Date();
+    let hours = now.getHours();
+    const minutes = now.getMinutes();
+    const seconds = now.getSeconds();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const timeString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} ${ampm}`;
+
+    customerSales.push({
+        id: Date.now(),
+        date: date,
+        time: timeString,
+        customerName: name,
+        quantity: qty,
+        costPrice: costPerKg,
+        salePrice: salePrice,
+        totalCost: totalCost,
+        totalValue: totalValue,
+        profit: profit,
+        paymentType: paymentType,
+        salesRep: salesRep, // NEW: Store sales rep info
+        supplyStore: supplyStore,
+        creditReceived: paymentType === 'CREDIT' ? false : true,
+        timestamp: new Date(date).getTime()
+    });
+
+    localStorage.setItem('customer_sales', JSON.stringify(customerSales));
+
+    document.getElementById('cust-name').value = '';
+    document.getElementById('cust-quantity').value = '';
+    document.getElementById('cust-total-cost').innerText = '0.00';
+    document.getElementById('cust-total-value').innerText = '0.00';
+    document.getElementById('cust-profit').innerText = '0.00';
+    document.getElementById('payment-cash').checked = true;
+    document.getElementById('sales-rep-none').checked = true; // Reset to default
+
+    refreshCustomerSales();
+    alert("Sale transaction saved!");
+}
 
     // --- CALCULATOR TAB UPDATES (USING DIVIDED BY X LOGIC) ---
     function calculateSales() {
@@ -6908,11 +6999,5 @@ function refreshPaymentTab() {
         });
     });
 </script>
-</body><script>
-  if (typeof navigator.serviceWorker !== 'undefined') {
-    navigator.serviceWorker.register('sw.js')
-  }
-</script>
-
-
+</body>
 </html>
