@@ -2238,19 +2238,20 @@
     <label>Sales Representative (For Calculator Link):</label>
     <div class="payment-type-container">
         <div class="payment-option">
-            <input type="radio" id="rep-none" name="sales-rep" value="NONE" checked>
+            <input type="radio" id="rep-none" name="sales-rep" value="NONE" checked onchange="autoFillCustomerName()">
             <label for="rep-none">Direct Sale</label>
         </div>
         <div class="payment-option">
-            <input type="radio" id="rep-noran" name="sales-rep" value="NORAN SHAH">
+            <input type="radio" id="rep-noran" name="sales-rep" value="NORAN SHAH" onchange="autoFillCustomerName()">
             <label for="rep-noran">Noran Shah</label>
         </div>
         <div class="payment-option">
-            <input type="radio" id="rep-noman" name="sales-rep" value="NOMAN SHAH">
+            <input type="radio" id="rep-noman" name="sales-rep" value="NOMAN SHAH" onchange="autoFillCustomerName()">
             <label for="rep-noman">Noman Shah</label>
         </div>
     </div>
 </div>
+
 
             <div class="grid-inputs">
                 <div class="field"><label>Quantity (kg)</label><input type="number" id="cust-quantity" step="0.001" oninput="calculateCustomerSale()"></div>
@@ -4652,82 +4653,174 @@
     }
     
     // Update saveTransaction to use divided by X logic
-    function saveTransaction() {
-        const seller = document.getElementById('sellerSelect').value;
-        const date = document.getElementById('sale-date').value;
-        const sold = parseFloat(document.getElementById('totalSold').value) || 0;
-        const ret = parseFloat(document.getElementById('returnedQuantity').value) || 0;
-        const cred = parseFloat(document.getElementById('creditSales').value) || 0;
-        const prev = parseFloat(document.getElementById('prevCreditReceived').value) || 0;
-        const rec = parseFloat(document.getElementById('receivedCash').value) || 0;
+    // Update saveTransaction to use divided by X logic AND sync with Sales tab
+    // --- NEW FUNCTION: SYNC SALES TAB STATUS ---
+function updateSalesTabCreditStatus(seller, date) {
+    // Only proceed if a specific seller is selected (not Combined) and date exists
+    if (!seller || !date || seller === 'COMBINED') return;
+
+    let updated = false;
+
+    // Loop through all sales records
+    customerSales.forEach(sale => {
+        // Match conditions:
+        // 1. Same Date
+        // 2. Same Sales Rep
+        // 3. Is currently a CREDIT sale
+        // 4. Has NOT been marked received yet
+        if (sale.date === date && 
+            sale.salesRep === seller && 
+            sale.paymentType === 'CREDIT' && 
+            !sale.creditReceived) {
+            
+            // Update status
+            sale.creditReceived = true;
+            sale.paymentType = 'CASH'; // Updates the data logic to count as cash flow
+            updated = true;
+        }
+    });
+
+    // If we found and updated records, save and refresh
+    if (updated) {
+        localStorage.setItem('customer_sales', JSON.stringify(customerSales));
         
-        const costPerKg = calculateSalesCostPerKg('standard');
-        const salePrice = factorySalePrices.standard || 0;
-
-        if(!date) {
-            alert("Please select a date");
-            return;
-        }
-        if(sold < 0 || ret < 0 || cred < 0) {
-            alert("Quantities cannot be negative");
-            return;
-        }
-        if(ret > sold) {
-            alert("Returned quantity cannot exceed total sold");
-            return;
-        }
-        if(cred > sold) {
-            alert("Credit quantity cannot exceed total sold");
-            return;
-        }
-        if(salePrice <= 0) {
-            alert("Please set a sale price in Factory Formulas first");
-            return;
-        }
-
-        const netSold = sold - ret;
-        const cashQty = Math.max(0, netSold - cred);
-        const creditValue = cred * salePrice;
-        const revenue = netSold * salePrice;
-        const totalCost = netSold * costPerKg;
-        const profit = revenue - totalCost;
-        const totalExpected = (cashQty * salePrice) + prev;
-
-        const entry = {
-            id: Date.now(), 
-            seller, 
-            date, 
-            unitPrice: salePrice,
-            costPrice: costPerKg,
-            totalSold: sold, 
-            returned: ret, 
-            creditQty: cred,
-            cashQty: cashQty, 
-            creditValue: creditValue, 
-            prevColl: prev,
-            received: rec, 
-            profit: profit, 
-            revenue: revenue, 
-            totalCost: totalCost,
-            totalExpected: totalExpected,
-            statusText: document.getElementById('discrepancyStatus').innerText,
-            statusClass: document.getElementById('discrepancyBox').className,
-            timestamp: new Date(date).getTime()
-        };
-
-        let history = JSON.parse(localStorage.getItem('noman_history')) || [];
-        history.push(entry);
-        localStorage.setItem('noman_history', JSON.stringify(history));
+        // Refresh the Sales tab UI so the visual changes (Green Badge) appear immediately
+        refreshCustomerSales(); 
         
-        document.getElementById('totalSold').value = '';
-        document.getElementById('returnedQuantity').value = '';
-        document.getElementById('creditSales').value = '';
-        document.getElementById('prevCreditReceived').value = '';
-        document.getElementById('receivedCash').value = '';
-        
-        alert("Transaction saved successfully!");
-        loadSalesData(currentCompMode);
+        // Update charts to reflect the shift from Credit to Cash
+        updateCustomerCharts(); 
     }
+}
+// --- NEW FUNCTION: AUTO-FILL CUSTOMER NAME ---
+function autoFillCustomerName() {
+    const repRadio = document.querySelector('input[name="sales-rep"]:checked');
+    const nameInput = document.getElementById('cust-name');
+
+    if (repRadio) {
+        if (repRadio.value === 'NONE') {
+            // If Direct Sale, clear the name for manual entry
+            nameInput.value = '';
+            nameInput.placeholder = "Enter Customer Name";
+        } else {
+            // If a Representative is selected, fill their name automatically
+            nameInput.value = repRadio.value;
+        }
+    }
+}
+
+// --- UPDATED SAVE TRANSACTION FUNCTION ---
+function saveTransaction() {
+    const seller = document.getElementById('sellerSelect').value;
+    const date = document.getElementById('sale-date').value;
+    const sold = parseFloat(document.getElementById('totalSold').value) || 0;
+    const ret = parseFloat(document.getElementById('returnedQuantity').value) || 0;
+    const cred = parseFloat(document.getElementById('creditSales').value) || 0;
+    const prev = parseFloat(document.getElementById('prevCreditReceived').value) || 0;
+    const rec = parseFloat(document.getElementById('receivedCash').value) || 0;
+    
+    // Using existing helper logic
+    const costPerKg = calculateSalesCostPerKg('standard');
+    const salePrice = factorySalePrices.standard || 0;
+
+    if(!date) {
+        alert("Please select a date");
+        return;
+    }
+    if(sold < 0 || ret < 0 || cred < 0) {
+        alert("Quantities cannot be negative");
+        return;
+    }
+    if(ret > sold) {
+        alert("Returned quantity cannot exceed total sold");
+        return;
+    }
+    if(cred > sold) {
+        alert("Credit quantity cannot exceed total sold");
+        return;
+    }
+    if(salePrice <= 0) {
+        alert("Please set a sale price in Factory Formulas first");
+        return;
+    }
+
+    const netSold = sold - ret;
+    const cashQty = Math.max(0, netSold - cred);
+    const creditValue = cred * salePrice;
+    const revenue = netSold * salePrice;
+    const totalCost = netSold * costPerKg;
+    const profit = revenue - totalCost;
+    const totalExpected = (cashQty * salePrice) + prev;
+
+    const entry = {
+        id: Date.now(), 
+        seller, 
+        date, 
+        unitPrice: salePrice,
+        costPrice: costPerKg,
+        totalSold: sold, 
+        returned: ret, 
+        creditQty: cred,
+        cashQty: cashQty, 
+        creditValue: creditValue, 
+        prevColl: prev,
+        received: rec, 
+        profit: profit, 
+        revenue: revenue, 
+        totalCost: totalCost,
+        totalExpected: totalExpected,
+        statusText: document.getElementById('discrepancyStatus').innerText,
+        statusClass: document.getElementById('discrepancyBox').className,
+        timestamp: new Date(date).getTime()
+    };
+
+    let history = JSON.parse(localStorage.getItem('noman_history')) || [];
+    history.push(entry);
+    localStorage.setItem('noman_history', JSON.stringify(history));
+    
+    // >>> NEW LOGIC ADDED HERE <<<
+    // Automatically mark corresponding Sales Tab entries as Received
+    updateSalesTabCreditStatus(seller, date);
+    // >>> END NEW LOGIC <<<
+    
+    document.getElementById('totalSold').value = '';
+    document.getElementById('returnedQuantity').value = '';
+    document.getElementById('creditSales').value = '';
+    document.getElementById('prevCreditReceived').value = '';
+    document.getElementById('receivedCash').value = '';
+    
+    alert("Transaction saved successfully! Related Sales Tab credits marked as Received.");
+    loadSalesData(currentCompMode);
+}
+
+   
+   // NEW FUNCTION: Update Sales Tab Credit Status when credit is received in Calculator
+function updateSalesTabCreditStatus(seller, date, creditReceivedAmount) {
+    if (!seller || !date || creditReceivedAmount <= 0) return 0;
+    
+    let updatedCount = 0;
+    
+    // Filter sales tab transactions for this seller on this date
+    customerSales.forEach(sale => {
+        if (sale.salesRep === seller && 
+            sale.date === date && 
+            sale.paymentType === 'CREDIT' && 
+            !sale.creditReceived) {
+            
+            // Mark as credit received
+            sale.creditReceived = true;
+            sale.creditReceivedDate = new Date().toISOString().split('T')[0];
+            sale.creditReceivedTime = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            updatedCount++;
+        }
+    });
+    
+    if (updatedCount > 0) {
+        localStorage.setItem('customer_sales', JSON.stringify(customerSales));
+        refreshCustomerSales(); // Refresh the sales tab display
+    }
+    
+    return updatedCount;
+}
     
     // --- UPDATE ALL TABS WITH FACTORY COSTS ---
     function updateAllTabsWithFactoryCosts() {
@@ -6991,4 +7084,3 @@ function refreshPaymentTab() {
 </script>
 </body>
 </html>
-
