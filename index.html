@@ -5846,7 +5846,29 @@ function refreshPaymentTab() {
         reader.readAsText(file);
         event.target.value = '';
     }
-
+// --- FACTORY TAB INITIALIZATION FUNCTION ---
+function initFactoryTab() {
+    // Set default date to today if not already set
+    const factoryDateInput = document.getElementById('factory-date');
+    if (!factoryDateInput.value) {
+        const today = new Date().toISOString().split('T')[0];
+        factoryDateInput.value = today;
+        currentFactoryDate = today;
+    }
+    
+    // Refresh factory displays
+    renderFactoryInventory();
+    renderFactoryHistory();
+    calculateFactoryProduction();
+    updateFactoryUnitsAvailableStats();
+    updateFactorySummaryCard();
+    
+    // Initialize toggles
+    document.querySelectorAll('#tab-factory .toggle-group .toggle-opt').forEach((opt, index) => {
+        if (index === 0) opt.classList.add('active');
+        else opt.classList.remove('active');
+    });
+}
     // --- UI Navigation ---
     function showTab(tab) {
     document.getElementById('tab-prod').className = tab === 'prod' ? '' : 'hidden';
