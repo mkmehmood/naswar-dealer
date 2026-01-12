@@ -3759,7 +3759,29 @@ function closeEntityTransactions() {
 
     return netCash;
 }
+// Inside calculateNetCash() function, around line 2500-2520
+let CalcCredit = 0;
+let CalcCash = 0;
+let CalcDisc = 0;
 
+if (salesHistory && salesHistory.length > 0) {
+    salesHistory.forEach(item => {
+        // Credit given by Reps
+        CalcCredit += item.creditValue || 0;
+        // Cash received from Reps
+        CalcCash += item.received || 0;
+        
+        // Discrepancy logic: (Received - Expected)
+        if (item.received !== undefined && item.totalExpected !== undefined) {
+            CalcDisc += (item.received - item.totalExpected);
+        }
+    });
+} else {
+    // If no calculator data, ensure these are 0
+    CalcCredit = 0;
+    CalcCash = 0;
+    CalcDisc = 0;
+}
     // --- PAYMENTS TAB: SUMMARY CALCULATIONS ---
     function calculatePaymentSummaries() {
         const today = new Date().toISOString().split('T')[0];
@@ -6097,155 +6119,401 @@ function initFactoryTab() {
             updateMfgPieChart();
         }
     }
-        // --- MISSING FACTORY FUNCTIONS ---
+        // --- HELPER FUNCTIONS ---
+function getCostPerUnit(storeType) {
+    const formula = factoryDefaultFormulas[storeType];
+    if (!formula || formula.length === 0) return 0;
+    
+    let totalMaterialCost = 0;
+    formula.forEach(item => {
+        totalMaterialCost += (item.cost * item.quantity);
+    });
+    
+    const additionalCost = factoryAdditionalCosts[storeType] || 0;
+    return totalMaterialCost + additionalCost;
+}
 
-    function updateFactoryUnitsAvailableStats() {
-        // Calculate stats for Standard Store
-        const stdTrack = factoryUnitTracking.standard;
-        const stdCost = calculateSalesCostPerKg('standard') || 0; // Using the "divided by X" logic if applicable
-        const stdSale = factorySalePrices.standard || 0;
-        const stdProfitUnit = stdSale - stdCost;
-        
-        // Helper to safe fix numbers
-        const val = (n) => safeValue(n);
+function getWeightPerUnit(storeType) {
+    const formula = factoryDefaultFormulas[storeType];
+    if (!formula || formula.length === 0) return 0;
+    
+    let totalWeight = 0;
+    formula.forEach(item => {
+        totalWeight += item.quantity;
+    });
+    return totalWeight;
+}
 
-        document.getElementById('factoryStdUnits').innerText = val(stdTrack.available).toFixed(2);
-        document.getElementById('factoryStdUsedUnits').innerText = val(stdTrack.consumed).toFixed(2);
-        document.getElementById('factoryStdUnitCost').innerText = formatCurrency(stdCost);
-        document.getElementById('factoryStdTotalVal').innerText = formatCurrency(stdTrack.available * stdCost);
-        // Assuming Output is total produced for stats
-        document.getElementById('factoryStdOutput').innerText = val(stdTrack.produced).toFixed(2);
-        // Raw used (approximate based on current formula weight)
-        // Note: Ideally this should come from history, but using current formula as proxy for display
-        const stdFormula = factoryDefaultFormulas['standard'] || [];
-        const stdWeight = stdFormula.reduce((sum, i) => sum + i.quantity, 0);
-        document.getElementById('factoryStdRawUsed').innerText = (val(stdTrack.produced) * stdWeight).toFixed(2) + ' kg';
-        
-        document.getElementById('factoryStdMatVal').innerText = formatCurrency(stdTrack.available * stdCost); // Approx value
-        document.getElementById('factoryStdProfit').innerText = formatCurrency(stdTrack.available * stdProfitUnit);
-        document.getElementById('factoryStdProfitUnit').innerText = formatCurrency(stdProfitUnit);
-
-        // Calculate stats for Asaan Store
-        const asaanTrack = factoryUnitTracking.asaan;
-        const asaanCost = calculateSalesCostPerKg('asaan') || 0;
-        const asaanSale = factorySalePrices.asaan || 0;
-        const asaanProfitUnit = asaanSale - asaanCost;
-
-        document.getElementById('factoryAsaanUnits').innerText = val(asaanTrack.available).toFixed(2);
-        document.getElementById('factoryAsaanUsedUnits').innerText = val(asaanTrack.consumed).toFixed(2);
-        document.getElementById('factoryAsaanUnitCost').innerText = formatCurrency(asaanCost);
-        document.getElementById('factoryAsaanTotalVal').innerText = formatCurrency(asaanTrack.available * asaanCost);
-        document.getElementById('factoryAsaanOutput').innerText = val(asaanTrack.produced).toFixed(2);
-        
-        const asaanFormula = factoryDefaultFormulas['asaan'] || [];
-        const asaanWeight = asaanFormula.reduce((sum, i) => sum + i.quantity, 0);
-        document.getElementById('factoryAsaanRawUsed').innerText = (val(asaanTrack.produced) * asaanWeight).toFixed(2) + ' kg';
-
-        document.getElementById('factoryAsaanMatVal').innerText = formatCurrency(asaanTrack.available * asaanCost);
-        document.getElementById('factoryAsaanProfit').innerText = formatCurrency(asaanTrack.available * asaanProfitUnit);
-        document.getElementById('factoryAsaanProfitUnit').innerText = formatCurrency(asaanProfitUnit);
-    }
-
-    function updateFactorySummaryCard() {
-        const mode = currentFactorySummaryMode;
-        
-        // Date Logic
-        const selectedDateVal = document.getElementById('factory-date').value || new Date().toISOString().split('T')[0];
-        const selectedDate = new Date(selectedDateVal);
-        const selectedYear = selectedDate.getFullYear();
-        const selectedMonth = selectedDate.getMonth();
-        const selectedDay = selectedDate.getDate();
-        
-        // Filter Production History (Produced Units)
-        const producedFiltered = factoryProductionHistory.filter(item => {
-            const d = new Date(item.date);
-            const dYear = d.getFullYear();
-            const dMonth = d.getMonth();
-            const dDay = d.getDate();
-            
-            if (mode === 'daily') return item.date === selectedDateVal;
-            if (mode === 'weekly') {
-                const weekStart = new Date(selectedDate);
-                weekStart.setDate(selectedDay - 6);
-                return d >= weekStart && d <= selectedDate;
-            }
-            if (mode === 'monthly') return dYear === selectedYear && dMonth === selectedMonth;
-            if (mode === 'yearly') return dYear === selectedYear;
-            return true; // all
-        });
-
-        // Filter Consumption History (From Production Tab)
-        const consumedFiltered = db.filter(item => {
-            const d = new Date(item.date);
-            const dYear = d.getFullYear();
-            const dMonth = d.getMonth();
-            const dDay = d.getDate();
-            
-            // Note: db items use 'date' string YYYY-MM-DD
-            if (mode === 'daily') return item.date === selectedDateVal;
-            if (mode === 'weekly') {
-                const weekStart = new Date(selectedDate);
-                weekStart.setDate(selectedDay - 6);
-                return d >= weekStart && d <= selectedDate;
-            }
-            if (mode === 'monthly') return dYear === selectedYear && dMonth === selectedMonth;
-            if (mode === 'yearly') return dYear === selectedYear;
-            return true; // all
-        });
-
-        // Aggregate Data
-        let totalUnitsProduced = 0;
-        let totalCostProduced = 0;
-        let totalRawWeightUsed = 0;
-        let totalMaterialsValue = 0;
-        
-        producedFiltered.forEach(h => {
-            totalUnitsProduced += (h.units || 0);
-            totalCostProduced += (h.totalCost || 0);
-            totalRawWeightUsed += (h.rawMaterialsUsed || 0);
-            totalMaterialsValue += (h.materialsCost || 0);
-        });
-
-        let totalUnitsConsumed = 0;
-        consumedFiltered.forEach(c => {
-            totalUnitsConsumed += (c.formulaUnits || 0);
-        });
-
-        // Derived Metrics
-        const avgCostPerUnit = totalUnitsProduced > 0 ? totalCostProduced / totalUnitsProduced : 0;
-        
-        // Calculate Profit (Based on Units Consumed in Sales/Production vs their Cost)
-        // Or simpler: (Avg Sale Price - Avg Cost) * Units Produced (Potential)
-        // Let's use Potential Profit of Produced goods for Factory View
-        let potentialRevenue = 0;
-        producedFiltered.forEach(h => {
-            const salePrice = h.store === 'asaan' ? (factorySalePrices.asaan || 0) : (factorySalePrices.standard || 0);
-            potentialRevenue += (h.units * salePrice);
-        });
-        const totalProfit = potentialRevenue - totalCostProduced;
-        const avgProfitPerUnit = totalUnitsProduced > 0 ? totalProfit / totalUnitsProduced : 0;
-
-        // Update DOM
-        document.getElementById('factorySumUnits').innerText = totalUnitsProduced.toFixed(2);
-        document.getElementById('factorySumUsedUnits').innerText = totalUnitsConsumed.toFixed(2);
-        document.getElementById('factorySumUnitCost').innerText = formatCurrency(avgCostPerUnit);
-        document.getElementById('factorySumTotalCost').innerText = formatCurrency(totalCostProduced);
-        
-        // Output Qty implies weight produced? 
-        // We'll map "Output Quantity" to Total Units for now, or calculate weight if formula available
-        // Let's stick to Units for consistency in this view
-        document.getElementById('factorySumOutput').innerText = totalUnitsProduced.toFixed(2) + " units"; 
-        
-        document.getElementById('factorySumRawUsed').innerText = totalRawWeightUsed.toFixed(2) + " kg";
-        document.getElementById('factorySumMatVal').innerText = formatCurrency(totalMaterialsValue);
-        document.getElementById('factorySumProfit').innerText = formatCurrency(totalProfit);
-        document.getElementById('factorySumProfitUnit').innerText = formatCurrency(avgProfitPerUnit);
+function getPreviousDayAvailableUnits(storeType, currentDate) {
+    const previousDate = new Date(currentDate);
+    previousDate.setDate(previousDate.getDate() - 1);
+    const previousDateStr = previousDate.toISOString().split('T')[0];
+    
+    // Get previous day's data
+    const prevProduction = db.filter(item => item.date === previousDateStr);
+    const prevFactoryProduction = factoryProductionHistory.filter(item => item.date === previousDateStr);
+    
+    // Calculate previous day's available units
+    const prevUsed = prevProduction.filter(item => item.formulaStore === storeType)
+        .reduce((sum, item) => sum + (item.formulaUnits || 0), 0);
+    const prevProduced = prevFactoryProduction.filter(item => item.store === storeType)
+        .reduce((sum, item) => sum + (item.units || 0), 0);
+    
+    // Recursively get previous day's previous available
+    if (previousDate >= new Date('2020-01-01')) { // Set a reasonable start date
+        const prevPrevAvailable = getPreviousDayAvailableUnits(storeType, previousDate);
+        return Math.max(0, prevPrevAvailable + prevProduced - prevUsed);
     }
     
-    // --- REFRESH FACTORY TAB WRAPPER ---
-    function refreshFactoryTab() {
-        initFactoryTab();
+    return 0; // Base case for earliest date
+}
+
+// --- FACTORY TAB: DATE-BASED STATISTICS (UPDATED FOR CONSISTENCY) ---
+function updateFactoryUnitsAvailableStats() {
+    const selectedDateVal = document.getElementById('factory-date').value || new Date().toISOString().split('T')[0];
+    const selectedDate = new Date(selectedDateVal);
+    
+    // Get all production data for the selected date
+    const productionToday = db.filter(item => item.date === selectedDateVal);
+    const factoryProductionToday = factoryProductionHistory.filter(item => item.date === selectedDateVal);
+    
+    // --- STANDARD STORE CALCULATIONS ---
+    // Filter production data for Standard store
+    const stdProductionToday = productionToday.filter(item => item.formulaStore === 'standard');
+    
+    // 1. Available Units = remaining from previous + produced today - used today
+    const stdPrevAvailable = getPreviousDayAvailableUnits('standard', selectedDate);
+    const stdProducedToday = factoryProductionToday.filter(item => item.store === 'standard')
+        .reduce((sum, item) => sum + (item.units || 0), 0);
+    const stdUsedToday = stdProductionToday.reduce((sum, item) => sum + (item.formulaUnits || 0), 0);
+    
+    const stdAvailableUnits = Math.max(0, stdPrevAvailable + stdProducedToday - stdUsedToday);
+    
+    // 2. Used Units = total used units in production tab for today
+    const stdUsedUnits = stdProductionToday.reduce((sum, item) => sum + (item.formulaUnits || 0), 0);
+    
+    // 3. Per Unit Cost = total raw material cost + additional cost per unit
+    const stdCostPerUnit = getCostPerUnit('standard');
+    
+    // 4. Total Cost Value = (raw material + additional cost) × number of available units
+    const stdTotalCostValue = stdCostPerUnit * stdAvailableUnits;
+    
+    // 5. Output Quantity = total net production from production tab (CONSISTENT)
+    const stdOutputQuantity = stdProductionToday.reduce((sum, item) => sum + (item.net || 0), 0);
+    
+    // 6. Raw Materials Used = total raw materials used in the used units
+    const stdWeightPerUnit = getWeightPerUnit('standard');
+    const stdRawMaterialsUsed = stdWeightPerUnit * stdUsedUnits;
+    
+    // 7. Materials Value = total value of raw materials + additional cost used
+    const stdRawMaterialCostPerUnit = stdCostPerUnit; // Includes additional cost
+    const stdMaterialsValue = stdRawMaterialCostPerUnit * stdUsedUnits;
+    
+    // 8. Total Profit = total sale value - total cost value (CONSISTENT)
+    const stdTotalSaleValue = stdProductionToday.reduce((sum, item) => sum + (item.totalSale || 0), 0);
+    const stdTotalCostUsed = stdRawMaterialCostPerUnit * stdUsedUnits;
+    const stdTotalProfit = stdTotalSaleValue - stdTotalCostUsed;
+    
+    // 9. Profit Per Unit = per kg sale value - per kg dynamic cost (CONSISTENT)
+    const stdProfitPerUnit = stdUsedUnits > 0 ? stdTotalProfit / stdUsedUnits : 0;
+    
+    // Update DOM for Standard Store
+    document.getElementById('factoryStdUnits').innerText = stdAvailableUnits.toFixed(2);
+    document.getElementById('factoryStdUsedUnits').innerText = stdUsedUnits.toFixed(2);
+    document.getElementById('factoryStdUnitCost').innerText = formatCurrency(stdCostPerUnit);
+    document.getElementById('factoryStdTotalVal').innerText = formatCurrency(stdTotalCostValue);
+    document.getElementById('factoryStdOutput').innerText = stdOutputQuantity.toFixed(3) + ' kg';
+    document.getElementById('factoryStdRawUsed').innerText = stdRawMaterialsUsed.toFixed(3) + ' kg';
+    document.getElementById('factoryStdMatVal').innerText = formatCurrency(stdMaterialsValue);
+    document.getElementById('factoryStdProfit').innerText = formatCurrency(stdTotalProfit);
+    document.getElementById('factoryStdProfitUnit').innerText = formatCurrency(stdProfitPerUnit);
+
+    // --- ASAAN STORE CALCULATIONS ---
+    // Filter production data for Asaan store
+    const asaanProductionToday = productionToday.filter(item => item.formulaStore === 'asaan');
+    
+    // 1. Available Units = remaining from previous + produced today - used today
+    const asaanPrevAvailable = getPreviousDayAvailableUnits('asaan', selectedDate);
+    const asaanProducedToday = factoryProductionToday.filter(item => item.store === 'asaan')
+        .reduce((sum, item) => sum + (item.units || 0), 0);
+    const asaanUsedToday = asaanProductionToday.reduce((sum, item) => sum + (item.formulaUnits || 0), 0);
+    
+    const asaanAvailableUnits = Math.max(0, asaanPrevAvailable + asaanProducedToday - asaanUsedToday);
+    
+    // 2. Used Units = total used units in production tab for today
+    const asaanUsedUnits = asaanProductionToday.reduce((sum, item) => sum + (item.formulaUnits || 0), 0);
+    
+    // 3. Per Unit Cost = total raw material cost + additional cost per unit
+    const asaanCostPerUnit = getCostPerUnit('asaan');
+    
+    // 4. Total Cost Value = (raw material + additional cost) × number of available units
+    const asaanTotalCostValue = asaanCostPerUnit * asaanAvailableUnits;
+    
+    // 5. Output Quantity = total net production from production tab (CONSISTENT)
+    const asaanOutputQuantity = asaanProductionToday.reduce((sum, item) => sum + (item.net || 0), 0);
+    
+    // 6. Raw Materials Used = total raw materials used in the used units
+    const asaanWeightPerUnit = getWeightPerUnit('asaan');
+    const asaanRawMaterialsUsed = asaanWeightPerUnit * asaanUsedUnits;
+    
+    // 7. Materials Value = total value of raw materials + additional cost used
+    const asaanRawMaterialCostPerUnit = asaanCostPerUnit; // Includes additional cost
+    const asaanMaterialsValue = asaanRawMaterialCostPerUnit * asaanUsedUnits;
+    
+    // 8. Total Profit = total sale value - total cost value (CONSISTENT)
+    const asaanTotalSaleValue = asaanProductionToday.reduce((sum, item) => sum + (item.totalSale || 0), 0);
+    const asaanTotalCostUsed = asaanRawMaterialCostPerUnit * asaanUsedUnits;
+    const asaanTotalProfit = asaanTotalSaleValue - asaanTotalCostUsed;
+    
+    // 9. Profit Per Unit = per kg sale value - per kg dynamic cost (CONSISTENT)
+    const asaanProfitPerUnit = asaanUsedUnits > 0 ? asaanTotalProfit / asaanUsedUnits : 0;
+    
+    // Update DOM for Asaan Store
+    document.getElementById('factoryAsaanUnits').innerText = asaanAvailableUnits.toFixed(2);
+    document.getElementById('factoryAsaanUsedUnits').innerText = asaanUsedUnits.toFixed(2);
+    document.getElementById('factoryAsaanUnitCost').innerText = formatCurrency(asaanCostPerUnit);
+    document.getElementById('factoryAsaanTotalVal').innerText = formatCurrency(asaanTotalCostValue);
+    document.getElementById('factoryAsaanOutput').innerText = asaanOutputQuantity.toFixed(3) + ' kg';
+    document.getElementById('factoryAsaanRawUsed').innerText = asaanRawMaterialsUsed.toFixed(3) + ' kg';
+    document.getElementById('factoryAsaanMatVal').innerText = formatCurrency(asaanMaterialsValue);
+    document.getElementById('factoryAsaanProfit').innerText = formatCurrency(asaanTotalProfit);
+    document.getElementById('factoryAsaanProfitUnit').innerText = formatCurrency(asaanProfitPerUnit);
+}
+
+// --- FACTORY SUMMARY CARD (UPDATED FOR CONSISTENCY) ---
+function updateFactorySummaryCard() {
+    const mode = currentFactorySummaryMode;
+    const selectedDateVal = document.getElementById('factory-date').value || new Date().toISOString().split('T')[0];
+    const selectedDate = new Date(selectedDateVal);
+    const selectedYear = selectedDate.getFullYear();
+    const selectedMonth = selectedDate.getMonth();
+    const selectedDay = selectedDate.getDate();
+    
+    // Filter data based on mode (CONSISTENT with production tab filtering)
+    let filteredProdData = [];
+    
+    if (mode === 'daily') {
+        filteredProdData = db.filter(item => item.date === selectedDateVal);
+    } else if (mode === 'weekly') {
+        const weekStart = new Date(selectedDate);
+        weekStart.setDate(selectedDay - 6);
+        filteredProdData = db.filter(item => {
+            const d = new Date(item.date);
+            return d >= weekStart && d <= selectedDate;
+        });
+    } else if (mode === 'monthly') {
+        filteredProdData = db.filter(item => {
+            const d = new Date(item.date);
+            return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
+        });
+    } else if (mode === 'yearly') {
+        filteredProdData = db.filter(item => {
+            const d = new Date(item.date);
+            return d.getFullYear() === selectedYear;
+        });
+    } else { // all
+        filteredProdData = [...db];
     }
+    
+    // Filter factory production data based on same criteria
+    let filteredFactoryData = [];
+    if (mode === 'daily') {
+        filteredFactoryData = factoryProductionHistory.filter(item => item.date === selectedDateVal);
+    } else if (mode === 'weekly') {
+        const weekStart = new Date(selectedDate);
+        weekStart.setDate(selectedDay - 6);
+        filteredFactoryData = factoryProductionHistory.filter(item => {
+            const d = new Date(item.date);
+            return d >= weekStart && d <= selectedDate;
+        });
+    } else if (mode === 'monthly') {
+        filteredFactoryData = factoryProductionHistory.filter(item => {
+            const d = new Date(item.date);
+            return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
+        });
+    } else if (mode === 'yearly') {
+        filteredFactoryData = factoryProductionHistory.filter(item => {
+            const d = new Date(item.date);
+            return d.getFullYear() === selectedYear;
+        });
+    } else { // all
+        filteredFactoryData = [...factoryProductionHistory];
+    }
+    
+    // Calculate statistics for STANDARD store (CONSISTENT with production tab)
+    const stdProdData = filteredProdData.filter(item => item.formulaStore === 'standard');
+    const stdFactoryData = filteredFactoryData.filter(item => item.store === 'standard');
+    
+    // Used Units (from production tab)
+    const stdUsedUnits = stdProdData.reduce((sum, item) => sum + (item.formulaUnits || 0), 0);
+    
+    // Produced Units (from factory tab)
+    const stdProducedUnits = stdFactoryData.reduce((sum, item) => sum + (item.units || 0), 0);
+    
+    // Available Units calculation
+    let stdAvailableUnits = 0;
+    if (mode === 'all') {
+        // For all time, get from unit tracking
+        stdAvailableUnits = factoryUnitTracking.standard?.available || 0;
+    } else {
+        // For date ranges, calculate: previous available + produced - used
+        const stdPrevAvailable = mode === 'daily' ? 
+            getPreviousDayAvailableUnits('standard', selectedDate) : 
+            getInitialAvailableForRange('standard', mode, selectedDate);
+        stdAvailableUnits = Math.max(0, stdPrevAvailable + stdProducedUnits - stdUsedUnits);
+    }
+    
+    // Get cost per unit
+    const stdCostPerUnit = getCostPerUnit('standard');
+    
+    // Total Cost Value = cost per unit × available units
+    const stdTotalCostValue = stdCostPerUnit * stdAvailableUnits;
+    
+    // Output Quantity (from production tab - MUST MATCH)
+    const stdOutputQuantity = stdProdData.reduce((sum, item) => sum + (item.net || 0), 0);
+    
+    // Raw Materials Used
+    const stdWeightPerUnit = getWeightPerUnit('standard');
+    const stdRawMaterialsUsed = stdWeightPerUnit * stdUsedUnits;
+    
+    // Materials Value = cost per unit × used units
+    const stdMaterialsValue = stdCostPerUnit * stdUsedUnits;
+    
+    // Total Profit (MUST MATCH production tab)
+    const stdTotalSaleValue = stdProdData.reduce((sum, item) => sum + (item.totalSale || 0), 0);
+    const stdTotalCostUsed = stdCostPerUnit * stdUsedUnits;
+    const stdTotalProfit = stdTotalSaleValue - stdTotalCostUsed;
+    
+    // Profit Per Unit
+    const stdProfitPerUnit = stdUsedUnits > 0 ? stdTotalProfit / stdUsedUnits : 0;
+    
+    // Calculate statistics for ASAAN store
+    const asaanProdData = filteredProdData.filter(item => item.formulaStore === 'asaan');
+    const asaanFactoryData = filteredFactoryData.filter(item => item.store === 'asaan');
+    
+    const asaanUsedUnits = asaanProdData.reduce((sum, item) => sum + (item.formulaUnits || 0), 0);
+    const asaanProducedUnits = asaanFactoryData.reduce((sum, item) => sum + (item.units || 0), 0);
+    
+    let asaanAvailableUnits = 0;
+    if (mode === 'all') {
+        asaanAvailableUnits = factoryUnitTracking.asaan?.available || 0;
+    } else {
+        const asaanPrevAvailable = mode === 'daily' ? 
+            getPreviousDayAvailableUnits('asaan', selectedDate) : 
+            getInitialAvailableForRange('asaan', mode, selectedDate);
+        asaanAvailableUnits = Math.max(0, asaanPrevAvailable + asaanProducedUnits - asaanUsedUnits);
+    }
+    
+    const asaanCostPerUnit = getCostPerUnit('asaan');
+    const asaanTotalCostValue = asaanCostPerUnit * asaanAvailableUnits;
+    const asaanOutputQuantity = asaanProdData.reduce((sum, item) => sum + (item.net || 0), 0);
+    const asaanWeightPerUnit = getWeightPerUnit('asaan');
+    const asaanRawMaterialsUsed = asaanWeightPerUnit * asaanUsedUnits;
+    const asaanMaterialsValue = asaanCostPerUnit * asaanUsedUnits;
+    const asaanTotalSaleValue = asaanProdData.reduce((sum, item) => sum + (item.totalSale || 0), 0);
+    const asaanTotalCostUsed = asaanCostPerUnit * asaanUsedUnits;
+    const asaanTotalProfit = asaanTotalSaleValue - asaanTotalCostUsed;
+    const asaanProfitPerUnit = asaanUsedUnits > 0 ? asaanTotalProfit / asaanUsedUnits : 0;
+    
+    // Combine both stores for summary display
+    const totalAvailableUnits = stdAvailableUnits + asaanAvailableUnits;
+    const totalUsedUnits = stdUsedUnits + asaanUsedUnits;
+    const totalCostValue = stdTotalCostValue + asaanTotalCostValue;
+    const totalOutputQuantity = stdOutputQuantity + asaanOutputQuantity;
+    const totalRawMaterialsUsed = stdRawMaterialsUsed + asaanRawMaterialsUsed;
+    const totalMaterialsValue = stdMaterialsValue + asaanMaterialsValue;
+    const totalProfit = stdTotalProfit + asaanTotalProfit;
+    
+    // Calculate averages
+    const avgCostPerUnit = totalUsedUnits > 0 ? (stdMaterialsValue + asaanMaterialsValue) / totalUsedUnits : 0;
+    const avgProfitPerUnit = totalUsedUnits > 0 ? totalProfit / totalUsedUnits : 0;
+    
+    // Update DOM (CONSISTENT with production tab data)
+    document.getElementById('factorySumUnits').innerText = totalAvailableUnits.toFixed(2);
+    document.getElementById('factorySumUsedUnits').innerText = totalUsedUnits.toFixed(2);
+    document.getElementById('factorySumUnitCost').innerText = formatCurrency(avgCostPerUnit);
+    document.getElementById('factorySumTotalCost').innerText = formatCurrency(totalCostValue);
+    document.getElementById('factorySumOutput').innerText = totalOutputQuantity.toFixed(3) + ' kg';
+    document.getElementById('factorySumRawUsed').innerText = totalRawMaterialsUsed.toFixed(3) + ' kg';
+    document.getElementById('factorySumMatVal').innerText = formatCurrency(totalMaterialsValue);
+    document.getElementById('factorySumProfit').innerText = formatCurrency(totalProfit);
+    document.getElementById('factorySumProfitUnit').innerText = formatCurrency(avgProfitPerUnit);
+}
+
+// Helper function to get initial available units for a date range
+function getInitialAvailableForRange(storeType, mode, endDate) {
+    const end = new Date(endDate);
+    let startDate = new Date(end);
+    
+    if (mode === 'weekly') {
+        startDate.setDate(end.getDate() - 6);
+    } else if (mode === 'monthly') {
+        startDate = new Date(end.getFullYear(), end.getMonth(), 1);
+    } else if (mode === 'yearly') {
+        startDate = new Date(end.getFullYear(), 0, 1);
+    }
+    
+    // Get available units at the start of the range
+    return getPreviousDayAvailableUnits(storeType, startDate);
+}
+
+// --- REFRESH FACTORY TAB ---
+function refreshFactoryTab() {
+    const factoryDateInput = document.getElementById('factory-date');
+    if (!factoryDateInput.value) {
+        const today = new Date().toISOString().split('T')[0];
+        factoryDateInput.value = today;
+        currentFactoryDate = today;
+    } else {
+        currentFactoryDate = factoryDateInput.value;
+    }
+    
+    // Update all factory displays with CONSISTENT data
+    updateFactoryUnitsAvailableStats();
+    updateFactorySummaryCard();
+    renderFactoryHistory();
+    renderFactoryInventory();
+    calculateFactoryProduction();
+}
+
+// --- UPDATE ALL TABS WITH FACTORY COSTS (CALL AFTER ANY CHANGE) ---
+function updateAllTabsWithFactoryCosts() {
+    const storeSelector = document.getElementById('storeSelector');
+    if (storeSelector) {
+        updateUnitsAvailableIndicator();
+        updateProductionCostOnStoreChange();
+    }
+    
+    const supplyStore = document.querySelector('input[name="supply-store"]:checked');
+    if (supplyStore) {
+        calculateCustomerSale();
+    }
+    
+    calculateSales();
+    updateFactoryUnitsAvailableStats(); // Ensures consistency
+    updateFactorySummaryCard();
+    refreshUI(); // Refresh production tab to sync
+}
+
+// --- INITIALIZE FACTORY TAB ---
+function initFactoryTab() {
+    // Set default date to today if not already set
+    const factoryDateInput = document.getElementById('factory-date');
+    if (!factoryDateInput.value) {
+        const today = new Date().toISOString().split('T')[0];
+        factoryDateInput.value = today;
+        currentFactoryDate = today;
+    }
+    
+    // Refresh factory displays with CONSISTENT data
+    refreshFactoryTab();
+    
+    // Initialize toggles
+    document.querySelectorAll('#tab-factory .toggle-group .toggle-opt').forEach((opt, index) => {
+        if (index === 0) opt.classList.add('active');
+        else opt.classList.remove('active');
+    });
+}
 
 
     // --- PRODUCTION VIEW TOGGLE ---
