@@ -250,13 +250,27 @@
             box-shadow: var(--shadow);
         }
 
-        .nav-tabs { 
-            display: flex; 
-            gap: 8px; 
-            justify-content: center; 
-            margin-bottom: 20px; 
-            flex-wrap: wrap;
-        }
+        /* STICKY TABS - Makes tabs stay at top when scrolling */
+.nav-tabs { 
+    display: flex; 
+    gap: 8px; 
+    justify-content: center; 
+    margin-bottom: 20px; 
+    flex-wrap: wrap;
+    
+    /* NEW: Makes tabs sticky */
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: linear-gradient(135deg, #f0f8ff 0%, #e6f0ff 50%, #ebf8ff 100%);
+    padding: 15px 0;
+    margin-top: -20px;
+    margin-left: -20px;
+    margin-right: -20px;
+    padding-left: 20px;
+    padding-right: 20px;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+}
         
         .tab-btn {
             padding: 10px 24px; 
@@ -1931,7 +1945,42 @@
         </div>
     </div>
 </div>
-
+<!-- Entity Transactions Overlay -->
+<div id="entityTransactionsOverlay" class="factory-overlay">
+    <div class="factory-overlay-card liquid-card" style="max-width: 800px;">
+        <div class="section-header">
+            <h3 id="entityTransactionsTitle">Entity Transactions</h3>
+            <button class="btn-theme" onclick="closeEntityTransactions()">✕</button>
+        </div>
+        
+        <!-- Summary Cards -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px;">
+            <div class="result-box" style="background: rgba(5, 150, 105, 0.1); border-left: 4px solid var(--accent-emerald);">
+                <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 5px;">TOTAL IN</div>
+                <div style="font-size: 1.2rem; font-weight: 800; color: var(--accent-emerald);" id="entityTotalIn">Rs 0.00</div>
+            </div>
+            <div class="result-box" style="background: rgba(220, 38, 38, 0.1); border-left: 4px solid var(--danger);">
+                <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 5px;">TOTAL OUT</div>
+                <div style="font-size: 1.2rem; font-weight: 800; color: var(--danger);" id="entityTotalOut">Rs 0.00</div>
+            </div>
+            <div class="result-box" style="background: rgba(37, 99, 235, 0.1); border-left: 4px solid var(--accent);">
+                <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 5px;">NET BALANCE</div>
+                <div style="font-size: 1.2rem; font-weight: 800; color: var(--accent);" id="entityNetBalance">Rs 0.00</div>
+            </div>
+            <div class="result-box" style="background: rgba(37, 99, 235, 0.05);">
+                <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 5px;">TRANSACTIONS</div>
+                <div style="font-size: 1.2rem; font-weight: 800; color: var(--text-main);" id="entityTotalTransactions">0</div>
+            </div>
+        </div>
+        
+        <!-- Transactions List -->
+        <div style="max-height: 400px; overflow-y: auto; margin-top: 15px;">
+            <div id="entityTransactionsList" style="display: flex; flex-direction: column; gap: 10px;">
+                <!-- Transactions will be populated here -->
+            </div>
+        </div>
+    </div>
+</div>
 <!-- AESTHETIC SPLASH SCREEN -->
 <div id="splash-screen">
     <!-- Flower Decorations -->
@@ -3423,7 +3472,75 @@
             }
         });
     }
+    // --- ENTITY TRANSACTIONS OVERLAY ---
+function openEntityTransactions(entityId) {
+    const entity = paymentEntities.find(e => e.id === entityId);
+    if (!entity) return;
     
+    // Get all transactions for this entity
+    const entityTransactions = paymentTransactions.filter(t => t.entityId === entityId);
+    
+    // Calculate totals
+    let totalIn = 0, totalOut = 0;
+    entityTransactions.forEach(t => {
+        if (t.type === 'IN') totalIn += t.amount;
+        else if (t.type === 'OUT') totalOut += t.amount;
+    });
+    const netBalance = totalIn - totalOut;
+    
+    // Update overlay title and summary
+    document.getElementById('entityTransactionsTitle').textContent = `${entity.name} - Transactions`;
+    document.getElementById('entityTotalIn').textContent = `Rs ${totalIn.toFixed(2)}`;
+    document.getElementById('entityTotalOut').textContent = `Rs ${totalOut.toFixed(2)}`;
+    document.getElementById('entityNetBalance').textContent = `Rs ${netBalance.toFixed(2)}`;
+    document.getElementById('entityTotalTransactions').textContent = entityTransactions.length;
+    
+    // Render transactions list
+    const transactionsList = document.getElementById('entityTransactionsList');
+    transactionsList.innerHTML = '';
+    
+    if (entityTransactions.length === 0) {
+        transactionsList.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-muted);">No transactions found for this entity.</div>';
+    } else {
+        // Sort by date (newest first)
+        const sortedTransactions = [...entityTransactions].sort((a, b) => b.timestamp - a.timestamp);
+        
+        sortedTransactions.forEach(transaction => {
+            const transactionCard = document.createElement('div');
+            transactionCard.className = 'liquid-card';
+            transactionCard.style.padding = '15px';
+            transactionCard.style.position = 'relative';
+            
+            const badgeClass = transaction.type === 'IN' ? 'transaction-in' : 'transaction-out';
+            const badgeText = transaction.type === 'IN' ? 'IN' : 'OUT';
+            const amountClass = transaction.type === 'IN' ? 'profit-val' : 'cost-val';
+            
+            transactionCard.innerHTML = `
+                <span class="transaction-badge ${badgeClass}" style="position: absolute; top: 10px; right: 10px;">${badgeText}</span>
+                <div style="margin-bottom: 8px;">
+                    <strong style="color: var(--accent); font-size: 0.9rem;">${transaction.date}</strong>
+                    <span style="color: var(--text-muted); font-size: 0.75rem; margin-left: 10px;">${transaction.time || ''}</span>
+                </div>
+                <div style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 8px;">
+                    ${transaction.description}
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--glass-border);">
+                    <span style="font-size: 0.75rem; color: var(--text-muted);">Amount:</span>
+                    <span class="${amountClass}" style="font-size: 1.1rem; font-weight: 800;">Rs ${transaction.amount.toFixed(2)}</span>
+                </div>
+            `;
+            
+            transactionsList.appendChild(transactionCard);
+        });
+    }
+    
+    // Show overlay
+    document.getElementById('entityTransactionsOverlay').style.display = 'flex';
+}
+
+function closeEntityTransactions() {
+    document.getElementById('entityTransactionsOverlay').style.display = 'none';
+}
     function renderEntities() {
         const entityScroller = document.getElementById('entityScroller');
         const entitySelect = document.getElementById('paymentEntity');
@@ -5297,19 +5414,26 @@ function toggleEntityListView() {
         entityListViewType = 'cards';
         toggleBtn.innerHTML = '📃';
         toggleBtn.title = "Table View";
-        if (table) table.style.display = 'card view';
+        if (table) table.style.display = 'cards';
         renderEntityCards();
     } else {
         entityListViewType = 'table';
         toggleBtn.innerHTML = '☰';
-        toggleBtn.title = "Card View";
+        toggleBtn.title = "Cards";
         if (table) table.style.display = '';
         renderEntityList();
     }
 }
-
+const card = document.createElement('div');
+card.className = 'entity-card liquid-card';
+card.style.position = 'relative';
+card.style.padding = '12px';
+card.style.minHeight = 'auto';
+// NEW: Add click functionality
+card.style.cursor = 'pointer';
+card.onclick = () => openEntityTransactions(entity.id);
 function refreshEntityList() {
-    if (entityListViewType === 'table') {
+    if (entityListViewType === 'cards') {
         renderEntityList();
     } else {
         renderEntityCards();
@@ -5361,6 +5485,12 @@ function renderEntityList() {
         const balancePrefix = netBalance >= 0 ? '+' : '';
         
         const row = document.createElement('tr');
+        // NEW: Add onclick to row for opening transactions overlay
+        row.style.cursor = 'pointer';
+        row.onclick = () => openEntityTransactions(entity.id);
+        row.onmouseover = () => row.style.backgroundColor = 'rgba(37, 99, 235, 0.05)';
+        row.onmouseout = () => row.style.backgroundColor = '';
+        
         row.innerHTML = `
             <td style="text-align:left;">
                 <div style="display:flex; flex-direction:column; gap:2px;">
@@ -5369,12 +5499,12 @@ function renderEntityList() {
                 </div>
             </td>
             <td style="text-align:center; font-weight:800;" class="${balanceColor}">
-                ${balancePrefix}Rs ${Math.abs(netBalance).toFixed(2)}
+                ${Math.abs(netBalance).toFixed(2)}
             </td>
             <td style="text-align:center; color:var(--text-muted); font-weight:700;">
                 ${entityTransactions.length}
             </td>
-            <td style="text-align:center;">
+            <td style="text-align:center;" onclick="event.stopPropagation()">
                 <div style="display:flex; gap:5px; justify-content:center;">
                     <button class="btn-theme" onclick="selectEntity(${entity.id})" style="padding:2px 8px; font-size:0.7rem;" title="Select">Select</button>
                     <button class="btn-theme" onclick="editEntity(${entity.id})" style="padding:2px 8px; font-size:0.7rem;" title="Edit">Edit</button>
@@ -5391,7 +5521,8 @@ function renderEntityList() {
         
         const totalBalanceElement = document.getElementById('entityListTotalBalance');
         if (totalBalanceElement) {
-            totalBalanceElement.textContent = `${totalBalancePrefix}Rs ${Math.abs(totalBalance).toFixed(2)}`;
+            // NEW: Remove Rs sign, show only number
+            totalBalanceElement.textContent = `${Math.abs(totalBalance).toFixed(2)}`;
             totalBalanceElement.className = totalBalanceColor;
         }
         
@@ -5409,6 +5540,7 @@ function renderEntityCards() {
     
     if (!paymentEntities || paymentEntities.length === 0) {
         entityListBody.innerHTML = `
+        
             <tr>
                 <td colspan="4" style="text-align:center; padding:20px; color:var(--text-muted);">
                     No entities found. Click the <span style="color:var(--accent);">✨</span> button to add entities.
@@ -5466,7 +5598,7 @@ function renderEntityCards() {
             <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
                 <span style="font-size:0.75rem; color:var(--text-muted);">Balance:</span>
                 <span class="${balanceColor}" style="font-weight:800; font-size:0.9rem;">
-                    ${balancePrefix}Rs ${Math.abs(netBalance).toFixed(2)}
+                    ${Math.abs(netBalance).toFixed(2)}
                 </span>
             </div>
             
@@ -5717,40 +5849,37 @@ function refreshPaymentTab() {
 
     // --- UI Navigation ---
     function showTab(tab) {
-        document.getElementById('tab-prod').className = tab === 'prod' ? '' : 'hidden';
-        document.getElementById('tab-sales').className = tab === 'sales' ? '' : 'hidden';
-        document.getElementById('tab-calc').className = tab === 'calc' ? '' : 'hidden';
-        document.getElementById('tab-factory').className = tab === 'factory' ? '' : 'hidden';
-        document.getElementById('tab-payments').className = tab === 'payments' ? '' : 'hidden';
-        
-        document.querySelectorAll('.tab-btn').forEach((btn, i) => {
-            btn.classList.toggle('active', 
-                (tab === 'prod' && i === 0) || 
-                (tab === 'sales' && i === 1) || 
-                (tab === 'calc' && i === 2) ||
-                (tab === 'factory' && i === 3) ||
-                (tab === 'payments' && i === 4)
-            );
-        });
-        
-        if(tab === 'sales') { 
-            refreshCustomerSales(); 
-            updateCustomerCharts(); 
-        }
-        if(tab === 'calc') loadSalesData(currentCompMode);
-        if(tab === 'prod') refreshUI();
-        if(tab === 'factory') initFactoryTab();
-        if(tab === 'payments') refreshPaymentTab();
-    }
+    document.getElementById('tab-prod').className = tab === 'prod' ? '' : 'hidden';
+    document.getElementById('tab-sales').className = tab === 'sales' ? '' : 'hidden';
+    document.getElementById('tab-calc').className = tab === 'calc' ? '' : 'hidden';
+    document.getElementById('tab-factory').className = tab === 'factory' ? '' : 'hidden';
+    document.getElementById('tab-payments').className = tab === 'payments' ? '' : 'hidden';
     
-    function initFactoryTab() {
-        renderFactoryInventory();
-        updateFactorySummaryCard();
-        updateFactoryUnitsAvailableStats();
-        calculateFactoryProduction();
-        renderFactoryHistory();
-        updateAllTabsWithFactoryCosts();
+    document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+        btn.classList.toggle('active', 
+            (tab === 'prod' && i === 0) || 
+            (tab === 'sales' && i === 1) || 
+            (tab === 'calc' && i === 2) ||
+            (tab === 'factory' && i === 3) ||
+            (tab === 'payments' && i === 4)
+        );
+    });
+    
+    // NEW: Scroll to top smoothly when switching tabs
+    window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+    });
+    
+    if(tab === 'sales') { 
+        refreshCustomerSales(); 
+        updateCustomerCharts(); 
     }
+    if(tab === 'calc') loadSalesData(currentCompMode);
+    if(tab === 'prod') refreshUI();
+    if(tab === 'factory') initFactoryTab();
+    if(tab === 'payments') refreshPaymentTab();
+}
 
     // --- CHARTS AND GRAPHS FUNCTIONS (UPDATED WITH ALL TIMES) ---
     function setMfgChartMode(mode) {
