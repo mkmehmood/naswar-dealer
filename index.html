@@ -1794,6 +1794,68 @@
         .transaction-out {
             background: linear-gradient(135deg, var(--danger) 0%, #b91c1c 100%);
         }
+        /* Fix the media query at the end of your CSS */
+@media (max-width: 768px) {
+    .chart-container {
+        grid-template-columns: 1fr;
+    }
+    
+    .chart-box {
+        height: 250px;
+    }
+    
+    .sales-rep-chart-container {
+        grid-template-columns: 1fr;
+    }
+    
+    .sales-rep-chart-box {
+        height: 250px;
+    }
+    
+    #combinedExportArea .chart-container {
+        max-width: 100%;
+        overflow: hidden;
+    }
+    
+    #performanceChart,
+    #compositionChart {
+        max-width: 100% !important;
+    }
+    
+    /* Entity List Table Mobile Fix */
+    #entityListTable {
+        font-size: 0.7rem;
+    }
+    
+    #entityListTable th,
+    #entityListTable td {
+        padding: 6px 4px;
+    }
+    
+    .entity-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important;
+        gap: 8px;
+    }
+    
+    .entity-card {
+        padding: 10px !important;
+    }
+    
+    .entity-card .customer-name {
+        font-size: 0.8rem !important;
+    }
+    
+    .entity-card .btn-sm {
+        font-size: 0.65rem !important;
+        padding: 3px 5px !important;
+    }
+    
+    /* Adjust actions column for mobile */
+    #entityListTable td:last-child .btn-theme {
+        padding: 2px 6px !important;
+        font-size: 0.6rem !important;
+    }
+} /* <-- THIS WAS MISSING */
     </style>
 </head>
 <body>
@@ -2907,15 +2969,24 @@
         </header>
 
         <!-- NET CASH & ECONOMIC HEALTH DASHBOARD -->
+<!-- Update the economic dashboard section (around line 1390) -->
 <div class="section liquid-card net-cash-dashboard">
     <h3 style="color:var(--accent); margin-top:0; text-align:center;">ECONOMIC HEALTH DASHBOARD</h3>
     
     <!-- Main Cash Indicator -->
     <div class="net-cash-value" id="netCashValue">Rs 0.00</div>
     
+    <!-- Operating Cash Flow -->
+    <div class="formula-item" style="background:rgba(37, 99, 235, 0.1); padding:10px; border-radius:8px; margin-bottom:15px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="color:var(--accent); font-weight:800; font-size:0.9rem;">Operating Cash Flow:</span>
+            <span style="font-weight:800; font-size:1.1rem; color:var(--accent-emerald);" id="operatingCashFlow">Rs 0.00</span>
+        </div>
+    </div>
+    
     <!-- Asset Composition -->
     <div class="formula-breakdown">
-        <h4 style="color:var(--accent-emerald); margin:15px 0 10px 0;">ASSETS</h4>
+        <h4 style="color:var(--accent-emerald); margin:15px 0 10px 0; border-bottom:2px solid var(--accent-emerald); padding-bottom:5px;">CURRENT ASSETS</h4>
         
         <div class="formula-item">
             <span>Cash in Hand:</span>
@@ -2923,53 +2994,103 @@
         </div>
         
         <div class="formula-item">
-            <span>Raw Materials:</span>
+            <span>Raw Materials Inventory:</span>
             <span class="formula-value" style="color:var(--store-a);" id="formulaRawMaterials">Rs 0.00</span>
         </div>
         
         <div class="formula-item">
-            <span>Formula Units:</span>
+            <span>Formula Units Inventory:</span>
             <span class="formula-value" style="color:var(--store-b);" id="formulaUnitsValue">Rs 0.00</span>
         </div>
         
+        <h4 style="color:var(--accent); margin:15px 0 10px 0; border-bottom:2px solid var(--accent); padding-bottom:5px;">ACCOUNTS RECEIVABLE</h4>
+        
         <div class="formula-item">
-            <span>Receivables:</span>
+            <span>Production Tab Credits:</span>
+            <span class="formula-value" id="productionReceivables">Rs 0.00</span>
+        </div>
+        
+        <div class="formula-item">
+            <span>Sales Tab Credits:</span>
+            <span class="formula-value" id="salesReceivables">Rs 0.00</span>
+        </div>
+        
+        <div class="formula-item">
+            <span>Calculator Credits:</span>
+            <span class="formula-value" id="calculatorReceivables">Rs 0.00</span>
+        </div>
+        
+        <div class="formula-item" style="font-weight:800; background:rgba(37, 99, 235, 0.05); padding:8px; border-radius:6px;">
+            <span>TOTAL RECEIVABLES:</span>
             <span class="formula-value" style="color:var(--accent);" id="formulaReceivables">Rs 0.00</span>
         </div>
         
-        <h4 style="color:var(--danger); margin:15px 0 10px 0;">LIABILITIES</h4>
-        
-        <div class="formula-item" style="color:var(--danger);">
-            <span>Customer Credit:</span>
-            <span class="formula-value" id="formulaProdCredit">Rs 0.00</span>
+        <div class="formula-item" style="font-weight:800; background:rgba(37, 99, 235, 0.1); padding:8px; border-radius:6px; margin-top:10px;">
+            <span>TOTAL CURRENT ASSETS:</span>
+            <span class="formula-value" style="color:var(--accent-emerald);" id="currentAssetsTotal">Rs 0.00</span>
         </div>
         
-        <div class="formula-item" style="color:var(--danger);">
-            <span>Rep Credit:</span>
-            <span class="formula-value" id="formulaSalesCredit">Rs 0.00</span>
-        </div>
+        <h4 style="color:var(--danger); margin:15px 0 10px 0; border-bottom:2px solid var(--danger); padding-bottom:5px;">CURRENT LIABILITIES</h4>
         
-        <div class="formula-item" style="color:var(--danger);">
+        <div class="formula-item">
             <span>Supplier Payables:</span>
-            <span class="formula-value" id="formulaPayOut">Rs 0.00</span>
+            <span class="formula-value" style="color:var(--danger);" id="supplierPayables">Rs 0.00</span>
+        </div>
+        
+        <div class="formula-item">
+            <span>Other Payables:</span>
+            <span class="formula-value" style="color:var(--danger);" id="otherPayables">Rs 0.00</span>
+        </div>
+        
+        <div class="formula-item">
+            <span>Customer Credit Outstanding:</span>
+            <span class="formula-value" style="color:var(--danger);" id="formulaProdCredit">Rs 0.00</span>
+        </div>
+        
+        <div class="formula-item">
+            <span>Rep Credit Outstanding:</span>
+            <span class="formula-value" style="color:var(--danger);" id="formulaSalesCredit">Rs 0.00</span>
+        </div>
+        
+        <div class="formula-item" style="font-weight:800; background:rgba(220, 38, 38, 0.05); padding:8px; border-radius:6px;">
+            <span>TOTAL ACCOUNTS PAYABLE:</span>
+            <span class="formula-value" style="color:var(--danger);" id="formulaPayOut">Rs 0.00</span>
+        </div>
+        
+        <div class="formula-item" style="font-weight:800; background:rgba(220, 38, 38, 0.1); padding:8px; border-radius:6px; margin-top:10px;">
+            <span>TOTAL CURRENT LIABILITIES:</span>
+            <span class="formula-value" style="color:var(--danger);" id="currentLiabilitiesTotal">Rs 0.00</span>
         </div>
         
         <hr style="margin: 15px 0; border-color: var(--glass-border);">
         
         <!-- Key Economic Indicators -->
-        <div class="formula-item" style="font-weight:800; color:var(--accent-emerald);">
+        <div class="formula-item" style="font-weight:800; color:var(--accent-emerald); background:rgba(5, 150, 105, 0.1); padding:10px; border-radius:8px;">
             <span>Net Working Capital:</span>
             <span class="formula-value" id="formulaPayIn">Rs 0.00</span>
         </div>
         
-        <div class="formula-item" style="font-weight:800; color:var(--accent);">
+        <div class="formula-item" style="font-weight:800; color:var(--accent); background:rgba(37, 99, 235, 0.1); padding:10px; border-radius:8px;">
             <span>Total Enterprise Value:</span>
             <span class="formula-value" id="formulaFinal">Rs 0.00</span>
         </div>
         
-        <div class="formula-item" style="font-weight:800; color:var(--text-main);">
-            <span>Liquidity Ratio:</span>
+        <!-- Financial Ratios -->
+        <h4 style="color:var(--text-main); margin:15px 0 10px 0; border-bottom:1px solid var(--glass-border); padding-bottom:5px;">FINANCIAL RATIOS</h4>
+        
+        <div class="formula-item">
+            <span>Current Ratio:</span>
             <span class="formula-value" id="formulaCalcDisc">1.00</span>
+        </div>
+        
+        <div class="formula-item">
+            <span>Quick Ratio:</span>
+            <span class="formula-value" id="quickRatio">1.00</span>
+        </div>
+        
+        <div class="formula-item">
+            <span>Cash Ratio:</span>
+            <span class="formula-value" id="cashRatio">1.00</span>
         </div>
     </div>
 </div>
@@ -3001,16 +3122,18 @@
         </div>
         
         <!-- Total Credits Card -->
-        <div class="card liquid-card" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%); border-color: rgba(245, 158, 11, 0.3);">
-            <h4 style="color:var(--warning);">TOTAL OUTSTANDING CREDITS</h4>
-            <p><span>Sales Tab Credits:</span> <span class="qty-val" id="credit-sales-tab">Rs 0.00</span></p>
-            <p><span>Calculator Credits:</span> <span class="qty-val" id="credit-calculator">Rs 0.00</span></p>
-            <hr style="margin: 10px 0; border-color: rgba(245, 158, 11, 0.2);">
-            <p><span>TOTAL CREDITS:</span> <span class="cost-val" id="credit-total" style="font-size:1.2rem; color:var(--warning);">Rs 0.00</span></p>
-            <div style="font-size:0.7rem; color:var(--text-muted); margin-top:8px;">
-                <span class="update-indicator"></span> Credits awaiting collection
-            </div>
-        </div>
+        <!-- Find this card in your HTML (around line 1530) -->
+<div class="card liquid-card" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%); border-color: rgba(245, 158, 11, 0.3);">
+    <h4 style="color:var(--warning);">TOTAL OUTSTANDING CREDITS</h4>
+    <p><span>Production Tab Credits:</span> <span class="qty-val" id="credit-production">Rs 0.00</span></p>
+    <p><span>Sales Tab Credits:</span> <span class="qty-val" id="credit-sales-tab">Rs 0.00</span></p>
+    <p><span>Calculator Credits:</span> <span class="qty-val" id="credit-calculator">Rs 0.00</span></p>
+    <hr style="margin: 10px 0; border-color: rgba(245, 158, 11, 0.2);">
+    <p><span>TOTAL CREDITS:</span> <span class="cost-val" id="credit-total" style="font-size:1.2rem; color:var(--warning);">Rs 0.00</span></p>
+    <div style="font-size:0.7rem; color:var(--text-muted); margin-top:8px;">
+        <span class="update-indicator"></span> Credits awaiting collection
+    </div>
+</div>
     </div>
 </div>
 
@@ -3627,6 +3750,7 @@ function setCashTrackerMode(mode) {
     calculateCashTracker();
 }
 
+// --- UPDATE calculateCashTracker FUNCTION ---
 function calculateCashTracker() {
     const selectedDate = document.getElementById('paymentDate').value || new Date().toISOString().split('T')[0];
     const selectedDateObj = new Date(selectedDate);
@@ -3660,7 +3784,8 @@ function calculateCashTracker() {
         paymentsIn: 0,
         paymentsOut: 0,
         salesTabCredits: 0,
-        calculatorCredits: 0
+        calculatorCredits: 0,
+        outstandingProductionCredits: 0 // NEW: Production tab outstanding credits
     };
     
     // 1. PRODUCTION VALUE (Total production sale value)
@@ -3671,7 +3796,7 @@ function calculateCashTracker() {
             
             // Count Production Credits (STORE_C credit sales)
             if (item.store === 'STORE_C' && item.paymentStatus === 'CREDIT') {
-                totals.productionCredits += item.totalSale || 0;
+                totals.outstandingProductionCredits += item.totalSale || 0;
             }
         }
     });
@@ -3717,24 +3842,32 @@ function calculateCashTracker() {
     
     // Calculate NET CASH using your formula:
     // Net Cash = production value - Production credits + Sales Tab Cash + Calculator Cash + Payments In - Payments Out
-    const netCash = totals.productionValue - totals.productionCredits + 
+    const netCash = totals.productionValue - totals.outstandingProductionCredits + 
                     totals.salesTabCash + totals.calculatorCash + 
                     totals.paymentsIn - totals.paymentsOut;
     
     // Update UI
     document.getElementById('cash-prod-value').textContent = `Rs ${safeValue(totals.productionValue).toFixed(2)}`;
-    document.getElementById('cash-prod-credits').textContent = `Rs ${safeValue(totals.productionCredits).toFixed(2)}`;
+    document.getElementById('cash-prod-credits').textContent = `Rs ${safeValue(totals.outstandingProductionCredits).toFixed(2)}`;
     document.getElementById('cash-sales-cash').textContent = `Rs ${safeValue(totals.salesTabCash).toFixed(2)}`;
     document.getElementById('cash-calculator-cash').textContent = `Rs ${safeValue(totals.calculatorCash).toFixed(2)}`;
     document.getElementById('cash-payments-in').textContent = `Rs ${safeValue(totals.paymentsIn).toFixed(2)}`;
     document.getElementById('cash-payments-out').textContent = `Rs ${safeValue(totals.paymentsOut).toFixed(2)}`;
     document.getElementById('cash-net-total').textContent = `Rs ${safeValue(netCash).toFixed(2)}`;
     
-    // Update credits card
+    // Update credits card - INCLUDE PRODUCTION CREDITS
     document.getElementById('credit-sales-tab').textContent = `Rs ${safeValue(totals.salesTabCredits).toFixed(2)}`;
     document.getElementById('credit-calculator').textContent = `Rs ${safeValue(totals.calculatorCredits).toFixed(2)}`;
     
-    const totalCredits = totals.salesTabCredits + totals.calculatorCredits;
+    // NEW: Add production credits to total
+    const totalCredits = totals.salesTabCredits + totals.calculatorCredits + totals.outstandingProductionCredits;
+    
+    // Update UI with production credits
+    const productionCreditsElement = document.getElementById('credit-production');
+    if (productionCreditsElement) {
+        productionCreditsElement.textContent = `Rs ${safeValue(totals.outstandingProductionCredits).toFixed(2)}`;
+    }
+    
     document.getElementById('credit-total').textContent = `Rs ${safeValue(totalCredits).toFixed(2)}`;
     
     // Update color based on cash position
@@ -3945,8 +4078,12 @@ function closeEntityTransactions() {
     }
 
     // --- UPDATED: CALCULATE NET CASH FUNCTION ---
+// --- UPDATED: CALCULATE NET CASH FUNCTION WITH MACRO/MICRO PRINCIPLES ---
 function calculateNetCash() {
-    // 1. CURRENT CASH FROM OPERATIONS (Microeconomic: Realized Cash Flow)
+    // MICROECONOMIC LEVEL (Business Operations)
+    // -----------------------------------------------------
+    
+    // 1. CURRENT CASH FROM OPERATIONS (Operating Cash Flow)
     let CashFromSales = 0;
     let CashFromProduction = 0;
     let CalcCash = 0;
@@ -3980,12 +4117,15 @@ function calculateNetCash() {
         else if (trans.type === 'OUT') ExternalCashOut += trans.amount;
     });
     
-    // Calculate CASH IN HAND
+    // Calculate CASH IN HAND (Operating Cash)
     const OPERATING_CASH = CashFromSales + CashFromProduction + CalcCash + ExternalCashIn;
     const OPERATING_EXPENSES = ExternalCashOut;
     const CASH_IN_HAND = OPERATING_CASH - OPERATING_EXPENSES;
     
-    // 2. VALUE OF CURRENT INVENTORY (Factory Assets)
+    // MACROECONOMIC LEVEL (Business Assets & Liabilities)
+    // -----------------------------------------------------
+    
+    // 2. VALUE OF CURRENT INVENTORY (Current Assets - Inventory)
     let RawMaterialsValue = 0;
     factoryInventoryData.forEach(item => {
         RawMaterialsValue += (item.quantity * item.cost) || 0;
@@ -3998,37 +4138,51 @@ function calculateNetCash() {
     const asaanCostPerUnit = getCostPerUnit('asaan');
     FormulaUnitsValue = (stdTracking.available * stdCostPerUnit) + (asaanTracking.available * asaanCostPerUnit);
     
-    // 3. RECEIVABLES (Money Owed to Business)
-    let CreditOutstanding = 0;
-    let CalcCreditOutstanding = 0;
+    // 3. ACCOUNTS RECEIVABLE (Current Assets - Receivables)
+    let AccountsReceivable = {
+        productionCredit: 0,
+        salesTabCredit: 0,
+        calculatorCredit: 0,
+        total: 0
+    };
     
+    // A. Production Tab Receivables (STORE_C Credit Sales)
     db.forEach(prod => {
         if (prod.store === 'STORE_C' && prod.paymentStatus === 'CREDIT') {
-            CreditOutstanding += prod.totalSale || 0;
+            AccountsReceivable.productionCredit += prod.totalSale || 0;
         }
     });
     
+    // B. Sales Tab Receivables
     customerSales.forEach(sale => {
         if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
             if (sale.salesRep !== 'NORAN SHAH' && sale.salesRep !== 'NOMAN SHAH') {
-                CreditOutstanding += sale.totalValue || 0;
+                AccountsReceivable.salesTabCredit += sale.totalValue || 0;
             }
         }
     });
     
+    // C. Calculator Tab Receivables
     salesHistory.forEach(item => {
-        CalcCreditOutstanding += (item.creditValue || 0);
+        AccountsReceivable.calculatorCredit += (item.creditValue || 0);
     });
     
-    // 4. LIABILITIES (Payables - What Business Owes)
-    let SupplierPayables = 0;
+    AccountsReceivable.total = AccountsReceivable.productionCredit + 
+                               AccountsReceivable.salesTabCredit + 
+                               AccountsReceivable.calculatorCredit;
     
-    // Calculate total payable to all suppliers
+    // 4. ACCOUNTS PAYABLE (Current Liabilities - What Business Owes)
+    let AccountsPayable = {
+        supplierPayables: 0,
+        otherPayables: 0,
+        total: 0
+    };
+    
+    // A. Supplier Payables (Raw Material Suppliers)
     // Method 1: Sum all material values with pending payments
     factoryInventoryData.forEach(material => {
         if (material.supplierId && material.paymentStatus === 'pending') {
-            // If material was purchased on credit, add to payables
-            SupplierPayables += material.totalPayable || (material.quantity * material.cost) || 0;
+            AccountsPayable.supplierPayables += material.totalPayable || (material.quantity * material.cost) || 0;
         }
     });
     
@@ -4058,35 +4212,110 @@ function calculateNetCash() {
             // If we purchased more than we paid, it's a payable
             const supplierPayable = totalPurchased - totalPaid;
             if (supplierPayable > 0) {
-                SupplierPayables += supplierPayable;
+                AccountsPayable.supplierPayables += supplierPayable;
             }
         }
     });
     
-    const CURRENT_ASSETS = RawMaterialsValue + FormulaUnitsValue + CreditOutstanding + CalcCreditOutstanding;
-    const CURRENT_LIABILITIES = CreditOutstanding + CalcCreditOutstanding + SupplierPayables;
+    // B. Other Payables (Non-supplier obligations)
+    const otherPayeeEntities = paymentEntities.filter(e => e.type === 'payee' && !e.isSupplier);
+    otherPayeeEntities.forEach(entity => {
+        const entityTransactions = paymentTransactions.filter(t => t.entityId === entity.id);
+        
+        if (entityTransactions.length > 0) {
+            let totalOwed = 0;
+            let totalPaid = 0;
+            
+            entityTransactions.forEach(transaction => {
+                if (transaction.type === 'OUT' && !transaction.isPayable) {
+                    // Regular payment obligations
+                    totalOwed += transaction.amount;
+                } else if (transaction.type === 'IN') {
+                    // Credits/refunds
+                    totalPaid -= transaction.amount;
+                }
+            });
+            
+            const netPayable = totalOwed - totalPaid;
+            if (netPayable > 0) {
+                AccountsPayable.otherPayables += netPayable;
+            }
+        }
+    });
+    
+    AccountsPayable.total = AccountsPayable.supplierPayables + AccountsPayable.otherPayables;
+    
+    // 5. WORKING CAPITAL CALCULATIONS
+    const CURRENT_ASSETS = CASH_IN_HAND + 
+                           RawMaterialsValue + 
+                           FormulaUnitsValue + 
+                           AccountsReceivable.total;
+    
+    const CURRENT_LIABILITIES = AccountsReceivable.total + AccountsPayable.total;
+    
+    const WORKING_CAPITAL = CURRENT_ASSETS - CURRENT_LIABILITIES;
+    
+    // 6. FINANCIAL RATIOS
+    const liquidityRatios = {
+        currentRatio: CURRENT_LIABILITIES > 0 ? CURRENT_ASSETS / CURRENT_LIABILITIES : 0,
+        quickRatio: CURRENT_LIABILITIES > 0 ? (CURRENT_ASSETS - RawMaterialsValue - FormulaUnitsValue) / CURRENT_LIABILITIES : 0,
+        cashRatio: CURRENT_LIABILITIES > 0 ? CASH_IN_HAND / CURRENT_LIABILITIES : 0
+    };
+    
+    // 7. ENTERPRISE VALUE
+    const ENTERPRISE_VALUE = CASH_IN_HAND + 
+                             CURRENT_ASSETS - 
+                             CURRENT_LIABILITIES;
     
     const indicators = {
+        // Microeconomic (Operational)
         cashInHand: CASH_IN_HAND,
+        operatingCashFlow: OPERATING_CASH,
+        
+        // Current Assets
         assets: {
             cash: CASH_IN_HAND,
             rawMaterials: RawMaterialsValue,
             formulaUnits: FormulaUnitsValue,
-            receivables: CreditOutstanding + CalcCreditOutstanding
+            accountsReceivable: AccountsReceivable.total,
+            currentAssetsTotal: CURRENT_ASSETS
         },
+        
+        // Accounts Receivable Breakdown
+        receivables: {
+            production: AccountsReceivable.productionCredit,
+            salesTab: AccountsReceivable.salesTabCredit,
+            calculator: AccountsReceivable.calculatorCredit,
+            total: AccountsReceivable.total
+        },
+        
+        // Current Liabilities
         liabilities: {
-            customerCredit: CreditOutstanding,
-            repCredit: CalcCreditOutstanding,
-            supplierPayables: SupplierPayables
+            accountsPayable: AccountsPayable.total,
+            supplierPayables: AccountsPayable.supplierPayables,
+            otherPayables: AccountsPayable.otherPayables,
+            customerCredit: AccountsReceivable.productionCredit + AccountsReceivable.salesTabCredit,
+            repCredit: AccountsReceivable.calculatorCredit,
+            currentLiabilitiesTotal: CURRENT_LIABILITIES
         },
-        netWorkingCapital: CURRENT_ASSETS - CURRENT_LIABILITIES,
-        totalEnterpriseValue: CASH_IN_HAND + CURRENT_ASSETS - CURRENT_LIABILITIES,
-        liquidityRatio: CURRENT_LIABILITIES > 0 ? CURRENT_ASSETS / CURRENT_LIABILITIES : 1
+        
+        // Financial Health Indicators
+        workingCapital: WORKING_CAPITAL,
+        netWorkingCapital: WORKING_CAPITAL,
+        totalEnterpriseValue: ENTERPRISE_VALUE,
+        
+        // Financial Ratios
+        liquidityRatios: liquidityRatios,
+        
+        // Profitability (estimated)
+        estimatedROA: CURRENT_ASSETS > 0 ? (WORKING_CAPITAL / CURRENT_ASSETS * 100) : 0,
+        estimatedROE: ENTERPRISE_VALUE > 0 ? (WORKING_CAPITAL / ENTERPRISE_VALUE * 100) : 0
     };
     
     updateEconomicDashboard(indicators);
     return indicators;
 }
+
 
 
 // Helper function to get cost per unit for formula units
@@ -4104,11 +4333,27 @@ function getCostPerUnit(storeType) {
 }
 
 // Update the Economic Dashboard UI
+// Update the Economic Dashboard UI
 function updateEconomicDashboard(indicators) {
+    // MICROECONOMIC INDICATORS
     // Main Net Cash Display
     const netCashValueElement = document.getElementById('netCashValue');
     if (netCashValueElement) {
         netCashValueElement.textContent = `Rs ${safeValue(indicators.cashInHand).toFixed(2)}`;
+        // Color coding based on cash position
+        if (indicators.cashInHand < 0) {
+            netCashValueElement.style.color = 'var(--danger)';
+        } else if (indicators.cashInHand < 10000) {
+            netCashValueElement.style.color = 'var(--warning)';
+        } else {
+            netCashValueElement.style.color = 'var(--accent-emerald)';
+        }
+    }
+    
+    // Operating Cash Flow
+    const operatingCashElement = document.getElementById('operatingCashFlow');
+    if (operatingCashElement) {
+        operatingCashElement.textContent = `Rs ${safeValue(indicators.operatingCashFlow).toFixed(2)}`;
     }
     
     // ASSETS Breakdown
@@ -4127,9 +4372,26 @@ function updateEconomicDashboard(indicators) {
         formulaUnitsValueElement.textContent = `Rs ${safeValue(indicators.assets.formulaUnits).toFixed(2)}`;
     }
     
+    // ACCOUNTS RECEIVABLE Breakdown
     const formulaReceivablesElement = document.getElementById('formulaReceivables');
     if (formulaReceivablesElement) {
-        formulaReceivablesElement.textContent = `Rs ${safeValue(indicators.assets.receivables).toFixed(2)}`;
+        formulaReceivablesElement.textContent = `Rs ${safeValue(indicators.receivables.total).toFixed(2)}`;
+    }
+    
+    // Add detailed receivables if elements exist
+    const productionReceivablesElement = document.getElementById('productionReceivables');
+    if (productionReceivablesElement) {
+        productionReceivablesElement.textContent = `Rs ${safeValue(indicators.receivables.production).toFixed(2)}`;
+    }
+    
+    const salesReceivablesElement = document.getElementById('salesReceivables');
+    if (salesReceivablesElement) {
+        salesReceivablesElement.textContent = `Rs ${safeValue(indicators.receivables.salesTab).toFixed(2)}`;
+    }
+    
+    const calculatorReceivablesElement = document.getElementById('calculatorReceivables');
+    if (calculatorReceivablesElement) {
+        calculatorReceivablesElement.textContent = `Rs ${safeValue(indicators.receivables.calculator).toFixed(2)}`;
     }
     
     // LIABILITIES Breakdown
@@ -4143,15 +4405,45 @@ function updateEconomicDashboard(indicators) {
         formulaSalesCreditElement.textContent = `Rs ${safeValue(indicators.liabilities.repCredit).toFixed(2)}`;
     }
     
+    // ACCOUNTS PAYABLE Breakdown
     const formulaPayOutElement = document.getElementById('formulaPayOut');
     if (formulaPayOutElement) {
-        formulaPayOutElement.textContent = `Rs ${safeValue(indicators.liabilities.supplierPayables).toFixed(2)}`;
+        formulaPayOutElement.textContent = `Rs ${safeValue(indicators.liabilities.accountsPayable).toFixed(2)}`;
+    }
+    
+    const supplierPayablesElement = document.getElementById('supplierPayables');
+    if (supplierPayablesElement) {
+        supplierPayablesElement.textContent = `Rs ${safeValue(indicators.liabilities.supplierPayables).toFixed(2)}`;
+    }
+    
+    const otherPayablesElement = document.getElementById('otherPayables');
+    if (otherPayablesElement) {
+        otherPayablesElement.textContent = `Rs ${safeValue(indicators.liabilities.otherPayables).toFixed(2)}`;
+    }
+    
+    // CURRENT ASSETS & LIABILITIES TOTALS
+    const currentAssetsElement = document.getElementById('currentAssetsTotal');
+    if (currentAssetsElement) {
+        currentAssetsElement.textContent = `Rs ${safeValue(indicators.assets.currentAssetsTotal).toFixed(2)}`;
+    }
+    
+    const currentLiabilitiesElement = document.getElementById('currentLiabilitiesTotal');
+    if (currentLiabilitiesElement) {
+        currentLiabilitiesElement.textContent = `Rs ${safeValue(indicators.liabilities.currentLiabilitiesTotal).toFixed(2)}`;
     }
     
     // Economic Health Indicators
     const formulaPayInElement = document.getElementById('formulaPayIn');
     if (formulaPayInElement) {
-        formulaPayInElement.textContent = `Rs ${safeValue(indicators.netWorkingCapital).toFixed(2)}`;
+        formulaPayInElement.textContent = `Rs ${safeValue(indicators.workingCapital).toFixed(2)}`;
+        // Color coding based on working capital
+        if (indicators.workingCapital < 0) {
+            formulaPayInElement.style.color = 'var(--danger)';
+        } else if (indicators.workingCapital < 50000) {
+            formulaPayInElement.style.color = 'var(--warning)';
+        } else {
+            formulaPayInElement.style.color = 'var(--accent-emerald)';
+        }
     }
     
     const formulaFinalElement = document.getElementById('formulaFinal');
@@ -4159,23 +4451,38 @@ function updateEconomicDashboard(indicators) {
         formulaFinalElement.textContent = `Rs ${safeValue(indicators.totalEnterpriseValue).toFixed(2)}`;
     }
     
-    // Quick Ratio Display
+    // Financial Ratios Display
     const quickRatioElement = document.getElementById('formulaCalcDisc');
     if (quickRatioElement) {
-        quickRatioElement.textContent = indicators.liquidityRatio.toFixed(2);
-        quickRatioElement.style.color = indicators.liquidityRatio >= 1 ? 
-            'var(--accent-emerald)' : 'var(--warning)';
+        const currentRatio = indicators.liquidityRatios.currentRatio;
+        quickRatioElement.textContent = currentRatio.toFixed(2);
+        
+        // Color coding based on ratio health
+        if (currentRatio < 1) {
+            quickRatioElement.style.color = 'var(--danger)';
+            quickRatioElement.title = "Poor - Insufficient liquidity";
+        } else if (currentRatio < 2) {
+            quickRatioElement.style.color = 'var(--warning)';
+            quickRatioElement.title = "Adequate - Acceptable liquidity";
+        } else {
+            quickRatioElement.style.color = 'var(--accent-emerald)';
+            quickRatioElement.title = "Good - Strong liquidity position";
+        }
+    }
+    
+    // Add more ratio displays if needed
+    const quickRatioElement2 = document.getElementById('quickRatio');
+    if (quickRatioElement2) {
+        quickRatioElement2.textContent = indicators.liquidityRatios.quickRatio.toFixed(2);
+    }
+    
+    const cashRatioElement = document.getElementById('cashRatio');
+    if (cashRatioElement) {
+        cashRatioElement.textContent = indicators.liquidityRatios.cashRatio.toFixed(2);
     }
     
     // Optional: Add detailed breakdown for debugging
-    console.log('Economic Health Indicators:', {
-        'Cash in Hand': indicators.cashInHand,
-        'Total Assets': indicators.assets.cash + indicators.assets.rawMaterials + indicators.assets.formulaUnits + indicators.assets.receivables,
-        'Total Liabilities': indicators.liabilities.customerCredit + indicators.liabilities.repCredit + indicators.liabilities.supplierPayables,
-        'Net Working Capital': indicators.netWorkingCapital,
-        'Enterprise Value': indicators.totalEnterpriseValue,
-        'Liquidity Ratio': indicators.liquidityRatio
-    });
+    console.log('Economic Health Indicators:', indicators);
 }
 function getCostPerUnit(storeType) {
     const formula = factoryDefaultFormulas[storeType];
@@ -5627,26 +5934,9 @@ function saveTransaction() {
         return;
     }
 
-    // >>> NEW LOGIC: Calculate total sold from Sales tab first <<<
-    let totalSoldFromSalesTab = 0;
-    let totalCreditFromSalesTab = 0;
-    
-    // Get all sales for this seller on this date from Sales tab
-    customerSales.forEach(sale => {
-        if (sale.salesRep === seller && sale.date === date) {
-            totalSoldFromSalesTab += sale.quantity || 0;
-            
-            // If it's a credit sale that hasn't been received yet
-            if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
-                totalCreditFromSalesTab += sale.quantity || 0;
-            }
-        }
-    });
-    
-    // Now calculate actual values
-    const netSold = (sold + totalSoldFromSalesTab) - ret;
-    const cashQty = Math.max(0, netSold - (cred + totalCreditFromSalesTab));
-    const creditValue = (cred + totalCreditFromSalesTab) * salePrice;
+    const netSold = sold - ret;
+    const cashQty = Math.max(0, netSold - cred);
+    const creditValue = cred * salePrice;
     const revenue = netSold * salePrice;
     const totalCost = netSold * costPerKg;
     const profit = revenue - totalCost;
@@ -5669,9 +5959,6 @@ function saveTransaction() {
         revenue: revenue, 
         totalCost: totalCost,
         totalExpected: totalExpected,
-        // NEW: Store the sales tab references
-        salesTabSold: totalSoldFromSalesTab,
-        salesTabCredit: totalCreditFromSalesTab,
         statusText: document.getElementById('discrepancyStatus').innerText,
         statusClass: document.getElementById('discrepancyBox').className,
         timestamp: new Date(date).getTime()
@@ -5681,22 +5968,19 @@ function saveTransaction() {
     history.push(entry);
     localStorage.setItem('noman_history', JSON.stringify(history));
     
-    // >>> NEW LOGIC: Mark corresponding Sales Tab credits as Received <<<
-    updateSalesTabCreditStatus(seller, date, prev);
+    // >>> NEW LOGIC ADDED HERE <<<
+    // Automatically mark corresponding Sales Tab entries as Received
+    updateSalesTabCreditStatus(seller, date);
+    // >>> END NEW LOGIC <<<
     
-    // Clear form
     document.getElementById('totalSold').value = '';
     document.getElementById('returnedQuantity').value = '';
     document.getElementById('creditSales').value = '';
     document.getElementById('prevCreditReceived').value = '';
     document.getElementById('receivedCash').value = '';
     
-    // Update displays
-    calculateSales();
-    loadSalesData(currentCompMode);
-    refreshCustomerSales();
-    
     alert("Transaction saved successfully! Related Sales Tab credits marked as Received.");
+    loadSalesData(currentCompMode);
 }
 
    
@@ -8434,6 +8718,219 @@ function deleteSalesEntry(id) {
             }
         });
     });
+    // Add this function to your JavaScript
+function refreshEntityList() {
+    const tbody = document.getElementById('entityListBody');
+    const footer = document.getElementById('entityListFooter');
+    tbody.innerHTML = '';
+    
+    if (paymentEntities.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; color:var(--text-muted);">No entities found</td></tr>';
+        footer.style.display = 'none';
+        return;
+    }
+    
+    let totalBalance = 0;
+    
+    paymentEntities.forEach(entity => {
+        const entityTransactions = paymentTransactions.filter(t => t.entityId === entity.id);
+        let balance = 0;
+        
+        entityTransactions.forEach(transaction => {
+            if (transaction.type === 'IN') balance += transaction.amount;
+            else if (transaction.type === 'OUT') balance -= transaction.amount;
+        });
+        
+        totalBalance += balance;
+        
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td style="text-align:left;">
+                <div style="font-weight:700;">${entity.name}</div>
+                <div style="font-size:0.65rem; color:var(--text-muted);">
+                    ${entity.type === 'payee' ? 'Payee (We pay)' : 'Payor (Pays us)'}
+                </div>
+            </td>
+            <td style="${balance >= 0 ? 'color:var(--accent-emerald)' : 'color:var(--danger)'}; font-weight:800;">
+                Rs ${balance.toFixed(2)}
+            </td>
+            <td style="text-align:center;">${entityTransactions.length}</td>
+            <td style="text-align:center;">
+                <button class="btn-theme" onclick="editEntity(${entity.id})" style="padding:3px 8px; font-size:0.7rem;">Edit</button>
+                <button class="btn-theme" onclick="openEntityTransactions(${entity.id})" style="padding:3px 8px; font-size:0.7rem; margin-left:5px;">View</button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+    
+    footer.style.display = '';
+    document.getElementById('entityListTotalBalance').textContent = `Rs ${totalBalance.toFixed(2)}`;
+    document.getElementById('entityListTotalBalance').style.color = totalBalance >= 0 ? 'var(--accent-emerald)' : 'var(--danger)';
+}
+
+function filterEntityList() {
+    const searchTerm = document.getElementById('entity-list-search').value.toLowerCase();
+    const rows = document.querySelectorAll('#entityListBody tr');
+    
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(searchTerm) ? '' : 'none';
+    });
+}
+
+function toggleEntityListView() {
+    const toggleBtn = document.getElementById('entityListViewToggle');
+    const table = document.getElementById('entityListTable');
+    
+    if (table.style.display === 'none') {
+        table.style.display = 'table';
+        toggleBtn.innerHTML = '☰';
+        toggleBtn.title = 'Hide Table View';
+    } else {
+        table.style.display = 'none';
+        toggleBtn.innerHTML = '📊';
+        toggleBtn.title = 'Show Table View';
+    }
+}
+// Replace the incomplete getMetricValue function with this:
+function getMetricValue(historyItem, metric) {
+    switch(metric) {
+        case 'weight':
+            return ((historyItem.totalSold || 0) - (historyItem.returned || 0)) || 0;
+        case 'value':
+            return historyItem.revenue || 0;
+        case 'cost':
+            return historyItem.totalCost || 0;
+        case 'profit':
+            return historyItem.profit || 0;
+        case 'cash':
+            return (historyItem.received || 0);
+        case 'credit':
+            return historyItem.creditValue || 0;
+        default:
+            return 0;
+    }
+}
+
+function getMetricLabel(metric) {
+    switch(metric) {
+        case 'weight': return 'Weight (kg)';
+        case 'value': return 'Revenue (Rs)';
+        case 'cost': return 'Cost (Rs)';
+        case 'profit': return 'Profit (Rs)';
+        case 'cash': return 'Cash (Rs)';
+        case 'credit': return 'Credit (Rs)';
+        default: return 'Metric';
+    }
+}
+function deleteFactoryInventoryItem() {
+    if (editingFactoryInventoryId && confirm("Delete this inventory item permanently?")) {
+        factoryInventoryData = factoryInventoryData.filter(item => item.id !== editingFactoryInventoryId);
+        localStorage.setItem('factory_inventory_data', JSON.stringify(factoryInventoryData));
+        closeFactoryInventoryModal();
+        renderFactoryInventory();
+        alert("Inventory item deleted!");
+    }
+}
+// Add these at the top of your JavaScript or with other helper functions
+function safeValue(value) {
+    return isNaN(value) || !value ? 0 : value;
+}
+
+function formatCurrency(value) {
+    return new Intl.NumberFormat('en-PK', {
+        style: 'currency',
+        currency: 'PKR',
+        minimumFractionDigits: 2
+    }).format(value || 0).replace('PKR', 'PKR ');
+}
+
+// Missing update functions
+function updateFactoryUnitsAvailableStats() {
+    const std = factoryUnitTracking?.standard || { available: 0, consumed: 0 };
+    const asaan = factoryUnitTracking?.asaan || { available: 0, consumed: 0 };
+    
+    document.getElementById('factoryStdUnits').textContent = std.available;
+    document.getElementById('factoryStdUsedUnits').textContent = std.consumed;
+    document.getElementById('factoryAsaanUnits').textContent = asaan.available;
+    document.getElementById('factoryAsaanUsedUnits').textContent = asaan.consumed;
+    
+    // Update cost values
+    const stdUnitCost = getCostPerUnit('standard');
+    const asaanUnitCost = getCostPerUnit('asaan');
+    
+    document.getElementById('factoryStdUnitCost').textContent = formatCurrency(stdUnitCost);
+    document.getElementById('factoryAsaanUnitCost').textContent = formatCurrency(asaanUnitCost);
+}
+
+function updateFactorySummaryCard() {
+    const mode = currentFactorySummaryMode;
+    const now = new Date(currentFactoryDate);
+    
+    let produced = 0, consumed = 0, cost = 0, profit = 0;
+    
+    factoryProductionHistory.forEach(entry => {
+        const entryDate = new Date(entry.date);
+        
+        // Filter by date range based on mode
+        if (mode === 'daily' && entry.date !== currentFactoryDate) return;
+        if (mode === 'weekly' && (now - entryDate) > (7 * 24 * 60 * 60 * 1000)) return;
+        if (mode === 'monthly' && (entryDate.getMonth() !== now.getMonth() || entryDate.getFullYear() !== now.getFullYear())) return;
+        if (mode === 'yearly' && entryDate.getFullYear() !== now.getFullYear()) return;
+        
+        produced += entry.units || 0;
+        cost += entry.totalCost || 0;
+    });
+    
+    // Calculate consumed units from production tab
+    db.forEach(entry => {
+        const entryDate = new Date(entry.date);
+        
+        if (mode === 'daily' && entry.date !== currentFactoryDate) return;
+        if (mode === 'weekly' && (now - entryDate) > (7 * 24 * 60 * 60 * 1000)) return;
+        if (mode === 'monthly' && (entryDate.getMonth() !== now.getMonth() || entryDate.getFullYear() !== now.getFullYear())) return;
+        if (mode === 'yearly' && entryDate.getFullYear() !== now.getFullYear()) return;
+        
+        consumed += entry.formulaUnits || 0;
+    });
+    
+    const available = produced - consumed;
+    const perUnitCost = produced > 0 ? cost / produced : 0;
+    
+    document.getElementById('factorySumUnits').textContent = available;
+    document.getElementById('factorySumUsedUnits').textContent = consumed;
+    document.getElementById('factorySumUnitCost').textContent = formatCurrency(perUnitCost);
+    document.getElementById('factorySumTotalCost').textContent = formatCurrency(cost);
+}
+// Add this to your DOMContentLoaded or initialization function
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize all components
+    initSplashScreen();
+    refreshUI();
+    renderFactoryInventory();
+    syncFactoryProductionStats();
+    refreshPaymentTab();
+    
+    // Set default dates
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('sys-date').value = today;
+    document.getElementById('cust-date').value = today;
+    document.getElementById('sale-date').value = today;
+    document.getElementById('paymentDate').value = today;
+    document.getElementById('factory-date').value = today;
+    currentFactoryDate = today;
+    
+    // Set up factory tab refresh
+    document.getElementById('factory-date').addEventListener('change', function() {
+        currentFactoryDate = this.value;
+        updateFactorySummaryCard();
+    });
+    
+    // Hide splash screen after animation
+    setTimeout(() => {
+        document.getElementById('splash-screen').style.display = 'none';
+    }, 1500);
+});
 </script>
 </body>
 </html>
