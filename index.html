@@ -9175,14 +9175,18 @@ function toggleEntityListView() {
     const toggleBtn = document.getElementById('entityListViewToggle');
     const table = document.getElementById('entityListTable');
     
-    if (table.style.display === 'none') {
-        table.style.display = 'table';
-        toggleBtn.innerHTML = '☰';
-        toggleBtn.title = 'Hide Table View';
+    if (entityListViewType === 'table') {
+        entityListViewType = 'cards';
+        toggleBtn.innerHTML = '📃';
+        toggleBtn.title = "Table View";
+        if (table) table.style.display = 'cards';
+        renderEntityCards();
     } else {
-        table.style.display = 'none';
-        toggleBtn.innerHTML = '📊';
-        toggleBtn.title = 'Show Table View';
+        entityListViewType = 'table';
+        toggleBtn.innerHTML = '☰';
+        toggleBtn.title = "Cards";
+        if (table) table.style.display = '';
+        renderEntityList();
     }
 }
 // Replace the incomplete getMetricValue function with this:
