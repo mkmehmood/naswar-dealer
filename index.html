@@ -1856,6 +1856,352 @@
         font-size: 0.6rem !important;
     }
 } /* <-- THIS WAS MISSING */
+  /* --- DARK THEME (LIQUID NIGHT MODE) --- */
+body.dark-mode {
+    --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+    --glass: rgba(30, 41, 59, 0.92);
+    --glass-border: rgba(96, 165, 250, 0.15);
+    --text-main: #f1f5f9;
+    --text-muted: #94a3b8;
+    --accent: #60a5fa;
+    --accent-emerald: #34d399;
+    --warning: #fbbf24;
+    --danger: #f87171;
+    --input-bg: rgba(30, 41, 59, 0.85);
+    --card-hover: rgba(51, 65, 85, 0.98);
+    --shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+    --highlight-bg: rgba(96, 165, 250, 0.15);
+    --highlight-border: rgba(96, 165, 250, 0.3);
+    --store-a: #60a5fa;
+    --store-b: #a78bfa;
+    --store-c: #10b981;
+    --cash-color: #34d399;
+    --credit-color: #fbbf24;
+    --liquid-blue: rgba(96, 165, 250, 0.1);
+    --liquid-green: rgba(52, 211, 153, 0.1);
+    --noran-color: #60a5fa;
+    --noman-color: #34d399;
+    --supply-a: #60a5fa;
+    --supply-b: #a78bfa;
+    --factory-std: #60a5fa;
+    --factory-asn: #a78bfa;
+}
+
+/* Dark mode specific adjustments */
+body.dark-mode .shimmer-text {
+    background: linear-gradient(90deg, #f1f5f9 0%, #60a5fa 50%, #f1f5f9 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+body.dark-mode .nav-tabs {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-mode .tab-btn {
+    background: rgba(30, 41, 59, 0.8);
+    color: #94a3b8;
+    border: 1px solid rgba(96, 165, 250, 0.2);
+}
+
+body.dark-mode .tab-btn.active {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+}
+
+body.dark-mode .tab-btn:hover:not(.active) {
+    background: rgba(51, 65, 85, 0.8);
+}
+
+body.dark-mode input,
+body.dark-mode select,
+body.dark-mode .search-bar {
+    background: rgba(30, 41, 59, 0.8);
+    color: #f1f5f9;
+    border-color: rgba(96, 165, 250, 0.2);
+}
+
+body.dark-mode input:focus,
+body.dark-mode select:focus,
+body.dark-mode .search-bar:focus {
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+}
+
+body.dark-mode .comp-table th {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+}
+
+body.dark-mode .comp-table td {
+    background: rgba(30, 41, 59, 0.5);
+    border-color: rgba(96, 165, 250, 0.1);
+}
+
+body.dark-mode .winner-cell {
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.2) 0%, rgba(251, 191, 36, 0.1) 100%);
+    color: #fbbf24;
+}
+
+/* Dark mode factory history cards */
+body.dark-mode .factory-history-item {
+    background: rgba(30, 41, 59, 0.6);
+    border-color: rgba(96, 165, 250, 0.2);
+}
+
+body.dark-mode .factory-history-item .factory-summary-row {
+    border-bottom: 1px dashed rgba(96, 165, 250, 0.15);
+}
+
+/* Dark mode entity cards */
+body.dark-mode .entity-card {
+    background: rgba(30, 41, 59, 0.7);
+    border-color: rgba(96, 165, 250, 0.2);
+}
+
+/* Dark mode payment badges */
+body.dark-mode .payment-badge.cash {
+    background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+}
+
+body.dark-mode .payment-badge.credit {
+    background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
+}
+
+body.dark-mode .payment-badge.received {
+    background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+}
+
+/* Dark mode store badges */
+body.dark-mode .store-badge.store-a {
+    background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+}
+
+body.dark-mode .store-badge.store-b {
+    background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
+}
+
+body.dark-mode .store-badge.store-c {
+    background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+}
+
+/* Dark mode transaction badges */
+body.dark-mode .transaction-badge {
+    backdrop-filter: var(--backdrop-blur);
+}
+
+body.dark-mode .transaction-in {
+    background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+}
+
+body.dark-mode .transaction-out {
+    background: linear-gradient(135deg, #f87171 0%, #dc2626 100%);
+}
+
+/* Dark mode result boxes */
+body.dark-mode .result-box {
+    background: rgba(30, 41, 59, 0.8);
+    border-color: rgba(96, 165, 250, 0.2);
+}
+
+body.dark-mode .discrepancy-alert {
+    background: linear-gradient(135deg, rgba(248, 113, 113, 0.15) 0%, rgba(248, 113, 113, 0.08) 100%);
+    border-left: 4px solid #f87171;
+    color: #f87171;
+}
+
+body.dark-mode .discrepancy-ok {
+    background: linear-gradient(135deg, rgba(96, 165, 250, 0.15) 0%, rgba(96, 165, 250, 0.08) 100%);
+    border-left: 4px solid #60a5fa;
+    color: #60a5fa;
+}
+
+/* Dark mode formula displays */
+body.dark-mode .formula-display,
+body.dark-mode .formula-unit-display {
+    background: rgba(96, 165, 250, 0.08);
+    border-color: rgba(96, 165, 250, 0.2);
+}
+
+/* Dark mode warning messages */
+body.dark-mode .warning-message {
+    background: rgba(251, 191, 36, 0.15);
+    border-color: rgba(251, 191, 36, 0.3);
+    color: #fbbf24;
+}
+
+/* Dark mode credit checkbox */
+body.dark-mode .credit-checkbox-container {
+    background: rgba(52, 211, 153, 0.1);
+    border-color: rgba(52, 211, 153, 0.2);
+}
+
+body.dark-mode .credit-checkbox-container:hover {
+    background: rgba(52, 211, 153, 0.15);
+    border-color: rgba(52, 211, 153, 0.3);
+}
+
+body.dark-mode .credit-checkbox-container.received {
+    background: rgba(52, 211, 153, 0.2);
+    border-color: rgba(52, 211, 153, 0.4);
+}
+
+/* Dark mode buttons */
+body.dark-mode .btn-main {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+}
+
+body.dark-mode .btn-noman {
+    background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+}
+
+body.dark-mode .btn-danger {
+    background: linear-gradient(135deg, #f87171 0%, #dc2626 100%);
+}
+
+/* Dark mode settings panel */
+body.dark-mode .settings-panel {
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.98) 0%, rgba(30, 41, 59, 0.95) 100%);
+    border-left-color: rgba(96, 165, 250, 0.2);
+}
+
+/* Dark mode overlay cards */
+body.dark-mode .factory-overlay-card,
+body.dark-mode .factory-overlay-card.liquid-card {
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.98) 0%, rgba(30, 41, 59, 0.95) 100%);
+    border-color: rgba(96, 165, 250, 0.2);
+}
+
+/* Dark mode liquid background elements */
+body.dark-mode .liquid-bg-element {
+    opacity: 0.15;
+}
+
+body.dark-mode .liquid-1 {
+    background: #60a5fa;
+}
+
+body.dark-mode .liquid-2 {
+    background: #34d399;
+}
+
+body.dark-mode .liquid-3 {
+    background: #a78bfa;
+}
+
+/* Dark mode economic dashboard */
+body.dark-mode .net-cash-dashboard {
+    background: linear-gradient(135deg, rgba(96, 165, 250, 0.15) 0%, rgba(52, 211, 153, 0.15) 100%);
+    border-color: rgba(96, 165, 250, 0.3);
+}
+
+/* Dark mode cash tracker card */
+body.dark-mode .card[style*="background: linear-gradient(135deg, rgba(245, 158, 11, 0.1)"] {
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.15) 0%, rgba(251, 191, 36, 0.08) 100%) !important;
+    border-color: rgba(251, 191, 36, 0.3) !important;
+}
+
+/* Dark mode highlight cards */
+body.dark-mode .highlight-card {
+    background: rgba(96, 165, 250, 0.15);
+    border-color: rgba(96, 165, 250, 0.3);
+}
+
+/* Dark mode all-times summary */
+body.dark-mode .all-times-summary {
+    background: rgba(96, 165, 250, 0.2);
+    border-color: rgba(96, 165, 250, 0.4);
+}
+
+/* Dark mode toggle group */
+body.dark-mode .toggle-group {
+    background: rgba(30, 41, 59, 0.8);
+    border-color: rgba(96, 165, 250, 0.2);
+}
+
+body.dark-mode .toggle-opt {
+    color: #94a3b8;
+}
+
+body.dark-mode .toggle-opt.active {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: white;
+}
+
+/* Dark mode metric buttons */
+body.dark-mode .metric-btn {
+    background: rgba(30, 41, 59, 0.8);
+    border-color: rgba(96, 165, 250, 0.2);
+    color: #94a3b8;
+}
+
+body.dark-mode .metric-btn.active {
+    background: linear-gradient(135deg, #60a5fa 0%, #34d399 100%);
+    border-color: transparent;
+    color: white;
+}
+
+/* Dark mode store selector */
+body.dark-mode .store-selector {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    border-color: rgba(96, 165, 250, 0.3);
+}
+
+/* Dark mode factory store options */
+body.dark-mode .factory-store-opt {
+    background: rgba(30, 41, 59, 0.8);
+    color: #94a3b8;
+    border-color: rgba(96, 165, 250, 0.2);
+}
+
+body.dark-mode .factory-store-opt.active {
+    background: #1e293b;
+    color: #f1f5f9;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+/* Dark mode factory inventory table */
+body.dark-mode .factory-inventory-table th {
+    background: rgba(96, 165, 250, 0.15);
+    color: #60a5fa;
+}
+
+body.dark-mode .factory-inventory-table td {
+    border-bottom-color: rgba(96, 165, 250, 0.1);
+}
+
+/* Dark mode cost display */
+body.dark-mode .cost-display {
+    background: rgba(248, 113, 113, 0.15);
+    color: #f87171;
+}
+
+/* Dark mode debt panel */
+body.dark-mode .debt-panel {
+    background: linear-gradient(135deg, rgba(96, 165, 250, 0.15), rgba(30, 41, 59, 0.05));
+    border-color: #60a5fa;
+}
+
+/* Dark mode units available indicators */
+body.dark-mode .units-available-good {
+    background: rgba(52, 211, 153, 0.15);
+    color: #34d399;
+    border-color: rgba(52, 211, 153, 0.3);
+}
+
+body.dark-mode .units-available-warning {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+    border-color: rgba(251, 191, 36, 0.3);
+}
+
+body.dark-mode .units-available-danger {
+    background: rgba(248, 113, 113, 0.15);
+    color: #f87171;
+    border-color: rgba(248, 113, 113, 0.3);
+}
     </style>
 </head>
 <body>
@@ -2142,16 +2488,18 @@
     <div class="splash-ornament ornament-bottom"></div>
 </div>
 
-<div class="container">
-    <div class="system-controls">
-        <span style="font-weight:800; font-size:0.85rem; color:var(--accent);" class="shimmer-text">MAHMOOD KHAN</span>
-        
-        <div style="display:flex; gap:8px; align-items: center;">
-            <button class="btn btn-noman btn-sm" onclick="unifiedBackup()">Backup</button>
-            <button class="btn btn-sm" style="background:var(--glass-border); color:var(--text-main);" onclick="document.getElementById('restoreInput').click()">Restore</button>
-            <input type="file" id="restoreInput" class="hidden" accept=".json" onchange="unifiedRestore(event)">
-        </div>
+<!-- Replace this part in your system-controls div: -->
+<div class="system-controls">
+    <span style="font-weight:800; font-size:0.85rem; color:var(--accent);" class="shimmer-text">MAHMOOD KHAN</span>
+    
+    <div style="display:flex; gap:8px; align-items: center;">
+        <!-- Add the moon icon here -->
+        <button class="btn-theme" id="themeToggle" onclick="toggleDarkMode()" title="Toggle Dark Mode">🌕</button>
+        <button class="btn btn-noman btn-sm" onclick="unifiedBackup()">Backup</button>
+        <button class="btn btn-sm" style="background:var(--glass-border); color:var(--text-main);" onclick="document.getElementById('restoreInput').click()">Restore</button>
+        <input type="file" id="restoreInput" class="hidden" accept=".json" onchange="unifiedRestore(event)">
     </div>
+</div>
 
     <div class="nav-tabs">
         <button class="tab-btn active" onclick="showTab('prod')">PRODUCTION</button>
@@ -3326,7 +3674,51 @@
             unitCostHistory: []
         }
     };
+    // --- DARK MODE TOGGLE ---
+function toggleDarkMode() {
+    const body = document.body;
+    const themeToggle = document.getElementById('themeToggle');
     
+    body.classList.toggle('dark-mode');
+    
+    // Update the icon
+    if (body.classList.contains('dark-mode')) {
+        themeToggle.textContent = '☀️';
+        themeToggle.title = "Switch to Light Mode";
+        localStorage.setItem('theme', 'dark');
+    } else {
+        themeToggle.textContent = '🌕';
+        themeToggle.title = "Switch to Dark Mode";
+        localStorage.setItem('theme', 'light');
+    }
+    
+    // Update charts if they exist
+    if (mfgBarChart) mfgBarChart.update();
+    if (mfgPieChart) mfgPieChart.update();
+    if (custSalesChart) custSalesChart.update();
+    if (custPaymentChart) custPaymentChart.update();
+    if (storeComparisonChart) storeComparisonChart.update();
+    if (salesPerfChart) salesPerfChart.update();
+    if (salesCompChart) salesCompChart.update();
+    if (indPerformanceChart) indPerformanceChart.update();
+}
+
+// Check for saved theme preference on load
+function initTheme() {
+    const savedTheme = localStorage.getItem('theme');
+    const themeToggle = document.getElementById('themeToggle');
+    
+    if (savedTheme === 'dark') {
+        document.body.classList.add('dark-mode');
+        if (themeToggle) themeToggle.textContent = '☀️';
+    } else {
+        if (themeToggle) themeToggle.textContent = '🌕';
+    }
+}
+
+// Call initTheme when the page loads
+window.addEventListener('DOMContentLoaded', initTheme);
+
     // NEW: Payment entities and transactions
     let paymentEntities = JSON.parse(localStorage.getItem('payment_entities')) || [];
     let paymentTransactions = JSON.parse(localStorage.getItem('payment_transactions')) || [];
@@ -3514,6 +3906,7 @@
         refreshAllDisplays();
         alert("Production record saved successfully!");
     }
+
 
     // Update refreshUI to show payment status in history
     function refreshUI() {
