@@ -3,6 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+
     <title>GULL AND ZUBAIR NASWAR DEALERS</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700;800&amp;family=Great+Vibes&amp;family=Playfair+Display:wght@400;700&amp;display=swap" rel="stylesheet">
@@ -39,6 +44,62 @@
             --factory-std: #3b82f6;
             --factory-asn: #8b5cf6;
         }
+        /* Native-like smooth scrolling */
+html {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+}
+
+body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background: var(--bg-gradient);
+    background-attachment: fixed;
+    color: var(--text-main);
+    margin: 0;
+    padding: 20px;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    /* Prevent text selection and tap highlight */
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* Enable text selection for input areas */
+input, textarea, select, [contenteditable] {
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+/* Better scrollbar styling */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--input-bg);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--accent);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-emerald);
+}
+
+/* Prevent content shift when scrollbar appears */
+.container {
+    max-width: 1200px;
+    margin: auto;
+    position: relative;
+    /* Prevent layout shift */
+    scrollbar-gutter: stable;
+}
 
         /* --- LIQUID GLASSMORPHISM EFFECTS --- */
         @keyframes liquidFlow {
@@ -1761,40 +1822,7 @@
     background: rgba(245, 158, 11, 0.05);
 }
 
-/* Responsive adjustments for the new cards */
-@media (max-width: 768px) {
-    .report-grid[style*="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr))"] {
-        grid-template-columns: 1fr !important;
-    }
-    
-    #cash-net-total,
-    #credit-total {
-        font-size: 1.2rem !important;
-    }
-}
-        
-        /* Payment Transaction Cards */
-        .transaction-badge {
-            position: absolute;
-            top: 12px;
-            right: 12px;
-            padding: 3px 8px;
-            border-radius: 6px;
-            font-size: 9px;
-            font-weight: 800;
-            color: white;
-            text-transform: uppercase;
-            backdrop-filter: var(--backdrop-blur);
-        }
-        
-        .transaction-in {
-            background: linear-gradient(135deg, var(--accent-emerald) 0%, #047857 100%);
-        }
-        
-        .transaction-out {
-            background: linear-gradient(135deg, var(--danger) 0%, #b91c1c 100%);
-        }
-        /* Fix the media query at the end of your CSS */
+/* Mobile Responsive Chart Fix */
 @media (max-width: 768px) {
     .chart-container {
         grid-template-columns: 1fr;
@@ -1855,8 +1883,199 @@
         padding: 2px 6px !important;
         font-size: 0.6rem !important;
     }
-} /* <-- THIS WAS MISSING */
-  /* --- DARK THEME (LIQUID NIGHT MODE) --- */
+    
+    /* All Times Summary Styles */
+    .all-times-summary {
+        background: var(--highlight-bg);
+        border: 2px solid var(--highlight-border);
+    }
+    
+    /* Date selection for factory tab */
+    .factory-date-selector {
+        margin-bottom: 15px;
+    }
+    
+    /* Entity Grid Styles */
+    .entity-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 12px;
+        margin-top: 15px;
+    }
+    
+    .entity-card {
+        background: var(--card-hover);
+        border: 1px solid var(--glass-border);
+        border-radius: 12px;
+        padding: 15px;
+        position: relative;
+        transition: all 0.3s;
+        backdrop-filter: var(--backdrop-blur);
+    }
+    
+    .entity-card:hover {
+        transform: translateY(-3px);
+        box-shadow: var(--shadow);
+    }
+    
+    .entity-type-badge {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 0.6rem;
+        font-weight: 800;
+        color: white;
+        text-transform: uppercase;
+        backdrop-filter: var(--backdrop-blur);
+    }
+    
+    .entity-type-payee {
+        background: linear-gradient(135deg, var(--danger) 0%, #b91c1c 100%);
+    }
+    
+    .entity-type-payor {
+        background: linear-gradient(135deg, var(--accent-emerald) 0%, #047857 100%);
+    }
+    
+    /* Net Cash Dashboard Styles */
+    .net-cash-dashboard {
+        background: linear-gradient(135deg, rgba(37, 99, 235, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%);
+        border: 2px solid var(--highlight-border);
+        padding: 25px;
+        margin-bottom: 25px;
+    }
+    
+    .net-cash-value {
+        font-size: 3rem;
+        font-weight: 800;
+        text-align: center;
+        margin: 20px 0;
+        background: linear-gradient(135deg, var(--accent) 0%, var(--accent-emerald) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .formula-breakdown {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-top: 15px;
+        border-top: 1px solid var(--glass-border);
+        padding-top: 15px;
+    }
+    
+    .formula-item {
+        display: flex;
+        justify-content: space-between;
+        margin: 5px 0;
+    }
+    
+    .formula-value {
+        font-weight: 700;
+    }
+    
+    /* Horizontal Entity Scroller */
+    .entity-scroller {
+        display: flex;
+        overflow-x: auto;
+        gap: 10px;
+        padding: 10px 0;
+        margin: 15px 0;
+        scrollbar-width: thin;
+    }
+    
+    .entity-scroller::-webkit-scrollbar {
+        height: 6px;
+    }
+    
+    .entity-scroller::-webkit-scrollbar-track {
+        background: var(--input-bg);
+        border-radius: 3px;
+    }
+    
+    .entity-scroller::-webkit-scrollbar-thumb {
+        background: var(--accent);
+        border-radius: 3px;
+    }
+    
+    .entity-chip {
+        flex: 0 0 auto;
+        padding: 8px 16px;
+        background: var(--input-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 20px;
+        font-size: 0.8rem;
+        white-space: nowrap;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+    
+    .entity-chip:hover {
+        background: var(--card-hover);
+        transform: translateY(-2px);
+    }
+    
+    .entity-chip.active {
+        background: linear-gradient(135deg, var(--accent) 0%, #1d4ed8 100%);
+        color: white;
+        border-color: transparent;
+    }
+    
+    /* Add to your existing CSS */
+    #cash-net-total {
+        font-size: 1.4rem !important;
+        font-weight: 800 !important;
+        padding: 5px;
+        border-radius: 8px;
+        background: rgba(37, 99, 235, 0.05);
+    }
+    
+    #credit-total {
+        font-size: 1.4rem !important;
+        font-weight: 800 !important;
+        padding: 5px;
+        border-radius: 8px;
+        background: rgba(245, 158, 11, 0.05);
+    }
+    
+    /* Responsive adjustments for the new cards */
+    @media (max-width: 768px) {
+        .report-grid[style*="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr))"] {
+            grid-template-columns: 1fr !important;
+        }
+        
+        #cash-net-total,
+        #credit-total {
+            font-size: 1.2rem !important;
+        }
+    }
+    
+    /* Payment Transaction Cards */
+    .transaction-badge {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        padding: 3px 8px;
+        border-radius: 6px;
+        font-size: 9px;
+        font-weight: 800;
+        color: white;
+        text-transform: uppercase;
+        backdrop-filter: var(--backdrop-blur);
+    }
+    
+    .transaction-in {
+        background: linear-gradient(135deg, var(--accent-emerald) 0%, #047857 100%);
+    }
+    
+    .transaction-out {
+        background: linear-gradient(135deg, var(--danger) 0%, #b91c1c 100%);
+    }
+} /* <-- THIS CLOSING BRACKET WAS MISSING */
+
+/* --- DARK THEME (LIQUID NIGHT MODE) --- */
 body.dark-mode {
     --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
     --glass: rgba(30, 41, 59, 0.92);
@@ -2765,9 +2984,16 @@ body.dark-mode .units-available-danger {
 
         <div class="section liquid-card">
             <h3 style="color:var(--accent); margin-top:0;">New Sale</h3>
-            <div class="grid-inputs">
+            <!-- In SALES TAB, replace the customer name input section -->
+<div class="grid-inputs">
     <div class="field"><label>Date</label><input type="date" id="cust-date" onchange="refreshCustomerSales()"></div>
-    <div class="field"><label>Name</label><input type="text" id="cust-name" placeholder=""></div>
+    <div class="field">
+        <label>Customer Name</label>
+        <input type="text" id="cust-name" list="customer-list" placeholder="Search or type new..." 
+               oninput="searchCustomers(this.value)" onchange="selectCustomer(this.value)">
+        <datalist id="customer-list"></datalist>
+        <div id="customer-search-results" class="hidden" style="position: absolute; z-index: 1000; width: 100%; max-height: 200px; overflow-y: auto; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 10px; margin-top: 5px; box-shadow: var(--shadow);"></div>
+    </div>
 </div>
 
 <div class="field" style="margin-bottom: 15px;">
@@ -2792,7 +3018,17 @@ body.dark-mode .units-available-danger {
             <div class="grid-inputs">
                 <div class="field"><label>Quantity (kg)</label><input type="number" id="cust-quantity" step="0.001" oninput="calculateCustomerSale()"></div>
             </div>
-            
+            <!-- Add this section after the quantity input and before store selection -->
+<div id="customer-info-display" class="hidden" style="margin: 10px 0; padding: 12px; background: rgba(37, 99, 235, 0.05); border-radius: 10px; border: 1px solid var(--glass-border);">
+    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+        <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 400;">Current Credit:</span>
+        <span id="customer-current-credit" style="color: var(--warning); font-weight: 400;">0.00</span>
+    </div>
+    <div style="display: flex; justify-content: space-between;">
+        <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 400;">Total Quantity:</span>
+        <span id="customer-total-quantity" style="color: var(--accent); font-weight: 400;">0.00</span>
+    </div>
+</div>
             <!-- Store Selection for Sales -->
             <div class="field" style="margin-bottom: 15px;">
                 <label>Supply:</label>
@@ -2840,7 +3076,46 @@ body.dark-mode .units-available-danger {
 
             <button class="btn btn-main" onclick="saveCustomerSale()">Save Transaction</button>
         </div>
-
+<!-- Add this right after the New Sale Entry card closing </div> -->
+<div class="section liquid-card" id="customers-card">
+    <div class="section-header">
+        <h3 style="color:var(--text-main); margin:0;">CUSTOMERS</h3>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="text" id="customer-filter" class="search-bar" placeholder="Filter customers..." 
+                   style="width: 150px; font-size: 0.7rem;" oninput="filterCustomers()">
+            <span id="customer-count" style="font-size: 0.7rem; color: var(--text-muted);">0 customers</span>
+        </div>
+    </div>
+    
+    <!-- Customer List Table -->
+    <div style="overflow-x: auto; max-height: 300px; overflow-y: auto; margin-top: 10px;">
+        <table class="comp-table" style="font-size: 0.75rem;">
+            <thead>
+                <tr>
+                    <th style="text-align: left; font-weight: 800;">Customer</th>
+                    <th style="text-align: right; font-weight: 800;">Credit</th>
+                    <th style="text-align: right; font-weight: 800;">Quantity</th>
+                    <th style="text-align: center; font-weight: 800;">Sales</th>
+                </tr>
+            </thead>
+            <tbody id="customers-table-body">
+                <!-- Customer rows will be populated by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Summary Footer -->
+    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--glass-border);">
+        <div style="display: flex; justify-content: space-between; font-size: 0.7rem;">
+            <span style="color: var(--text-muted); font-weight: 400;">Total Outstanding Credit:</span>
+            <span id="customers-total-credit" style="color: var(--warning); font-weight: 400;">0.00</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 0.7rem;">
+            <span style="color: var(--text-muted); font-weight: 400;">Total Quantity Sold:</span>
+            <span id="customers-total-quantity" style="color: var(--accent); font-weight: 400;">0.00</span>
+        </div>
+    </div>
+</div>
         <div class="section liquid-card">
             <div class="section-header">
                 <h3 style="color:var(--text-main); margin:0;">Analytics</h3>
@@ -8539,7 +8814,7 @@ function initFactoryTab() {
             `;
             histContainer.appendChild(card);
         });
-
+renderCustomersTable(); 
         updateCustomerCharts();
     }
 
@@ -9046,10 +9321,18 @@ function deleteCustomerSale(id) {
         refreshCustomerSales(); // Refreshes the list
         calculateNetCash();     // Syncs the Economic Dashboard
         calculateCashTracker(); // Syncs the Cash Tracker
-        
+        renderCustomersTable();
         alert("Transaction deleted!");
     }
 }
+// Close search dropdown when clicking outside
+document.addEventListener('click', function(e) {
+    const searchContainer = document.getElementById('cust-name').parentElement;
+    const resultsDiv = document.getElementById('customer-search-results');
+    if (!searchContainer.contains(e.target)) {
+        resultsDiv.classList.add('hidden');
+    }
+});
 
     
 // --- UPDATED: DELETE SALES ENTRY (CALCULATOR TAB) ---
@@ -9328,6 +9611,187 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('splash-screen').style.display = 'none';
     }, 1500);
 });
+// --- CUSTOMER SEARCH & MANAGEMENT FUNCTIONS ---
+
+// 1. Search customers while typing
+function searchCustomers(query) {
+    const resultsDiv = document.getElementById('customer-search-results');
+    const input = document.getElementById('cust-name');
+    
+    // Hide if empty
+    if (!query || query.length < 1) {
+        resultsDiv.classList.add('hidden');
+        document.getElementById('customer-info-display').classList.add('hidden');
+        return;
+    }
+
+    // Get unique customers from sales history
+    const uniqueCustomers = [...new Set(customerSales.map(s => s.customerName))];
+    
+    // Filter matches
+    const matches = uniqueCustomers.filter(name => 
+        name.toLowerCase().includes(query.toLowerCase())
+    );
+
+    // Render Dropdown
+    if (matches.length > 0) {
+        let html = '';
+        matches.forEach(name => {
+            html += `
+                <div style="padding: 10px; cursor: pointer; border-bottom: 1px solid var(--glass-border); font-size: 0.85rem;" 
+                     onclick="selectCustomer('${name.replace(/'/g, "\\'")}')"
+                     onmouseover="this.style.background='rgba(37,99,235,0.1)'" 
+                     onmouseout="this.style.background='transparent'">
+                    <strong>${name}</strong>
+                </div>
+            `;
+        });
+        resultsDiv.innerHTML = html;
+        resultsDiv.classList.remove('hidden');
+    } else {
+        resultsDiv.classList.add('hidden');
+    }
+}
+
+// 2. Select customer from dropdown
+function selectCustomer(name) {
+    const input = document.getElementById('cust-name');
+    const resultsDiv = document.getElementById('customer-search-results');
+    
+    input.value = name;
+    resultsDiv.classList.add('hidden'); // Hide dropdown
+    
+    calculateCustomerStatsForDisplay(name); // Auto-populate stats
+}
+
+// 3. Calculate and display specific customer stats (Credit & Qty)
+function calculateCustomerStatsForDisplay(name) {
+    if (!name) return;
+
+    // Filter sales for this customer
+    const sales = customerSales.filter(s => s.customerName.toLowerCase() === name.toLowerCase());
+    
+    if (sales.length === 0) {
+        // New customer
+        document.getElementById('customer-info-display').classList.add('hidden');
+        return;
+    }
+
+    let totalCredit = 0;
+    let totalQty = 0;
+
+    sales.forEach(s => {
+        totalQty += (s.quantity || 0);
+        // Sum outstanding credit
+        if (s.paymentType === 'CREDIT' && !s.creditReceived) {
+            totalCredit += (s.totalValue || 0);
+        }
+    });
+
+    // Update UI Elements
+    document.getElementById('customer-current-credit').innerText = formatCurrency(totalCredit);
+    document.getElementById('customer-total-quantity').innerText = totalQty.toFixed(2) + ' kg';
+    
+    // Show the info card
+    document.getElementById('customer-info-display').classList.remove('hidden');
+}
+// 4. Render the Main Customers Table (The "Customers Card")
+function renderCustomersTable() {
+    const tbody = document.getElementById('customers-table-body');
+    const filterValue = document.getElementById('customer-filter').value.toLowerCase();
+    
+    tbody.innerHTML = ''; // Clear current
+    
+    // 1. Aggregate Data from Sales History
+    const customerStats = {};
+    
+    customerSales.forEach(sale => {
+        const name = sale.customerName;
+        if (!customerStats[name]) {
+            customerStats[name] = { 
+                name: name, 
+                credit: 0, 
+                quantity: 0, 
+                salesCount: 0,
+                lastSaleDate: 0
+            };
+        }
+        
+        customerStats[name].quantity += (sale.quantity || 0);
+        customerStats[name].salesCount++;
+        
+        // Track outstanding credit
+        if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
+            customerStats[name].credit += (sale.totalValue || 0);
+        }
+        
+        // Track recency
+        const timestamp = new Date(sale.date).getTime();
+        if (timestamp > customerStats[name].lastSaleDate) {
+            customerStats[name].lastSaleDate = timestamp;
+        }
+    });
+
+    // 2. Convert to Array and Sort
+    // Sort logic: High Credit > Most Recent > Alphabetical
+    let sortedCustomers = Object.values(customerStats).sort((a, b) => {
+        if (b.credit !== a.credit) return b.credit - a.credit; // Highest credit first
+        return b.lastSaleDate - a.lastSaleDate; // Most recent second
+    });
+
+    // 3. Filter based on Search Bar inside Card
+    if (filterValue) {
+        sortedCustomers = sortedCustomers.filter(c => c.name.toLowerCase().includes(filterValue));
+    }
+
+    // 4. Update Header Counts
+    document.getElementById('customer-count').innerText = `${sortedCustomers.length} active`;
+
+    let totalOutstanding = 0;
+    let totalGlobalQty = 0;
+
+    // 5. Generate Table HTML
+    if (sortedCustomers.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:15px; color:var(--text-muted);">No customers found</td></tr>`;
+    } else {
+        sortedCustomers.forEach(c => {
+            totalOutstanding += c.credit;
+            totalGlobalQty += c.quantity;
+
+            const row = document.createElement('tr');
+            
+            // Highlight row if credit exists
+            const creditClass = c.credit > 0 ? 'cost-val' : 'text-muted';
+            const creditStyle = c.credit > 0 ? 'color:var(--warning); font-weight:800;' : 'color:var(--text-muted); opacity:0.5;';
+            
+            // Click to auto-fill this customer in the New Sale form
+            row.onclick = () => {
+                selectCustomer(c.name);
+                document.getElementById('cust-name').scrollIntoView({behavior: "smooth", block: "center"});
+            };
+            row.style.cursor = 'pointer';
+            row.title = "Click to sell to this customer";
+
+            row.innerHTML = `
+                <td style="text-align:left; font-weight:600;">${c.name}</td>
+                <td style="text-align:right; ${creditStyle}">Rs ${safeValue(c.credit).toFixed(0)}</td>
+                <td style="text-align:right;">${safeValue(c.quantity).toFixed(1)}</td>
+                <td style="text-align:center;">${c.salesCount}</td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+
+    // 6. Update Card Footer Totals
+    document.getElementById('customers-total-credit').innerText = formatCurrency(totalOutstanding);
+    document.getElementById('customers-total-quantity').innerText = totalGlobalQty.toFixed(2) + ' kg';
+}
+
+// 5. Filter function trigger
+function filterCustomers() {
+    renderCustomersTable();
+}
+
 </script>
 </body>
 </html>
