@@ -2051,6 +2051,223 @@ input, textarea, select, [contenteditable] {
             font-size: 1.2rem !important;
         }
     }
+    /* Entity Cards Grid Styles */
+.entity-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 15px;
+    margin-top: 10px;
+}
+
+.entity-card-compact {
+    background: var(--card-hover);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 15px;
+    position: relative;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: var(--backdrop-blur);
+    cursor: pointer;
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.entity-card-compact:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow), 0 8px 15px rgba(37, 99, 235, 0.1);
+    border-color: var(--accent);
+}
+
+.entity-card-compact.active {
+    border: 2px solid var(--accent);
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.05) 0%, rgba(37, 99, 235, 0.02) 100%);
+}
+
+.entity-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+}
+
+.entity-name {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--text-main);
+    margin: 0;
+    line-height: 1.2;
+}
+
+.entity-type-badge {
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: white;
+    text-transform: uppercase;
+    backdrop-filter: var(--backdrop-blur);
+    min-width: 60px;
+    text-align: center;
+}
+
+.entity-type-payee {
+    background: linear-gradient(135deg, var(--danger) 0%, #b91c1c 100%);
+}
+
+.entity-type-payor {
+    background: linear-gradient(135deg, var(--accent-emerald) 0%, #047857 100%);
+}
+
+.entity-contact {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 5px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.entity-balance {
+    margin-top: 10px;
+    text-align: right;
+}
+
+.entity-balance-label {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.entity-balance-value {
+    font-size: 1.1rem;
+    font-weight: 800;
+    margin-top: 5px;
+}
+
+.entity-balance-positive {
+    color: var(--accent-emerald);
+}
+
+.entity-balance-negative {
+    color: var(--danger);
+}
+
+.entity-balance-neutral {
+    color: var(--text-main);
+}
+
+.entity-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    justify-content: flex-end;
+}
+
+.entity-action-btn {
+    padding: 4px 10px;
+    border: 1px solid var(--glass-border);
+    border-radius: 6px;
+    background: var(--input-bg);
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+    flex: 1;
+}
+
+.entity-action-btn:hover {
+    background: var(--card-hover);
+    transform: translateY(-2px);
+}
+
+.entity-action-btn.edit {
+    background: linear-gradient(135deg, var(--accent) 0%, #1d4ed8 100%);
+    color: white;
+    border-color: transparent;
+}
+
+.entity-action-btn.transactions {
+    background: linear-gradient(135deg, var(--accent-emerald) 0%, #059669 100%);
+    color: white;
+    border-color: transparent;
+}
+
+/* Compact View */
+.entity-grid.compact {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
+}
+
+.entity-grid.compact .entity-card-compact {
+    min-height: 100px;
+    padding: 12px;
+}
+
+.entity-grid.compact .entity-name {
+    font-size: 0.85rem;
+}
+
+.entity-grid.compact .entity-type-badge {
+    font-size: 0.6rem;
+    padding: 2px 6px;
+    min-width: 50px;
+}
+
+.entity-grid.compact .entity-contact {
+    font-size: 0.7rem;
+}
+
+.entity-grid.compact .entity-balance-value {
+    font-size: 1rem;
+}
+
+/* No Entities Message */
+.no-entities-message {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.no-entities-message .btn-theme {
+    margin-top: 15px;
+}
+
+/* Dark Mode Adjustments */
+body.dark-mode .entity-card-compact {
+    background: rgba(30, 41, 59, 0.7);
+    border-color: rgba(96, 165, 250, 0.2);
+}
+
+body.dark-mode .entity-card-compact:hover {
+    background: rgba(51, 65, 85, 0.8);
+    border-color: rgba(96, 165, 250, 0.4);
+}
+
+body.dark-mode .entity-action-btn {
+    background: rgba(30, 41, 59, 0.8);
+    border-color: rgba(96, 165, 250, 0.2);
+    color: #94a3b8;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .entity-grid {
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 10px;
+    }
+    
+    .entity-grid.compact {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    }
+}
     
     /* Payment Transaction Cards */
     .transaction-badge {
@@ -2362,6 +2579,7 @@ body.dark-mode .metric-btn.active {
     color: white;
 }
 
+
 /* Dark mode store selector */
 body.dark-mode .store-selector {
     background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
@@ -2421,6 +2639,56 @@ body.dark-mode .units-available-danger {
     color: #f87171;
     border-color: rgba(248, 113, 113, 0.3);
 }
+/* Customer Management Overlay Styles */
+.cust-history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--input-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 10px;
+    transition: all 0.2s;
+}
+
+.cust-history-item:hover {
+    background: var(--card-hover);
+    transform: translateX(2px);
+}
+
+.cust-history-info {
+    flex: 1;
+}
+
+.cust-history-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.status-toggle-btn {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+}
+
+.status-pending {
+    background: rgba(245, 158, 11, 0.1);
+    color: var(--warning);
+    border-color: rgba(245, 158, 11, 0.3);
+}
+
+.status-received {
+    background: rgba(5, 150, 105, 0.1);
+    color: var(--accent-emerald);
+    border-color: rgba(5, 150, 105, 0.3);
+}
+
     </style>
 </head>
 <body>
@@ -2685,6 +2953,40 @@ body.dark-mode .units-available-danger {
         </div>
     </div>
 </div>
+
+<div id="customerManagementOverlay" class="factory-overlay">
+    <div class="factory-overlay-card liquid-card" style="max-width: 800px; max-height: 90vh; display: flex; flex-direction: column;">
+        <div class="section-header">
+            <div>
+                <h3 id="manageCustomerTitle" style="margin:0; color:var(--text-main);">Customer Name</h3>
+                <span id="manageCustomerStats" style="font-size: 0.75rem; color:var(--text-muted);">Current Debt: Rs 0.00</span>
+            </div>
+            <button class="btn-theme" onclick="closeCustomerManagement()">✕</button>
+        </div>
+
+        <div class="debt-panel" style="margin-bottom: 20px; flex-shrink: 0;">
+            <h4 style="margin: 0 0 10px 0; font-size: 0.85rem; color: var(--accent);">Bulk Credit Payment</h4>
+            <div style="display: flex; gap: 10px; align-items: flex-end;">
+                <div class="field" style="flex: 1;">
+                    <label>Amount Received</label>
+                    <input type="number" id="bulkPaymentAmount" placeholder="Enter amount..." style="width: 100%;">
+                </div>
+                <button class="btn btn-noman" style="width: auto;" onclick="processBulkPayment()">Process Payment</button>
+            </div>
+            <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 5px;">
+                * This will automatically mark oldest credit transactions as "Received" up to this amount.
+            </div>
+        </div>
+
+        <div style="margin-bottom: 10px; flex-shrink: 0;">
+            <input type="text" id="cust-trans-search" class="search-bar" placeholder="Search history..." oninput="filterCustomerManagementHistory()">
+        </div>
+
+        <div style="flex: 1; overflow-y: auto; padding-right: 5px;" id="customerManagementHistoryList">
+            </div>
+    </div>
+</div>
+
 <!-- AESTHETIC SPLASH SCREEN -->
 <div id="splash-screen">
     <!-- Flower Decorations -->
@@ -3076,7 +3378,7 @@ body.dark-mode .units-available-danger {
 
             <button class="btn btn-main" onclick="saveCustomerSale()">Save Transaction</button>
         </div>
-<!-- Add this right after the New Sale Entry card closing </div> -->
+<!-- CUSTOMERS CARD - Updated with Edit Button -->
 <div class="section liquid-card" id="customers-card">
     <div class="section-header">
         <h3 style="color:var(--text-main); margin:0;">CUSTOMERS</h3>
@@ -3095,7 +3397,7 @@ body.dark-mode .units-available-danger {
                     <th style="text-align: left; font-weight: 800;">Customer</th>
                     <th style="text-align: right; font-weight: 800;">Credit</th>
                     <th style="text-align: right; font-weight: 800;">Quantity</th>
-                    <th style="text-align: center; font-weight: 800;">Sales</th>
+                    <th style="text-align: center; font-weight: 800;">Actions</th>
                 </tr>
             </thead>
             <tbody id="customers-table-body">
@@ -3723,26 +4025,6 @@ body.dark-mode .units-available-danger {
     <span class="formula-value" style="color:var(--danger);" id="formulaPayOut">Rs 0.00</span>
 </div>
 
-<!-- CREDIT OUTSTANDING SECTION -->
-<div class="formula-item" style="font-weight:700; color:var(--warning); margin-top:10px;">
-    <span>CREDIT SALES OUTSTANDING:</span>
-</div>
-
-<div class="formula-item" style="margin-left:15px;">
-    <span>Customer Credit Outstanding:</span>
-    <span class="formula-value" style="color:var(--warning);" id="formulaProdCredit">Rs 0.00</span>
-</div>
-
-<div class="formula-item" style="margin-left:15px;">
-    <span>Rep Credit Outstanding:</span>
-    <span class="formula-value" style="color:var(--warning);" id="formulaSalesCredit">Rs 0.00</span>
-</div>
-
-<div class="formula-item" style="margin-left:15px; font-weight:700; background:rgba(245, 158, 11, 0.05); padding:5px; border-radius:5px;">
-    <span>TOTAL CREDIT OUTSTANDING:</span>
-    <span class="formula-value" style="color:var(--warning);" id="totalCreditOutstanding">Rs 0.00</span>
-</div>
-
 <!-- TOTAL CURRENT LIABILITIES -->
 <div class="formula-item" style="font-weight:800; background:rgba(220, 38, 38, 0.1); padding:8px; border-radius:6px; margin-top:10px;">
     <span>TOTAL CURRENT LIABILITIES:</span>
@@ -3880,40 +4162,34 @@ body.dark-mode .units-available-danger {
             
             <button class="btn btn-main" onclick="savePaymentTransaction()">Save Transaction</button>
         </div>
-<!-- ENTITY LIST CARD -->
+<!-- ENTITY LIST CARD - REPLACED TABLE WITH CARD VIEW -->
 <div class="section liquid-card">
     <div class="section-header">
         <h3 style="color:var(--text-main); margin:0;">Entities & Balances</h3>
         <div style="display:flex; gap:8px;">
             <button class="btn-theme" onclick="refreshEntityBalances()" title="Refresh Balances">↻</button>
-            <button class="btn-theme" onclick="toggleEntityListView()" id="entityListViewToggle" title="Toggle View">☰</button>
+            <button class="btn-theme" onclick="toggleEntityViewMode()" id="entityViewModeToggle" title="Toggle Compact View">☰</button>
         </div>
     </div>
     
     <!-- Search Bar for Entities -->
-    <input type="text" id="entity-list-search" class="search-bar" placeholder="Search entities by name..." oninput="filterEntityList()" style="margin-bottom:15px;">
+    <input type="text" id="entity-list-search" class="search-bar" placeholder="Search entities by name..." oninput="filterEntityCards()" style="margin-bottom:15px;">
     
-    <!-- Entity List Table -->
-    <div style="overflow-x: auto; max-height: 400px; overflow-y: auto;">
-        <table class="comp-table" style="font-size:0.8rem;" id="entityListTable">
-            <thead>
-                <tr>
-                    <th style="text-align:left;">Entity Name</th>
-                    <th>Balance</th>
-                    <th>Total Transactions</th>
-                    <th style="text-align:center;">Actions</th>
-                </tr>
-            </thead>
-            <tbody id="entityListBody">
-                <!-- Entity rows will be populated by JavaScript -->
-            </tbody>
-            <tfoot id="entityListFooter" style="display:none;">
-                <tr style="background:var(--input-bg);">
-                    <td colspan="2" style="text-align:right; font-weight:800; padding-right:15px;">TOTAL BALANCE:</td>
-                    <td colspan="2" style="text-align:center; font-weight:800;" id="entityListTotalBalance">Rs 0.00</td>
-                </tr>
-            </tfoot>
-        </table>
+    <!-- Entity Cards Grid -->
+    <div class="entity-grid" id="entityCardsGrid">
+        <!-- Entity cards will be populated by JavaScript -->
+    </div>
+    
+    <!-- Entity Summary -->
+    <div id="entityListFooter" style="display:none; margin-top:15px; padding-top:15px; border-top:1px solid var(--glass-border);">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:0.8rem; color:var(--text-muted); font-weight: 400;">Total Balance:</span>
+            <span style="font-weight:800; color:var(--accent); font-size:1rem;" id="entityListTotalBalance">Rs 0.00</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:var(--text-muted); margin-top:5px;">
+            <span>Total Entities: <span id="entityCount">0</span></span>
+            <span>Active: <span id="activeEntityCount">0</span></span>
+        </div>
     </div>
 </div>
         <!-- Summary Reports -->
@@ -4505,107 +4781,162 @@ function calculateCashTracker() {
         endDate = new Date('2100-12-31');
     }
     
-    // Initialize totals
-    let totals = {
-        productionValue: 0,
+    // ========== NEW LOGIC STARTS HERE ==========
+    
+    // PHASE 1: Gather ALL raw data
+    let rawData = {
+        // Production data
+        totalProductionValue: 0,
+        totalProductionQuantity: 0,
         productionCredits: 0,
-        salesTabCash: 0,
+        
+        // Sales data (including reps)
+        totalSalesValue: 0,
+        totalSalesQuantity: 0,
+        salesCash: 0,
+        salesCredits: 0,
+        
+        // Rep-specific sales (Noran/Noman)
+        repSalesValue: 0,
+        repSalesQuantity: 0,
+        repSalesCash: 0,
+        repSalesCredits: 0,
+        
+        // Calculator data (rep collections)
         calculatorCash: 0,
-        paymentsIn: 0,
-        paymentsOut: 0,
-        salesTabCredits: 0,
         calculatorCredits: 0,
-        outstandingProductionCredits: 0 // NEW: Production tab outstanding credits
+        
+        // Payments data
+        paymentsIn: 0,
+        paymentsOut: 0
     };
     
-    // 1. PRODUCTION VALUE (Total production sale value)
+    // 1. Collect PRODUCTION data
     db.forEach(item => {
         const itemDate = new Date(item.date);
         if (itemDate >= startDate && itemDate <= endDate) {
-            totals.productionValue += item.totalSale || 0;
+            rawData.totalProductionValue += item.totalSale || 0;
+            rawData.totalProductionQuantity += item.net || 0;
             
-            // Count Production Credits (STORE_C credit sales)
             if (item.store === 'STORE_C' && item.paymentStatus === 'CREDIT') {
-                totals.outstandingProductionCredits += item.totalSale || 0;
+                rawData.productionCredits += item.totalSale || 0;
             }
         }
     });
     
-    // 2. SALES TAB calculations
+    // 2. Collect SALES data
     customerSales.forEach(sale => {
         const saleDate = new Date(sale.date);
         if (saleDate >= startDate && saleDate <= endDate) {
+            rawData.totalSalesValue += sale.totalValue || 0;
+            rawData.totalSalesQuantity += sale.quantity || 0;
+            
+            const isRepSale = (sale.salesRep === 'NORAN SHAH' || sale.salesRep === 'NOMAN SHAH');
+            
+            if (isRepSale) {
+                rawData.repSalesValue += sale.totalValue || 0;
+                rawData.repSalesQuantity += sale.quantity || 0;
+                
+                if (sale.paymentType === 'CASH' || sale.creditReceived) {
+                    rawData.repSalesCash += sale.totalValue || 0;
+                } else if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
+                    rawData.repSalesCredits += sale.totalValue || 0;
+                }
+            }
+            
             if (sale.paymentType === 'CASH' || sale.creditReceived) {
-                // Skip if this is a rep sale (counted in Calculator)
-                if (sale.salesRep !== 'NORAN SHAH' && sale.salesRep !== 'NOMAN SHAH') {
-                    totals.salesTabCash += sale.totalValue || 0;
-                }
+                rawData.salesCash += sale.totalValue || 0;
             } else if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
-                // Skip if this is a rep sale (counted in Calculator)
-                if (sale.salesRep !== 'NORAN SHAH' && sale.salesRep !== 'NOMAN SHAH') {
-                    totals.salesTabCredits += sale.totalValue || 0;
-                }
+                rawData.salesCredits += sale.totalValue || 0;
             }
         }
     });
     
-    // 3. CALCULATOR TAB calculations
+    // 3. Collect CALCULATOR data (rep collections)
     salesHistory.forEach(item => {
         const itemDate = new Date(item.date);
         if (itemDate >= startDate && itemDate <= endDate) {
-            totals.calculatorCash += item.received || 0;
-            totals.calculatorCredits += item.creditValue || 0;
+            rawData.calculatorCash += item.received || 0;
+            rawData.calculatorCredits += item.creditValue || 0;
         }
     });
     
-    // 4. PAYMENTS TAB calculations
-    // Inside calculateCashTracker() ...
+    // 4. Collect PAYMENTS data
     paymentTransactions.forEach(transaction => {
         const transDate = new Date(transaction.date);
         if (transDate >= startDate && transDate <= endDate) {
             if (transaction.type === 'IN') {
-                totals.paymentsIn += transaction.amount;
+                rawData.paymentsIn += transaction.amount;
             } else if (transaction.type === 'OUT') {
-                // FIXED LOGIC:
-                // If it is a supplier payable (inventory on credit), DO NOT subtract from cash.
-                if (transaction.supplierTransaction && transaction.isPayable) {
-                    totals.supplierPayablesCreated += transaction.amount;
-                } else {
-                    // Only subtract if it is an ACTUAL cash payment
-                    totals.paymentsOut += transaction.amount;
-                }
+                rawData.paymentsOut += transaction.amount;
             }
         }
     });
-// ... rest of function
-
     
-    // Calculate NET CASH using your formula:
-    // Net Cash = production value - Production credits + Sales Tab Cash + Calculator Cash + Payments In - Payments Out
-    const netCash = totals.productionValue - totals.outstandingProductionCredits + 
-                    totals.salesTabCash + totals.calculatorCash + 
-                    totals.paymentsIn - totals.paymentsOut;
+    // ========== PHASE 2: Calculate NET values ==========
     
-    // Update UI
-    document.getElementById('cash-prod-value').textContent = `Rs ${safeValue(totals.productionValue).toFixed(2)}`;
-    document.getElementById('cash-prod-credits').textContent = `Rs ${safeValue(totals.outstandingProductionCredits).toFixed(2)}`;
-    document.getElementById('cash-sales-cash').textContent = `Rs ${safeValue(totals.salesTabCash).toFixed(2)}`;
-    document.getElementById('cash-calculator-cash').textContent = `Rs ${safeValue(totals.calculatorCash).toFixed(2)}`;
-    document.getElementById('cash-payments-in').textContent = `Rs ${safeValue(totals.paymentsIn).toFixed(2)}`;
-    document.getElementById('cash-payments-out').textContent = `Rs ${safeValue(totals.paymentsOut).toFixed(2)}`;
+    // A. NET PRODUCTION VALUE = Total Produced - Value of Quantity Sold in Sales Tab
+    const netProductionValue = Math.max(0, rawData.totalProductionValue - rawData.totalSalesValue);
+    
+    // B. NET SALES CASH = Total Sales Cash - Cash Sales from Noran/Noman
+    const netSalesCash = rawData.salesCash - rawData.repSalesCash;
+    
+    // C. NET SALES CREDITS = Total Sales Credits - Credit Sales from Noran/Noman
+    const netSalesCredits = rawData.salesCredits - rawData.repSalesCredits;
+    
+    // D. NET PRODUCTION QUANTITY = Total Produced - Total Quantity Sold
+    const netProductionQuantity = Math.max(0, rawData.totalProductionQuantity - rawData.totalSalesQuantity);
+    
+    // ========== PHASE 3: Calculate FINAL totals ==========
+    
+    const finalTotals = {
+        // NET Production Value (after subtracting what was sold)
+        productionValue: netProductionValue,
+        productionQuantity: netProductionQuantity,
+        productionCredits: rawData.productionCredits,
+        
+        // NET Sales values (exclude rep sales - counted in calculator)
+        salesTabCash: netSalesCash,
+        salesTabCredits: netSalesCredits,
+        
+        // Calculator (rep collections)
+        calculatorCash: rawData.calculatorCash,
+        calculatorCredits: rawData.calculatorCredits,
+        
+        // Payments
+        paymentsIn: rawData.paymentsIn,
+        paymentsOut: rawData.paymentsOut
+    };
+    
+    // Calculate NET CASH
+    const netCash = finalTotals.productionValue - finalTotals.productionCredits + 
+                    finalTotals.salesTabCash + finalTotals.calculatorCash + 
+                    finalTotals.paymentsIn - finalTotals.paymentsOut;
+    
+    // Calculate TOTAL CREDITS
+    const totalCredits = finalTotals.salesTabCredits + 
+                        finalTotals.calculatorCredits + 
+                        finalTotals.productionCredits;
+    
+    // ========== PHASE 4: Update UI ==========
+    
+    // Update Cash Tracker Card
+    document.getElementById('cash-prod-value').textContent = `Rs ${safeValue(finalTotals.productionValue).toFixed(2)}`;
+    document.getElementById('cash-prod-credits').textContent = `Rs ${safeValue(finalTotals.productionCredits).toFixed(2)}`;
+    document.getElementById('cash-sales-cash').textContent = `Rs ${safeValue(finalTotals.salesTabCash).toFixed(2)}`;
+    document.getElementById('cash-calculator-cash').textContent = `Rs ${safeValue(finalTotals.calculatorCash).toFixed(2)}`;
+    document.getElementById('cash-payments-in').textContent = `Rs ${safeValue(finalTotals.paymentsIn).toFixed(2)}`;
+    document.getElementById('cash-payments-out').textContent = `Rs ${safeValue(finalTotals.paymentsOut).toFixed(2)}`;
     document.getElementById('cash-net-total').textContent = `Rs ${safeValue(netCash).toFixed(2)}`;
     
-    // Update credits card - INCLUDE PRODUCTION CREDITS
-    document.getElementById('credit-sales-tab').textContent = `Rs ${safeValue(totals.salesTabCredits).toFixed(2)}`;
-    document.getElementById('credit-calculator').textContent = `Rs ${safeValue(totals.calculatorCredits).toFixed(2)}`;
+    // Update Credits Card
+    document.getElementById('credit-sales-tab').textContent = `Rs ${safeValue(finalTotals.salesTabCredits).toFixed(2)}`;
+    document.getElementById('credit-calculator').textContent = `Rs ${safeValue(finalTotals.calculatorCredits).toFixed(2)}`;
     
-    // NEW: Add production credits to total
-    const totalCredits = totals.salesTabCredits + totals.calculatorCredits + totals.outstandingProductionCredits;
-    
-    // Update UI with production credits
+    // Update production credits display
     const productionCreditsElement = document.getElementById('credit-production');
     if (productionCreditsElement) {
-        productionCreditsElement.textContent = `Rs ${safeValue(totals.outstandingProductionCredits).toFixed(2)}`;
+        productionCreditsElement.textContent = `Rs ${safeValue(finalTotals.productionCredits).toFixed(2)}`;
     }
     
     document.getElementById('credit-total').textContent = `Rs ${safeValue(totalCredits).toFixed(2)}`;
@@ -4620,7 +4951,45 @@ function calculateCashTracker() {
         netCashElement.style.color = 'var(--accent-emerald)';
     }
     
-    return totals;
+    // ========== PHASE 5: Update Economic Dashboard with NET values ==========
+    updateEconomicDashboardWithNetValues(finalTotals, totalCredits);
+    
+    return finalTotals;
+}
+
+// ========== NEW HELPER FUNCTION ==========
+function updateEconomicDashboardWithNetValues(totals, totalCredits) {
+    // This function updates the Economic Dashboard with NET values
+    // We need to update key elements in the dashboard
+    
+    // 1. Update Operating Cash Flow (Net Sales Cash + Calculator Cash)
+    const operatingCashFlow = totals.salesTabCash + totals.calculatorCash;
+    const operatingCashElement = document.getElementById('operatingCashFlow');
+    if (operatingCashElement) {
+        operatingCashElement.textContent = `Rs ${safeValue(operatingCashFlow).toFixed(2)}`;
+    }
+    
+    // 2. Update Cash Details Breakdown
+    document.getElementById('cashDetailDirectSales').textContent = `Rs ${safeValue(totals.salesTabCash).toFixed(2)}`;
+    document.getElementById('cashDetailRepCollections').textContent = `Rs ${safeValue(totals.calculatorCash).toFixed(2)}`;
+    
+    // 3. Update Total Credits in Dashboard
+    const creditTotalElement = document.getElementById('formulaSalesCredit');
+    if (creditTotalElement) {
+        creditTotalElement.textContent = `Rs ${safeValue(totalCredits).toFixed(2)}`;
+    }
+    
+    // 4. Update Sales Receivables (NET of rep sales)
+    const salesReceivablesElement = document.getElementById('salesReceivables');
+    if (salesReceivablesElement) {
+        salesReceivablesElement.textContent = `Rs ${safeValue(totals.salesTabCredits).toFixed(2)}`;
+    }
+    
+    // 5. Update Production Inventory Value (NET)
+    const productionValueElement = document.getElementById('formulaProdTotal');
+    if (productionValueElement) {
+        productionValueElement.textContent = `Rs ${safeValue(totals.productionValue).toFixed(2)}`;
+    }
 }
 
 // Also update the refreshPaymentTab function to include the cash tracker:
@@ -4817,7 +5186,7 @@ function closeEntityTransactions() {
         });
     }
 
-   // --- COMPLETE FIXED: CALCULATE NET CASH FUNCTION ---
+ // --- FIXED: ECONOMIC DASHBOARD LOGIC (REPLACE IN calculateNetCash FUNCTION) ---
 function calculateNetCash() {
     // 1. DETAILED CASH IN HAND CALCULATION
     // -------------------------------------
@@ -4854,7 +5223,7 @@ function calculateNetCash() {
         if (trans.type === 'IN') {
             cashDetails.paymentsIn += trans.amount;
         } else if (trans.type === 'OUT') {
-            if (!trans.isPayable) {
+            if (!trans.isPayable) { // Only count as cash out if NOT a payable/debt
                 cashDetails.paymentsOut += trans.amount;
             }
         }
@@ -4884,7 +5253,7 @@ function calculateNetCash() {
     FormulaUnitsValue = (stdTracking.available * stdCostPerUnit) + 
                        (asaanTracking.available * asaanCostPerUnit);
     
-    // C. Accounts Receivable Calculation - ADDED THIS SECTION
+    // C. ACCOUNTS RECEIVABLE (Money OWED TO YOU - This is correct)
     let AccountsReceivable = {
         productionCredit: 0,
         salesTabCredit: 0,
@@ -4892,32 +5261,41 @@ function calculateNetCash() {
         total: 0
     };
     
-    // Production Tab Receivables (STORE_C Credit Sales)
+    // 1. Production Tab Receivables (STORE_C Credit Sales)
     db.forEach(prod => {
         if (prod.store === 'STORE_C' && prod.paymentStatus === 'CREDIT') {
             AccountsReceivable.productionCredit += prod.totalSale || 0;
         }
     });
     
-    // Sales Tab Receivables (non-rep credit sales)
+    // 2. Sales Tab Receivables (Excluding rep sales - those are counted in calculator)
+    let repCreditSales = 0;
     customerSales.forEach(sale => {
-        if (sale.paymentType === 'CREDIT' && !sale.creditReceived && 
-            sale.salesRep !== 'NORAN SHAH' && sale.salesRep !== 'NOMAN SHAH') {
-            AccountsReceivable.salesTabCredit += sale.totalValue || 0;
+        const isRepSale = (sale.salesRep === 'NORAN SHAH' || sale.salesRep === 'NOMAN SHAH');
+        
+        if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
+            if (isRepSale) {
+                repCreditSales += sale.totalValue || 0;
+            } else {
+                AccountsReceivable.salesTabCredit += sale.totalValue || 0;
+            }
         }
     });
     
-    // Calculator Tab Receivables
+    // 3. Calculator Tab Receivables (Rep credits)
     salesHistory.forEach(item => {
         AccountsReceivable.calculatorCredit += (item.creditValue || 0);
     });
+    
+    // Add rep credit sales to calculator receivables
+    AccountsReceivable.calculatorCredit += repCreditSales;
     
     AccountsReceivable.total = AccountsReceivable.productionCredit + 
                                AccountsReceivable.salesTabCredit + 
                                AccountsReceivable.calculatorCredit;
     
-    // 3. CURRENT LIABILITIES CALCULATION
-    // ----------------------------------
+    // 3. CURRENT LIABILITIES CALCULATION (Money YOU OWE)
+    // --------------------------------------------------
     let CurrentLiabilities = {
         accountsPayable: {
             supplierPayables: 0,
@@ -4929,18 +5307,14 @@ function calculateNetCash() {
             },
             total: 0
         },
-        creditOutstanding: {
-            customerCredit: AccountsReceivable.productionCredit + AccountsReceivable.salesTabCredit,
-            repCredit: AccountsReceivable.calculatorCredit,
-            total: 0
-        },
+        // REMOVED: "Credit Outstanding" section - this was the duplicate
         total: 0
     };
     
-    // A. SUPPLIER PAYABLES - COUNT ONLY ONCE
+    // A. ACCOUNTS PAYABLE - Money you owe to suppliers/creditors
     let countedMaterialIds = new Set();
     
-    // 1. First, count from paymentTransactions
+    // 1. Count from paymentTransactions (marked as payable/debt)
     paymentTransactions.forEach(trans => {
         if (trans.type === 'OUT' && trans.isPayable) {
             CurrentLiabilities.accountsPayable.supplierPayables += trans.amount;
@@ -4951,7 +5325,7 @@ function calculateNetCash() {
         }
     });
     
-    // 2. Then, add any unpaid materials from factoryInventoryData that weren't already counted
+    // 2. Add any unpaid materials from factoryInventoryData
     if (factoryInventoryData && factoryInventoryData.length > 0) {
         factoryInventoryData.forEach(material => {
             if (material.paymentStatus === 'pending' && 
@@ -4964,7 +5338,7 @@ function calculateNetCash() {
         });
     }
     
-    // B. OTHER PAYABLES BREAKDOWN
+    // B. OTHER PAYABLES (Operating expenses, loans, etc.)
     const nonSupplierEntities = paymentEntities.filter(e => 
         e.type === 'payee' && !e.isSupplier
     );
@@ -5007,20 +5381,16 @@ function calculateNetCash() {
         CurrentLiabilities.accountsPayable.otherPayables.loans +
         CurrentLiabilities.accountsPayable.otherPayables.miscellaneous;
     
-    // Calculate Accounts Payable Total
+    // Calculate TOTAL ACCOUNTS PAYABLE
     CurrentLiabilities.accountsPayable.total = 
         CurrentLiabilities.accountsPayable.supplierPayables +
         CurrentLiabilities.accountsPayable.otherPayables.total;
     
-    // Calculate Credit Outstanding Total
-    CurrentLiabilities.creditOutstanding.total = 
-        CurrentLiabilities.creditOutstanding.customerCredit +
-        CurrentLiabilities.creditOutstanding.repCredit;
+    // IMPORTANT: DO NOT ADD ACCOUNTS RECEIVABLE HERE - that's money OWED TO YOU
+    // The old code was incorrectly adding it as a liability
     
-    // Calculate TOTAL CURRENT LIABILITIES
-    CurrentLiabilities.total = 
-        CurrentLiabilities.accountsPayable.total +
-        CurrentLiabilities.creditOutstanding.total;
+    // Calculate TOTAL CURRENT LIABILITIES (only what YOU owe)
+    CurrentLiabilities.total = CurrentLiabilities.accountsPayable.total;
     
     // 4. FINAL CALCULATIONS
     // ----------------------
@@ -5066,11 +5436,7 @@ function calculateNetCash() {
                 otherPayables: CurrentLiabilities.accountsPayable.otherPayables,
                 total: CurrentLiabilities.accountsPayable.total
             },
-            creditOutstanding: {
-                customerCredit: CurrentLiabilities.creditOutstanding.customerCredit,
-                repCredit: CurrentLiabilities.creditOutstanding.repCredit,
-                total: CurrentLiabilities.creditOutstanding.total
-            },
+            // REMOVED: creditOutstanding - this was the duplicate
             total: CurrentLiabilities.total
         },
         
@@ -5130,16 +5496,14 @@ function updateEconomicDashboard(indicators) {
     document.getElementById('formulaRawMaterials').textContent = `Rs ${safeValue(indicators.assets.rawMaterials).toFixed(2)}`;
     document.getElementById('formulaUnitsValue').textContent = `Rs ${safeValue(indicators.assets.formulaUnits).toFixed(2)}`;
     
-    // 4. ACCOUNTS RECEIVABLE
+    // 4. ACCOUNTS RECEIVABLE (Money OWED TO YOU)
     document.getElementById('formulaReceivables').textContent = `Rs ${safeValue(indicators.receivables.total).toFixed(2)}`;
     document.getElementById('productionReceivables').textContent = `Rs ${safeValue(indicators.receivables.production).toFixed(2)}`;
     document.getElementById('salesReceivables').textContent = `Rs ${safeValue(indicators.receivables.salesTab).toFixed(2)}`;
     document.getElementById('calculatorReceivables').textContent = `Rs ${safeValue(indicators.receivables.calculator).toFixed(2)}`;
     
-    // 5. CURRENT LIABILITIES - UPDATED WITH CORRECT STRUCTURE
-    
-    // A. Accounts Payable Section
-    // Supplier Payables
+    // 5. CURRENT LIABILITIES (Money YOU OWE)
+    // A. Accounts Payable Section - FIXED: Remove duplicate credit counting
     document.getElementById('supplierPayables').textContent = `Rs ${safeValue(indicators.liabilities.accountsPayable.supplierPayables).toFixed(2)}`;
     
     // Other Payables Breakdown
@@ -5147,27 +5511,17 @@ function updateEconomicDashboard(indicators) {
     document.getElementById('otherPayablesLoans').textContent = `Rs ${safeValue(indicators.liabilities.accountsPayable.otherPayables.loans).toFixed(2)}`;
     document.getElementById('otherPayablesMisc').textContent = `Rs ${safeValue(indicators.liabilities.accountsPayable.otherPayables.miscellaneous).toFixed(2)}`;
     
-    // Total Accounts Payable
+    // Total Accounts Payable (Money YOU owe to others)
     document.getElementById('formulaPayOut').textContent = `Rs ${safeValue(indicators.liabilities.accountsPayable.total).toFixed(2)}`;
     
-    // B. Credit Outstanding Section
-    // Customer Credit Outstanding
-    document.getElementById('formulaProdCredit').textContent = `Rs ${safeValue(indicators.liabilities.creditOutstanding.customerCredit).toFixed(2)}`;
+    // B. REMOVED: "Credit Sales Outstanding" section from dashboard HTML
+    // This was counting Accounts Receivable again as a liability
     
-    // Rep Credit Outstanding
-    document.getElementById('formulaSalesCredit').textContent = `Rs ${safeValue(indicators.liabilities.creditOutstanding.repCredit).toFixed(2)}`;
-    
-    // Total Credit Outstanding
-    const totalCreditOutstandingElement = document.getElementById('totalCreditOutstanding');
-    if (totalCreditOutstandingElement) {
-        totalCreditOutstandingElement.textContent = `Rs ${safeValue(indicators.liabilities.creditOutstanding.total).toFixed(2)}`;
-    }
-    
-    // 6. TOTALS
+    // C. TOTALS
     document.getElementById('currentAssetsTotal').textContent = `Rs ${safeValue(indicators.assets.currentAssetsTotal).toFixed(2)}`;
     document.getElementById('currentLiabilitiesTotal').textContent = `Rs ${safeValue(indicators.liabilities.total).toFixed(2)}`;
     
-    // 7. ECONOMIC HEALTH INDICATORS
+    // 6. ECONOMIC HEALTH INDICATORS
     const workingCapitalElement = document.getElementById('formulaPayIn');
     if (workingCapitalElement) {
         workingCapitalElement.textContent = `Rs ${safeValue(indicators.workingCapital).toFixed(2)}`;
@@ -5178,7 +5532,7 @@ function updateEconomicDashboard(indicators) {
     
     document.getElementById('formulaFinal').textContent = `Rs ${safeValue(indicators.totalEnterpriseValue).toFixed(2)}`;
     
-    // 8. FINANCIAL RATIOS
+    // 7. FINANCIAL RATIOS
     const currentRatioElement = document.getElementById('formulaCalcDisc');
     if (currentRatioElement) {
         const currentRatio = indicators.liquidityRatios.currentRatio;
@@ -5201,6 +5555,22 @@ function updateEconomicDashboard(indicators) {
     const cashRatioElement = document.getElementById('cashRatio');
     if (cashRatioElement) {
         cashRatioElement.textContent = indicators.liquidityRatios.cashRatio.toFixed(2);
+    }
+    
+    // 8. UPDATE CASH TRACKER CARD (Optional - shows Accounts Receivable as "TOTAL OUTSTANDING CREDITS")
+    // This is correct because it's showing money OWED TO YOU
+    document.getElementById('credit-sales-tab').textContent = `Rs ${safeValue(indicators.receivables.salesTab).toFixed(2)}`;
+    document.getElementById('credit-calculator').textContent = `Rs ${safeValue(indicators.receivables.calculator).toFixed(2)}`;
+    
+    const productionCreditsElement = document.getElementById('credit-production');
+    if (productionCreditsElement) {
+        productionCreditsElement.textContent = `Rs ${safeValue(indicators.receivables.production).toFixed(2)}`;
+    }
+    
+    // This is TOTAL MONEY OWED TO YOU (Accounts Receivable)
+    const creditTotalElement = document.getElementById('credit-total');
+    if (creditTotalElement) {
+        creditTotalElement.textContent = `Rs ${safeValue(indicators.receivables.total).toFixed(2)}`;
     }
 }
 function getCostPerUnit(storeType) {
@@ -6454,42 +6824,133 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
         document.getElementById('cust-total-value').innerText = safeValue(totalValue).toFixed(2);
         document.getElementById('cust-profit').innerText = safeValue(profit).toFixed(2);
     }
-    
-    // Update saveCustomerSale to use divided by X logic
     function saveCustomerSale() {
     const date = document.getElementById('cust-date').value;
     const name = document.getElementById('cust-name').value.trim();
-    const qty = parseFloat(document.getElementById('cust-quantity').value) || 0;
-    const supplyStore = document.querySelector('input[name="supply-store"]:checked').value;
+    const quantity = parseFloat(document.getElementById('cust-quantity').value) || 0;
+    const store = document.querySelector('input[name="supply-store"]:checked').value;
     const paymentType = document.querySelector('input[name="payment-type"]:checked').value;
+    const salesRep = document.querySelector('input[name="sales-rep"]:checked').value;
     
-    // NEW: Get the selected sales representative safely
-    const repRadio = document.querySelector('input[name="sales-rep"]:checked');
-    const salesRep = repRadio ? repRadio.value : 'NONE';
-    
-    let formulaStore = 'standard';
-    if (supplyStore === 'STORE_C') {
-        formulaStore = 'asaan';
-    }
-    
-    // Using your existing helper function
-    const costPerKg = calculateSalesCostPerKg(formulaStore);
-    const salePrice = formulaStore === 'asaan' ? factorySalePrices.asaan : factorySalePrices.standard;
-
-    if (!date || !name || qty <= 0) {
-        alert("Please fill all fields correctly.");
+    // --- INVENTORY VALIDATION LOGIC ---
+    if (!date) {
+        alert("Please select a date.");
         return;
     }
     
-    if (salePrice <= 0) {
-        alert("Please set a sale price in Factory Formulas first.");
+    if (!name) {
+        alert("Please enter customer name.");
         return;
     }
-
-    const totalCost = qty * costPerKg;
-    const totalValue = qty * salePrice;
+    
+    if (quantity <= 0) {
+        alert("Please enter a valid quantity.");
+        return;
+    }
+    
+    // Step 1: Get selected date (already have 'date' variable)
+    
+    // Step 2: Query Production database for sum of items produced on that specific date
+    let dailyProductionTotal = 0;
+    let storeSpecificProduction = 0;
+    
+    // Calculate total production for the selected date
+    db.forEach(production => {
+        if (production.date === date) {
+            dailyProductionTotal += production.net || 0;
+            
+            // Also calculate store-specific production if needed
+            if (store === 'STORE_A' && production.store === 'STORE_A') {
+                storeSpecificProduction += production.net || 0;
+            } else if (store === 'STORE_B' && production.store === 'STORE_B') {
+                storeSpecificProduction += production.net || 0;
+            } else if (store === 'STORE_C' && production.store === 'STORE_C') {
+                storeSpecificProduction += production.net || 0;
+            }
+        }
+    });
+    
+    // Calculate total sales already made for this date
+    let dailySalesTotal = 0;
+    let storeSpecificSales = 0;
+    
+    customerSales.forEach(sale => {
+        if (sale.date === date) {
+            dailySalesTotal += sale.quantity || 0;
+            
+            // Also calculate store-specific sales
+            if (sale.supplyStore === store) {
+                storeSpecificSales += sale.quantity || 0;
+            }
+        }
+    });
+    
+    // Calculate available inventory for the day
+    const dailyAvailableInventory = dailyProductionTotal - dailySalesTotal;
+    const storeAvailableInventory = storeSpecificProduction - storeSpecificSales;
+    
+    // Step 3: Compare Sales Quantity against Production Sum
+    // Step 4: Validate inventory availability
+    
+    // Check 1: Overall daily inventory validation
+    if (dailyProductionTotal === 0) {
+        alert(`❌ Inventory Validation Failed!\n\nNo production recorded for ${date}.\nYou cannot sell what has not been produced.\n\nPlease check production records.`);
+        return;
+    }
+    
+    // Check 2: Store-specific inventory validation
+    if (storeSpecificProduction === 0) {
+        alert(`❌ Store Inventory Validation Failed!\n\nNo production recorded for ${getStoreLabel(store)} store on ${date}.\n\nAvailable stores with production:\n${getAvailableStoresForDate(date)}`);
+        return;
+    }
+    
+    // Check 3: Prevent negative inventory (store-specific)
+    const remainingAfterSale = storeAvailableInventory - quantity;
+    if (remainingAfterSale < 0) {
+        alert(`❌ Insufficient Production Stock!\n\nSelected date: ${date}\nStore: ${getStoreLabel(store)}\n\nProduction available: ${storeSpecificProduction.toFixed(3)} kg\nAlready sold: ${storeSpecificSales.toFixed(3)} kg\nCurrent available: ${storeAvailableInventory.toFixed(3)} kg\nSale quantity: ${quantity.toFixed(3)} kg\n\nShortage: ${Math.abs(remainingAfterSale).toFixed(3)} kg\n\nPlease reduce sale quantity or check production records.`);
+        return;
+    }
+    
+    // Check 4: Overall daily inventory check (redundant but safe)
+    const overallRemaining = dailyAvailableInventory - quantity;
+    if (overallRemaining < 0) {
+        alert(`❌ Insufficient Overall Production!\n\nSelected date: ${date}\n\nTotal production: ${dailyProductionTotal.toFixed(3)} kg\nTotal sales: ${dailySalesTotal.toFixed(3)} kg\nAvailable: ${dailyAvailableInventory.toFixed(3)} kg\nSale quantity: ${quantity.toFixed(3)} kg\n\nPlease check production records.`);
+        return;
+    }
+    
+    // --- INVENTORY VALIDATION PASSED - Proceed with sale ---
+    
+    // Calculate sale values
+    const costData = calculateSalesCost(store, quantity);
+    const totalCost = costData.totalCost;
+    const totalValue = costData.totalValue;
     const profit = totalValue - totalCost;
-
+    
+    // Check if customer already exists
+    const existingCustomer = customerSales.find(s => s.customerName.toLowerCase() === name.toLowerCase());
+    let existingCredit = 0;
+    
+    if (existingCustomer) {
+        // Calculate existing credit for this customer
+        customerSales.forEach(sale => {
+            if (sale.customerName.toLowerCase() === name.toLowerCase() && 
+                sale.paymentType === 'CREDIT' && 
+                !sale.creditReceived) {
+                existingCredit += sale.totalValue;
+            }
+        });
+    }
+    
+    // For credit sales, check if customer already has outstanding credit
+    if (paymentType === 'CREDIT') {
+        const creditWarningThreshold = 5000; // Example threshold
+        if (existingCredit > creditWarningThreshold) {
+            if (!confirm(`⚠️ Credit Sale Warning!\n\nCustomer "${name}" already has outstanding credit: Rs ${existingCredit.toFixed(2)}\n\nNew credit: Rs ${totalValue.toFixed(2)}\nTotal will be: Rs ${(existingCredit + totalValue).toFixed(2)}\n\nProceed with sale?`)) {
+                return;
+            }
+        }
+    }
+    
     const now = new Date();
     let hours = now.getHours();
     const minutes = now.getMinutes();
@@ -6498,41 +6959,197 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
     hours = hours % 12;
     hours = hours ? hours : 12;
     const timeString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} ${ampm}`;
-
-    customerSales.push({
+    
+    // Create sale record
+    const saleRecord = {
         id: Date.now(),
         date: date,
         time: timeString,
         customerName: name,
-        quantity: qty,
-        costPrice: costPerKg,
-        salePrice: salePrice,
+        quantity: quantity,
+        supplyStore: store,
+        paymentType: paymentType,
+        salesRep: salesRep,
         totalCost: totalCost,
         totalValue: totalValue,
         profit: profit,
-        paymentType: paymentType,
-        supplyStore: supplyStore,
-        salesRep: salesRep, // Saving the new field
-        creditReceived: paymentType === 'CREDIT' ? false : true,
+        creditReceived: paymentType === 'CASH' ? true : false,
         timestamp: new Date(date).getTime()
-    });
-
+    };
+    
+    customerSales.push(saleRecord);
     localStorage.setItem('customer_sales', JSON.stringify(customerSales));
-
-    // Reset fields
+    
+    // Clear form
     document.getElementById('cust-name').value = '';
     document.getElementById('cust-quantity').value = '';
-    document.getElementById('cust-total-cost').innerText = '0.00';
-    document.getElementById('cust-total-value').innerText = '0.00';
-    document.getElementById('cust-profit').innerText = '0.00';
     document.getElementById('payment-cash').checked = true;
+    document.getElementById('supply-store-a').checked = true;
     
-    // Reset radio button to "Direct Sale"
-    if(document.getElementById('rep-none')) document.getElementById('rep-none').checked = true;
-
+    // Update UI
     refreshCustomerSales();
-    alert("Sale transaction saved!");
+    updateCustomersTable();
+    alert(`✅ Sale recorded successfully!\n\nDate: ${date}\nCustomer: ${name}\nQuantity: ${quantity.toFixed(3)} kg\nStore: ${getStoreLabel(store)}\nTotal Value: Rs ${totalValue.toFixed(2)}\nPayment: ${paymentType}\n\nInventory Status:\nStore production: ${storeSpecificProduction.toFixed(3)} kg\nPrevious sales: ${storeSpecificSales.toFixed(3)} kg\nRemaining after sale: ${remainingAfterSale.toFixed(3)} kg`);
 }
+
+// Helper function to get store label
+function getStoreLabel(storeCode) {
+    switch(storeCode) {
+        case 'STORE_A': return 'ZUBAIR';
+        case 'STORE_B': return 'MAHMOOD';
+        case 'STORE_C': return 'ASAAN';
+        default: return storeCode;
+    }
+}
+
+// Helper function to get available stores for a date
+function getAvailableStoresForDate(date) {
+    const stores = new Set();
+    
+    db.forEach(production => {
+        if (production.date === date && production.net > 0) {
+            stores.add(getStoreLabel(production.store));
+        }
+    });
+    
+    return Array.from(stores).join(', ') || 'None';
+}
+
+// Helper function to calculate sales cost
+function calculateSalesCost(store, quantity) {
+    let costPerKg = 0;
+    let salePricePerKg = 0;
+    
+    // Determine cost based on store
+    if (store === 'STORE_C') {
+        // Asaan store - use Asaan formula
+        const formulaCost = getCostPerUnit('asaan');
+        const adjustmentFactor = factoryCostAdjustmentFactor.asaan || 1;
+        costPerKg = adjustmentFactor > 0 ? formulaCost / adjustmentFactor : formulaCost;
+        salePricePerKg = factorySalePrices.asaan || 0;
+    } else {
+        // Standard store (Zubair/Mahmood) - use Standard formula
+        const formulaCost = getCostPerUnit('standard');
+        const adjustmentFactor = factoryCostAdjustmentFactor.standard || 1;
+        costPerKg = adjustmentFactor > 0 ? formulaCost / adjustmentFactor : formulaCost;
+        salePricePerKg = factorySalePrices.standard || 0;
+    }
+    
+    const totalCost = quantity * costPerKg;
+    const totalValue = quantity * salePricePerKg;
+    
+    return {
+        costPerKg: costPerKg,
+        salePricePerKg: salePricePerKg,
+        totalCost: totalCost,
+        totalValue: totalValue
+    };
+}
+
+// Helper function to get cost per unit (already defined elsewhere, but included for completeness)
+function getCostPerUnit(storeType) {
+    const formula = factoryDefaultFormulas[storeType];
+    if (!formula || formula.length === 0) return 0;
+    
+    let totalMaterialCost = 0;
+    formula.forEach(item => {
+        totalMaterialCost += (item.cost * item.quantity);
+    });
+    
+    const additionalCost = factoryAdditionalCosts[storeType] || 0;
+    return totalMaterialCost + additionalCost;
+}
+
+// Also update the calculateCustomerSale() function to show inventory status
+function calculateCustomerSale() {
+    // Existing calculation code...
+    const quantity = parseFloat(document.getElementById('cust-quantity').value) || 0;
+    const date = document.getElementById('cust-date').value;
+    const store = document.querySelector('input[name="supply-store"]:checked').value;
+    
+    // Calculate sale values first
+    const costData = calculateSalesCost(store, quantity);
+    
+    // Update UI with calculated values
+    document.getElementById('cust-total-cost').textContent = costData.totalCost.toFixed(2);
+    document.getElementById('cust-total-value').textContent = costData.totalValue.toFixed(2);
+    document.getElementById('cust-profit').textContent = (costData.totalValue - costData.totalCost).toFixed(2);
+    
+    // --- NEW: Show inventory status if date is selected ---
+    if (date) {
+        // Calculate available inventory for the selected date and store
+        let storeProduction = 0;
+        let storeSales = 0;
+        
+        db.forEach(production => {
+            if (production.date === date && production.store === store) {
+                storeProduction += production.net || 0;
+            }
+        });
+        
+        customerSales.forEach(sale => {
+            if (sale.date === date && sale.supplyStore === store) {
+                storeSales += sale.quantity || 0;
+            }
+        });
+        
+        const availableInventory = storeProduction - storeSales;
+        
+        // Show warning if inventory is low
+        const inventoryWarning = document.getElementById('inventory-warning') || createInventoryWarningElement();
+        if (quantity > availableInventory) {
+            inventoryWarning.textContent = `Warning: Only ${availableInventory.toFixed(3)} kg available. Sale will create negative inventory!`;
+            inventoryWarning.style.display = 'block';
+            inventoryWarning.style.color = 'var(--danger)';
+        } else if (availableInventory < (quantity * 1.5)) { // 50% buffer
+            inventoryWarning.textContent = ` Inventory: ${availableInventory.toFixed(3)} kg available (${(availableInventory - quantity).toFixed(3)} kg remaining)`;
+            inventoryWarning.style.display = 'block';
+            inventoryWarning.style.color = 'var(--warning)';
+        } else {
+            inventoryWarning.textContent = `✓ Inventory: ${availableInventory.toFixed(3)} kg available`;
+            inventoryWarning.style.display = 'block';
+            inventoryWarning.style.color = 'var(--accent-emerald)';
+        }
+    }
+}
+
+// Helper function to create inventory warning element
+function createInventoryWarningElement() {
+    const warningDiv = document.createElement('div');
+    warningDiv.id = 'inventory-warning';
+    warningDiv.style.fontSize = '0.8rem';
+    warningDiv.style.marginTop = '8px';
+    warningDiv.style.padding = '6px';
+    warningDiv.style.borderRadius = '6px';
+    warningDiv.style.display = 'none';
+    
+    const salesSection = document.querySelector('#tab-sales .section.liquid-card');
+    const calculateButton = salesSection.querySelector('.btn-main');
+    salesSection.insertBefore(warningDiv, calculateButton);
+    
+    return warningDiv;
+}
+
+
+// --- REPLACE YOUR EXISTING deleteCustomerSale FUNCTION WITH THIS ---
+function deleteCustomerSale(id) {
+    if(confirm("Delete this sale transaction permanently?")) {
+        customerSales = customerSales.filter(item => item.id !== id);
+        localStorage.setItem('customer_sales', JSON.stringify(customerSales));
+        
+        refreshCustomerSales(); 
+        calculateNetCash();     
+        calculateCashTracker(); 
+        renderCustomersTable();
+        
+        // --- NEW: LINKAGE UPDATE ---
+        // Forces Production inventory to "Add Back" the deleted sales quantity
+        updateAllStoresOverview(currentOverviewMode);
+        
+        alert("Transaction deleted! Inventory adjusted automatically.");
+    }
+}
+
 
 
     // --- CALCULATOR TAB UPDATES (USING DIVIDED BY X LOGIC) ---
@@ -8347,119 +8964,156 @@ function initFactoryTab() {
     }
 
     // --- ALL STORES OVERVIEW UPDATED FUNCTION WITH ALL TIMES ---
-    function updateAllStoresOverview(mode = 'day') {
-        currentOverviewMode = mode;
-        
-        const selectedDate = document.getElementById('sys-date').value;
-        const selectedDateObj = new Date(selectedDate);
-        const selectedYear = selectedDateObj.getFullYear();
-        const selectedMonth = selectedDateObj.getMonth();
-        const selectedDay = selectedDateObj.getDate();
-        
-        const stores = ['STORE_A', 'STORE_B', 'STORE_C'];
-        const storeNames = ['ZUBAIR', 'MAHMOOD', 'ASAAN'];
-        const storeColors = ['store-a', 'store-b', 'store-c'];
-        
-        let totalCombined = {
+    // --- REPLACE YOUR EXISTING updateAllStoresOverview FUNCTION WITH THIS ---
+function updateAllStoresOverview(mode = 'day') {
+    currentOverviewMode = mode;
+    
+    const selectedDate = document.getElementById('sys-date').value;
+    const selectedDateObj = new Date(selectedDate);
+    const selectedYear = selectedDateObj.getFullYear();
+    const selectedMonth = selectedDateObj.getMonth();
+    const selectedDay = selectedDateObj.getDate();
+    
+    const stores = ['STORE_A', 'STORE_B', 'STORE_C'];
+    const storeNames = ['ZUBAIR', 'MAHMOOD', 'ASAAN'];
+    const storeColors = ['store-a', 'store-b', 'store-c'];
+    
+    let totalCombined = {
+        qty: 0,
+        value: 0,
+        cost: 0,
+        profit: 0
+    };
+    
+    const allStoresGrid = document.getElementById('all-stores-grid');
+    allStoresGrid.innerHTML = '';
+    
+    const allTimesCard = document.getElementById('all-times-production-card');
+    if (mode === 'all') {
+        allTimesCard.style.display = '';
+    } else {
+        allTimesCard.style.display = 'none';
+    }
+    
+    stores.forEach((store, index) => {
+        // 1. Calculate PRODUCTION totals (Inventory IN)
+        let storeData = {
             qty: 0,
             value: 0,
             cost: 0,
             profit: 0
         };
         
-        const allStoresGrid = document.getElementById('all-stores-grid');
-        allStoresGrid.innerHTML = '';
-        
-        const allTimesCard = document.getElementById('all-times-production-card');
-        if (mode === 'all') {
-            allTimesCard.style.display = '';
-        } else {
-            allTimesCard.style.display = 'none';
-        }
-        
-        stores.forEach((store, index) => {
-            let storeData = {
-                qty: 0,
-                value: 0,
-                cost: 0,
-                profit: 0
-            };
+        db.forEach(item => {
+            const itemDate = new Date(item.date);
+            const itemYear = itemDate.getFullYear();
+            const itemMonth = itemDate.getMonth();
+            const itemDay = itemDate.getDate();
             
-            db.forEach(item => {
-                const itemDate = new Date(item.date);
-                const itemYear = itemDate.getFullYear();
-                const itemMonth = itemDate.getMonth();
-                const itemDay = itemDate.getDate();
-                
-                let includeItem = false;
-                
-                if (mode === 'day' && item.date === selectedDate) {
-                    includeItem = true;
-                } else if (mode === 'week') {
-                    const weekStart = new Date(selectedDateObj);
-                    weekStart.setDate(selectedDay - 6);
-                    if (itemDate >= weekStart && itemDate <= selectedDateObj) {
-                        includeItem = true;
-                    }
-                } else if (mode === 'month' && itemYear === selectedYear && itemMonth === selectedMonth) {
-                    includeItem = true;
-                } else if (mode === 'year' && itemYear === selectedYear) {
-                    includeItem = true;
-                } else if (mode === 'all') {
-                    includeItem = true;
-                }
-                
-                if (includeItem && item.store === store) {
-                    storeData.qty += item.net;
-                    storeData.value += item.totalSale;
-                    storeData.cost += item.totalCost;
-                    storeData.profit += item.profit;
-                }
-            });
+            let includeItem = false;
             
-            totalCombined.qty += storeData.qty;
-            totalCombined.value += storeData.value;
-            totalCombined.cost += storeData.cost;
-            totalCombined.profit += storeData.profit;
+            if (mode === 'day' && item.date === selectedDate) includeItem = true;
+            else if (mode === 'week') {
+                const weekStart = new Date(selectedDateObj);
+                weekStart.setDate(selectedDay - 6);
+                if (itemDate >= weekStart && itemDate <= selectedDateObj) includeItem = true;
+            }
+            else if (mode === 'month' && itemYear === selectedYear && itemMonth === selectedMonth) includeItem = true;
+            else if (mode === 'year' && itemYear === selectedYear) includeItem = true;
+            else if (mode === 'all') includeItem = true;
             
-            const card = document.createElement('div');
-            card.className = `overview-card liquid-card`;
-            card.innerHTML = `
-                <span class="store-badge ${storeColors[index]}">${storeNames[index]}</span>
-                <h4>${storeNames[index]} Store (${mode === 'all' ? 'All Times' : mode.charAt(0).toUpperCase() + mode.slice(1)})</h4>
-                <p><span>Net Weight:</span> <span class="qty-val">${safeValue(storeData.qty).toFixed(3)} kg</span></p>
-                <p><span>Total Value:</span> <span class="rev-val">Rs ${safeValue(storeData.value).toFixed(2)}</span></p>
-                <p><span>Total Cost:</span> <span class="cost-val">Rs ${safeValue(storeData.cost).toFixed(2)}</span></p>
-                <p><span>Net Profit:</span> <span class="profit-val">Rs ${safeValue(storeData.profit).toFixed(2)}</span></p>
-            `;
-            allStoresGrid.appendChild(card);
+            if (includeItem && item.store === store) {
+                storeData.qty += item.net;
+                storeData.value += item.totalSale;
+                storeData.cost += item.totalCost;
+                storeData.profit += item.profit;
+            }
         });
-        
-        const combinedCard = document.createElement('div');
-        combinedCard.className = `overview-card liquid-card highlight-card`;
-        combinedCard.innerHTML = `
-            <h4 style="color: var(--accent);">Total Combined (${mode === 'all' ? 'All Times' : mode.charAt(0).toUpperCase() + mode.slice(1)})</h4>
-            <p><span>Net Weight:</span> <span class="qty-val">${safeValue(totalCombined.qty).toFixed(3)} kg</span></p>
-            <p><span>Total Value:</span> <span class="rev-val">Rs ${safeValue(totalCombined.value).toFixed(2)}</span></p>
-            <p><span>Total Cost:</span> <span class="cost-val">Rs ${safeValue(totalCombined.cost).toFixed(2)}</span></p>
-            <p><span>Net Profit:</span> <span class="profit-val">Rs ${safeValue(totalCombined.profit).toFixed(2)}</span></p>
-        `;
-        allStoresGrid.appendChild(combinedCard);
-        
-        updateStoreComparisonChart(mode);
-    }
 
-    function setOverviewMode(mode) {
-        currentOverviewMode = mode;
+        // 2. Calculate SALES totals (Inventory OUT)
+        let soldQty = 0;
+        let asaanCreditSales = 0; // Specific tracking for Asaan/Store C credits
+
+        customerSales.forEach(sale => {
+            const saleDate = new Date(sale.date);
+            const saleYear = saleDate.getFullYear();
+            const saleMonth = saleDate.getMonth();
+            const saleDay = saleDate.getDate();
+            
+            let includeSale = false;
+
+            if (mode === 'day' && sale.date === selectedDate) includeSale = true;
+            else if (mode === 'week') {
+                const weekStart = new Date(selectedDateObj);
+                weekStart.setDate(selectedDay - 6);
+                if (saleDate >= weekStart && saleDate <= selectedDateObj) includeSale = true;
+            }
+            else if (mode === 'month' && saleYear === selectedYear && saleMonth === selectedMonth) includeSale = true;
+            else if (mode === 'year' && saleYear === selectedYear) includeSale = true;
+            else if (mode === 'all') includeSale = true;
+
+            // Check if this sale belongs to the current store loop
+            if (includeSale && sale.supplyStore === store) {
+                soldQty += (sale.quantity || 0);
+                
+                // Track Credit Sales specifically for STORE_C (Asaan)
+                if (store === 'STORE_C' && sale.paymentType === 'CREDIT' && !sale.creditReceived) {
+                    asaanCreditSales += (sale.totalValue || 0);
+                }
+            }
+        });
+
+        // 3. Calculate Remaining Inventory
+        // (Note: If viewing "Daily", this shows what was produced today minus sold today)
+        const remainingQty = storeData.qty - soldQty;
+
+        // 4. Update Combined Totals
+        totalCombined.qty += storeData.qty;
+        totalCombined.value += storeData.value;
+        totalCombined.cost += storeData.cost;
+        totalCombined.profit += storeData.profit;
         
-        document.getElementById('overview-day-btn').className = `toggle-opt ${mode === 'day' ? 'active' : ''}`;
-        document.getElementById('overview-week-btn').className = `toggle-opt ${mode === 'week' ? 'active' : ''}`;
-        document.getElementById('overview-month-btn').className = `toggle-opt ${mode === 'month' ? 'active' : ''}`;
-        document.getElementById('overview-year-btn').className = `toggle-opt ${mode === 'year' ? 'active' : ''}`;
-        document.getElementById('overview-all-btn').className = `toggle-opt ${mode === 'all' ? 'active' : ''}`;
-        
-        updateAllStoresOverview(mode);
-    }
+        // 5. Build the HTML Card
+        // Logic for Asaan Store Credit Display
+        let extraInfoHtml = '';
+        if (store === 'STORE_C') {
+            extraInfoHtml = `<p><span>Credit Sales:</span> <span style="color:var(--warning); font-weight:800;">Rs ${safeValue(asaanCreditSales).toFixed(2)}</span></p>`;
+        }
+
+        const card = document.createElement('div');
+        card.className = `overview-card liquid-card`;
+        card.innerHTML = `
+            <span class="store-badge ${storeColors[index]}">${storeNames[index]}</span>
+            <h4>${storeNames[index]} (${mode === 'all' ? 'All Times' : mode.charAt(0).toUpperCase() + mode.slice(1)})</h4>
+            
+            <p><span>Produced:</span> <span class="qty-val" style="color:var(--text-main);">${safeValue(storeData.qty).toFixed(2)} kg</span></p>
+            <p><span>Sold (Sales Tab):</span> <span class="cost-val">${safeValue(soldQty).toFixed(2)} kg</span></p>
+            <div style="border-top:1px dashed var(--glass-border); margin:4px 0; padding-top:4px;">
+                <p><span>Remaining:</span> <span class="profit-val" style="font-size:1.1rem;">${safeValue(remainingQty).toFixed(2)} kg</span></p>
+            </div>
+            <hr>
+            <p><span>Total Value:</span> <span class="rev-val">Rs ${safeValue(storeData.value).toFixed(2)}</span></p>
+            ${extraInfoHtml}
+            <p><span>Net Profit:</span> <span class="profit-val">Rs ${safeValue(storeData.profit).toFixed(2)}</span></p>
+        `;
+        allStoresGrid.appendChild(card);
+    });
+    
+    // 6. Build Combined Card
+    const combinedCard = document.createElement('div');
+    combinedCard.className = `overview-card liquid-card highlight-card`;
+    combinedCard.innerHTML = `
+        <h4 style="color: var(--accent);">Total Combined</h4>
+        <p><span>Net Production:</span> <span class="qty-val">${safeValue(totalCombined.qty).toFixed(3)} kg</span></p>
+        <p><span>Total Value:</span> <span class="rev-val">Rs ${safeValue(totalCombined.value).toFixed(2)}</span></p>
+        <p><span>Total Cost:</span> <span class="cost-val">Rs ${safeValue(totalCombined.cost).toFixed(2)}</span></p>
+        <p><span>Net Profit:</span> <span class="profit-val">Rs ${safeValue(totalCombined.profit).toFixed(2)}</span></p>
+    `;
+    allStoresGrid.appendChild(combinedCard);
+    
+    updateStoreComparisonChart(mode);
+}
+
 
     // --- CUSTOMER SALES FUNCTIONS (UPDATED WITH ALL TIMES) ---
     function setCustomerChartMode(mode) {
@@ -9453,83 +10107,293 @@ function deleteSalesEntry(id) {
         });
     });
     // Add this function to your JavaScript
-function refreshEntityList() {
-    const tbody = document.getElementById('entityListBody');
-    const footer = document.getElementById('entityListFooter');
-    tbody.innerHTML = '';
+// --- ENTITY CARD VIEW FUNCTIONS ---
+let entityViewMode = 'detailed'; // 'detailed' or 'compact'
+
+function toggleEntityViewMode() {
+    const toggleBtn = document.getElementById('entityViewModeToggle');
+    const entityGrid = document.getElementById('entityCardsGrid');
+    
+    if (entityViewMode === 'detailed') {
+        entityViewMode = 'compact';
+        entityGrid.classList.add('compact');
+        toggleBtn.title = "Switch to Detailed View";
+        toggleBtn.textContent = '⛶';
+    } else {
+        entityViewMode = 'detailed';
+        entityGrid.classList.remove('compact');
+        toggleBtn.title = "Switch to Compact View";
+        toggleBtn.textContent = '☰';
+    }
+    
+    renderEntityCards();
+}
+
+function renderEntityCards() {
+    const entityGrid = document.getElementById('entityCardsGrid');
+    const entityFooter = document.getElementById('entityListFooter');
+    
+    if (!entityGrid) return;
+    
+    entityGrid.innerHTML = '';
     
     if (paymentEntities.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; color:var(--text-muted);">No entities found</td></tr>';
-        footer.style.display = 'none';
+        entityGrid.innerHTML = `
+            <div class="no-entities-message">
+                <p>No entities found. Create your first entity to track payments.</p>
+                <button class="btn-theme" onclick="openEntityManagement()">+ Add First Entity</button>
+            </div>
+        `;
+        entityFooter.style.display = 'none';
         return;
     }
     
+    // Calculate entity balances
+    const entityBalances = calculateEntityBalances();
     let totalBalance = 0;
+    let activeCount = 0;
     
-    paymentEntities.forEach(entity => {
-        const entityTransactions = paymentTransactions.filter(t => t.entityId === entity.id);
-        let balance = 0;
+    // Sort entities by balance (highest to lowest)
+    const sortedEntities = [...paymentEntities].sort((a, b) => {
+        const balanceA = Math.abs(entityBalances[a.id] || 0);
+        const balanceB = Math.abs(entityBalances[b.id] || 0);
+        return balanceB - balanceA;
+    });
+    
+    sortedEntities.forEach(entity => {
+        const balance = entityBalances[entity.id] || 0;
         
-        entityTransactions.forEach(transaction => {
-            if (transaction.type === 'IN') balance += transaction.amount;
-            else if (transaction.type === 'OUT') balance -= transaction.amount;
-        });
-        
+        if (balance !== 0) activeCount++;
         totalBalance += balance;
         
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td style="text-align:left;">
-                <div style="font-weight:700;">${entity.name}</div>
-                <div style="font-size:0.65rem; color:var(--text-muted);">
-                    ${entity.type === 'payee' ? 'Payee (We pay)' : 'Payor (Pays us)'}
+        // Determine balance styling
+        let balanceClass = 'entity-balance-neutral';
+        let balanceSign = '';
+        
+        if (entity.type === 'payee') {
+            // For payee, positive balance means WE owe THEM
+            if (balance > 0) {
+                balanceClass = 'entity-balance-negative';
+                balanceSign = '+';
+            } else if (balance < 0) {
+                balanceClass = 'entity-balance-positive';
+            }
+        } else {
+            // For payor, positive balance means THEY owe US
+            if (balance > 0) {
+                balanceClass = 'entity-balance-positive';
+                balanceSign = '+';
+            } else if (balance < 0) {
+                balanceClass = 'entity-balance-negative';
+            }
+        }
+        
+        // Create entity card
+        const card = document.createElement('div');
+        card.className = `entity-card-compact ${selectedEntityId === entity.id ? 'active' : ''}`;
+        card.dataset.id = entity.id;
+        
+        // Entity type badge
+        const typeBadgeClass = entity.type === 'payee' ? 'entity-type-payee' : 'entity-type-payor';
+        const typeBadgeText = entity.type === '' ? '' : '';
+        
+        // Phone display
+        const phoneDisplay = entity.phone ? `
+            <div class="entity-contact">
+                <span style="font-size:0.9rem;"></span>
+                <span>${entity.phone}</span>
+            </div>
+        ` : '';
+        
+        // Wallet display
+        const walletDisplay = entity.wallet ? `
+            <div class="entity-contact" style="margin-top:2px;">
+                <span style="font-size:0.9rem;"></span>
+                <span style="font-size:0.7rem;">${entity.wallet}</span>
+            </div>
+        ` : '';
+        
+        card.innerHTML = `
+            <div class="entity-header">
+                <h4 class="entity-name">${entity.name}</h4>
+                <span class="entity-type-badge ${typeBadgeClass}">${typeBadgeText}</span>
+            </div>
+            
+            ${phoneDisplay}
+            ${walletDisplay}
+            
+            <div class="entity-balance">
+                <div class="entity-balance-label">Balance</div>
+                <div class="entity-balance-value ${balanceClass}">
+                    ${balanceSign}Rs ${Math.abs(balance).toFixed(2)}
                 </div>
-            </td>
-            <td style="${balance >= 0 ? 'color:var(--accent-emerald)' : 'color:var(--danger)'}; font-weight:800;">
-                Rs ${balance.toFixed(2)}
-            </td>
-            <td style="text-align:center;">${entityTransactions.length}</td>
-            <td style="text-align:center;">
-                <button class="btn-theme" onclick="editEntity(${entity.id})" style="padding:3px 8px; font-size:0.7rem;">Edit</button>
-                <button class="btn-theme" onclick="openEntityTransactions(${entity.id})" style="padding:3px 8px; font-size:0.7rem; margin-left:5px;">View</button>
-            </td>
+            </div>
+            
+            <div class="entity-actions">
+                <button class="entity-action-btn edit" onclick="event.stopPropagation(); editEntity(${entity.id})">
+                    Edit
+                </button>
+                <button class="entity-action-btn transactions" onclick="event.stopPropagation(); openEntityTransactions(${entity.id})">
+                    View
+                </button>
+            </div>
         `;
-        tbody.appendChild(row);
+        
+        // Add click handler to select entity
+        card.onclick = () => selectEntity(entity.id);
+        
+        entityGrid.appendChild(card);
     });
     
-    footer.style.display = '';
+    // Update footer
+    entityFooter.style.display = 'block';
     document.getElementById('entityListTotalBalance').textContent = `Rs ${totalBalance.toFixed(2)}`;
-    document.getElementById('entityListTotalBalance').style.color = totalBalance >= 0 ? 'var(--accent-emerald)' : 'var(--danger)';
-}
-
-function filterEntityList() {
-    const searchTerm = document.getElementById('entity-list-search').value.toLowerCase();
-    const rows = document.querySelectorAll('#entityListBody tr');
+    document.getElementById('entityCount').textContent = paymentEntities.length;
+    document.getElementById('activeEntityCount').textContent = activeCount;
     
-    rows.forEach(row => {
-        const text = row.textContent.toLowerCase();
-        row.style.display = text.includes(searchTerm) ? '' : 'none';
-    });
-}
-
-function toggleEntityListView() {
-    const toggleBtn = document.getElementById('entityListViewToggle');
-    const table = document.getElementById('entityListTable');
-    
-    if (entityListViewType === 'table') {
-        entityListViewType = 'cards';
-        toggleBtn.innerHTML = '📃';
-        toggleBtn.title = "Table View";
-        if (table) table.style.display = 'cards';
-        renderEntityCards();
+    // Update footer color based on total balance
+    const totalBalanceEl = document.getElementById('entityListTotalBalance');
+    if (totalBalance > 0) {
+        totalBalanceEl.style.color = 'var(--accent-emerald)';
+    } else if (totalBalance < 0) {
+        totalBalanceEl.style.color = 'var(--danger)';
     } else {
-        entityListViewType = 'table';
-        toggleBtn.innerHTML = '☰';
-        toggleBtn.title = "Cards";
-        if (table) table.style.display = '';
-        renderEntityList();
+        totalBalanceEl.style.color = 'var(--accent)';
     }
 }
+
+function calculateEntityBalances() {
+    const balances = {};
+    
+    paymentEntities.forEach(entity => {
+        balances[entity.id] = 0;
+    });
+    
+    paymentTransactions.forEach(transaction => {
+        if (balances[transaction.entityId] !== undefined) {
+            if (transaction.type === 'IN') {
+                balances[transaction.entityId] += transaction.amount;
+            } else if (transaction.type === 'OUT') {
+                balances[transaction.entityId] -= transaction.amount;
+            }
+        }
+    });
+    
+    return balances;
+}
+
+function filterEntityCards() {
+    const searchTerm = document.getElementById('entity-list-search').value.toLowerCase().trim();
+    const entityCards = document.querySelectorAll('#entityCardsGrid .entity-card-compact');
+    
+    if (!searchTerm) {
+        entityCards.forEach(card => card.style.display = '');
+        return;
+    }
+    
+    entityCards.forEach(card => {
+        const entityName = card.querySelector('.entity-name').textContent.toLowerCase();
+        const entityType = card.querySelector('.entity-type-badge').textContent.toLowerCase();
+        const entityPhone = card.querySelector('.entity-contact')?.textContent?.toLowerCase() || '';
+        const cardText = (entityName + ' ' + entityType + ' ' + entityPhone).toLowerCase();
+        
+        if (cardText.includes(searchTerm)) {
+            card.style.display = '';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+// Replace the refreshEntityList() function call in refreshPaymentTab() with renderEntityCards()
+function refreshPaymentTab() {
+    renderEntities(); // For the quick entity scroller
+    calculateNetCash();
+    calculatePaymentSummaries();
+    renderEntityCards(); // <-- REPLACE refreshEntityList() with this
+    calculateCashTracker();
+    
+    // Render transaction history (existing code remains the same)
+    const historyList = document.getElementById('paymentHistoryList');
+    historyList.innerHTML = '';
+    
+    // Sort by date (newest first)
+    const sortedTransactions = [...paymentTransactions].sort((a, b) => b.timestamp - a.timestamp);
+    
+    sortedTransactions.forEach(transaction => {
+        const entity = paymentEntities.find(e => e.id === transaction.entityId);
+        const badgeClass = transaction.type === 'IN' ? 'transaction-in' : 'transaction-out';
+        const badgeText = transaction.type === 'IN' ? 'IN' : 'OUT';
+        
+        const card = document.createElement('div');
+        card.className = 'card liquid-card';
+        card.innerHTML = `
+            <span class="transaction-badge ${badgeClass}">${badgeText}</span>
+            <h4>${transaction.date} @ ${transaction.time}</h4>
+            <div class="customer-name">${entity ? entity.name : 'Unknown Entity'}</div>
+            <p><span>Type:</span> <span>${entity ? (entity.type === 'payee' ? 'Payee' : 'Payor') : 'Unknown'}</span></p>
+            <p><span>Description:</span> <span>${transaction.description}</span></p>
+            <hr>
+            <p><span>Amount:</span> <span class="${transaction.type === 'IN' ? 'profit-val' : 'cost-val'}">Rs ${safeValue(transaction.amount).toFixed(2)}</span></p>
+            <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="deletePaymentTransaction(${transaction.id})">Delete</button>
+        `;
+        historyList.appendChild(card);
+    });
+    
+    if (sortedTransactions.length === 0) {
+        historyList.innerHTML = '<p style="text-align:center; color:var(--text-muted); width:100%; font-size:0.85rem;">No payment transactions found.</p>';
+    }
+}
+
+// Also update the selectEntity function to highlight the selected card
+function selectEntity(id) {
+    selectedEntityId = id;
+    const entitySelect = document.getElementById('paymentEntity');
+    entitySelect.value = id;
+    
+    // Update card selection
+    document.querySelectorAll('#entityCardsGrid .entity-card-compact').forEach(card => {
+        card.classList.remove('active');
+        if (parseInt(card.dataset.id) === id) {
+            card.classList.add('active');
+            
+            // Scroll into view if needed
+            setTimeout(() => {
+                card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 100);
+        }
+    });
+    
+    // Update chip selection (for the quick entity scroller)
+    document.querySelectorAll('.entity-chip').forEach(chip => {
+        chip.classList.remove('active');
+        if (parseInt(chip.dataset.id) === id) {
+            chip.classList.add('active');
+        }
+    });
+}
+
+// Update the refreshEntityBalances function
+function refreshEntityBalances() {
+    renderEntityCards();
+    alert("Entity balances refreshed!");
+}
+
+// Initialize the entity view on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Set up entity view mode toggle
+    const toggleBtn = document.getElementById('entityViewModeToggle');
+    if (toggleBtn) {
+        toggleBtn.onclick = toggleEntityViewMode;
+    }
+    
+    // Initialize entity cards
+    setTimeout(() => {
+        if (document.getElementById('entityCardsGrid')) {
+            renderEntityCards();
+        }
+    }, 500);
+});
 // Replace the incomplete getMetricValue function with this:
 function getMetricValue(historyItem, metric) {
     switch(metric) {
@@ -9758,25 +10622,24 @@ function renderCustomersTable() {
     const tbody = document.getElementById('customers-table-body');
     const filterValue = document.getElementById('customer-filter').value.toLowerCase();
     
-    tbody.innerHTML = ''; // Clear current
+    // Update Header
+    const thead = document.querySelector('#customers-card thead tr');
+    if(thead) {
+        thead.children[3].innerText = "Actions"; // Change 4th column header
+    }
+
+    tbody.innerHTML = ''; 
     
-    // 1. Aggregate Data from Sales History
+    // 1. Aggregate Data
     const customerStats = {};
     
     customerSales.forEach(sale => {
         const name = sale.customerName;
         if (!customerStats[name]) {
-            customerStats[name] = { 
-                name: name, 
-                credit: 0, 
-                quantity: 0, 
-                salesCount: 0,
-                lastSaleDate: 0
-            };
+            customerStats[name] = { name: name, credit: 0, quantity: 0, lastSaleDate: 0 };
         }
         
         customerStats[name].quantity += (sale.quantity || 0);
-        customerStats[name].salesCount++;
         
         // Track outstanding credit
         if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
@@ -9790,25 +10653,22 @@ function renderCustomersTable() {
         }
     });
 
-    // 2. Convert to Array and Sort
-    // Sort logic: High Credit > Most Recent > Alphabetical
+    // 2. Sort and Filter
     let sortedCustomers = Object.values(customerStats).sort((a, b) => {
-        if (b.credit !== a.credit) return b.credit - a.credit; // Highest credit first
-        return b.lastSaleDate - a.lastSaleDate; // Most recent second
+        if (b.credit !== a.credit) return b.credit - a.credit; 
+        return b.lastSaleDate - a.lastSaleDate; 
     });
 
-    // 3. Filter based on Search Bar inside Card
     if (filterValue) {
         sortedCustomers = sortedCustomers.filter(c => c.name.toLowerCase().includes(filterValue));
     }
 
-    // 4. Update Header Counts
     document.getElementById('customer-count').innerText = `${sortedCustomers.length} active`;
 
     let totalOutstanding = 0;
     let totalGlobalQty = 0;
 
-    // 5. Generate Table HTML
+    // 3. Render Rows
     if (sortedCustomers.length === 0) {
         tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:15px; color:var(--text-muted);">No customers found</td></tr>`;
     } else {
@@ -9817,39 +10677,499 @@ function renderCustomersTable() {
             totalGlobalQty += c.quantity;
 
             const row = document.createElement('tr');
-            
-            // Highlight row if credit exists
-            const creditClass = c.credit > 0 ? 'cost-val' : 'text-muted';
             const creditStyle = c.credit > 0 ? 'color:var(--warning); font-weight:800;' : 'color:var(--text-muted); opacity:0.5;';
             
-            // Click to auto-fill this customer in the New Sale form
-            row.onclick = () => {
-                selectCustomer(c.name);
-                document.getElementById('cust-name').scrollIntoView({behavior: "smooth", block: "center"});
-            };
-            row.style.cursor = 'pointer';
-            row.title = "Click to sell to this customer";
-
             row.innerHTML = `
                 <td style="text-align:left; font-weight:600;">${c.name}</td>
                 <td style="text-align:right; ${creditStyle}">Rs ${safeValue(c.credit).toFixed(0)}</td>
                 <td style="text-align:right;">${safeValue(c.quantity).toFixed(1)}</td>
-                <td style="text-align:center;">${c.salesCount}</td>
+                <td style="text-align:center;">
+                    <button class="btn-theme" style="padding:4px 10px; font-size:0.75rem;" 
+                        onclick="event.stopPropagation(); openCustomerManagement('${c.name.replace(/'/g, "\\'")}')">
+                        Edit
+                    </button>
+                </td>
             `;
             tbody.appendChild(row);
         });
     }
 
-    // 6. Update Card Footer Totals
     document.getElementById('customers-total-credit').innerText = formatCurrency(totalOutstanding);
     document.getElementById('customers-total-quantity').innerText = totalGlobalQty.toFixed(2) + ' kg';
 }
+// --- NEW CUSTOMER MANAGEMENT LOGIC ---
 
-// 5. Filter function trigger
-function filterCustomers() {
+let currentManagingCustomer = null;
+
+function openCustomerManagement(customerName) {
+    currentManagingCustomer = customerName;
+    document.getElementById('manageCustomerTitle').innerText = customerName;
+    document.getElementById('bulkPaymentAmount').value = '';
+    
+    document.getElementById('customerManagementOverlay').style.display = 'flex';
+    renderCustomerTransactions(customerName);
+}
+
+function closeCustomerManagement() {
+    document.getElementById('customerManagementOverlay').style.display = 'none';
+    currentManagingCustomer = null;
+    refreshAllCalculations(); // Ensure Sales Tab updates on close
     renderCustomersTable();
 }
 
+function renderCustomerTransactions(name) {
+    const list = document.getElementById('customerManagementHistoryList');
+    list.innerHTML = '';
+
+    // Filter sales for this customer
+    const transactions = customerSales.filter(s => s.customerName === name);
+    
+    // Calculate Stats
+    let currentDebt = 0;
+    transactions.forEach(t => {
+        if(t.paymentType === 'CREDIT' && !t.creditReceived) currentDebt += t.totalValue;
+    });
+    document.getElementById('manageCustomerStats').innerText = `Current Debt: ${formatCurrency(currentDebt)}`;
+
+    // Sort: Pending Credits First, then Newest Date
+    transactions.sort((a,b) => {
+        // Priority to pending credits
+        const aPending = (a.paymentType === 'CREDIT' && !a.creditReceived) ? 1 : 0;
+        const bPending = (b.paymentType === 'CREDIT' && !b.creditReceived) ? 1 : 0;
+        if (bPending !== aPending) return bPending - aPending;
+        
+        // Then by date
+        return b.timestamp - a.timestamp;
+    });
+
+    if(transactions.length === 0) {
+        list.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">No history found</div>';
+        return;
+    }
+
+    transactions.forEach(t => {
+        const isCredit = t.paymentType === 'CREDIT';
+        const isReceived = t.creditReceived === true;
+        const statusText = !isCredit ? 'CASH' : (isReceived ? 'CREDIT RECEIVED' : 'PENDING CREDIT');
+        const statusClass = !isCredit ? 'units-available-good' : (isReceived ? 'status-received' : 'status-pending');
+        const btnText = isReceived ? 'Mark Pending' : 'Mark Received';
+        
+        const item = document.createElement('div');
+        item.className = 'cust-history-item';
+        
+        // Render logic for Toggle Button (only for credit transactions)
+        let toggleBtnHtml = '';
+        if(isCredit) {
+            toggleBtnHtml = `<button class="status-toggle-btn ${statusClass}" onclick="toggleSingleTransactionStatus(${t.id})">${btnText}</button>`;
+        } else {
+            toggleBtnHtml = `<span class="status-toggle-btn" style="background:rgba(37, 99, 235, 0.1); color:var(--accent);">CASH SALE</span>`;
+        }
+
+        item.innerHTML = `
+            <div class="cust-history-info">
+                <div style="font-weight:700; font-size:0.85rem; color:var(--text-main);">${t.date}</div>
+                <div style="font-size:0.75rem; color:var(--text-muted);">
+                    ${t.quantity.toFixed(2)} kg @ ${formatCurrency(t.totalValue)}
+                </div>
+                <div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">
+                    ${getStoreLabel(t.supplyStore)}
+                </div>
+            </div>
+            <div class="cust-history-actions">
+                ${toggleBtnHtml}
+                <button class="btn btn-sm btn-danger" style="padding:4px 8px;" onclick="deleteTransactionFromOverlay(${t.id})">🗑️</button>
+            </div>
+        `;
+        list.appendChild(item);
+    });
+}
+
+function toggleSingleTransactionStatus(id) {
+    const index = customerSales.findIndex(s => s.id === id);
+    if(index !== -1) {
+        const sale = customerSales[index];
+        sale.creditReceived = !sale.creditReceived;
+        
+        // If changing to received, logically update paymentType for cash flow calcs if needed
+        // but keeping it as CREDIT type preserves history that it WAS a credit sale
+        
+        localStorage.setItem('customer_sales', JSON.stringify(customerSales));
+        renderCustomerTransactions(currentManagingCustomer);
+        refreshAllCalculations(); // Update net cash immediately
+    }
+}
+
+function deleteTransactionFromOverlay(id) {
+    if(confirm("Permanently delete this record?")) {
+        customerSales = customerSales.filter(s => s.id !== id);
+        localStorage.setItem('customer_sales', JSON.stringify(customerSales));
+        renderCustomerTransactions(currentManagingCustomer);
+        refreshAllCalculations();
+    }
+}
+
+function processBulkPayment() {
+    const amount = parseFloat(document.getElementById('bulkPaymentAmount').value);
+    if(!amount || amount <= 0) {
+        alert("Please enter a valid amount");
+        return;
+    }
+
+    let remaining = amount;
+    let updatedCount = 0;
+
+    // Get pending credits for this customer, sorted OLDER first
+    const pending = customerSales.filter(s => 
+        s.customerName === currentManagingCustomer && 
+        s.paymentType === 'CREDIT' && 
+        !s.creditReceived
+    ).sort((a,b) => a.timestamp - b.timestamp);
+
+    if(pending.length === 0) {
+        alert("No pending credit transactions found for this customer.");
+        return;
+    }
+
+    pending.forEach(sale => {
+        if(remaining >= sale.totalValue) {
+            sale.creditReceived = true;
+            sale.creditReceivedDate = new Date().toISOString().split('T')[0];
+            remaining -= sale.totalValue;
+            updatedCount++;
+        }
+    });
+
+    if(updatedCount > 0) {
+        localStorage.setItem('customer_sales', JSON.stringify(customerSales));
+        
+        let msg = `Successfully cleared ${updatedCount} transaction(s).`;
+        if(remaining > 0 && remaining < amount) {
+            msg += `\nRemaining unallocated cash: ${formatCurrency(remaining)}`;
+        } else if (remaining === amount) {
+            msg = "Amount was not enough to clear the oldest transaction fully. No changes made.";
+        }
+        
+        alert(msg);
+        document.getElementById('bulkPaymentAmount').value = '';
+        renderCustomerTransactions(currentManagingCustomer);
+        refreshAllCalculations();
+    } else {
+        alert(`Amount (${formatCurrency(amount)}) is smaller than the oldest transaction (${formatCurrency(pending[0].totalValue)}). \n\nPlease enter an amount sufficient to clear at least one full transaction.`);
+    }
+}
+
+function filterCustomerManagementHistory() {
+    const term = document.getElementById('cust-trans-search').value.toLowerCase();
+    const items = document.querySelectorAll('.cust-history-item');
+    
+    items.forEach(item => {
+        const text = item.innerText.toLowerCase();
+        item.style.display = text.includes(term) ? 'flex' : 'none';
+    });
+}
+
+// ========== NEW FUNCTION: Refresh All Calculations ==========
+function refreshAllCalculations() {
+    // This function recalculates everything to ensure consistency
+    
+    // 1. Refresh Cash Tracker (uses NET calculations)
+    calculateCashTracker();
+    
+    // 2. Refresh Economic Dashboard
+    calculateNetCash();
+    
+    // 3. Refresh Payment Summaries
+    calculatePaymentSummaries();
+    
+    // 4. Refresh Entity Balances
+    refreshEntityBalances();
+    
+    // 5. Update any production displays that might be affected
+    updateUnitsAvailableIndicator();
+    
+    console.log("All calculations refreshed with NET values");
+}
+
+// Call this when any sales or production data changes
+// You can add this to your existing save functions:
+// - recordEntry()
+// - saveCustomerSale()
+// - saveTransaction()
+// ================================================
+// LIQUID GLASSMORPHISM TOAST NOTIFICATION SYSTEM
+// ================================================
+
+// Inject toast styles
+const toastStyles = document.createElement('style');
+toastStyles.innerHTML = `
+/* --- LIQUID GLASS TOAST STYLES --- */
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+    width: 320px;
+    max-width: 90%;
+}
+
+.liquid-toast {
+    background: var(--glass);
+    backdrop-filter: var(--backdrop-blur);
+    -webkit-backdrop-filter: var(--backdrop-blur);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 16px 20px;
+    box-shadow: var(--shadow), 0 6px 20px rgba(37, 99, 235, 0.15);
+    position: relative;
+    overflow: hidden;
+    transform: translateX(100%);
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    width: 100%;
+}
+
+.liquid-toast::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.3), transparent);
+}
+
+.liquid-toast::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-emerald));
+    transform: scaleX(1);
+    transform-origin: left;
+    transition: transform 3s linear;
+}
+
+.liquid-toast.show {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.liquid-toast.hiding {
+    transform: translateX(100%);
+    opacity: 0;
+}
+
+.toast-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.toast-icon {
+    font-size: 1.4rem;
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(37, 99, 235, 0.1);
+    color: var(--accent);
+}
+
+.toast-icon.success { background: rgba(5, 150, 105, 0.1); color: var(--accent-emerald); }
+.toast-icon.warning { background: rgba(245, 158, 11, 0.1); color: var(--warning); }
+.toast-icon.error { background: rgba(220, 38, 38, 0.1); color: var(--danger); }
+.toast-icon.info { background: rgba(37, 99, 235, 0.1); color: var(--accent); }
+
+.toast-text {
+    flex: 1;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: var(--text-main);
+    font-weight: 400;
+}
+
+.toast-close {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 8px;
+    transition: color 0.2s;
+    flex-shrink: 0;
+    opacity: 0.7;
+}
+
+.toast-close:hover {
+    color: var(--accent);
+    opacity: 1;
+}
+
+.toast-progress-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-emerald));
+    width: 100%;
+    transform-origin: left;
+    animation: progressBar 3s linear forwards;
+}
+
+@keyframes progressBar {
+    from { transform: scaleX(1); }
+    to { transform: scaleX(0); }
+}
+
+/* Dark mode adjustments */
+body.dark-mode .liquid-toast {
+    background: rgba(30, 41, 59, 0.92);
+    border-color: rgba(96, 165, 250, 0.15);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25), 0 6px 20px rgba(59, 130, 246, 0.15);
+}
+
+body.dark-mode .toast-close:hover {
+    color: var(--accent);
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .toast-container {
+        width: 90%;
+        left: 5%;
+        right: 5%;
+        align-items: center;
+    }
+    
+    .liquid-toast {
+        width: 100%;
+    }
+}
+
+/* Toast types */
+.toast-success { border-left: 4px solid var(--accent-emerald); }
+.toast-warning { border-left: 4px solid var(--warning); }
+.toast-error { border-left: 4px solid var(--danger); }
+.toast-info { border-left: 4px solid var(--accent); }
+`;
+document.head.appendChild(toastStyles);
+
+// Create toast container
+const toastContainer = document.createElement('div');
+toastContainer.className = 'toast-container';
+document.body.appendChild(toastContainer);
+
+// Toast function
+function showToast(message, type = 'info', duration = 3000) {
+    const toast = document.createElement('div');
+    toast.className = `liquid-toast toast-${type}`;
+    
+    const icons = {
+        success: '✓',
+        warning: '⚠',
+        error: '✗',
+        info: 'ℹ'
+    };
+    
+    toast.innerHTML = `
+        <div class="toast-content">
+            <div class="toast-icon ${type}">${icons[type] || icons.info}</div>
+            <div class="toast-text">${message}</div>
+            <button class="toast-close" onclick="this.closest('.liquid-toast').remove()">✕</button>
+        </div>
+        <div class="toast-progress-bar"></div>
+    `;
+    
+    toastContainer.appendChild(toast);
+    
+    // Trigger animation
+    setTimeout(() => toast.classList.add('show'), 10);
+    
+    // Auto-remove
+    const removeToast = () => {
+        toast.classList.remove('show');
+        toast.classList.add('hiding');
+        setTimeout(() => {
+            if (toast.parentNode === toastContainer) {
+                toastContainer.removeChild(toast);
+            }
+        }, 300);
+    };
+    
+    // Progress bar animation
+    setTimeout(removeToast, duration);
+    
+    // Close on click
+    toast.addEventListener('click', (e) => {
+        if (!e.target.classList.contains('toast-close')) {
+            removeToast();
+        }
+    });
+    
+    return toast;
+}
+
+// Hijack the alert system
+const originalAlert = window.alert;
+window.alert = function(message) {
+    // Check if message contains success keywords
+    if (typeof message === 'string') {
+        const lowerMsg = message.toLowerCase();
+        if (lowerMsg.includes('success') || lowerMsg.includes('saved') || lowerMsg.includes('successfully')) {
+            showToast(message, 'success', 3000);
+            return;
+        } else if (lowerMsg.includes('error') || lowerMsg.includes('failed') || lowerMsg.includes('invalid')) {
+            showToast(message, 'error', 4000);
+            return;
+        } else if (lowerMsg.includes('warning') || lowerMsg.includes('caution') || lowerMsg.includes('insufficient')) {
+            showToast(message, 'warning', 4000);
+            return;
+        }
+    }
+    
+    // Default to info toast
+    showToast(message, 'info', 3000);
+};
+
+// Also add a direct toast function for manual use
+window.showToast = showToast;
+
+// Enhanced console logging for debugging
+console.oldLog = console.log;
+console.log = function(...args) {
+    console.oldLog(...args);
+    // Optionally show toasts for important logs
+    if (args[0] && typeof args[0] === 'string' && args[0].startsWith('[TOAST]')) {
+        const message = args.slice(1).join(' ');
+        const type = args[0].includes('SUCCESS') ? 'success' : 
+                    args[0].includes('ERROR') ? 'error' : 
+                    args[0].includes('WARNING') ? 'warning' : 'info';
+        showToast(message, type, 3000);
+    }
+};
+
+// Add a quick success toast shortcut
+window.success = (message) => showToast(message, 'success', 3000);
+window.error = (message) => showToast(message, 'error', 4000);
+window.warn = (message) => showToast(message, 'warning', 4000);
+window.info = (message) => showToast(message, 'info', 3000);
+
+// Initialize with a welcome message when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        showToast('System initialized with liquid glass notifications', 'success', 2000);
+    }, 1000);
+});
 </script>
 </body>
 </html>
