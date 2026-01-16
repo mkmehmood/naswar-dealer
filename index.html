@@ -5179,12 +5179,8 @@ function closeEntityTransactions() {
             }
         });
     }
-
- // --- FIXED: ECONOMIC DASHBOARD LOGIC (REPLACE IN calculateNetCash FUNCTION) ---
-// --- UPDATED: ECONOMIC DASHBOARD LOGIC (REPLACE IN calculateNetCash FUNCTION) ---
 function calculateNetCash() {
-    // This function now uses the SAME logic as calculateCashTracker()
-    // but calculates ALL data (not just for a specific period)
+    // This function calculates ALL data (not just for a specific period)
     
     // ========== PHASE 1: Gather ALL raw data ==========
     let rawData = {
@@ -5205,9 +5201,10 @@ function calculateNetCash() {
         repSalesCash: 0,
         repSalesCredits: 0,
         
-        // Calculator data (rep collections)
+        // Calculator data (rep collections & debt)
         calculatorCash: 0,
-        calculatorCredits: 0,
+        calculatorTotalIssued: 0,   // For Market Debt Calculation
+        calculatorTotalRecovered: 0, // For Market Debt Calculation
         
         // Payments data
         paymentsIn: 0,
@@ -5249,10 +5246,14 @@ function calculateNetCash() {
         }
     });
     
-    // 3. Collect CALCULATOR data (rep collections - ALL TIME)
+    // 3. Collect CALCULATOR data (Market Debt Tracker Logic)
     salesHistory.forEach(item => {
+        // Cash currently in hand (Received today)
         rawData.calculatorCash += item.received || 0;
-        rawData.calculatorCredits += item.creditValue || 0;
+        
+        // Accumulate totals for Market Debt Tracker
+        rawData.calculatorTotalIssued += item.creditValue || 0; // Credit Given
+        rawData.calculatorTotalRecovered += item.prevColl || 0; // Credit Recovered
     });
     
     // 4. Collect PAYMENTS data (ALL TIME)
@@ -5269,17 +5270,18 @@ function calculateNetCash() {
     
     // ========== PHASE 2: Calculate NET values ==========
     
-    // A. NET PRODUCTION VALUE = Total Produced - Value of Quantity Sold in Sales Tab
+    // A. NET PRODUCTION VALUE
     const netProductionValue = Math.max(0, rawData.totalProductionValue - rawData.totalSalesValue);
     
-    // B. NET SALES CASH = Total Sales Cash - Cash Sales from Noran/Noman
+    // B. NET SALES CASH
     const netSalesCash = rawData.salesCash - rawData.repSalesCash;
     
-    // C. NET SALES CREDITS = Total Sales Credits - Credit Sales from Noran/Noman
+    // C. NET SALES CREDITS (Direct Customers)
     const netSalesCredits = rawData.salesCredits - rawData.repSalesCredits;
     
-    // D. NET PRODUCTION QUANTITY = Total Produced - Total Quantity Sold
-    const netProductionQuantity = Math.max(0, rawData.totalProductionQuantity - rawData.totalSalesQuantity);
+    // ========== FIXED: Calculate COMBINED MARKET DEBT TRACKER ==========
+    // Formula: Total Credit Issued - Total Recovered (from Calculator Tab)
+    const combinedMarketDebt = rawData.calculatorTotalIssued - rawData.calculatorTotalRecovered;
     
     // ========== PHASE 3: Calculate FINAL CASH IN HAND ==========
     
@@ -5290,8 +5292,8 @@ function calculateNetCash() {
     // ========== PHASE 4: Calculate ACCOUNTS RECEIVABLE ==========
     let AccountsReceivable = {
         salesTabCredit: netSalesCredits, // Excluding rep sales
-        calculatorCredit: rawData.calculatorCredits + rawData.repSalesCredits, // Rep credits + calculator credits
-        // REMOVED: productionCredit - this is now counted separately in production inventory
+        // FIXED: Now equals the Combined Market Debt Tracker from Calculator Tab
+        calculatorCredit: Math.max(0, combinedMarketDebt), 
         total: 0
     };
     
@@ -5334,10 +5336,10 @@ function calculateNetCash() {
         total: 0
     };
     
-    // A. ACCOUNTS PAYABLE - Money you owe to suppliers/creditors
+    // A. ACCOUNTS PAYABLE
     let countedMaterialIds = new Set();
     
-    // 1. Count from paymentTransactions (marked as payable/debt)
+    // 1. Count from paymentTransactions
     paymentTransactions.forEach(trans => {
         if (trans.type === 'OUT' && trans.isPayable) {
             CurrentLiabilities.accountsPayable.supplierPayables += trans.amount;
@@ -5361,7 +5363,7 @@ function calculateNetCash() {
         });
     }
     
-    // B. OTHER PAYABLES (Operating expenses, loans, etc.)
+    // B. OTHER PAYABLES
     const nonSupplierEntities = paymentEntities.filter(e => 
         e.type === 'payee' && !e.isSupplier
     );
@@ -5383,13 +5385,12 @@ function calculateNetCash() {
             });
             
             if (totalOwed > 0) {
-                const desc = transaction.description || '';
-                const descLower = desc.toLowerCase();
+                const desc = (transaction.description || '').toLowerCase();
                 
-                if (descLower.includes('loan') || descLower.includes('debt')) {
+                if (desc.includes('loan') || desc.includes('debt')) {
                     CurrentLiabilities.accountsPayable.otherPayables.loans += totalOwed;
-                } else if (descLower.includes('expense') || descLower.includes('rent') || 
-                          descLower.includes('salary') || descLower.includes('utility')) {
+                } else if (desc.includes('expense') || desc.includes('rent') || 
+                          desc.includes('salary') || desc.includes('utility')) {
                     CurrentLiabilities.accountsPayable.otherPayables.operating += totalOwed;
                 } else {
                     CurrentLiabilities.accountsPayable.otherPayables.miscellaneous += totalOwed;
@@ -5423,7 +5424,7 @@ function calculateNetCash() {
         cashRatio: CurrentLiabilities.total > 0 ? cashInHand / CurrentLiabilities.total : 0
     };
     
-    // ========== PHASE 9: CASH DETAILS BREAKDOWN (for dashboard) ==========
+    // ========== PHASE 9: CASH DETAILS BREAKDOWN ==========
     const cashDetails = {
         directSales: netSalesCash,
         productionCash: netProductionValue - rawData.productionCredits,
@@ -5448,7 +5449,7 @@ function calculateNetCash() {
         
         receivables: {
             salesTab: AccountsReceivable.salesTabCredit,
-            calculator: AccountsReceivable.calculatorCredit,
+            calculator: AccountsReceivable.calculatorCredit, // This is now Combined Market Debt Tracker
             total: AccountsReceivable.total
         },
         
@@ -5473,6 +5474,7 @@ function calculateNetCash() {
 
 
 
+
 // Helper function to get cost per unit for formula units
 function getCostPerUnit(storeType) {
     const formula = factoryDefaultFormulas[storeType];
@@ -5487,8 +5489,7 @@ function getCostPerUnit(storeType) {
     return totalMaterialCost + additionalCost;
 }
 
-// --- UPDATED: ECONOMIC DASHBOARD UI UPDATER - CORRECTED ---
-// --- UPDATED: ECONOMIC DASHBOARD UI UPDATER - CORRECTED ---
+// --- UPDATED: ECONOMIC DASHBOARD UI UPDATER - FIXED ---
 function updateEconomicDashboard(indicators) {
     // 1. MAIN CASH DISPLAY
     const netCashValueElement = document.getElementById('netCashValue');
@@ -5521,7 +5522,10 @@ function updateEconomicDashboard(indicators) {
     // 4. ACCOUNTS RECEIVABLE (Money OWED TO YOU)
     // REMOVED: Production credits from receivables (now counted in production inventory)
     document.getElementById('salesReceivables').textContent = `Rs ${safeValue(indicators.receivables.salesTab).toFixed(2)}`;
+    
+    // FIXED: This now shows the Combined Market Debt Tracker value from Calculator Tab
     document.getElementById('calculatorReceivables').textContent = `Rs ${safeValue(indicators.receivables.calculator).toFixed(2)}`;
+    
     document.getElementById('formulaReceivables').textContent = `Rs ${safeValue(indicators.receivables.total).toFixed(2)}`;
     
     // 5. CURRENT LIABILITIES (Money YOU OWE)
@@ -11198,7 +11202,196 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('System initialized with liquid glass notifications', 'success', 2000);
     }, 1000);
 });
-
+// --- AUTOMATIC GLOBAL REFRESH SYSTEM ---
+(function() {
+    console.log("🔄 Initializing Automatic Refresh System...");
+    
+    // 1. Define the Master Refresh Logic
+    window.refreshAllData = function() {
+        console.log("🚀 Auto-refresh: Data change detected. Synchronizing all modules...");
+        
+        try {
+            // Core Financial Calculations
+            if (typeof calculateNetCash === 'function') calculateNetCash();
+            if (typeof calculateCashTracker === 'function') calculateCashTracker();
+            
+            // Tab-Specific Refreshes
+            if (typeof refreshUI === 'function') refreshUI();
+            if (typeof refreshCustomerSales === 'function') refreshCustomerSales();
+            if (typeof refreshPaymentTab === 'function') refreshPaymentTab();
+            if (typeof loadSalesData === 'function') loadSalesData(window.currentCompMode || 'daily');
+            
+            // Factory Tab
+            if (typeof renderFactoryInventory === 'function') renderFactoryInventory();
+            if (typeof refreshFactoryTab === 'function') refreshFactoryTab();
+            
+            // Payments Tab
+            if (typeof renderEntities === 'function') renderEntities();
+            if (typeof renderEntityCards === 'function') renderEntityCards();
+            if (typeof refreshEntityList === 'function') refreshEntityList();
+            
+            // Charts
+            if (typeof updateMfgCharts === 'function') updateMfgCharts();
+            if (typeof updateCustomerCharts === 'function') updateCustomerCharts();
+            if (typeof updateAllStoresOverview === 'function') updateAllStoresOverview(window.currentOverviewMode || 'day');
+            
+            console.log("✅ All modules synchronized successfully.");
+            
+            // Visual feedback
+            showRefreshIndicator();
+            
+        } catch (e) {
+            console.error("⚠️ Refresh error:", e);
+        }
+    };
+    
+    // 2. Visual feedback for refresh
+    function showRefreshIndicator() {
+        // Create or update refresh indicator
+        let indicator = document.getElementById('globalRefreshIndicator');
+        if (!indicator) {
+            indicator = document.createElement('div');
+            indicator.id = 'globalRefreshIndicator';
+            indicator.style.cssText = `
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                background: var(--accent-emerald);
+                color: white;
+                padding: 8px 16px;
+                border-radius: 20px;
+                font-size: 12px;
+                font-weight: 800;
+                z-index: 10000;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                opacity: 0;
+                transform: translateY(10px);
+                transition: opacity 0.3s, transform 0.3s;
+                pointer-events: none;
+            `;
+            document.body.appendChild(indicator);
+        }
+        
+        indicator.textContent = 'Data Updated ✓';
+        indicator.style.opacity = '1';
+        indicator.style.transform = 'translateY(0)';
+        
+        // Hide after 1.5 seconds
+        setTimeout(() => {
+            indicator.style.opacity = '0';
+            indicator.style.transform = 'translateY(10px)';
+        }, 1500);
+    }
+    
+    // 3. Hijack LocalStorage setItem
+    const originalSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function(key, value) {
+        // Call the original function first
+        originalSetItem.call(this, key, value);
+        
+        // Monitor our database keys
+        const monitoredKeys = [
+            'mfg_pro_pkr',           // Production data
+            'customer_sales',        // Sales data
+            'noman_history',         // Calculator history
+            'factory_inventory_data', // Factory inventory
+            'factory_production_history', // Factory production
+            'factory_default_formulas', // Factory formulas
+            'factory_additional_costs', // Factory costs
+            'factory_cost_adjustment_factor', // Factory adjustment
+            'factory_sale_prices',   // Factory prices
+            'factory_unit_tracking', // Unit tracking
+            'payment_entities',      // Payment entities
+            'payment_transactions',  // Payment transactions
+            'naswar_default_settings' // Default settings
+        ];
+        
+        if (monitoredKeys.includes(key)) {
+            console.log(`📦 Storage updated: ${key}`);
+            
+            // Debounce refresh to prevent multiple rapid updates
+            clearTimeout(window.refreshTimeout);
+            window.refreshTimeout = setTimeout(() => {
+                // Update global data variables
+                updateGlobalDataFromStorage();
+                
+                // Trigger refresh
+                window.refreshAllData();
+            }, 100); // 100ms debounce delay
+        }
+    };
+    
+    // 4. Update global data variables when storage changes
+    function updateGlobalDataFromStorage() {
+        try {
+            db = JSON.parse(localStorage.getItem('mfg_pro_pkr')) || [];
+            customerSales = JSON.parse(localStorage.getItem('customer_sales')) || [];
+            salesHistory = JSON.parse(localStorage.getItem('noman_history')) || [];
+            factoryInventoryData = JSON.parse(localStorage.getItem('factory_inventory_data')) || [];
+            factoryProductionHistory = JSON.parse(localStorage.getItem('factory_production_history')) || [];
+            factoryDefaultFormulas = JSON.parse(localStorage.getItem('factory_default_formulas')) || { standard: [], asaan: [] };
+            factoryAdditionalCosts = JSON.parse(localStorage.getItem('factory_additional_costs')) || { standard: 0, asaan: 0 };
+            factoryCostAdjustmentFactor = JSON.parse(localStorage.getItem('factory_cost_adjustment_factor')) || { standard: 1, asaan: 1 };
+            factorySalePrices = JSON.parse(localStorage.getItem('factory_sale_prices')) || { standard: 0, asaan: 0 };
+            factoryUnitTracking = JSON.parse(localStorage.getItem('factory_unit_tracking')) || {
+                standard: { produced: 0, consumed: 0, available: 0, unitCostHistory: [] },
+                asaan: { produced: 0, consumed: 0, available: 0, unitCostHistory: [] }
+            };
+            paymentEntities = JSON.parse(localStorage.getItem('payment_entities')) || [];
+            paymentTransactions = JSON.parse(localStorage.getItem('payment_transactions')) || [];
+            defaultSettings = JSON.parse(localStorage.getItem('naswar_default_settings')) || {
+                production: {
+                    STORE_A: { cost: 0, sale: 0 },
+                    STORE_B: { cost: 0, sale: 0 },
+                    STORE_C: { cost: 0, sale: 0 }
+                },
+                calculator: {
+                    NORAN_SHAH: { cost: 0, sale: 0 },
+                    NOMAN_SHAH: { cost: 0, sale: 0 }
+                },
+                sales: { cost: 0, sale: 0 }
+            };
+            
+            console.log("🔄 Global data variables updated from storage");
+        } catch (e) {
+            console.error("❌ Failed to update global data:", e);
+        }
+    }
+    
+    // 5. Also hijack removeItem for completeness
+    const originalRemoveItem = Storage.prototype.removeItem;
+    Storage.prototype.removeItem = function(key) {
+        originalRemoveItem.call(this, key);
+        
+        const monitoredKeys = [
+            'mfg_pro_pkr', 'customer_sales', 'noman_history', 
+            'factory_inventory_data', 'factory_production_history',
+            'payment_entities', 'payment_transactions'
+        ];
+        
+        if (monitoredKeys.includes(key)) {
+            console.log(`🗑️ Storage removed: ${key}`);
+            window.refreshAllData();
+        }
+    };
+    
+    // 6. Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log("🔧 Auto-refresh system initialized");
+        
+        // Trigger initial refresh to ensure everything is synchronized
+        setTimeout(() => {
+            window.refreshAllData();
+        }, 500);
+    });
+    
+    // 7. Manual refresh trigger for debugging
+    window.forceRefresh = function() {
+        console.log("🔄 Manual refresh triggered");
+        window.refreshAllData();
+    };
+    
+})();
 </script>
 </body>
 </html>
