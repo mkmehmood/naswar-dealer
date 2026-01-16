@@ -6984,7 +6984,7 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
     
     // Update UI
     refreshCustomerSales();
-    updateCustomersTable();
+    refreshEntityList()
     alert(`✅ Sale recorded successfully!\n\nDate: ${date}\nCustomer: ${name}\nQuantity: ${quantity.toFixed(3)} kg\nStore: ${getStoreLabel(store)}\nTotal Value: Rs ${totalValue.toFixed(2)}\nPayment: ${paymentType}\n\nInventory Status:\nStore production: ${storeSpecificProduction.toFixed(3)} kg\nPrevious sales: ${storeSpecificSales.toFixed(3)} kg\nRemaining after sale: ${remainingAfterSale.toFixed(3)} kg`);
 }
 
@@ -7657,149 +7657,115 @@ function updateSalesTabCreditStatus(seller, date, creditReceivedAmount) {
         updateStoreComparisonChart(currentOverviewMode);
     }
 
-    function updateStoreComparisonChart() {
-    const ctx = document.getElementById('storeComparisonChart');
-    if (!ctx) return;
-    
-    // Destroy existing chart if it exists
-    if (storeComparisonChart) {
-        storeComparisonChart.destroy();
-    }
-    
-    const selectedDate = document.getElementById('sys-date').value;
-    if (!selectedDate) return;
-    
-    const selectedDateObj = new Date(selectedDate);
-    const selectedYear = selectedDateObj.getFullYear();
-    const selectedMonth = selectedDateObj.getMonth();
-    const selectedDay = selectedDateObj.getDate();
-    
-    // Calculate date range based on currentOverviewMode
-    let startDate, endDate;
-    
-    if (currentOverviewMode === 'day') {
-        startDate = new Date(selectedDate);
-        endDate = new Date(selectedDate);
-    } else if (currentOverviewMode === 'week') {
-        startDate = new Date(selectedDateObj);
-        startDate.setDate(selectedDay - 6);
-        endDate = new Date(selectedDateObj);
-    } else if (currentOverviewMode === 'month') {
-        startDate = new Date(selectedYear, selectedMonth, 1);
-        endDate = new Date(selectedYear, selectedMonth + 1, 0);
-    } else if (currentOverviewMode === 'year') {
-        startDate = new Date(selectedYear, 0, 1);
-        endDate = new Date(selectedYear, 11, 31);
-    } else if (currentOverviewMode === 'all') {
-        startDate = new Date('2000-01-01');
-        endDate = new Date('2100-12-31');
-    }
-    
-    // Collect data
-    const stores = ['STORE_A', 'STORE_B', 'STORE_C'];
-    const storeLabels = ['ZUBAIR', 'MAHMOOD', 'ASAAN'];
-    const storeColors = ['#3b82f6', '#8b5cf6', '#10b981'];
-    
-    const data = stores.map(store => {
-        let total = 0;
-        db.forEach(item => {
-            const itemDate = new Date(item.date);
-            if (item.store === store && itemDate >= startDate && itemDate <= endDate) {
-                if (currentStoreComparisonMetric === 'weight') {
-                    total += item.net || 0;
-                } else if (currentStoreComparisonMetric === 'value') {
-                    total += item.totalSale || 0;
-                } else if (currentStoreComparisonMetric === 'cost') {
-                    total += item.totalCost || 0;
-                } else if (currentStoreComparisonMetric === 'profit') {
-                    total += item.profit || 0;
+    function updateStoreComparisonChart(mode = 'day') {
+        if(storeComparisonChart) storeComparisonChart.destroy();
+        
+        const selectedDate = document.getElementById('sys-date').value;
+        const selectedDateObj = new Date(selectedDate);
+        const selectedYear = selectedDateObj.getFullYear();
+        const selectedMonth = selectedDateObj.getMonth();
+        const selectedDay = selectedDateObj.getDate();
+        
+        const stores = ['STORE_A', 'STORE_B', 'STORE_C'];
+        const storeLabels = ['ZUBAIR', 'MAHMOOD', 'ASAAN'];
+        const storeColors = ['#3b82f6', '#8b5cf6', '#10b981'];
+        
+        let data = [];
+        let metricLabel = '';
+        
+        stores.forEach(store => {
+            let storeData = {
+                weight: 0,
+                value: 0,
+                cost: 0,
+                profit: 0
+            };
+            
+            db.forEach(item => {
+                const itemDate = new Date(item.date);
+                const itemYear = itemDate.getFullYear();
+                const itemMonth = itemDate.getMonth();
+                const itemDay = itemDate.getDate();
+                
+                let includeItem = false;
+                
+                if (mode === 'day' && item.date === selectedDate) {
+                    includeItem = true;
+                } else if (mode === 'week') {
+                    const weekStart = new Date(selectedDateObj);
+                    weekStart.setDate(selectedDay - 6);
+                    if (itemDate >= weekStart && itemDate <= selectedDateObj) {
+                        includeItem = true;
+                    }
+                } else if (mode === 'month' && itemYear === selectedYear && itemMonth === selectedMonth) {
+                    includeItem = true;
+                } else if (mode === 'year' && itemYear === selectedYear) {
+                    includeItem = true;
+                } else if (mode === 'all') {
+                    includeItem = true;
+                }
+                
+                if (includeItem && item.store === store) {
+                    storeData.weight += item.net;
+                    storeData.value += item.totalSale;
+                    storeData.cost += item.totalCost;
+                    storeData.profit += item.profit;
+                }
+            });
+            
+            data.push(storeData[currentStoreComparisonMetric]);
+        });
+        
+        switch(currentStoreComparisonMetric) {
+            case 'weight': metricLabel = 'Weight (kg)'; break;
+            case 'value': metricLabel = 'Total Value (Rs)'; break;
+            case 'cost': metricLabel = 'Total Cost (Rs)'; break;
+            case 'profit': metricLabel = 'Net Profit (Rs)'; break;
+        }
+        
+        const colors = {
+            text: '#1e3a8a',
+            grid: 'rgba(37, 99, 235, 0.1)'
+        };
+        
+        storeComparisonChart = new Chart(document.getElementById('storeComparisonChart'), {
+            type: 'bar',
+            data: {
+                labels: storeLabels,
+                datasets: [{
+                    label: metricLabel,
+                    data: data,
+                    backgroundColor: storeColors,
+                    borderColor: storeColors,
+                    borderWidth: 1,
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    title: {
+                        display: true,
+                        text: `Store Comparison by ${metricLabel} (${mode === 'all' ? 'All Times' : mode.charAt(0).toUpperCase() + mode.slice(1)})`,
+                        color: colors.text,
+                        font: { size: 13, weight: 'bold' }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: colors.grid },
+                        ticks: { color: colors.text }
+                    },
+                    x: {
+                        ticks: { color: colors.text }
+                    }
                 }
             }
         });
-        return total;
-    });
-    
-    // Metric labels
-    const metricLabels = {
-        'weight': 'Weight (kg)',
-        'value': 'Total Value (Rs)',
-        'cost': 'Total Cost (Rs)',
-        'profit': 'Net Profit (Rs)'
-    };
-    
-    // Create chart
-    storeComparisonChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: storeLabels,
-            datasets: [{
-                label: metricLabels[currentStoreComparisonMetric] || 'Value',
-                data: data,
-                backgroundColor: storeColors,
-                borderColor: storeColors.map(color => color.replace('0.8', '1')),
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'top',
-                    labels: {
-                        color: getComputedStyle(document.body).getPropertyValue('--text-main'),
-                        font: {
-                            size: 11
-                        }
-                    }
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            let label = context.dataset.label || '';
-                            if (label) {
-                                label += ': ';
-                            }
-                            if (currentStoreComparisonMetric === 'weight') {
-                                label += context.parsed.y.toFixed(3) + ' kg';
-                            } else {
-                                label += 'Rs ' + context.parsed.y.toFixed(2);
-                            }
-                            return label;
-                        }
-                    }
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        color: getComputedStyle(document.body).getPropertyValue('--text-muted'),
-                        callback: function(value) {
-                            if (currentStoreComparisonMetric === 'weight') {
-                                return value.toFixed(1) + ' kg';
-                            } else {
-                                return 'Rs ' + value.toFixed(0);
-                            }
-                        }
-                    },
-                    grid: {
-                        color: getComputedStyle(document.body).getPropertyValue('--glass-border')
-                    }
-                },
-                x: {
-                    ticks: {
-                        color: getComputedStyle(document.body).getPropertyValue('--text-main')
-                    },
-                    grid: {
-                        color: getComputedStyle(document.body).getPropertyValue('--glass-border')
-                    }
-                }
-            }
-        }
-    });
-}
+    }
 
     // --- SEARCH FUNCTIONALITIES ---
     function filterProductionHistory() {
@@ -8993,8 +8959,7 @@ function initFactoryTab() {
         refreshUI();
     }
 
-    // --- ALL STORES OVERVIEW UPDATED FUNCTION WITH ALL TIMES ---
-    // --- REPLACE YOUR EXISTING updateAllStoresOverview FUNCTION WITH THIS ---
+// --- UPDATED ALL STORES OVERVIEW (Includes Formula Units & Costs) ---
 function updateAllStoresOverview(mode = 'day') {
     currentOverviewMode = mode;
     
@@ -9008,21 +8973,22 @@ function updateAllStoresOverview(mode = 'day') {
     const storeNames = ['ZUBAIR', 'MAHMOOD', 'ASAAN'];
     const storeColors = ['store-a', 'store-b', 'store-c'];
     
+    // Initialize Combined Totals
     let totalCombined = {
         qty: 0,
         value: 0,
         cost: 0,
-        profit: 0
+        profit: 0,
+        formulaUnits: 0, // NEW
+        formulaCost: 0   // NEW
     };
     
     const allStoresGrid = document.getElementById('all-stores-grid');
     allStoresGrid.innerHTML = '';
     
     const allTimesCard = document.getElementById('all-times-production-card');
-    if (mode === 'all') {
-        allTimesCard.style.display = '';
-    } else {
-        allTimesCard.style.display = 'none';
+    if (allTimesCard) {
+        allTimesCard.style.display = (mode === 'all') ? '' : 'none';
     }
     
     stores.forEach((store, index) => {
@@ -9031,7 +8997,9 @@ function updateAllStoresOverview(mode = 'day') {
             qty: 0,
             value: 0,
             cost: 0,
-            profit: 0
+            profit: 0,
+            formulaUnits: 0, // NEW
+            formulaCost: 0   // NEW
         };
         
         db.forEach(item => {
@@ -9057,12 +9025,14 @@ function updateAllStoresOverview(mode = 'day') {
                 storeData.value += item.totalSale;
                 storeData.cost += item.totalCost;
                 storeData.profit += item.profit;
+                storeData.formulaUnits += (item.formulaUnits || 0); // NEW: Track Units
+                storeData.formulaCost += (item.formulaCost || 0);   // NEW: Track Cost
             }
         });
 
         // 2. Calculate SALES totals (Inventory OUT)
         let soldQty = 0;
-        let asaanCreditSales = 0; // Specific tracking for Asaan/Store C credits
+        let asaanCreditSales = 0;
 
         customerSales.forEach(sale => {
             const saleDate = new Date(sale.date);
@@ -9082,29 +9052,25 @@ function updateAllStoresOverview(mode = 'day') {
             else if (mode === 'year' && saleYear === selectedYear) includeSale = true;
             else if (mode === 'all') includeSale = true;
 
-            // Check if this sale belongs to the current store loop
             if (includeSale && sale.supplyStore === store) {
                 soldQty += (sale.quantity || 0);
-                
-                // Track Credit Sales specifically for STORE_C (Asaan)
                 if (store === 'STORE_C' && sale.paymentType === 'CREDIT' && !sale.creditReceived) {
                     asaanCreditSales += (sale.totalValue || 0);
                 }
             }
         });
 
-        // 3. Calculate Remaining Inventory
-        // (Note: If viewing "Daily", this shows what was produced today minus sold today)
         const remainingQty = storeData.qty - soldQty;
 
-        // 4. Update Combined Totals
+        // 3. Update Combined Totals
         totalCombined.qty += storeData.qty;
         totalCombined.value += storeData.value;
         totalCombined.cost += storeData.cost;
         totalCombined.profit += storeData.profit;
+        totalCombined.formulaUnits += storeData.formulaUnits; // NEW
+        totalCombined.formulaCost += storeData.formulaCost;   // NEW
         
-        // 5. Build the HTML Card
-        // Logic for Asaan Store Credit Display
+        // 4. Build the Store Card HTML
         let extraInfoHtml = '';
         if (store === 'STORE_C') {
             extraInfoHtml = `<p><span>Credit Sales:</span> <span style="color:var(--warning); font-weight:800;">Rs ${safeValue(asaanCreditSales).toFixed(2)}</span></p>`;
@@ -9112,6 +9078,8 @@ function updateAllStoresOverview(mode = 'day') {
 
         const card = document.createElement('div');
         card.className = `overview-card liquid-card`;
+        
+        // Added Formula Units and Formula Cost rows below remaining
         card.innerHTML = `
             <span class="store-badge ${storeColors[index]}">${storeNames[index]}</span>
             <h4>${storeNames[index]} (${mode === 'all' ? 'All Times' : mode.charAt(0).toUpperCase() + mode.slice(1)})</h4>
@@ -9121,6 +9089,12 @@ function updateAllStoresOverview(mode = 'day') {
             <div style="border-top:1px dashed var(--glass-border); margin:4px 0; padding-top:4px;">
                 <p><span>Remaining:</span> <span class="profit-val" style="font-size:1.1rem;">${safeValue(remainingQty).toFixed(2)} kg</span></p>
             </div>
+            
+            <div style="background:rgba(37,99,235,0.03); padding:5px; border-radius:6px; margin:5px 0;">
+                <p><span>Formula Units:</span> <span class="qty-val" style="font-weight:700;">${safeValue(storeData.formulaUnits).toFixed(2)}</span></p>
+                <p><span>Formula Cost:</span> <span class="cost-val" style="font-weight:700;">Rs ${safeValue(storeData.formulaCost).toFixed(2)}</span></p>
+            </div>
+
             <hr>
             <p><span>Total Value:</span> <span class="rev-val">Rs ${safeValue(storeData.value).toFixed(2)}</span></p>
             ${extraInfoHtml}
@@ -9129,12 +9103,17 @@ function updateAllStoresOverview(mode = 'day') {
         allStoresGrid.appendChild(card);
     });
     
-    // 6. Build Combined Card
+    // 5. Build Combined Card HTML
     const combinedCard = document.createElement('div');
     combinedCard.className = `overview-card liquid-card highlight-card`;
     combinedCard.innerHTML = `
         <h4 style="color: var(--accent);">Total Combined</h4>
         <p><span>Net Production:</span> <span class="qty-val">${safeValue(totalCombined.qty).toFixed(3)} kg</span></p>
+        
+        <p><span>Total Formula Units:</span> <span class="qty-val">${safeValue(totalCombined.formulaUnits).toFixed(2)}</span></p>
+        <p><span>Total Formula Cost:</span> <span class="cost-val">Rs ${safeValue(totalCombined.formulaCost).toFixed(2)}</span></p>
+        <hr style="margin:8px 0;">
+        
         <p><span>Total Value:</span> <span class="rev-val">Rs ${safeValue(totalCombined.value).toFixed(2)}</span></p>
         <p><span>Total Cost:</span> <span class="cost-val">Rs ${safeValue(totalCombined.cost).toFixed(2)}</span></p>
         <p><span>Net Profit:</span> <span class="profit-val">Rs ${safeValue(totalCombined.profit).toFixed(2)}</span></p>
@@ -9143,6 +9122,7 @@ function updateAllStoresOverview(mode = 'day') {
     
     updateStoreComparisonChart(mode);
 }
+
 
 
     // --- CUSTOMER SALES FUNCTIONS (UPDATED WITH ALL TIMES) ---
@@ -10075,6 +10055,24 @@ document.addEventListener('click', function(e) {
         resultsDiv.classList.add('hidden');
     }
 });
+// --- FIX: MISSING OVERVIEW MODE FUNCTION ---
+function setOverviewMode(mode) {
+    currentOverviewMode = mode;
+    
+    // Update active class on buttons
+    const buttons = ['day', 'week', 'month', 'year', 'all'];
+    buttons.forEach(btnMode => {
+        const btn = document.getElementById(`overview-${btnMode}-btn`);
+        if (btn) {
+            if (btnMode === mode) btn.classList.add('active');
+            else btn.classList.remove('active');
+        }
+    });
+
+    // Refresh the overview with the new mode
+    updateAllStoresOverview(mode);
+}
+
 
     
 // --- UPDATED: DELETE SALES ENTRY (CALCULATOR TAB) ---
@@ -11200,154 +11198,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('System initialized with liquid glass notifications', 'success', 2000);
     }, 1000);
 });
-// --- ALL STORES OVERVIEW TOGGLE FUNCTION ---
-function setOverviewMode(mode) {
-    currentOverviewMode = mode;
-    
-    // Update toggle UI
-    document.querySelectorAll('#combinedOverview .toggle-group .toggle-opt').forEach(opt => {
-        opt.classList.remove('active');
-    });
-    
-    // Activate the clicked toggle
-    const clickedToggle = document.getElementById(`overview-${mode}-btn`);
-    if (clickedToggle) {
-        clickedToggle.classList.add('active');
-    }
-    
-    // Show/hide the all-times production card based on mode
-    const allTimesCard = document.getElementById('all-times-production-card');
-    if (allTimesCard) {
-        allTimesCard.style.display = mode === 'all' ? 'block' : 'none';
-    }
-    
-    // Update the overview
-    updateAllStoresOverview(mode);
-}
 
-// --- UPDATE ALL STORES OVERVIEW FUNCTION ---
-function updateAllStoresOverview(mode = 'day') {
-    const allStoresGrid = document.getElementById('all-stores-grid');
-    if (!allStoresGrid) return;
-    
-    const selectedDate = document.getElementById('sys-date').value;
-    if (!selectedDate) return;
-    
-    const selectedDateObj = new Date(selectedDate);
-    const selectedYear = selectedDateObj.getFullYear();
-    const selectedMonth = selectedDateObj.getMonth();
-    const selectedDay = selectedDateObj.getDate();
-    
-    // Calculate date range based on mode
-    let startDate, endDate;
-    
-    if (mode === 'day') {
-        startDate = new Date(selectedDate);
-        endDate = new Date(selectedDate);
-    } else if (mode === 'week') {
-        startDate = new Date(selectedDateObj);
-        startDate.setDate(selectedDay - 6);
-        endDate = new Date(selectedDateObj);
-    } else if (mode === 'month') {
-        startDate = new Date(selectedYear, selectedMonth, 1);
-        endDate = new Date(selectedYear, selectedMonth + 1, 0);
-    } else if (mode === 'year') {
-        startDate = new Date(selectedYear, 0, 1);
-        endDate = new Date(selectedYear, 11, 31);
-    } else if (mode === 'all') {
-        // For 'all', we'll use the entire dataset
-        startDate = new Date('2000-01-01');
-        endDate = new Date('2100-12-31');
-    }
-    
-    // Initialize store data
-    const stores = ['STORE_A', 'STORE_B', 'STORE_C'];
-    const storeData = {};
-    stores.forEach(store => {
-        storeData[store] = {
-            weight: 0,
-            value: 0,
-            cost: 0,
-            profit: 0,
-            formulaUnits: 0,
-            formulaCost: 0
-        };
-    });
-    
-    // Calculate totals for each store based on date range
-    db.forEach(item => {
-        const itemDate = new Date(item.date);
-        if (itemDate >= startDate && itemDate <= endDate) {
-            const store = item.store;
-            if (storeData[store]) {
-                storeData[store].weight += item.net || 0;
-                storeData[store].value += item.totalSale || 0;
-                storeData[store].cost += item.totalCost || 0;
-                storeData[store].profit += item.profit || 0;
-                storeData[store].formulaUnits += item.formulaUnits || 0;
-                storeData[store].formulaCost += item.formulaCost || 0;
-            }
-        }
-    });
-    
-    // Calculate totals
-    const totals = {
-        weight: Object.values(storeData).reduce((sum, store) => sum + store.weight, 0),
-        value: Object.values(storeData).reduce((sum, store) => sum + store.value, 0),
-        cost: Object.values(storeData).reduce((sum, store) => sum + store.cost, 0),
-        profit: Object.values(storeData).reduce((sum, store) => sum + store.profit, 0),
-        formulaUnits: Object.values(storeData).reduce((sum, store) => sum + store.formulaUnits, 0),
-        formulaCost: Object.values(storeData).reduce((sum, store) => sum + store.formulaCost, 0)
-    };
-    
-    // Generate HTML for each store card
-    let html = '';
-    
-    // Total card
-    html += `
-        <div class="overview-card liquid-card" style="background: linear-gradient(135deg, rgba(37, 99, 235, 0.1), rgba(5, 150, 105, 0.1)); border: 2px solid var(--highlight-border);">
-            <h4>TOTAL ALL STORES</h4>
-            <p><span>Total Weight:</span> <span class="qty-val">${safeValue(totals.weight).toFixed(3)} kg</span></p>
-            <p><span>Total Value:</span> <span class="rev-val">Rs ${safeValue(totals.value).toFixed(2)}</span></p>
-            <p><span>Total Cost:</span> <span class="cost-val">Rs ${safeValue(totals.cost).toFixed(2)}</span></p>
-            <p><span>Net Profit:</span> <span class="profit-val">Rs ${safeValue(totals.profit).toFixed(2)}</span></p>
-            <p><span>Formula Units:</span> <span class="qty-val">${safeValue(totals.formulaUnits).toFixed(3)}</span></p>
-            <p><span>Formula Cost:</span> <span class="cost-val">Rs ${safeValue(totals.formulaCost).toFixed(2)}</span></p>
-            <div style="font-size:0.6rem; color:var(--text-muted); margin-top:8px; text-align:center;">
-                Period: ${mode === 'day' ? selectedDate : mode.charAt(0).toUpperCase() + mode.slice(1)}
-            </div>
-        </div>
-    `;
-    
-    // Individual store cards
-    stores.forEach(store => {
-        const data = storeData[store];
-        const storeLabel = store === 'STORE_A' ? 'ZUBAIR' : store === 'STORE_B' ? 'MAHMOOD' : 'ASAAN';
-        const storeColor = store === 'STORE_A' ? 'var(--store-a)' : store === 'STORE_B' ? 'var(--store-b)' : 'var(--store-c)';
-        
-        html += `
-            <div class="overview-card liquid-card">
-                <h4 style="color:${storeColor}">${storeLabel}</h4>
-                <p><span>Weight:</span> <span class="qty-val">${safeValue(data.weight).toFixed(3)} kg</span></p>
-                <p><span>Value:</span> <span class="rev-val">Rs ${safeValue(data.value).toFixed(2)}</span></p>
-                <p><span>Cost:</span> <span class="cost-val">Rs ${safeValue(data.cost).toFixed(2)}</span></p>
-                <p><span>Profit:</span> <span class="profit-val">Rs ${safeValue(data.profit).toFixed(2)}</span></p>
-                <p><span>Formula Units:</span> <span class="qty-val">${safeValue(data.formulaUnits).toFixed(3)}</span></p>
-                <p><span>Formula Cost:</span> <span class="cost-val">Rs ${safeValue(data.formulaCost).toFixed(2)}</span></p>
-                ${data.weight > 0 ? `
-                    <div style="font-size:0.6rem; color:var(--text-muted); margin-top:5px;">
-                        <span>Profit/kg:</span> <span>Rs ${safeValue(data.profit / data.weight).toFixed(2)}</span>
-                    </div>
-                ` : ''}
-            </div>
-        `;
-    });
-    
-    allStoresGrid.innerHTML = html;
-    
-    // Update the store comparison chart
-    updateStoreComparisonChart();
-}
 </script>
 </body>
 </html>
