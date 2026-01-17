@@ -7226,21 +7226,37 @@ function updateSalesTabCreditStatus(seller, date) {
     }
 }
 // --- NEW FUNCTION: AUTO-FILL CUSTOMER NAME ---
+// --- NEW FUNCTION: AUTO-FILL CUSTOMER NAME AND FORCE CREDIT ---
 function autoFillCustomerName() {
     const repRadio = document.querySelector('input[name="sales-rep"]:checked');
     const nameInput = document.getElementById('cust-name');
+    
+    // Get Payment Radio Buttons
+    const cashRadio = document.getElementById('payment-cash');
+    const creditRadio = document.getElementById('payment-credit');
 
     if (repRadio) {
         if (repRadio.value === 'NONE') {
-            // If Direct Sale, clear the name for manual entry
+            // Direct Sale Logic
             nameInput.value = '';
             nameInput.placeholder = "Enter Customer Name";
+            
+            // Re-enable Cash option and default to it
+            cashRadio.disabled = false;
+            cashRadio.checked = true;
         } else {
-            // If a Representative is selected, fill their name automatically
+            // Representative Logic (Noran or Noman)
             nameInput.value = repRadio.value;
+            
+            // FORCE CREDIT SELECTION
+            creditRadio.checked = true;
+            
+            // Disable Cash option so user cannot accidentally change it
+            cashRadio.disabled = true;
         }
     }
 }
+
 
 // --- UPDATED SAVE TRANSACTION FUNCTION ---
 function saveTransaction() {
