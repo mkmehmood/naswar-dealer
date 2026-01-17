@@ -1380,34 +1380,96 @@ input, textarea, select, [contenteditable] {
             background: var(--factory-asn);
         }
 
-        /* Overlay Styles for Factory Settings */
-        .factory-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.4);
-            backdrop-filter: blur(5px);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-        }
+      /* Update the existing factory overlay styles */
+.factory-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(5px);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 20px; /* Add padding for mobile */
+    box-sizing: border-box; /* Include padding in width calculation */
+}
 
-        .factory-overlay-card {
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.92) 100%);
-            backdrop-filter: var(--backdrop-blur);
-            -webkit-backdrop-filter: var(--backdrop-blur);
-            border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            padding: 25px;
-            width: 90%;
-            max-width: 650px;
-            max-height: 85vh;
-            overflow-y: auto;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.15);
-        }
+.factory-overlay-card {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.92) 100%);
+    backdrop-filter: var(--backdrop-blur);
+    -webkit-backdrop-filter: var(--backdrop-blur);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 20px;
+    width: 100%; /* Changed from 90% to 100% for mobile */
+    max-width: 650px;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+    animation: none !important; /* Disable animation to prevent blinking */
+}
+
+/* Mobile-specific adjustments */
+@media (max-width: 768px) {
+    .factory-overlay {
+        padding: 10px;
+    }
+    
+    .factory-overlay-card {
+        padding: 15px;
+        border-radius: 15px;
+        max-height: 90vh;
+        margin: 0; /* Remove any margin */
+    }
+    
+    /* Fix form elements on mobile */
+    .factory-overlay-card .grid-inputs {
+        grid-template-columns: 1fr; /* Stack inputs vertically on mobile */
+        gap: 10px;
+    }
+    
+    .factory-overlay-card .field {
+        margin-bottom: 8px;
+    }
+    
+    /* Make buttons stack vertically on mobile */
+    .factory-overlay-card .btn {
+        width: 100%;
+        margin-bottom: 8px;
+    }
+}
+
+@media (max-width: 480px) {
+    .factory-overlay-card {
+        padding: 12px;
+        border-radius: 12px;
+    }
+    
+    .factory-overlay-card h3 {
+        font-size: 1.1rem;
+    }
+    
+    /* Adjust the factory material grid for mobile */
+    .factory-material-grid {
+        grid-template-columns: 1fr; /* Stack on very small screens */
+        font-size: 0.65rem;
+    }
+    
+    .factory-formula-grid {
+        grid-template-columns: 1fr;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+    
+    .factory-formula-grid select,
+    .factory-formula-grid input {
+        width: 100%;
+        box-sizing: border-box;
+    }
+}
 
         /* Factory Material Input Grid */
         .factory-material-grid {
@@ -4946,7 +5008,7 @@ function calculateCashTracker() {
     }
     
     // ========== PHASE 5: Update Economic Dashboard with NET values ==========
-    updateEconomicDashboardWithNetValues(finalTotals, totalCredits);
+    
     
     return finalTotals;
 }
@@ -5384,8 +5446,10 @@ function calculateNetCash() {
                 }
             });
             
-            if (totalOwed > 0) {
-                const desc = (transaction.description || '').toLowerCase();
+          if (totalOwed > 0) {
+    // Categorize based on entity or last transaction description
+    const lastTrans = entityTransactions[entityTransactions.length - 1];
+    const desc = lastTrans ? (lastTrans.description || '').toLowerCase() : '';
                 
                 if (desc.includes('loan') || desc.includes('debt')) {
                     CurrentLiabilities.accountsPayable.otherPayables.loans += totalOwed;
@@ -10347,14 +10411,22 @@ function filterEntityCards() {
 
 // Replace the refreshEntityList() function call in refreshPaymentTab() with renderEntityCards()
 function refreshPaymentTab() {
-    renderEntities(); // For the quick entity scroller
+    // First ensure all suppliers are properly loaded into entities
+    syncSuppliersToEntities();
+    
+    renderEntities();
     calculateNetCash();
     calculatePaymentSummaries();
-    renderEntityCards(); // <-- REPLACE refreshEntityList() with this
+    renderEntityCards(); // Changed from refreshEntityList()
     calculateCashTracker();
     
-    // Render transaction history (existing code remains the same)
+    // Render transaction history
     const historyList = document.getElementById('paymentHistoryList');
+    if (!historyList) {
+        console.error("Payment history list element not found");
+        return;
+    }
+    
     historyList.innerHTML = '';
     
     // Sort by date (newest first)
@@ -10369,10 +10441,10 @@ function refreshPaymentTab() {
         card.className = 'card liquid-card';
         card.innerHTML = `
             <span class="transaction-badge ${badgeClass}">${badgeText}</span>
-            <h4>${transaction.date} @ ${transaction.time}</h4>
+            <h4>${transaction.date} @ ${transaction.time || 'N/A'}</h4>
             <div class="customer-name">${entity ? entity.name : 'Unknown Entity'}</div>
             <p><span>Type:</span> <span>${entity ? (entity.type === 'payee' ? 'Payee' : 'Payor') : 'Unknown'}</span></p>
-            <p><span>Description:</span> <span>${transaction.description}</span></p>
+            <p><span>Description:</span> <span>${transaction.description || 'No description'}</span></p>
             <hr>
             <p><span>Amount:</span> <span class="${transaction.type === 'IN' ? 'profit-val' : 'cost-val'}">Rs ${safeValue(transaction.amount).toFixed(2)}</span></p>
             <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="deletePaymentTransaction(${transaction.id})">Delete</button>
@@ -10383,6 +10455,8 @@ function refreshPaymentTab() {
     if (sortedTransactions.length === 0) {
         historyList.innerHTML = '<p style="text-align:center; color:var(--text-muted); width:100%; font-size:0.85rem;">No payment transactions found.</p>';
     }
+    
+    console.log(`Rendered ${sortedTransactions.length} payment transactions`);
 }
 
 // Also update the selectEntity function to highlight the selected card
@@ -10486,7 +10560,26 @@ function formatCurrency(value) {
         minimumFractionDigits: 2
     }).format(value || 0).replace('PKR', 'PKR ');
 }
-
+// Add validation and error handling for payment data
+try {
+    paymentEntities = JSON.parse(localStorage.getItem('payment_entities')) || [];
+    paymentTransactions = JSON.parse(localStorage.getItem('payment_transactions')) || [];
+    
+    // Validate data structure
+    if (!Array.isArray(paymentEntities)) paymentEntities = [];
+    if (!Array.isArray(paymentTransactions)) paymentTransactions = [];
+    
+    // Clean invalid transactions
+    paymentTransactions = paymentTransactions.filter(t => 
+        t && t.id && t.entityId && (t.type === 'IN' || t.type === 'OUT') && typeof t.amount === 'number'
+    );
+    
+    console.log(`Loaded ${paymentEntities.length} entities and ${paymentTransactions.length} transactions`);
+} catch (e) {
+    console.error("Error loading payment data:", e);
+    paymentEntities = [];
+    paymentTransactions = [];
+}
 // Missing update functions
 
 // Add this to your DOMContentLoaded or initialization function
@@ -11142,66 +11235,226 @@ console.log = function(...args) {
         showToast(message, type, 3000);
     }
 };
-
-// Add a quick success toast shortcut
-window.success = (message) => showToast(message, 'success', 3000);
-window.error = (message) => showToast(message, 'error', 4000);
-window.warn = (message) => showToast(message, 'warning', 4000);
-window.info = (message) => showToast(message, 'info', 3000);
-
-// Initialize with a welcome message when page loads
-document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => {
-        showToast('System initialized with liquid glass notifications', 'success', 2000);
-    }, 1000);
-});
-// --- AUTOMATIC GLOBAL REFRESH SYSTEM ---
+// ================================================
+// ADVANCED INTELLIGENT REFRESH SYSTEM v2.0
+// ================================================
 (function() {
-    console.log("🔄 Initializing Automatic Refresh System...");
+    console.log("🔄 Initializing Advanced Refresh System v2.0...");
     
-    // 1. Define the Master Refresh Logic
-    window.refreshAllData = function() {
-        console.log("🚀 Auto-refresh: Data change detected. Synchronizing all modules...");
+    // ============================
+    // 1. REFRESH CONFIGURATION
+    // ============================
+    const RefreshConfig = {
+        // Debounce delays (ms) - prevents excessive refreshes
+        debounce: {
+            fast: 50,      // For UI updates
+            normal: 150,   // For calculations
+            slow: 300      // For heavy operations
+        },
         
-        try {
-            // Core Financial Calculations
-            if (typeof calculateNetCash === 'function') calculateNetCash();
-            if (typeof calculateCashTracker === 'function') calculateCashTracker();
-            
-            // Tab-Specific Refreshes
-            if (typeof refreshUI === 'function') refreshUI();
-            if (typeof refreshCustomerSales === 'function') refreshCustomerSales();
-            if (typeof refreshPaymentTab === 'function') refreshPaymentTab();
-            if (typeof loadSalesData === 'function') loadSalesData(window.currentCompMode || 'daily');
-            
-            // Factory Tab
-            if (typeof renderFactoryInventory === 'function') renderFactoryInventory();
-            if (typeof refreshFactoryTab === 'function') refreshFactoryTab();
-            
-            // Payments Tab
-            if (typeof renderEntities === 'function') renderEntities();
-            if (typeof renderEntityCards === 'function') renderEntityCards();
-            if (typeof refreshEntityList === 'function') refreshEntityList();
-            
-            // Charts
-            if (typeof updateMfgCharts === 'function') updateMfgCharts();
-            if (typeof updateCustomerCharts === 'function') updateCustomerCharts();
-            if (typeof updateAllStoresOverview === 'function') updateAllStoresOverview(window.currentOverviewMode || 'day');
-            
-            console.log("✅ All modules synchronized successfully.");
-            
-            // Visual feedback
-            showRefreshIndicator();
-            
-        } catch (e) {
-            console.error("⚠️ Refresh error:", e);
-        }
+        // Performance monitoring
+        performance: {
+            enabled: true,
+            logThreshold: 100, // Log operations taking > 100ms
+            maxRefreshTime: 5000 // Warn if refresh takes > 5s
+        },
+        
+        // Selective refresh - only update what's needed
+        selective: true,
+        
+        // Visual feedback
+        showIndicator: true,
+        indicatorDuration: 2000,
+        
+        // Error handling
+        continueOnError: true,
+        maxRetries: 3
     };
     
-    // 2. Visual feedback for refresh
+    // ============================
+    // 2. REFRESH QUEUE MANAGER
+    // ============================
+    class RefreshQueue {
+        constructor() {
+            this.queue = new Set();
+            this.running = false;
+            this.retryCount = new Map();
+        }
+        
+        add(taskName) {
+            this.queue.add(taskName);
+        }
+        
+        async execute() {
+            if (this.running) return;
+            this.running = true;
+            
+            const startTime = performance.now();
+            const tasks = Array.from(this.queue);
+            this.queue.clear();
+            
+            console.log(`📋 Executing ${tasks.length} refresh tasks...`);
+            
+            for (const task of tasks) {
+                try {
+                    await this.executeTask(task);
+                    this.retryCount.delete(task);
+                } catch (error) {
+                    console.error(`❌ Task failed: ${task}`, error);
+                    this.handleTaskError(task, error);
+                }
+            }
+            
+            const duration = performance.now() - startTime;
+            
+            if (RefreshConfig.performance.enabled) {
+                if (duration > RefreshConfig.performance.logThreshold) {
+                    console.log(`⏱️ Refresh completed in ${duration.toFixed(2)}ms`);
+                }
+                if (duration > RefreshConfig.performance.maxRefreshTime) {
+                    console.warn(`⚠️ Slow refresh detected: ${duration.toFixed(2)}ms`);
+                }
+            }
+            
+            this.running = false;
+        }
+        
+        async executeTask(task) {
+            const taskStart = performance.now();
+            
+            switch(task) {
+                case 'netCash':
+                    if (typeof calculateNetCash === 'function') calculateNetCash();
+                    break;
+                case 'cashTracker':
+                    if (typeof calculateCashTracker === 'function') calculateCashTracker();
+                    break;
+                case 'productionUI':
+                    if (typeof refreshUI === 'function') refreshUI();
+                    break;
+                case 'customerSales':
+                    if (typeof refreshCustomerSales === 'function') refreshCustomerSales();
+                    break;
+                case 'paymentTab':
+                    if (typeof refreshPaymentTab === 'function') refreshPaymentTab();
+                    break;
+                case 'calculator':
+                    if (typeof loadSalesData === 'function') loadSalesData(window.currentCompMode || 'all');
+                    break;
+                case 'factoryInventory':
+                    if (typeof renderFactoryInventory === 'function') renderFactoryInventory();
+                    break;
+                case 'factoryTab':
+                    if (typeof refreshFactoryTab === 'function') refreshFactoryTab();
+                    break;
+                case 'entities':
+                    if (typeof renderEntities === 'function') renderEntities();
+                    if (typeof renderEntityCards === 'function') renderEntityCards();
+                    break;
+                case 'charts':
+                    if (typeof updateMfgCharts === 'function') updateMfgCharts();
+                    if (typeof updateCustomerCharts === 'function') updateCustomerCharts();
+                    break;
+                case 'overview':
+                    if (typeof updateAllStoresOverview === 'function') {
+                        updateAllStoresOverview(window.currentOverviewMode || 'day');
+                    }
+                    break;
+                case 'unitTracking':
+                    if (typeof syncFactoryProductionStats === 'function') syncFactoryProductionStats();
+                    break;
+                case 'customersTable':
+                    if (typeof renderCustomersTable === 'function') renderCustomersTable();
+                    break;
+            }
+            
+            const taskDuration = performance.now() - taskStart;
+            if (RefreshConfig.performance.enabled && taskDuration > 50) {
+                console.log(`  ⏱️ ${task}: ${taskDuration.toFixed(2)}ms`);
+            }
+        }
+        
+        handleTaskError(task, error) {
+            const retries = this.retryCount.get(task) || 0;
+            
+            if (retries < RefreshConfig.maxRetries && RefreshConfig.continueOnError) {
+                this.retryCount.set(task, retries + 1);
+                console.log(`🔄 Retrying ${task} (attempt ${retries + 1}/${RefreshConfig.maxRetries})`);
+                setTimeout(() => this.add(task), 500);
+            } else {
+                console.error(`❌ Task ${task} failed after ${retries} retries`);
+                if (window.showToast) {
+                    window.showToast(`System update error: ${task}`, 'error', 3000);
+                }
+            }
+        }
+    }
+    
+    const refreshQueue = new RefreshQueue();
+    
+    // ============================
+    // 3. SMART REFRESH TRIGGER MAP
+    // ============================
+    const RefreshTriggers = {
+        // Production data changes
+        'mfg_pro_pkr': ['productionUI', 'overview', 'charts', 'netCash', 'cashTracker', 'unitTracking'],
+        
+        // Sales data changes
+        'customer_sales': ['customerSales', 'charts', 'netCash', 'cashTracker', 'customersTable'],
+        
+        // Calculator/Representative data
+        'noman_history': ['calculator', 'netCash', 'cashTracker'],
+        
+        // Factory changes
+        'factory_inventory_data': ['factoryInventory', 'factoryTab', 'netCash'],
+        'factory_production_history': ['factoryTab', 'unitTracking', 'productionUI'],
+        'factory_default_formulas': ['factoryTab', 'productionUI', 'customerSales'],
+        'factory_additional_costs': ['factoryTab', 'productionUI', 'customerSales'],
+        'factory_cost_adjustment_factor': ['factoryTab', 'productionUI', 'customerSales'],
+        'factory_sale_prices': ['factoryTab', 'productionUI', 'customerSales'],
+        'factory_unit_tracking': ['factoryTab', 'unitTracking'],
+        
+        // Payment data
+        'payment_entities': ['entities', 'paymentTab', 'netCash'],
+        'payment_transactions': ['paymentTab', 'netCash', 'cashTracker'],
+        
+        // Settings
+        'naswar_default_settings': ['productionUI', 'customerSales', 'calculator']
+    };
+    
+    // ============================
+    // 4. DEBOUNCED REFRESH SCHEDULER
+    // ============================
+    const refreshTimers = new Map();
+    
+    function scheduleRefresh(tasks, delay = RefreshConfig.debounce.normal) {
+        // Add tasks to queue
+        tasks.forEach(task => refreshQueue.add(task));
+        
+        // Clear existing timer
+        if (refreshTimers.has('main')) {
+            clearTimeout(refreshTimers.get('main'));
+        }
+        
+        // Schedule execution
+        const timer = setTimeout(() => {
+            refreshQueue.execute().then(() => {
+                if (RefreshConfig.showIndicator) {
+                    showRefreshIndicator();
+                }
+            });
+            refreshTimers.delete('main');
+        }, delay);
+        
+        refreshTimers.set('main', timer);
+    }
+    
+    // ============================
+    // 5. VISUAL FEEDBACK SYSTEM
+    // ============================
     function showRefreshIndicator() {
-        // Create or update refresh indicator
         let indicator = document.getElementById('globalRefreshIndicator');
+        
         if (!indicator) {
             indicator = document.createElement('div');
             indicator.id = 'globalRefreshIndicator';
@@ -11209,142 +11462,243 @@ document.addEventListener('DOMContentLoaded', () => {
                 position: fixed;
                 bottom: 20px;
                 right: 20px;
-                background: var(--accent-emerald);
+                background: linear-gradient(135deg, var(--accent-emerald) 0%, var(--accent) 100%);
                 color: white;
-                padding: 8px 16px;
-                border-radius: 20px;
-                font-size: 12px;
+                padding: 10px 18px;
+                border-radius: 25px;
+                font-size: 13px;
                 font-weight: 800;
                 z-index: 10000;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                box-shadow: 0 4px 15px rgba(0,0,0,0.25), 0 8px 30px rgba(5, 150, 105, 0.3);
                 opacity: 0;
-                transform: translateY(10px);
-                transition: opacity 0.3s, transform 0.3s;
+                transform: translateY(20px) scale(0.9);
+                transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
                 pointer-events: none;
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(255, 255, 255, 0.2);
             `;
             document.body.appendChild(indicator);
         }
         
-        indicator.textContent = 'Data Updated ✓';
-        indicator.style.opacity = '1';
-        indicator.style.transform = 'translateY(0)';
+        indicator.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 16px;">✓</span>
+                <span>Synchronized</span>
+            </div>
+        `;
         
-        // Hide after 1.5 seconds
+        // Animate in
+        requestAnimationFrame(() => {
+            indicator.style.opacity = '1';
+            indicator.style.transform = 'translateY(0) scale(1)';
+        });
+        
+        // Animate out
         setTimeout(() => {
             indicator.style.opacity = '0';
-            indicator.style.transform = 'translateY(10px)';
-        }, 1500);
+            indicator.style.transform = 'translateY(10px) scale(0.95)';
+        }, RefreshConfig.indicatorDuration);
     }
     
-    // 3. Hijack LocalStorage setItem
+    // ============================
+    // 6. STORAGE INTERCEPTOR
+    // ============================
     const originalSetItem = Storage.prototype.setItem;
+    const originalRemoveItem = Storage.prototype.removeItem;
+    
     Storage.prototype.setItem = function(key, value) {
-        // Call the original function first
+        const changed = this.getItem(key) !== value;
         originalSetItem.call(this, key, value);
         
-        // Monitor our database keys
-        const monitoredKeys = [
-            'mfg_pro_pkr',           // Production data
-            'customer_sales',        // Sales data
-            'noman_history',         // Calculator history
-            'factory_inventory_data', // Factory inventory
-            'factory_production_history', // Factory production
-            'factory_default_formulas', // Factory formulas
-            'factory_additional_costs', // Factory costs
-            'factory_cost_adjustment_factor', // Factory adjustment
-            'factory_sale_prices',   // Factory prices
-            'factory_unit_tracking', // Unit tracking
-            'payment_entities',      // Payment entities
-            'payment_transactions',  // Payment transactions
-            'naswar_default_settings' // Default settings
-        ];
-        
-        if (monitoredKeys.includes(key)) {
-            console.log(`📦 Storage updated: ${key}`);
+        if (changed && RefreshTriggers[key]) {
+            console.log(`📦 Storage updated: ${key} → Triggering ${RefreshTriggers[key].length} tasks`);
             
-            // Debounce refresh to prevent multiple rapid updates
-            clearTimeout(window.refreshTimeout);
-            window.refreshTimeout = setTimeout(() => {
-                // Update global data variables
-                updateGlobalDataFromStorage();
-                
-                // Trigger refresh
-                window.refreshAllData();
-            }, 100); // 100ms debounce delay
+            // Update global variables immediately
+            updateGlobalDataFromStorage();
+            
+            // Schedule refresh with intelligent delay
+            const isHeavyOperation = ['mfg_pro_pkr', 'customer_sales'].includes(key);
+            const delay = isHeavyOperation ? RefreshConfig.debounce.slow : RefreshConfig.debounce.normal;
+            
+            scheduleRefresh(RefreshTriggers[key], delay);
         }
     };
     
-    // 4. Update global data variables when storage changes
-    function updateGlobalDataFromStorage() {
-        try {
-            db = JSON.parse(localStorage.getItem('mfg_pro_pkr')) || [];
-            customerSales = JSON.parse(localStorage.getItem('customer_sales')) || [];
-            salesHistory = JSON.parse(localStorage.getItem('noman_history')) || [];
-            factoryInventoryData = JSON.parse(localStorage.getItem('factory_inventory_data')) || [];
-            factoryProductionHistory = JSON.parse(localStorage.getItem('factory_production_history')) || [];
-            factoryDefaultFormulas = JSON.parse(localStorage.getItem('factory_default_formulas')) || { standard: [], asaan: [] };
-            factoryAdditionalCosts = JSON.parse(localStorage.getItem('factory_additional_costs')) || { standard: 0, asaan: 0 };
-            factoryCostAdjustmentFactor = JSON.parse(localStorage.getItem('factory_cost_adjustment_factor')) || { standard: 1, asaan: 1 };
-            factorySalePrices = JSON.parse(localStorage.getItem('factory_sale_prices')) || { standard: 0, asaan: 0 };
-            factoryUnitTracking = JSON.parse(localStorage.getItem('factory_unit_tracking')) || {
-                standard: { produced: 0, consumed: 0, available: 0, unitCostHistory: [] },
-                asaan: { produced: 0, consumed: 0, available: 0, unitCostHistory: [] }
-            };
-            paymentEntities = JSON.parse(localStorage.getItem('payment_entities')) || [];
-            paymentTransactions = JSON.parse(localStorage.getItem('payment_transactions')) || [];
-            defaultSettings = JSON.parse(localStorage.getItem('naswar_default_settings')) || {
-                production: {
-                    STORE_A: { cost: 0, sale: 0 },
-                    STORE_B: { cost: 0, sale: 0 },
-                    STORE_C: { cost: 0, sale: 0 }
-                },
-                calculator: {
-                    NORAN_SHAH: { cost: 0, sale: 0 },
-                    NOMAN_SHAH: { cost: 0, sale: 0 }
-                },
-                sales: { cost: 0, sale: 0 }
-            };
-            
-            console.log("🔄 Global data variables updated from storage");
-        } catch (e) {
-            console.error("❌ Failed to update global data:", e);
-        }
-    }
-    
-    // 5. Also hijack removeItem for completeness
-    const originalRemoveItem = Storage.prototype.removeItem;
     Storage.prototype.removeItem = function(key) {
         originalRemoveItem.call(this, key);
         
-        const monitoredKeys = [
-            'mfg_pro_pkr', 'customer_sales', 'noman_history', 
-            'factory_inventory_data', 'factory_production_history',
-            'payment_entities', 'payment_transactions'
-        ];
-        
-        if (monitoredKeys.includes(key)) {
+        if (RefreshTriggers[key]) {
             console.log(`🗑️ Storage removed: ${key}`);
-            window.refreshAllData();
+            updateGlobalDataFromStorage();
+            scheduleRefresh(RefreshTriggers[key], RefreshConfig.debounce.fast);
         }
     };
     
-    // 6. Initialize on page load
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log("🔧 Auto-refresh system initialized");
+    // ============================
+    // 7. GLOBAL DATA SYNC
+    // ============================
+    function updateGlobalDataFromStorage() {
+        try {
+            // Production data
+            const newDb = JSON.parse(localStorage.getItem('mfg_pro_pkr') || '[]');
+            if (JSON.stringify(newDb) !== JSON.stringify(window.db)) {
+                window.db = newDb;
+            }
+            
+            // Sales data
+            const newCustomerSales = JSON.parse(localStorage.getItem('customer_sales') || '[]');
+            if (JSON.stringify(newCustomerSales) !== JSON.stringify(window.customerSales)) {
+                window.customerSales = newCustomerSales;
+            }
+            
+            // Calculator history
+            const newSalesHistory = JSON.parse(localStorage.getItem('noman_history') || '[]');
+            if (JSON.stringify(newSalesHistory) !== JSON.stringify(window.salesHistory)) {
+                window.salesHistory = newSalesHistory;
+            }
+            
+            // Factory data
+            window.factoryInventoryData = JSON.parse(localStorage.getItem('factory_inventory_data') || '[]');
+            window.factoryProductionHistory = JSON.parse(localStorage.getItem('factory_production_history') || '[]');
+            window.factoryDefaultFormulas = JSON.parse(localStorage.getItem('factory_default_formulas') || '{"standard":[],"asaan":[]}');
+            window.factoryAdditionalCosts = JSON.parse(localStorage.getItem('factory_additional_costs') || '{"standard":0,"asaan":0}');
+            window.factoryCostAdjustmentFactor = JSON.parse(localStorage.getItem('factory_cost_adjustment_factor') || '{"standard":1,"asaan":1}');
+            window.factorySalePrices = JSON.parse(localStorage.getItem('factory_sale_prices') || '{"standard":0,"asaan":0}');
+            window.factoryUnitTracking = JSON.parse(localStorage.getItem('factory_unit_tracking') || '{"standard":{"produced":0,"consumed":0,"available":0,"unitCostHistory":[]},"asaan":{"produced":0,"consumed":0,"available":0,"unitCostHistory":[]}}');
+            
+            // Payment data with validation
+            const entities = JSON.parse(localStorage.getItem('payment_entities') || '[]');
+            const transactions = JSON.parse(localStorage.getItem('payment_transactions') || '[]');
+            
+            window.paymentEntities = Array.isArray(entities) ? entities : [];
+            window.paymentTransactions = Array.isArray(transactions) ? transactions.filter(t => 
+                t && t.id && t.entityId && (t.type === 'IN' || t.type === 'OUT') && typeof t.amount === 'number'
+            ) : [];
+            
+            // Settings
+            window.defaultSettings = JSON.parse(localStorage.getItem('naswar_default_settings') || '{"production":{"STORE_A":{"cost":0,"sale":0},"STORE_B":{"cost":0,"sale":0},"STORE_C":{"cost":0,"sale":0}},"calculator":{"NORAN_SHAH":{"cost":0,"sale":0},"NOMAN_SHAH":{"cost":0,"sale":0}},"sales":{"cost":0,"sale":0}}');
+            
+        } catch (e) {
+            console.error("❌ Failed to sync global data:", e);
+        }
+    }
+    
+    // ============================
+    // 8. PUBLIC API
+    // ============================
+    
+    // Manual refresh - refreshes everything
+    window.refreshAllData = function(showFeedback = true) {
+        console.log("🚀 Manual full refresh triggered");
         
-        // Trigger initial refresh to ensure everything is synchronized
+        const allTasks = new Set();
+        Object.values(RefreshTriggers).forEach(tasks => {
+            tasks.forEach(task => allTasks.add(task));
+        });
+        
+        updateGlobalDataFromStorage();
+        scheduleRefresh(Array.from(allTasks), RefreshConfig.debounce.fast);
+        
+        if (showFeedback && window.showToast) {
+            window.showToast('System fully synchronized', 'success', 2000);
+        }
+    };
+    
+    // Selective refresh - only refresh specific modules
+    window.refreshModules = function(...modules) {
+        console.log(`🎯 Selective refresh: ${modules.join(', ')}`);
+        scheduleRefresh(modules, RefreshConfig.debounce.fast);
+    };
+    
+    // Force immediate refresh (bypasses debounce)
+    window.forceRefresh = function() {
+        console.log("⚡ Force refresh (immediate)");
+        updateGlobalDataFromStorage();
+        refreshQueue.execute();
+    };
+    
+    // Get refresh statistics
+    window.getRefreshStats = function() {
+        return {
+            queueSize: refreshQueue.queue.size,
+            isRunning: refreshQueue.running,
+            pendingTimers: refreshTimers.size,
+            config: RefreshConfig
+        };
+    };
+    
+    // Update configuration
+    window.configureRefresh = function(newConfig) {
+        Object.assign(RefreshConfig, newConfig);
+        console.log("⚙️ Refresh config updated:", RefreshConfig);
+    };
+    
+    // ============================
+    // 9. INITIALIZATION
+    // ============================
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log("🔧 Advanced Refresh System v2.0 initialized");
+        console.log(`   - Selective refresh: ${RefreshConfig.selective ? 'ON' : 'OFF'}`);
+        console.log(`   - Performance monitoring: ${RefreshConfig.performance.enabled ? 'ON' : 'OFF'}`);
+        console.log(`   - Visual feedback: ${RefreshConfig.showIndicator ? 'ON' : 'OFF'}`);
+        
+        // Initial sync
+        updateGlobalDataFromStorage();
+        
+        // Initial refresh after page load
         setTimeout(() => {
-            window.refreshAllData();
+            refreshQueue.add('netCash');
+            refreshQueue.add('cashTracker');
+            refreshQueue.execute();
+            
+            if (window.showToast) {
+                window.showToast('System ready', 'success', 2000);
+            }
         }, 500);
     });
     
-    // 7. Manual refresh trigger for debugging
-    window.forceRefresh = function() {
-        console.log("🔄 Manual refresh triggered");
-        window.refreshAllData();
-    };
+    // Tab visibility change handler - pause/resume refreshes
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            console.log("👁️ Tab hidden - pausing refresh timers");
+            // Optionally pause timers when tab is hidden
+        } else {
+            console.log("👁️ Tab visible - resuming refresh");
+            // Trigger a light refresh when tab becomes visible
+            scheduleRefresh(['netCash', 'overview'], RefreshConfig.debounce.fast);
+        }
+    });
+    
+    // ============================
+    // 10. ERROR RECOVERY
+    // ============================
+    window.addEventListener('error', function(event) {
+        if (event.message.includes('refresh') || event.message.includes('calculate')) {
+            console.error("🔥 Critical refresh error detected:", event.message);
+            
+            // Attempt recovery
+            setTimeout(() => {
+                console.log("🔄 Attempting automatic recovery...");
+                updateGlobalDataFromStorage();
+                window.refreshAllData(false);
+            }, 1000);
+        }
+    });
+    
+    console.log("✅ Advanced Refresh System v2.0 ready");
     
 })();
+
+// ============================
+// ENHANCED TOAST INTEGRATION
+// ============================
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        if (window.showToast) {
+            showToast('Advanced Refresh System Active', 'success', 2000);
+        }
+    }, 1000);
+});
 
 </script>
 </body>
