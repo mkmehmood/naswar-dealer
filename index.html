@@ -2,7 +2,6 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
@@ -3519,7 +3518,26 @@ body.dark-mode .units-available-danger {
     <input type="number" id="totalSold" readonly style="background:rgba(37, 99, 235, 0.1); color:var(--text-main); font-weight:800; border:1px solid var(--accent);">
 </div>
 
-                    <div class="field"><label>Returned Qty</label><input type="number" id="returnedQuantity" oninput="calculateSales()"></div>
+                  <div class="field"><label>Returned Qty</label><input type="number" id="returnedQuantity" oninput="handleReturnQtyInput()"></div>
+
+<div id="returnStoreSection" class="hidden" style="grid-column: 1 / -1; margin: 10px 0; padding: 12px; background: rgba(245, 158, 11, 0.1); border-radius: 10px; border: 1px solid var(--warning);">
+    <label style="color: var(--warning); font-weight: 800; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">↩ Return Stock To Physical Inventory:</label>
+    <div class="payment-type-container" style="margin-top: 8px;">
+        <div class="payment-option">
+            <input type="radio" id="ret-store-a" name="return-store" value="STORE_A">
+            <label for="ret-store-a" style="color: var(--text-main);">ZUBAIR</label>
+        </div>
+        <div class="payment-option">
+            <input type="radio" id="ret-store-b" name="return-store" value="STORE_B">
+            <label for="ret-store-b" style="color: var(--text-main);">MAHMOOD</label>
+        </div>
+    </div>
+    <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 5px;">
+        * This will increase the store's stock level without creating a new production record.
+    </div>
+</div>
+
+
                 </div>
                 <div class="grid-inputs">
                     <div class="field"><label>Credit Sales Qty</label><input type="number" id="creditSales" oninput="calculateSales()"></div>
@@ -4987,17 +5005,7 @@ function updateEconomicDashboardWithNetValues(totals, totalCredits) {
     }
 }
 
-// Also update the refreshPaymentTab function to include the cash tracker:
-// Find the refreshPaymentTab function and add this line at the end:
-function refreshPaymentTab() {
-    renderEntities();
-    calculateNetCash();
-    calculatePaymentSummaries();
-    refreshEntityList();
-    calculateCashTracker(); // <-- ADD THIS LINE
-    
-    // ... rest of the existing function ...
-}
+
     
     // --- ENTITY TRANSACTIONS OVERLAY ---
 function openEntityTransactions(entityId) {
@@ -5478,19 +5486,7 @@ function calculateNetCash() {
 
 
 
-// Helper function to get cost per unit for formula units
-function getCostPerUnit(storeType) {
-    const formula = factoryDefaultFormulas[storeType];
-    if (!formula || formula.length === 0) return 0;
-    
-    let totalMaterialCost = 0;
-    formula.forEach(item => {
-        totalMaterialCost += (item.cost * item.quantity);
-    });
-    
-    const additionalCost = factoryAdditionalCosts[storeType] || 0;
-    return totalMaterialCost + additionalCost;
-}
+
 
 // --- UPDATED: ECONOMIC DASHBOARD UI UPDATER - FIXED ---
 function updateEconomicDashboard(indicators) {
@@ -6806,28 +6802,10 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
         }
     }
     
-    // --- SALES TAB UPDATES (USING DIVIDED BY X LOGIC) ---
-    function calculateCustomerSale() {
-        const qty = parseFloat(document.getElementById('cust-quantity').value) || 0;
-        const supplyStore = document.querySelector('input[name="supply-store"]:checked').value;
-        
-        let formulaStore = 'standard';
-        if (supplyStore === 'STORE_C') {
-            formulaStore = 'asaan';
-        }
-        
-        const costPerKg = calculateSalesCostPerKg(formulaStore);
-        const salePrice = formulaStore === 'asaan' ? factorySalePrices.asaan : factorySalePrices.standard;
+  // --- UPDATED: Sales Tab Inventory Validation ---
+// Replace the entire saveCustomerSale function with this updated version:
 
-        const totalCost = qty * costPerKg;
-        const totalValue = qty * salePrice;
-        const profit = totalValue - totalCost;
-
-        document.getElementById('cust-total-cost').innerText = safeValue(totalCost).toFixed(2);
-        document.getElementById('cust-total-value').innerText = safeValue(totalValue).toFixed(2);
-        document.getElementById('cust-profit').innerText = safeValue(profit).toFixed(2);
-    }
-    function saveCustomerSale() {
+function saveCustomerSale() {
     const date = document.getElementById('cust-date').value;
     const name = document.getElementById('cust-name').value.trim();
     const quantity = parseFloat(document.getElementById('cust-quantity').value) || 0;
@@ -6851,18 +6829,13 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
         return;
     }
     
-    // Step 1: Get selected date (already have 'date' variable)
+    // === UPDATED: Calculate available inventory INCLUDING RETURNS ===
     
-    // Step 2: Query Production database for sum of items produced on that specific date
-    let dailyProductionTotal = 0;
+    // Step 1: Calculate total production for the selected date
     let storeSpecificProduction = 0;
     
-    // Calculate total production for the selected date
     db.forEach(production => {
         if (production.date === date) {
-            dailyProductionTotal += production.net || 0;
-            
-            // Also calculate store-specific production if needed
             if (store === 'STORE_A' && production.store === 'STORE_A') {
                 storeSpecificProduction += production.net || 0;
             } else if (store === 'STORE_B' && production.store === 'STORE_B') {
@@ -6873,51 +6846,46 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
         }
     });
     
-    // Calculate total sales already made for this date
-    let dailySalesTotal = 0;
+    // Step 2: Calculate total sales already made for this date and store
     let storeSpecificSales = 0;
     
     customerSales.forEach(sale => {
-        if (sale.date === date) {
-            dailySalesTotal += sale.quantity || 0;
-            
-            // Also calculate store-specific sales
-            if (sale.supplyStore === store) {
-                storeSpecificSales += sale.quantity || 0;
-            }
+        if (sale.date === date && sale.supplyStore === store) {
+            storeSpecificSales += sale.quantity || 0;
         }
     });
     
-    // Calculate available inventory for the day
-    const dailyAvailableInventory = dailyProductionTotal - dailySalesTotal;
-    const storeAvailableInventory = storeSpecificProduction - storeSpecificSales;
+    // === NEW: Step 3: Add returns to available inventory ===
+    let storeReturns = 0;
     
-    // Step 3: Compare Sales Quantity against Production Sum
-    // Step 4: Validate inventory availability
+    stockReturns.forEach(returnEntry => {
+        if (returnEntry.date === date && returnEntry.store === store) {
+            storeReturns += returnEntry.quantity || 0;
+        }
+    });
     
-    // Check 1: Overall daily inventory validation
-    if (dailyProductionTotal === 0) {
+    // Step 4: Calculate TOTAL available inventory (Production + Returns - Sales)
+    const totalAvailableInventory = storeSpecificProduction + storeReturns;
+    const storeAvailableInventory = totalAvailableInventory - storeSpecificSales;
+    
+    // Step 5: Validate inventory availability
+    
+    // Check 1: Overall production validation
+    if (totalAvailableInventory === 0) {
         alert(`❌ Inventory Validation Failed!\n\nNo production recorded for ${date}.\nYou cannot sell what has not been produced.\n\nPlease check production records.`);
         return;
     }
     
     // Check 2: Store-specific inventory validation
-    if (storeSpecificProduction === 0) {
-        alert(`❌ Store Inventory Validation Failed!\n\nNo production recorded for ${getStoreLabel(store)} store on ${date}.\n\nAvailable stores with production:\n${getAvailableStoresForDate(date)}`);
+    if (storeSpecificProduction === 0 && storeReturns === 0) {
+        alert(`❌ Store Inventory Validation Failed!\n\nNo production or returns for ${getStoreLabel(store)} store on ${date}.\n\nAvailable stores with production:\n${getAvailableStoresForDate(date)}`);
         return;
     }
     
     // Check 3: Prevent negative inventory (store-specific)
     const remainingAfterSale = storeAvailableInventory - quantity;
     if (remainingAfterSale < 0) {
-        alert(`❌ Insufficient Production Stock!\n\nSelected date: ${date}\nStore: ${getStoreLabel(store)}\n\nProduction available: ${storeSpecificProduction.toFixed(3)} kg\nAlready sold: ${storeSpecificSales.toFixed(3)} kg\nCurrent available: ${storeAvailableInventory.toFixed(3)} kg\nSale quantity: ${quantity.toFixed(3)} kg\n\nShortage: ${Math.abs(remainingAfterSale).toFixed(3)} kg\n\nPlease reduce sale quantity or check production records.`);
-        return;
-    }
-    
-    // Check 4: Overall daily inventory check (redundant but safe)
-    const overallRemaining = dailyAvailableInventory - quantity;
-    if (overallRemaining < 0) {
-        alert(`❌ Insufficient Overall Production!\n\nSelected date: ${date}\n\nTotal production: ${dailyProductionTotal.toFixed(3)} kg\nTotal sales: ${dailySalesTotal.toFixed(3)} kg\nAvailable: ${dailyAvailableInventory.toFixed(3)} kg\nSale quantity: ${quantity.toFixed(3)} kg\n\nPlease check production records.`);
+        alert(`❌ Insufficient Stock!\n\nSelected date: ${date}\nStore: ${getStoreLabel(store)}\n\n📦 Production: ${storeSpecificProduction.toFixed(3)} kg\n↩️ Returns: ${storeReturns.toFixed(3)} kg\n━━━━━━━━━━━━━━━━━━━━━\n✓ Total Available: ${totalAvailableInventory.toFixed(3)} kg\n✗ Already Sold: ${storeSpecificSales.toFixed(3)} kg\n━━━━━━━━━━━━━━━━━━━━━\n🟢 Current Stock: ${storeAvailableInventory.toFixed(3)} kg\n🔴 Sale Quantity: ${quantity.toFixed(3)} kg\n⚠️ Shortage: ${Math.abs(remainingAfterSale).toFixed(3)} kg\n\nPlease reduce sale quantity or check production records.`);
         return;
     }
     
@@ -6934,7 +6902,6 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
     let existingCredit = 0;
     
     if (existingCustomer) {
-        // Calculate existing credit for this customer
         customerSales.forEach(sale => {
             if (sale.customerName.toLowerCase() === name.toLowerCase() && 
                 sale.paymentType === 'CREDIT' && 
@@ -6946,7 +6913,7 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
     
     // For credit sales, check if customer already has outstanding credit
     if (paymentType === 'CREDIT') {
-        const creditWarningThreshold = 5000; // Example threshold
+        const creditWarningThreshold = 5000;
         if (existingCredit > creditWarningThreshold) {
             if (!confirm(`⚠️ Credit Sale Warning!\n\nCustomer "${name}" already has outstanding credit: Rs ${existingCredit.toFixed(2)}\n\nNew credit: Rs ${totalValue.toFixed(2)}\nTotal will be: Rs ${(existingCredit + totalValue).toFixed(2)}\n\nProceed with sale?`)) {
                 return;
@@ -6991,8 +6958,9 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
     
     // Update UI
     refreshCustomerSales();
-    refreshEntityList()
-    alert(`✅ Sale recorded successfully!\n\nDate: ${date}\nCustomer: ${name}\nQuantity: ${quantity.toFixed(3)} kg\nStore: ${getStoreLabel(store)}\nTotal Value: Rs ${totalValue.toFixed(2)}\nPayment: ${paymentType}\n\nInventory Status:\nStore production: ${storeSpecificProduction.toFixed(3)} kg\nPrevious sales: ${storeSpecificSales.toFixed(3)} kg\nRemaining after sale: ${remainingAfterSale.toFixed(3)} kg`);
+    refreshEntityList();
+    
+    alert(`✅ Sale recorded successfully!\n\nDate: ${date}\nCustomer: ${name}\nQuantity: ${quantity.toFixed(3)} kg\nStore: ${getStoreLabel(store)}\nTotal Value: Rs ${totalValue.toFixed(2)}\nPayment: ${paymentType}\n\n📊 Inventory Status:\n━━━━━━━━━━━━━━━━━━━━━\n📦 Production: ${storeSpecificProduction.toFixed(3)} kg\n↩️ Returns: ${storeReturns.toFixed(3)} kg\n✓ Total Available: ${totalAvailableInventory.toFixed(3)} kg\n✗ Previous Sales: ${storeSpecificSales.toFixed(3)} kg\n🟢 Remaining Stock: ${remainingAfterSale.toFixed(3)} kg`);
 }
 
 // Helper function to get store label
@@ -7065,7 +7033,6 @@ function getCostPerUnit(storeType) {
 
 // Also update the calculateCustomerSale() function to show inventory status
 function calculateCustomerSale() {
-    // Existing calculation code...
     const quantity = parseFloat(document.getElementById('cust-quantity').value) || 0;
     const date = document.getElementById('cust-date').value;
     const store = document.querySelector('input[name="supply-store"]:checked').value;
@@ -7078,44 +7045,105 @@ function calculateCustomerSale() {
     document.getElementById('cust-total-value').textContent = costData.totalValue.toFixed(2);
     document.getElementById('cust-profit').textContent = (costData.totalValue - costData.totalCost).toFixed(2);
     
-    // --- NEW: Show inventory status if date is selected ---
+    // === UPDATED: Show inventory status INCLUDING RETURNS ===
     if (date) {
-        // Calculate available inventory for the selected date and store
+        // Calculate production
         let storeProduction = 0;
-        let storeSales = 0;
-        
         db.forEach(production => {
             if (production.date === date && production.store === store) {
                 storeProduction += production.net || 0;
             }
         });
         
+        // === NEW: Calculate returns ===
+        let storeReturns = 0;
+        stockReturns.forEach(returnEntry => {
+            if (returnEntry.date === date && returnEntry.store === store) {
+                storeReturns += returnEntry.quantity || 0;
+            }
+        });
+        
+        // Calculate sales
+        let storeSales = 0;
         customerSales.forEach(sale => {
             if (sale.date === date && sale.supplyStore === store) {
                 storeSales += sale.quantity || 0;
             }
         });
         
-        const availableInventory = storeProduction - storeSales;
+        // Total available = Production + Returns
+        const totalAvailable = storeProduction + storeReturns;
+        const availableInventory = totalAvailable - storeSales;
         
         // Show warning if inventory is low
         const inventoryWarning = document.getElementById('inventory-warning') || createInventoryWarningElement();
+        
         if (quantity > availableInventory) {
-            inventoryWarning.textContent = `Warning: Only ${availableInventory.toFixed(3)} kg available. Sale will create negative inventory!`;
+            inventoryWarning.innerHTML = `⚠️ Warning: Only ${availableInventory.toFixed(3)} kg available.<br><small>Production: ${storeProduction.toFixed(2)} kg + Returns: ${storeReturns.toFixed(2)} kg = ${totalAvailable.toFixed(2)} kg total</small>`;
             inventoryWarning.style.display = 'block';
             inventoryWarning.style.color = 'var(--danger)';
-        } else if (availableInventory < (quantity * 1.5)) { // 50% buffer
-            inventoryWarning.textContent = ` Inventory: ${availableInventory.toFixed(3)} kg available (${(availableInventory - quantity).toFixed(3)} kg remaining)`;
+            inventoryWarning.style.background = 'rgba(220, 38, 38, 0.1)';
+        } else if (availableInventory < (quantity * 1.5)) {
+            inventoryWarning.innerHTML = `ℹ️ Inventory: ${availableInventory.toFixed(3)} kg available (${(availableInventory - quantity).toFixed(3)} kg remaining)<br><small>Production: ${storeProduction.toFixed(2)} kg + Returns: ${storeReturns.toFixed(2)} kg</small>`;
             inventoryWarning.style.display = 'block';
             inventoryWarning.style.color = 'var(--warning)';
+            inventoryWarning.style.background = 'rgba(245, 158, 11, 0.1)';
         } else {
-            inventoryWarning.textContent = `✓ Inventory: ${availableInventory.toFixed(3)} kg available`;
+            inventoryWarning.innerHTML = `✓ Inventory: ${availableInventory.toFixed(3)} kg available<br><small>Production: ${storeProduction.toFixed(2)} kg + Returns: ${storeReturns.toFixed(2)} kg = ${totalAvailable.toFixed(2)} kg total</small>`;
             inventoryWarning.style.display = 'block';
             inventoryWarning.style.color = 'var(--accent-emerald)';
+            inventoryWarning.style.background = 'rgba(5, 150, 105, 0.1)';
         }
     }
 }
+// --- AUTO-FILL CUSTOMER NAME FUNCTION ---
+function autoFillCustomerName() {
+    const repRadio = document.querySelector('input[name="sales-rep"]:checked');
+    const nameInput = document.getElementById('cust-name');
+    
+    // Get Payment Radio Buttons
+    const cashRadio = document.getElementById('payment-cash');
+    const creditRadio = document.getElementById('payment-credit');
 
+    if (repRadio) {
+        if (repRadio.value === 'NONE') {
+            // Direct Sale Logic
+            nameInput.value = '';
+            nameInput.placeholder = "Enter Customer Name";
+            nameInput.readOnly = false;
+            
+            // Re-enable Cash option and default to it
+            if (cashRadio) {
+                cashRadio.disabled = false;
+                cashRadio.checked = true;
+            }
+        } else {
+            // Representative Logic (Noran or Noman)
+            nameInput.value = repRadio.value;
+            nameInput.readOnly = true;
+            
+            // FORCE CREDIT SELECTION
+            if (creditRadio) {
+                creditRadio.checked = true;
+            }
+            
+            // Disable Cash option so user cannot accidentally change it
+            if (cashRadio) {
+                cashRadio.disabled = true;
+            }
+        }
+    }
+    
+    // Update customer info display
+    if (nameInput.value) {
+        calculateCustomerStatsForDisplay(nameInput.value);
+    } else {
+        const infoDisplay = document.getElementById('customer-info-display');
+        if (infoDisplay) {
+            infoDisplay.classList.add('hidden');
+        }
+    }
+}
 // Helper function to create inventory warning element
 function createInventoryWarningElement() {
     const warningDiv = document.createElement('div');
@@ -7189,79 +7217,26 @@ function deleteCustomerSale(id) {
     }
 }
     
-    // Update saveTransaction to use divided by X logic
-    // Update saveTransaction to use divided by X logic AND sync with Sales tab
-    // --- NEW FUNCTION: SYNC SALES TAB STATUS ---
-function updateSalesTabCreditStatus(seller, date) {
-    // Only proceed if a specific seller is selected (not Combined) and date exists
-    if (!seller || !date || seller === 'COMBINED') return;
+// --- ENHANCED RETURN HANDLING SYSTEM ---
 
-    let updated = false;
+// 1. Initialize return storage
+let stockReturns = JSON.parse(localStorage.getItem('stock_returns')) || [];
 
-    // Look through all sales records
-    customerSales.forEach(sale => {
-        // Match conditions:
-        // 1. Same Date
-        // 2. Same Sales Rep
-        // 3. Is currently a CREDIT sale
-        // 4. Has NOT been marked received yet
-        if (sale.date === date && 
-            sale.salesRep === seller && 
-            sale.paymentType === 'CREDIT' && 
-            !sale.creditReceived) {
-            
-            // Update status
-            sale.creditReceived = true;
-            sale.paymentType = 'CASH'; // Updates the data logic to count as cash flow
-            updated = true;
-        }
-    });
-
-    // If we found and updated records, save and refresh
-    if (updated) {
-        localStorage.setItem('customer_sales', JSON.stringify(customerSales));
-        
-        // Refresh the Sales tab UI so the visual changes (Green Badge) appear immediately
-        refreshCustomerSales(); 
-        
-        // Update charts to reflect the shift from Credit to Cash
-        updateCustomerCharts(); 
-    }
-}
-// --- NEW FUNCTION: AUTO-FILL CUSTOMER NAME ---
-// --- NEW FUNCTION: AUTO-FILL CUSTOMER NAME AND FORCE CREDIT ---
-function autoFillCustomerName() {
-    const repRadio = document.querySelector('input[name="sales-rep"]:checked');
-    const nameInput = document.getElementById('cust-name');
+// 2. UI Control for Return Section
+function handleReturnQtyInput() {
+    const retQty = parseFloat(document.getElementById('returnedQuantity').value) || 0;
+    const section = document.getElementById('returnStoreSection');
     
-    // Get Payment Radio Buttons
-    const cashRadio = document.getElementById('payment-cash');
-    const creditRadio = document.getElementById('payment-credit');
-
-    if (repRadio) {
-        if (repRadio.value === 'NONE') {
-            // Direct Sale Logic
-            nameInput.value = '';
-            nameInput.placeholder = "Enter Customer Name";
-            
-            // Re-enable Cash option and default to it
-            cashRadio.disabled = false;
-            cashRadio.checked = true;
-        } else {
-            // Representative Logic (Noran or Noman)
-            nameInput.value = repRadio.value;
-            
-            // FORCE CREDIT SELECTION
-            creditRadio.checked = true;
-            
-            // Disable Cash option so user cannot accidentally change it
-            cashRadio.disabled = true;
-        }
+    if (retQty > 0) {
+        section.classList.remove('hidden');
+    } else {
+        section.classList.add('hidden');
     }
+    
+    if (typeof calculateSales === 'function') calculateSales();
 }
 
-
-// --- UPDATED SAVE TRANSACTION FUNCTION ---
+// 3. FIXED: Save Transaction with Return Processing
 function saveTransaction() {
     const seller = document.getElementById('sellerSelect').value;
     const date = document.getElementById('sale-date').value;
@@ -7270,6 +7245,16 @@ function saveTransaction() {
     const cred = parseFloat(document.getElementById('creditSales').value) || 0;
     const prev = parseFloat(document.getElementById('prevCreditReceived').value) || 0;
     const rec = parseFloat(document.getElementById('receivedCash').value) || 0;
+    
+    // Get selected return store if there are returns
+    let selectedStore = null;
+    if (ret > 0) {
+        selectedStore = document.querySelector('input[name="return-store"]:checked');
+        if (!selectedStore) {
+            alert("⚠️ Please select a store (ZUBAIR or MAHMOOD) for the returned stock!");
+            return;
+        }
+    }
     
     const costPerKg = calculateSalesCostPerKg('standard');
     const salePrice = factorySalePrices.standard || 0;
@@ -7303,6 +7288,11 @@ function saveTransaction() {
     const profit = revenue - totalCost;
     const totalExpected = (cashQty * salePrice) + prev;
 
+    // === NEW: PROCESS RETURN AND ADD TO PRODUCTION ===
+    if (ret > 0 && selectedStore) {
+        processReturnToProduction(selectedStore.value, ret, date, seller);
+    }
+
     const entry = {
         id: Date.now(), 
         seller, 
@@ -7323,10 +7313,10 @@ function saveTransaction() {
         statusText: document.getElementById('discrepancyStatus').innerText,
         statusClass: document.getElementById('discrepancyBox').className,
         timestamp: new Date(date).getTime(),
-        linkedSalesIds: [] // Store IDs of linked sales entries
+        linkedSalesIds: [],
+        returnStore: selectedStore ? selectedStore.value : null
     };
 
-    // ===== NEW: Mark specific sales entries as received =====
     const linkedIds = markSalesEntriesAsReceived(seller, sold);
     entry.linkedSalesIds = linkedIds;
 
@@ -7341,14 +7331,19 @@ function saveTransaction() {
     document.getElementById('prevCreditReceived').value = '';
     document.getElementById('receivedCash').value = '';
     
-    showToast(`Transaction saved! ${linkedIds.length} sales entries marked as received.`, 'success');
+    // Hide return section
+    document.getElementById('returnStoreSection').classList.add('hidden');
+    
+    showToast(`Transaction saved! ${linkedIds.length} sales entries marked as received.${ret > 0 ? ` ${ret.toFixed(2)} kg returned to inventory.` : ''}`, 'success');
     
     // Refresh all displays
     loadSalesData(currentCompMode);
     refreshCustomerSales();
+    refreshUI(); // Refresh production tab to show updated inventory
     calculateNetCash();
     calculateCashTracker();
 }
+
 
 // 5. NEW FUNCTION: Mark sales entries as received (oldest first)
 function markSalesEntriesAsReceived(seller, quantityToMark) {
@@ -7810,22 +7805,128 @@ function markSalesEntriesAsReceived(seller, quantityToMark) {
     }
 
     // --- SEARCH FUNCTIONALITIES ---
-    function filterProductionHistory() {
-        const searchTerm = document.getElementById('production-search').value.toLowerCase();
-        const allCards = document.querySelectorAll('#prodHistoryList .card');
+    // 7. UPDATED: Production History Display (Show Return Badge)
+function refreshUI() {
+    const selectedDate = document.getElementById('sys-date').value;
+    if (!selectedDate) return;
+    
+    const selectedDateObj = new Date(selectedDate);
+    const selectedYear = selectedDateObj.getFullYear();
+    const selectedMonth = selectedDateObj.getMonth();
+    const selectedDay = selectedDateObj.getDate();
+    
+    const weekStart = new Date(selectedDateObj);
+    weekStart.setDate(selectedDay - 6);
+    
+    let stats = { 
+        day: {q:0, p:0, c:0, v:0, fu:0, fc:0}, 
+        week: {q:0, p:0, c:0, v:0, fu:0, fc:0}, 
+        month: {q:0, p:0, c:0, v:0, fu:0, fc:0}, 
+        year: {q:0, p:0, c:0, v:0, fu:0, fc:0},
+        all: {q:0, p:0, c:0, v:0, fu:0, fc:0}
+    };
+    
+    const histContainer = document.getElementById('prodHistoryList');
+    
+    let filteredData = currentProductionView === 'combined' ? db : db.filter(item => item.store === currentStore);
+
+    const sortedDb = [...filteredData].sort((a,b) => {
+        if (a.date === selectedDate && b.date !== selectedDate) return -1;
+        if (a.date !== selectedDate && b.date === selectedDate) return 1;
+        return new Date(b.date) - new Date(a.date) || b.id - a.id;
+    });
+
+    let htmlBuffer = '';
+
+    sortedDb.forEach(item => {
+        const rowDate = new Date(item.date);
+        const rowYear = rowDate.getFullYear();
+        const rowMonth = rowDate.getMonth();
         
-        allCards.forEach(card => {
-            const cardText = card.textContent.toLowerCase();
-            const dateElement = card.querySelector('h4');
-            const dateText = dateElement ? dateElement.textContent.toLowerCase() : '';
-            
-            if (cardText.includes(searchTerm) || dateText.includes(searchTerm)) {
-                card.style.display = '';
-            } else {
-                card.style.display = 'none';
-            }
-        });
+        if(item.date === selectedDate) { 
+            stats.day.q += item.net; stats.day.p += item.profit; stats.day.c += item.totalCost;
+            stats.day.v += item.totalSale; stats.day.fu += (item.formulaUnits || 0); stats.day.fc += (item.formulaCost || 0);
+        }
+        if(rowDate >= weekStart && rowDate <= selectedDateObj) { 
+            stats.week.q += item.net; stats.week.p += item.profit; stats.week.c += item.totalCost;
+            stats.week.v += item.totalSale; stats.week.fu += (item.formulaUnits || 0); stats.week.fc += (item.formulaCost || 0);
+        }
+        if(rowYear === selectedYear && rowMonth === selectedMonth) { 
+            stats.month.q += item.net; stats.month.p += item.profit; stats.month.c += item.totalCost;
+            stats.month.v += item.totalSale; stats.month.fu += (item.formulaUnits || 0); stats.month.fc += (item.formulaCost || 0);
+        }
+        if(rowYear === selectedYear) { 
+            stats.year.q += item.net; stats.year.p += item.profit; stats.year.c += item.totalCost;
+            stats.year.v += item.totalSale; stats.year.fu += (item.formulaUnits || 0); stats.year.fc += (item.formulaCost || 0);
+        }
+        
+        stats.all.q += item.net; stats.all.p += item.profit; stats.all.c += item.totalCost;
+        stats.all.v += item.totalSale; stats.all.fu += (item.formulaUnits || 0); stats.all.fc += (item.formulaCost || 0);
+
+        const isSelected = item.date === selectedDate;
+        const highlightClass = isSelected ? 'highlight-card' : '';
+        const dateDisplay = isSelected ? `${item.date} (Selected)` : item.date;
+        const storeBadgeClass = item.store === 'STORE_A' ? 'store-a' : item.store === 'STORE_B' ? 'store-b' : 'store-c';
+        const storeLabel = item.store === 'STORE_A' ? 'ZUBAIR' : item.store === 'STORE_B' ? 'MAHMOOD' : 'ASAAN';
+        
+        // === NEW: Return Badge ===
+        let returnBadge = '';
+        if (item.isReturn) {
+            returnBadge = `<span class="payment-badge" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); top: 35px; right: 12px;">↩ RETURN</span>`;
+        }
+        
+        // Payment badge for STORE_C
+        let paymentBadge = '';
+        if (item.store === 'STORE_C' && item.paymentStatus === 'CREDIT' && !item.isReturn) {
+            paymentBadge = `<span class="payment-badge credit" style="top: 35px; right: 12px;">CREDIT</span>`;
+        }
+
+        htmlBuffer += `
+            <div class="card liquid-card ${highlightClass}">
+                ${currentProductionView === 'combined' ? `<span class="store-badge ${storeBadgeClass}">${storeLabel}</span>` : ''}
+                ${returnBadge}
+                ${paymentBadge}
+                <h4>${dateDisplay} @ ${item.time}</h4>
+                ${item.isReturn ? `<p style="color:var(--accent-emerald); font-size:0.75rem; font-style:italic;">Returned by ${item.returnedBy || 'Representative'}</p>` : ''}
+                <p><span>Net Weight:</span> <span class="qty-val">${item.net.toFixed(3)} kg</span></p>
+                <p><span>Cost Price:</span> <span class="cost-val">Rs ${item.cp.toFixed(2)}/kg</span></p>
+                <p><span>Sale Price:</span> <span class="rev-val">Rs ${item.sp.toFixed(2)}/kg</span></p>
+                <hr>
+                <p><span>Total Cost:</span> <span class="cost-val">Rs ${item.totalCost.toFixed(2)}</span></p>
+                <p><span>Total Value:</span> <span class="rev-val">Rs ${item.totalSale.toFixed(2)}</span></p>
+                <p><span>Net Profit:</span> <span class="profit-val">Rs ${item.profit.toFixed(2)}</span></p>
+                ${item.paymentStatus === 'CREDIT' && !item.isReturn ? `<p><span>Payment:</span> <span class="cost-val" style="color:var(--credit-color);">Credit</span></p>` : ''}
+                ${item.formulaUnits && !item.isReturn ? `<p><span>Formula Units:</span> <span class="qty-val">${item.formulaUnits.toFixed(3)}</span></p>` : ''}
+                ${item.formulaCost && !item.isReturn ? `<p><span>Formula Cost:</span> <span class="cost-val">Rs ${item.formulaCost.toFixed(2)}</span></p>` : ''}
+                <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="deleteProdEntry(${item.id})">Delete</button>
+            </div>
+        `;
+    });
+    
+    histContainer.innerHTML = htmlBuffer || `<p style="text-align:center; color:var(--text-muted); width:100%; font-size:0.85rem;">No records found for this selection.</p>`;
+
+    const updateStats = (idPrefix, statObj) => {
+        document.getElementById(`${idPrefix}-qty`).innerText = `${safeValue(statObj.q).toFixed(3)} kg`;
+        document.getElementById(`${idPrefix}-value`).innerText = `Rs ${safeValue(statObj.v).toFixed(2)}`;
+        document.getElementById(`${idPrefix}-cost`).innerText = `Rs ${safeValue(statObj.c).toFixed(2)}`;
+        document.getElementById(`${idPrefix}-profit`).innerText = `Rs ${safeValue(statObj.p).toFixed(2)}`;
+        document.getElementById(`${idPrefix}-formula-units`).innerText = `${safeValue(statObj.fu).toFixed(3)}`;
+        document.getElementById(`${idPrefix}-formula-cost`).innerText = `Rs ${safeValue(statObj.fc).toFixed(2)}`;
+    };
+
+    updateStats('day', stats.day);
+    updateStats('week', stats.week);
+    updateStats('month', stats.month);
+    updateStats('year', stats.year);
+    updateStats('all', stats.all);
+    
+    updateMfgCharts();
+    if (currentProductionView === 'combined') {
+        updateAllStoresOverview(currentOverviewMode);
     }
+    
+    updateUnitsAvailableIndicator();
+}
 
     function filterCalculatorHistory() {
         const searchTerm = document.getElementById('calculator-search').value.toLowerCase();
@@ -7887,13 +7988,7 @@ card.style.minHeight = 'auto';
 // NEW: Add click functionality
 card.style.cursor = 'pointer';
 card.onclick = () => openEntityTransactions(entity.id);
-function refreshEntityList() {
-    if (entityListViewType === 'cards') {
-        renderEntityList();
-    } else {
-        renderEntityCards();
-    }
-}
+
 
 function renderEntityList() {
     const tbody = document.getElementById('entityListBody');
@@ -8337,8 +8432,7 @@ function initFactoryTab() {
     const factoryDateInput = document.getElementById('factory-date');
     if (!factoryDateInput.value) {
         const today = new Date().toISOString().split('T')[0];
-        factoryDateInput.value = today;
-        currentFactoryDate = today;
+     
     }
     
     if (!currentFactorySummaryMode) {
@@ -8894,8 +8988,7 @@ function initFactoryTab() {
         
         refreshUI();
     }
-
-// --- UPDATED ALL STORES OVERVIEW (Includes Formula Units & Costs) ---
+// --- FIXED: UPDATE ALL STORES OVERVIEW (Production Credits + Date Specific Returns) ---
 function updateAllStoresOverview(mode = 'day') {
     currentOverviewMode = mode;
     
@@ -8903,7 +8996,6 @@ function updateAllStoresOverview(mode = 'day') {
     const selectedDateObj = new Date(selectedDate);
     const selectedYear = selectedDateObj.getFullYear();
     const selectedMonth = selectedDateObj.getMonth();
-    const selectedDay = selectedDateObj.getDate();
     
     const stores = ['STORE_A', 'STORE_B', 'STORE_C'];
     const storeNames = ['ZUBAIR', 'MAHMOOD', 'ASAAN'];
@@ -8911,12 +9003,14 @@ function updateAllStoresOverview(mode = 'day') {
     
     // Initialize Combined Totals
     let totalCombined = {
+        production: 0,
+        returns: 0,
         qty: 0,
         value: 0,
         cost: 0,
         profit: 0,
-        formulaUnits: 0, // NEW
-        formulaCost: 0   // NEW
+        formulaUnits: 0,
+        formulaCost: 0
     };
     
     const allStoresGrid = document.getElementById('all-stores-grid');
@@ -8928,60 +9022,73 @@ function updateAllStoresOverview(mode = 'day') {
     }
     
     stores.forEach((store, index) => {
-        // 1. Calculate PRODUCTION totals (Inventory IN)
+        // Initialize Store Data
         let storeData = {
-            qty: 0,
+            production: 0, 
+            returns: 0,    
             value: 0,
             cost: 0,
             profit: 0,
-            formulaUnits: 0, // NEW
-            formulaCost: 0   // NEW
+            formulaUnits: 0,
+            formulaCost: 0,
+            productionCredit: 0 // NEW: Track credits specifically from Production Tab
         };
         
+        // 1. Calculate INVENTORY IN (Production + Returns) from DB
         db.forEach(item => {
             const itemDate = new Date(item.date);
             const itemYear = itemDate.getFullYear();
             const itemMonth = itemDate.getMonth();
-            const itemDay = itemDate.getDate();
             
             let includeItem = false;
             
+            // STRICT DATE FILTERING
             if (mode === 'day' && item.date === selectedDate) includeItem = true;
             else if (mode === 'week') {
                 const weekStart = new Date(selectedDateObj);
-                weekStart.setDate(selectedDay - 6);
+                weekStart.setDate(selectedDateObj.getDate() - 6);
                 if (itemDate >= weekStart && itemDate <= selectedDateObj) includeItem = true;
             }
             else if (mode === 'month' && itemYear === selectedYear && itemMonth === selectedMonth) includeItem = true;
             else if (mode === 'year' && itemYear === selectedYear) includeItem = true;
             else if (mode === 'all') includeItem = true;
             
+            // STRICT STORE FILTERING
             if (includeItem && item.store === store) {
-                storeData.qty += item.net;
+                if (item.isReturn) {
+                    storeData.returns += item.net;
+                } else {
+                    storeData.production += item.net;
+                    storeData.formulaUnits += (item.formulaUnits || 0);
+                    storeData.formulaCost += (item.formulaCost || 0);
+                    
+                    // NEW: Calculate Credit specifically for Production Tab entries
+                    if (store === 'STORE_C' && item.paymentStatus === 'CREDIT') {
+                        storeData.productionCredit += (item.totalSale || 0);
+                    }
+                }
+                
+                // Value/Cost/Profit aggregates
                 storeData.value += item.totalSale;
                 storeData.cost += item.totalCost;
                 storeData.profit += item.profit;
-                storeData.formulaUnits += (item.formulaUnits || 0); // NEW: Track Units
-                storeData.formulaCost += (item.formulaCost || 0);   // NEW: Track Cost
             }
         });
 
-        // 2. Calculate SALES totals (Inventory OUT)
+        // 2. Calculate SALES (Inventory OUT)
         let soldQty = 0;
-        let asaanCreditSales = 0;
 
         customerSales.forEach(sale => {
             const saleDate = new Date(sale.date);
             const saleYear = saleDate.getFullYear();
             const saleMonth = saleDate.getMonth();
-            const saleDay = saleDate.getDate();
             
             let includeSale = false;
 
             if (mode === 'day' && sale.date === selectedDate) includeSale = true;
             else if (mode === 'week') {
                 const weekStart = new Date(selectedDateObj);
-                weekStart.setDate(selectedDay - 6);
+                weekStart.setDate(selectedDateObj.getDate() - 6);
                 if (saleDate >= weekStart && saleDate <= selectedDateObj) includeSale = true;
             }
             else if (mode === 'month' && saleYear === selectedYear && saleMonth === selectedMonth) includeSale = true;
@@ -8990,38 +9097,47 @@ function updateAllStoresOverview(mode = 'day') {
 
             if (includeSale && sale.supplyStore === store) {
                 soldQty += (sale.quantity || 0);
-                if (store === 'STORE_C' && sale.paymentType === 'CREDIT' && !sale.creditReceived) {
-                    asaanCreditSales += (sale.totalValue || 0);
-                }
             }
         });
 
-        const remainingQty = storeData.qty - soldQty;
+        // 3. Calculate Remaining
+        const totalIn = storeData.production + storeData.returns;
+        const remainingQty = totalIn - soldQty;
 
-        // 3. Update Combined Totals
-        totalCombined.qty += storeData.qty;
+        // 4. Update Combined Totals
+        totalCombined.production += storeData.production;
+        totalCombined.returns += storeData.returns;
+        totalCombined.qty += totalIn;
         totalCombined.value += storeData.value;
         totalCombined.cost += storeData.cost;
         totalCombined.profit += storeData.profit;
-        totalCombined.formulaUnits += storeData.formulaUnits; // NEW
-        totalCombined.formulaCost += storeData.formulaCost;   // NEW
+        totalCombined.formulaUnits += storeData.formulaUnits;
+        totalCombined.formulaCost += storeData.formulaCost;
         
-        // 4. Build the Store Card HTML
+        // 5. Build HTML
+        // NEW: Only show Production Credit for Asaan Store (STORE_C)
         let extraInfoHtml = '';
         if (store === 'STORE_C') {
-            extraInfoHtml = `<p><span>Credit Sales:</span> <span style="color:var(--warning); font-weight:800;">Rs ${safeValue(asaanCreditSales).toFixed(2)}</span></p>`;
+            extraInfoHtml = `<p><span>Production Credit:</span> <span style="color:var(--warning); font-weight:800;">Rs ${safeValue(storeData.productionCredit).toFixed(2)}</span></p>`;
+        }
+
+        // Render Return Line ONLY if returns exist
+        let returnsHtml = '';
+        if (storeData.returns > 0) {
+            returnsHtml = `<p><span>Returns Recvd:</span> <span style="color:#10b981; font-weight:800;">+${safeValue(storeData.returns).toFixed(2)} kg</span></p>`;
         }
 
         const card = document.createElement('div');
         card.className = `overview-card liquid-card`;
         
-        // Added Formula Units and Formula Cost rows below remaining
         card.innerHTML = `
             <span class="store-badge ${storeColors[index]}">${storeNames[index]}</span>
             <h4>${storeNames[index]} (${mode === 'all' ? 'All Times' : mode.charAt(0).toUpperCase() + mode.slice(1)})</h4>
             
-            <p><span>Produced:</span> <span class="qty-val" style="color:var(--text-main);">${safeValue(storeData.qty).toFixed(2)} kg</span></p>
+            <p><span>Produced:</span> <span class="qty-val" style="color:var(--text-main);">${safeValue(storeData.production).toFixed(2)} kg</span></p>
+            ${returnsHtml}
             <p><span>Sold (Sales Tab):</span> <span class="cost-val">${safeValue(soldQty).toFixed(2)} kg</span></p>
+            
             <div style="border-top:1px dashed var(--glass-border); margin:4px 0; padding-top:4px;">
                 <p><span>Remaining:</span> <span class="profit-val" style="font-size:1.1rem;">${safeValue(remainingQty).toFixed(2)} kg</span></p>
             </div>
@@ -9039,12 +9155,13 @@ function updateAllStoresOverview(mode = 'day') {
         allStoresGrid.appendChild(card);
     });
     
-    // 5. Build Combined Card HTML
+    // 6. Build Combined Card
     const combinedCard = document.createElement('div');
     combinedCard.className = `overview-card liquid-card highlight-card`;
     combinedCard.innerHTML = `
         <h4 style="color: var(--accent);">Total Combined</h4>
-        <p><span>Net Production:</span> <span class="qty-val">${safeValue(totalCombined.qty).toFixed(3)} kg</span></p>
+        <p><span>Fresh Production:</span> <span class="qty-val">${safeValue(totalCombined.production).toFixed(3)} kg</span></p>
+        ${totalCombined.returns > 0 ? `<p><span>Total Returns:</span> <span style="color:#10b981; font-weight:800;">+${safeValue(totalCombined.returns).toFixed(3)} kg</span></p>` : ''}
         
         <p><span>Total Formula Units:</span> <span class="qty-val">${safeValue(totalCombined.formulaUnits).toFixed(2)}</span></p>
         <p><span>Total Formula Cost:</span> <span class="cost-val">Rs ${safeValue(totalCombined.formulaCost).toFixed(2)}</span></p>
@@ -9058,6 +9175,7 @@ function updateAllStoresOverview(mode = 'day') {
     
     updateStoreComparisonChart(mode);
 }
+
 
 
 
@@ -9879,84 +9997,144 @@ function loadSalesData(compMode = 'all') {
         }
     }
 
-    function deleteSalesEntry(id) {
-        if(confirm("Permanently delete this record?")) {
-            let history = JSON.parse(localStorage.getItem('noman_history')) || [];
-            localStorage.setItem('noman_history', JSON.stringify(history.filter(h => h.id !== id)));
-            loadSalesData(currentCompMode);
-            alert("Record deleted successfully!");
-        }
-    }
-    // --- 1. NEW HELPER FUNCTION: REVERT CREDIT STATUS ---
-// (Paste this function anywhere in your main script, preferably near other Sales/Calculator functions)
-function revertSalesTabCreditStatus(seller, date) {
-    if (!seller || !date || seller === 'COMBINED') return false;
+    // 4. NEW: Process Return to Production
+function processReturnToProduction(storeKey, quantity, date, seller) {
+    const now = new Date();
+    let hours = now.getHours();
+    const minutes = now.getMinutes();
+    const seconds = now.getSeconds();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const timeString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} ${ampm}`;
 
-    let updatedCount = 0;
+    // Determine formula store and sale price
+    let formulaStore = 'standard';
+    let salePrice = factorySalePrices.standard || 0;
+    
+    // Get cost data for this return
+    const costPerKg = calculateSalesCostPerKg(formulaStore);
+    const totalCost = quantity * costPerKg;
+    const totalSale = quantity * salePrice;
+    const profit = totalSale - totalCost;
 
-    // Iterate through all customer sales to find matches
-    customerSales.forEach(sale => {
-        // Condition: Matches the Seller, Matches the Date, and is marked "Received"
-        if (sale.salesRep === seller && 
-            sale.date === date && 
-            sale.creditReceived === true) {
-            
-            // Revert status back to pending
-            sale.creditReceived = false;
-            
-            // Set payment type back to CREDIT so calculations count it as pending debt
-            sale.paymentType = 'CREDIT'; 
-            
-            // Clean up the timestamp markers
-            delete sale.creditReceivedDate;
-            delete sale.creditReceivedTime;
-            
-            updatedCount++;
-        }
-    });
+    // Create a production entry for the returned goods
+    const returnEntry = {
+        id: Date.now(),
+        date: date,
+        time: timeString,
+        store: storeKey,
+        net: quantity,
+        cp: costPerKg,
+        sp: salePrice,
+        totalCost: totalCost,
+        totalSale: totalSale,
+        profit: profit,
+        formulaUnits: 0, // Returns don't consume formula units
+        formulaStore: formulaStore,
+        formulaCost: 0,
+        paymentStatus: 'CASH',
+        timestamp: new Date(date).getTime(),
+        isReturn: true, // Mark as return entry
+        returnedBy: seller,
+        returnNote: `Returned by ${seller}`
+    };
 
-    // Save changes if any records were updated
-    if (updatedCount > 0) {
-        localStorage.setItem('customer_sales', JSON.stringify(customerSales));
-        return true;
-    }
-    return false;
+    // Add to production database
+    db.push(returnEntry);
+    localStorage.setItem('mfg_pro_pkr', JSON.stringify(db));
+    
+    // Record in returns log
+    const returnLogEntry = {
+        id: Date.now(),
+        date: date,
+        time: timeString,
+        store: storeKey,
+        quantity: quantity,
+        seller: seller,
+        timestamp: Date.now()
+    };
+    
+    stockReturns.push(returnLogEntry);
+    localStorage.setItem('stock_returns', JSON.stringify(stockReturns));
+    
+    console.log(`✅ Return processed: ${quantity} kg added to ${storeKey} inventory`);
 }
 
-// --- 2. UPDATED DELETE FUNCTION ---
-// (Replace your existing 'deleteSalesEntry' function entirely with this one)
+// 5. UPDATED: Delete Sales Entry (Reverse Returns)
 function deleteSalesEntry(id) {
-    // Get current history from storage
     let history = JSON.parse(localStorage.getItem('noman_history')) || [];
-    
-    // Find the entry to get its details BEFORE deleting it
     const entryToDelete = history.find(h => h.id === id);
 
     if (entryToDelete) {
-        if (confirm(`Permanently delete this record for ${entryToDelete.seller} on ${entryToDelete.date}?\n\nThis will REVERT linked "Received" badges in Sales Tab back to "Pending".`)) {
+        const linkedCount = entryToDelete.linkedSalesIds ? entryToDelete.linkedSalesIds.length : 0;
+        
+        let confirmMsg = `Permanently delete this record for ${entryToDelete.seller} on ${entryToDelete.date}?\n\nThis will REVERT ${linkedCount} linked sales entries back to 'Pending Credit'.`;
+        
+        // Add warning if there were returns
+        if (entryToDelete.returned > 0 && entryToDelete.returnStore) {
+            confirmMsg += `\n\n⚠️ This will also REMOVE ${entryToDelete.returned} kg from ${getStoreLabel(entryToDelete.returnStore)} inventory.`;
+        }
+        
+        if (confirm(confirmMsg)) {
             
-            // A. Call the helper function to undo the "Received" status in Sales Tab
-            revertSalesTabCreditStatus(entryToDelete.seller, entryToDelete.date);
+            // Revert linked sales
+            if (entryToDelete.linkedSalesIds && entryToDelete.linkedSalesIds.length > 0) {
+                revertSpecificSalesEntries(entryToDelete.linkedSalesIds);
+            }
 
-            // B. Delete the record from Calculator history
+            // === NEW: REVERSE THE RETURN ===
+            if (entryToDelete.returned > 0 && entryToDelete.returnStore) {
+                reverseReturnFromProduction(entryToDelete.returnStore, entryToDelete.returned, entryToDelete.date);
+            }
+
+            // Delete the calculator entry
             const newHistory = history.filter(h => h.id !== id);
             localStorage.setItem('noman_history', JSON.stringify(newHistory));
 
-            // C. Refresh All Tabs to show changes
-            loadSalesData(currentCompMode); // Refresh Calculator list
-            refreshCustomerSales();         // Refresh Sales list (Badges turn Orange)
-            updateCustomerCharts();         // Fix Charts
-            calculateNetCash();             // Fix Dashboard totals
-            calculateCashTracker();         // Fix Cash Tracker
+            // Refresh all displays
+            loadSalesData(currentCompMode);
+            refreshCustomerSales();
+            refreshUI(); // Refresh production tab
+            updateCustomerCharts();
+            calculateNetCash();
+            calculateCashTracker();
 
-            alert("Record deleted! Sales entries have been reverted to 'Pending Credit'.");
+            showToast(`Record deleted! ${linkedCount} sales entries reverted to pending.${entryToDelete.returned > 0 ? ` Return reversed.` : ''}`, 'success');
         }
     } else {
-        // Fallback if ID not found (e.g. already deleted)
         alert("Error: Record not found.");
     }
 }
 
+// 6. NEW: Reverse Return from Production
+function reverseReturnFromProduction(storeKey, quantity, date) {
+    // Find and remove the return entry from production database
+    const returnEntryIndex = db.findIndex(item => 
+        item.store === storeKey && 
+        item.net === quantity && 
+        item.date === date && 
+        item.isReturn === true
+    );
+    
+    if (returnEntryIndex !== -1) {
+        db.splice(returnEntryIndex, 1);
+        localStorage.setItem('mfg_pro_pkr', JSON.stringify(db));
+        console.log(`✅ Return reversed: ${quantity} kg removed from ${storeKey} inventory`);
+    }
+    
+    // Remove from returns log
+    const returnLogIndex = stockReturns.findIndex(r => 
+        r.store === storeKey && 
+        r.quantity === quantity && 
+        r.date === date
+    );
+    
+    if (returnLogIndex !== -1) {
+        stockReturns.splice(returnLogIndex, 1);
+        localStorage.setItem('stock_returns', JSON.stringify(stockReturns));
+    }
+}
 
     // --- UTILITY FUNCTIONS ---
     function formatCurrency(num) {
@@ -10046,39 +10224,55 @@ function setOverviewMode(mode) {
 
 
     
+// --- FIXED: DELETE CALCULATOR ENTRY (Reverts Sales & Reverses Returns) ---
 function deleteSalesEntry(id) {
     let history = JSON.parse(localStorage.getItem('noman_history')) || [];
     const entryToDelete = history.find(h => h.id === id);
 
     if (entryToDelete) {
         const linkedCount = entryToDelete.linkedSalesIds ? entryToDelete.linkedSalesIds.length : 0;
+        let confirmMsg = `Permanently delete this record for ${entryToDelete.seller} on ${entryToDelete.date}?`;
         
-        if (confirm(`Permanently delete this record for ${entryToDelete.seller} on ${entryToDelete.date}?\n\nThis will REVERT ${linkedCount} linked sales entries back to 'Pending Credit'.`)) {
+        if (linkedCount > 0) {
+            confirmMsg += `\n\n⚠️ This will REVERT ${linkedCount} linked sales entries back to 'Pending Credit'.`;
+        }
+        
+        // Add warning if there were returns
+        if (entryToDelete.returned > 0 && entryToDelete.returnStore) {
+            confirmMsg += `\n\n⚠️ This will also REMOVE ${entryToDelete.returned} kg from ${getStoreLabel(entryToDelete.returnStore)} inventory (reversing the return).`;
+        }
+        
+        if (confirm(confirmMsg)) {
             
-            // ===== NEW: Revert only the specific linked sales entries =====
+            // 1. REVERT LINKED SALES (Mark them as Pending Credit again)
             if (entryToDelete.linkedSalesIds && entryToDelete.linkedSalesIds.length > 0) {
                 revertSpecificSalesEntries(entryToDelete.linkedSalesIds);
             }
 
-            // Delete the calculator entry
+            // 2. REVERSE THE RETURN (Remove from Production Tab)
+            if (entryToDelete.returned > 0 && entryToDelete.returnStore) {
+                reverseReturnFromProduction(entryToDelete.returnStore, entryToDelete.returned, entryToDelete.date);
+            }
+
+            // 3. DELETE THE CALCULATOR ENTRY
             const newHistory = history.filter(h => h.id !== id);
             localStorage.setItem('noman_history', JSON.stringify(newHistory));
 
-            // Refresh all displays
-            loadSalesData(currentCompMode);
-            refreshCustomerSales();
-            updateCustomerCharts();
-            calculateNetCash();
-            calculateCashTracker();
+            // 4. REFRESH ALL DATA
+            refreshAllCalculations(); // Updates Net Cash, Cash Tracker, etc.
+            loadSalesData(currentCompMode); // Refreshes Calculator Tab
+            refreshCustomerSales(); // Refreshes Sales Tab
+            refreshUI(); // Refreshes Production Tab (Removes the return card)
+            updateAllStoresOverview(currentOverviewMode); // Updates Summary Cards
 
-            showToast(`Record deleted! ${linkedCount} sales entries reverted to pending.`, 'success');
+            showToast(`Record deleted! Linked sales reverted & returns removed.`, 'success');
         }
     } else {
         alert("Error: Record not found.");
     }
 }
 
-// 7. NEW FUNCTION: Revert specific sales entries by ID
+// Helper 1: Revert specific sales entries by ID
 function revertSpecificSalesEntries(saleIds) {
     if (!saleIds || saleIds.length === 0) return 0;
     
@@ -10090,11 +10284,11 @@ function revertSpecificSalesEntries(saleIds) {
         if (saleIndex !== -1) {
             const sale = customerSales[saleIndex];
             
-            // Revert to pending credit
+            // Revert status
             sale.creditReceived = false;
-            sale.paymentType = 'CREDIT';
+            sale.paymentType = 'CREDIT'; // Force back to Credit
             
-            // Clean up timestamp markers
+            // Remove timestamp markers
             delete sale.creditReceivedDate;
             delete sale.creditReceivedTime;
             
@@ -10104,10 +10298,45 @@ function revertSpecificSalesEntries(saleIds) {
     
     if (revertedCount > 0) {
         localStorage.setItem('customer_sales', JSON.stringify(customerSales));
+        console.log(`↺ Reverted ${revertedCount} linked sales to pending credit.`);
     }
     
     return revertedCount;
 }
+
+// Helper 2: Reverse Return from Production Database
+function reverseReturnFromProduction(storeKey, quantity, date) {
+    // 1. Remove from Production DB (The visual card)
+    // We look for an entry that matches Store, Quantity, Date AND has isReturn flag
+    const returnEntryIndex = db.findIndex(item => 
+        item.store === storeKey && 
+        Math.abs(item.net - quantity) < 0.001 && // Float safe comparison
+        item.date === date && 
+        item.isReturn === true
+    );
+    
+    if (returnEntryIndex !== -1) {
+        db.splice(returnEntryIndex, 1);
+        localStorage.setItem('mfg_pro_pkr', JSON.stringify(db));
+        console.log(`✅ Return reversed: Removed ${quantity} kg from ${storeKey} production DB`);
+    } else {
+        console.warn("Could not find matching return entry in Production DB to delete.");
+    }
+    
+    // 2. Remove from Returns Log (The background math)
+    const returnLogIndex = stockReturns.findIndex(r => 
+        r.store === storeKey && 
+        Math.abs(r.quantity - quantity) < 0.001 && 
+        r.date === date
+    );
+    
+    if (returnLogIndex !== -1) {
+        stockReturns.splice(returnLogIndex, 1);
+        localStorage.setItem('stock_returns', JSON.stringify(stockReturns));
+        console.log(`✅ Return reversed: Removed from stock returns log`);
+    }
+}
+
 
 // 8. Add event listener to seller select to auto-fill quantity
 document.addEventListener('DOMContentLoaded', function() {
@@ -11174,470 +11403,26 @@ console.log = function(...args) {
         showToast(message, type, 3000);
     }
 };
-// ================================================
-// ADVANCED INTELLIGENT REFRESH SYSTEM v2.0
-// ================================================
-(function() {
-    console.log("🔄 Initializing Advanced Refresh System v2.0...");
-    
-    // ============================
-    // 1. REFRESH CONFIGURATION
-    // ============================
-    const RefreshConfig = {
-        // Debounce delays (ms) - prevents excessive refreshes
-        debounce: {
-            fast: 50,      // For UI updates
-            normal: 150,   // For calculations
-            slow: 300      // For heavy operations
-        },
-        
-        // Performance monitoring
-        performance: {
-            enabled: true,
-            logThreshold: 100, // Log operations taking > 100ms
-            maxRefreshTime: 5000 // Warn if refresh takes > 5s
-        },
-        
-        // Selective refresh - only update what's needed
-        selective: true,
-        
-        // Visual feedback
-        showIndicator: true,
-        indicatorDuration: 2000,
-        
-        // Error handling
-        continueOnError: true,
-        maxRetries: 3
-    };
-    
-    // ============================
-    // 2. REFRESH QUEUE MANAGER
-    // ============================
-    class RefreshQueue {
-        constructor() {
-            this.queue = new Set();
-            this.running = false;
-            this.retryCount = new Map();
-        }
-        
-        add(taskName) {
-            this.queue.add(taskName);
-        }
-        
-        async execute() {
-            if (this.running) return;
-            this.running = true;
-            
-            const startTime = performance.now();
-            const tasks = Array.from(this.queue);
-            this.queue.clear();
-            
-            console.log(`📋 Executing ${tasks.length} refresh tasks...`);
-            
-            for (const task of tasks) {
-                try {
-                    await this.executeTask(task);
-                    this.retryCount.delete(task);
-                } catch (error) {
-                    console.error(`❌ Task failed: ${task}`, error);
-                    this.handleTaskError(task, error);
-                }
-            }
-            
-            const duration = performance.now() - startTime;
-            
-            if (RefreshConfig.performance.enabled) {
-                if (duration > RefreshConfig.performance.logThreshold) {
-                    console.log(`⏱️ Refresh completed in ${duration.toFixed(2)}ms`);
-                }
-                if (duration > RefreshConfig.performance.maxRefreshTime) {
-                    console.warn(`⚠️ Slow refresh detected: ${duration.toFixed(2)}ms`);
-                }
-            }
-            
-            this.running = false;
-        }
-        
-        async executeTask(task) {
-            const taskStart = performance.now();
-            
-            switch(task) {
-                case 'netCash':
-                    if (typeof calculateNetCash === 'function') calculateNetCash();
-                    break;
-                case 'cashTracker':
-                    if (typeof calculateCashTracker === 'function') calculateCashTracker();
-                    break;
-                case 'productionUI':
-                    if (typeof refreshUI === 'function') refreshUI();
-                    break;
-                case 'customerSales':
-                    if (typeof refreshCustomerSales === 'function') refreshCustomerSales();
-                    break;
-                case 'paymentTab':
-                    if (typeof refreshPaymentTab === 'function') refreshPaymentTab();
-                    break;
-                case 'calculator':
-                    if (typeof loadSalesData === 'function') loadSalesData(window.currentCompMode || 'all');
-                    break;
-                case 'factoryInventory':
-                    if (typeof renderFactoryInventory === 'function') renderFactoryInventory();
-                    break;
-                case 'factoryTab':
-                    if (typeof refreshFactoryTab === 'function') refreshFactoryTab();
-                    break;
-                case 'entities':
-                    if (typeof renderEntities === 'function') renderEntities();
-                    if (typeof renderEntityCards === 'function') renderEntityCards();
-                    break;
-                case 'charts':
-                    if (typeof updateMfgCharts === 'function') updateMfgCharts();
-                    if (typeof updateCustomerCharts === 'function') updateCustomerCharts();
-                    break;
-                case 'overview':
-                    if (typeof updateAllStoresOverview === 'function') {
-                        updateAllStoresOverview(window.currentOverviewMode || 'day');
-                    }
-                    break;
-                case 'unitTracking':
-                    if (typeof syncFactoryProductionStats === 'function') syncFactoryProductionStats();
-                    break;
-                case 'customersTable':
-                    if (typeof renderCustomersTable === 'function') renderCustomersTable();
-                    break;
-            }
-            
-            const taskDuration = performance.now() - taskStart;
-            if (RefreshConfig.performance.enabled && taskDuration > 50) {
-                console.log(`  ⏱️ ${task}: ${taskDuration.toFixed(2)}ms`);
-            }
-        }
-        
-        handleTaskError(task, error) {
-            const retries = this.retryCount.get(task) || 0;
-            
-            if (retries < RefreshConfig.maxRetries && RefreshConfig.continueOnError) {
-                this.retryCount.set(task, retries + 1);
-                console.log(`🔄 Retrying ${task} (attempt ${retries + 1}/${RefreshConfig.maxRetries})`);
-                setTimeout(() => this.add(task), 500);
-            } else {
-                console.error(`❌ Task ${task} failed after ${retries} retries`);
-                if (window.showToast) {
-                    window.showToast(`System update error: ${task}`, 'error', 3000);
-                }
-            }
-        }
-    }
-    
-    const refreshQueue = new RefreshQueue();
-    
-    // ============================
-    // 3. SMART REFRESH TRIGGER MAP
-    // ============================
-    const RefreshTriggers = {
-        // Production data changes
-        'mfg_pro_pkr': ['productionUI', 'overview', 'charts', 'netCash', 'cashTracker', 'unitTracking'],
-        
-        // Sales data changes
-        'customer_sales': ['customerSales', 'charts', 'netCash', 'cashTracker', 'customersTable'],
-        
-        // Calculator/Representative data
-        'noman_history': ['calculator', 'netCash', 'cashTracker'],
-        
-        // Factory changes
-        'factory_inventory_data': ['factoryInventory', 'factoryTab', 'netCash'],
-        'factory_production_history': ['factoryTab', 'unitTracking', 'productionUI'],
-        'factory_default_formulas': ['factoryTab', 'productionUI', 'customerSales'],
-        'factory_additional_costs': ['factoryTab', 'productionUI', 'customerSales'],
-        'factory_cost_adjustment_factor': ['factoryTab', 'productionUI', 'customerSales'],
-        'factory_sale_prices': ['factoryTab', 'productionUI', 'customerSales'],
-        'factory_unit_tracking': ['factoryTab', 'unitTracking'],
-        
-        // Payment data
-        'payment_entities': ['entities', 'paymentTab', 'netCash'],
-        'payment_transactions': ['paymentTab', 'netCash', 'cashTracker'],
-        
-        // Settings
-        'naswar_default_settings': ['productionUI', 'customerSales', 'calculator']
-    };
-    
-    // ============================
-    // 4. DEBOUNCED REFRESH SCHEDULER
-    // ============================
-    const refreshTimers = new Map();
-    
-    function scheduleRefresh(tasks, delay = RefreshConfig.debounce.normal) {
-        // Add tasks to queue
-        tasks.forEach(task => refreshQueue.add(task));
-        
-        // Clear existing timer
-        if (refreshTimers.has('main')) {
-            clearTimeout(refreshTimers.get('main'));
-        }
-        
-        // Schedule execution
-        const timer = setTimeout(() => {
-            refreshQueue.execute().then(() => {
-                if (RefreshConfig.showIndicator) {
-                    showRefreshIndicator();
-                }
-            });
-            refreshTimers.delete('main');
-        }, delay);
-        
-        refreshTimers.set('main', timer);
-    }
-    
-    // ============================
-    // 5. VISUAL FEEDBACK SYSTEM
-    // ============================
-    function showRefreshIndicator() {
-        let indicator = document.getElementById('globalRefreshIndicator');
-        
-        if (!indicator) {
-            indicator = document.createElement('div');
-            indicator.id = 'globalRefreshIndicator';
-            indicator.style.cssText = `
-                position: fixed;
-                bottom: 20px;
-                right: 20px;
-                background: linear-gradient(135deg, var(--accent-emerald) 0%, var(--accent) 100%);
-                color: white;
-                padding: 10px 18px;
-                border-radius: 25px;
-                font-size: 13px;
-                font-weight: 800;
-                z-index: 10000;
-                box-shadow: 0 4px 15px rgba(0,0,0,0.25), 0 8px 30px rgba(5, 150, 105, 0.3);
-                opacity: 0;
-                transform: translateY(20px) scale(0.9);
-                transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-                pointer-events: none;
-                backdrop-filter: blur(10px);
-                border: 1px solid rgba(255, 255, 255, 0.2);
-            `;
-            document.body.appendChild(indicator);
-        }
-        
-        indicator.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 16px;">✓</span>
-                <span>Synchronized</span>
-            </div>
-        `;
-        
-        // Animate in
-        requestAnimationFrame(() => {
-            indicator.style.opacity = '1';
-            indicator.style.transform = 'translateY(0) scale(1)';
-        });
-        
-        // Animate out
-        setTimeout(() => {
-            indicator.style.opacity = '0';
-            indicator.style.transform = 'translateY(10px) scale(0.95)';
-        }, RefreshConfig.indicatorDuration);
-    }
-    
-    // ============================
-    // 6. STORAGE INTERCEPTOR
-    // ============================
-    const originalSetItem = Storage.prototype.setItem;
-    const originalRemoveItem = Storage.prototype.removeItem;
-    
-    Storage.prototype.setItem = function(key, value) {
-        const changed = this.getItem(key) !== value;
-        originalSetItem.call(this, key, value);
-        
-        if (changed && RefreshTriggers[key]) {
-            console.log(`📦 Storage updated: ${key} → Triggering ${RefreshTriggers[key].length} tasks`);
-            
-            // Update global variables immediately
-            updateGlobalDataFromStorage();
-            
-            // Schedule refresh with intelligent delay
-            const isHeavyOperation = ['mfg_pro_pkr', 'customer_sales'].includes(key);
-            const delay = isHeavyOperation ? RefreshConfig.debounce.slow : RefreshConfig.debounce.normal;
-            
-            scheduleRefresh(RefreshTriggers[key], delay);
-        }
-    };
-    
-    Storage.prototype.removeItem = function(key) {
-        originalRemoveItem.call(this, key);
-        
-        if (RefreshTriggers[key]) {
-            console.log(`🗑️ Storage removed: ${key}`);
-            updateGlobalDataFromStorage();
-            scheduleRefresh(RefreshTriggers[key], RefreshConfig.debounce.fast);
-        }
-    };
-    
-    // ============================
-    // 7. GLOBAL DATA SYNC
-    // ============================
-    function updateGlobalDataFromStorage() {
-        try {
-            // Production data
-            const newDb = JSON.parse(localStorage.getItem('mfg_pro_pkr') || '[]');
-            if (JSON.stringify(newDb) !== JSON.stringify(window.db)) {
-                window.db = newDb;
-            }
-            
-            // Sales data
-            const newCustomerSales = JSON.parse(localStorage.getItem('customer_sales') || '[]');
-            if (JSON.stringify(newCustomerSales) !== JSON.stringify(window.customerSales)) {
-                window.customerSales = newCustomerSales;
-            }
-            
-            // Calculator history
-            const newSalesHistory = JSON.parse(localStorage.getItem('noman_history') || '[]');
-            if (JSON.stringify(newSalesHistory) !== JSON.stringify(window.salesHistory)) {
-                window.salesHistory = newSalesHistory;
-            }
-            
-            // Factory data
-            window.factoryInventoryData = JSON.parse(localStorage.getItem('factory_inventory_data') || '[]');
-            window.factoryProductionHistory = JSON.parse(localStorage.getItem('factory_production_history') || '[]');
-            window.factoryDefaultFormulas = JSON.parse(localStorage.getItem('factory_default_formulas') || '{"standard":[],"asaan":[]}');
-            window.factoryAdditionalCosts = JSON.parse(localStorage.getItem('factory_additional_costs') || '{"standard":0,"asaan":0}');
-            window.factoryCostAdjustmentFactor = JSON.parse(localStorage.getItem('factory_cost_adjustment_factor') || '{"standard":1,"asaan":1}');
-            window.factorySalePrices = JSON.parse(localStorage.getItem('factory_sale_prices') || '{"standard":0,"asaan":0}');
-            window.factoryUnitTracking = JSON.parse(localStorage.getItem('factory_unit_tracking') || '{"standard":{"produced":0,"consumed":0,"available":0,"unitCostHistory":[]},"asaan":{"produced":0,"consumed":0,"available":0,"unitCostHistory":[]}}');
-            
-            // Payment data with validation
-            const entities = JSON.parse(localStorage.getItem('payment_entities') || '[]');
-            const transactions = JSON.parse(localStorage.getItem('payment_transactions') || '[]');
-            
-            window.paymentEntities = Array.isArray(entities) ? entities : [];
-            window.paymentTransactions = Array.isArray(transactions) ? transactions.filter(t => 
-                t && t.id && t.entityId && (t.type === 'IN' || t.type === 'OUT') && typeof t.amount === 'number'
-            ) : [];
-            
-            // Settings
-            window.defaultSettings = JSON.parse(localStorage.getItem('naswar_default_settings') || '{"production":{"STORE_A":{"cost":0,"sale":0},"STORE_B":{"cost":0,"sale":0},"STORE_C":{"cost":0,"sale":0}},"calculator":{"NORAN_SHAH":{"cost":0,"sale":0},"NOMAN_SHAH":{"cost":0,"sale":0}},"sales":{"cost":0,"sale":0}}');
-            
-        } catch (e) {
-            console.error("❌ Failed to sync global data:", e);
-        }
-    }
-    
-    // ============================
-    // 8. PUBLIC API
-    // ============================
-    
-    // Manual refresh - refreshes everything
-    window.refreshAllData = function(showFeedback = true) {
-        console.log("🚀 Manual full refresh triggered");
-        
-        const allTasks = new Set();
-        Object.values(RefreshTriggers).forEach(tasks => {
-            tasks.forEach(task => allTasks.add(task));
-        });
-        
-        updateGlobalDataFromStorage();
-        scheduleRefresh(Array.from(allTasks), RefreshConfig.debounce.fast);
-        
-        if (showFeedback && window.showToast) {
-            window.showToast('System fully synchronized', 'success', 2000);
-        }
-    };
-    
-    // Selective refresh - only refresh specific modules
-    window.refreshModules = function(...modules) {
-        console.log(`🎯 Selective refresh: ${modules.join(', ')}`);
-        scheduleRefresh(modules, RefreshConfig.debounce.fast);
-    };
-    
-    // Force immediate refresh (bypasses debounce)
-    window.forceRefresh = function() {
-        console.log("⚡ Force refresh (immediate)");
-        updateGlobalDataFromStorage();
-        refreshQueue.execute();
-    };
-    
-    // Get refresh statistics
-    window.getRefreshStats = function() {
-        return {
-            queueSize: refreshQueue.queue.size,
-            isRunning: refreshQueue.running,
-            pendingTimers: refreshTimers.size,
-            config: RefreshConfig
-        };
-    };
-    
-    // Update configuration
-    window.configureRefresh = function(newConfig) {
-        Object.assign(RefreshConfig, newConfig);
-        console.log("⚙️ Refresh config updated:", RefreshConfig);
-    };
-    
-    // ============================
-    // 9. INITIALIZATION
-    // ============================
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log("🔧 Advanced Refresh System v2.0 initialized");
-        console.log(`   - Selective refresh: ${RefreshConfig.selective ? 'ON' : 'OFF'}`);
-        console.log(`   - Performance monitoring: ${RefreshConfig.performance.enabled ? 'ON' : 'OFF'}`);
-        console.log(`   - Visual feedback: ${RefreshConfig.showIndicator ? 'ON' : 'OFF'}`);
-        
-        // Initial sync
-        updateGlobalDataFromStorage();
-        
-        // Initial refresh after page load
-        setTimeout(() => {
-            refreshQueue.add('netCash');
-            refreshQueue.add('cashTracker');
-            refreshQueue.execute();
-            
-            if (window.showToast) {
-                window.showToast('System ready', 'success', 2000);
-            }
-        }, 500);
-    });
-    
-    // Tab visibility change handler - pause/resume refreshes
-    document.addEventListener('visibilitychange', function() {
-        if (document.hidden) {
-            console.log("👁️ Tab hidden - pausing refresh timers");
-            // Optionally pause timers when tab is hidden
-        } else {
-            console.log("👁️ Tab visible - resuming refresh");
-            // Trigger a light refresh when tab becomes visible
-            scheduleRefresh(['netCash', 'overview'], RefreshConfig.debounce.fast);
-        }
-    });
-    
-    // ============================
-    // 10. ERROR RECOVERY
-    // ============================
-    window.addEventListener('error', function(event) {
-        if (event.message.includes('refresh') || event.message.includes('calculate')) {
-            console.error("🔥 Critical refresh error detected:", event.message);
-            
-            // Attempt recovery
-            setTimeout(() => {
-                console.log("🔄 Attempting automatic recovery...");
-                updateGlobalDataFromStorage();
-                window.refreshAllData(false);
-            }, 1000);
-        }
-    });
-    
-    console.log("✅ Advanced Refresh System v2.0 ready");
-    
-})();
 
-// ============================
-// ENHANCED TOAST INTEGRATION
-// ============================
-document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => {
-        if (window.showToast) {
-            showToast('Advanced Refresh System Active', 'success', 2000);
-        }
-    }, 1000);
-});
+// --- 1. INITIALIZE RETURN STORAGE ---
+// This stores returns separately so Factory Production records stay clean
+
+
+// --- 2. UI CONTROL ---
+function handleReturnQtyInput() {
+    const retQty = parseFloat(document.getElementById('returnedQuantity').value) || 0;
+    const section = document.getElementById('returnStoreSection');
+    if (retQty > 0) {
+        section.style.display = 'block';
+    } else {
+        section.style.display = 'none';
+    }
+    // Call your existing calculation if it exists
+    if (typeof calculateSales === 'function') calculateSales();
+}
+
+
+
 
 </script>
 </body>
