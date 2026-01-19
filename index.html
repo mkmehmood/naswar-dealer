@@ -3292,7 +3292,8 @@ body.dark-mode .units-available-danger {
     <div class="field">
         <label>Customer Name</label>
         <input type="text" id="cust-name" list="customer-list" placeholder="Search or type new..." 
-               oninput="searchCustomers(this.value)" onchange="selectCustomer(this.value)">
+       oninput="searchCustomers(this.value)">
+
         <datalist id="customer-list"></datalist>
         <div id="customer-search-results" class="hidden" style="position: absolute; z-index: 1000; width: 100%; max-height: 200px; overflow-y: auto; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 10px; margin-top: 5px; box-shadow: var(--shadow);"></div>
     </div>
@@ -4306,8 +4307,7 @@ function toggleDarkMode() {
     const themeToggle = document.getElementById('themeToggle');
     
     body.classList.toggle('dark-mode');
-    
-    // Update the icon
+     // Update the icon
     if (body.classList.contains('dark-mode')) {
         themeToggle.textContent = '☀️';
         themeToggle.title = "Switch to Light Mode";
@@ -4344,6 +4344,325 @@ function initTheme() {
 
 // Call initTheme when the page loads
 window.addEventListener('DOMContentLoaded', initTheme);
+    
+    // ============================================
+// REAL-TIME FORCE SYNC SYSTEM
+// ============================================
+
+// Global sync state tracker
+const syncState = {
+    lastUpdate: {
+        production: 0,
+        sales: 0,
+        calculator: 0,
+        factory: 0,
+        payments: 0,
+        entities: 0
+    },
+    isRefreshing: false,
+    syncInterval: null
+};
+
+// Central data change notifier
+function notifyDataChange(dataType) {
+    syncState.lastUpdate[dataType] = Date.now();
+    triggerAutoSync();
+}
+
+// Main sync orchestrator
+function triggerAutoSync() {
+    if (syncState.isRefreshing) return;
+    
+    syncState.isRefreshing = true;
+    
+    // Use requestAnimationFrame for smooth UI updates
+    requestAnimationFrame(() => {
+        try {
+            // Sync all tabs based on current active tab
+            const activeTab = getCurrentActiveTab();
+            
+            // Always sync these core displays
+            syncCoreDisplays();
+            
+            // Sync tab-specific content
+            switch(activeTab) {
+                case 'prod':
+                    syncProductionTab();
+                    break;
+                case 'sales':
+                    syncSalesTab();
+                    break;
+                case 'calc':
+                    syncCalculatorTab();
+                    break;
+                case 'factory':
+                    syncFactoryTab();
+                    break;
+                case 'payments':
+                    syncPaymentsTab();
+                    break;
+            }
+            
+            // Update cross-tab dependencies
+            syncCrossTabData();
+            
+        } catch (error) {
+            console.error('[SYNC ERROR]', error);
+        } finally {
+            syncState.isRefreshing = false;
+        }
+    });
+}
+
+// Get currently active tab
+function getCurrentActiveTab() {
+    if (!document.getElementById('tab-prod').classList.contains('hidden')) return 'prod';
+    if (!document.getElementById('tab-sales').classList.contains('hidden')) return 'sales';
+    if (!document.getElementById('tab-calc').classList.contains('hidden')) return 'calc';
+    if (!document.getElementById('tab-factory').classList.contains('hidden')) return 'factory';
+    if (!document.getElementById('tab-payments').classList.contains('hidden')) return 'payments';
+    return 'prod';
+}
+
+// Core displays that should always be updated
+function syncCoreDisplays() {
+    // Update units available indicator (Production Tab)
+    if (typeof updateUnitsAvailableIndicator === 'function') {
+        updateUnitsAvailableIndicator();
+    }
+    
+    // Update economic dashboard
+    if (typeof calculateNetCash === 'function') {
+        calculateNetCash();
+    }
+    
+    // Update cash tracker
+    if (typeof calculateCashTracker === 'function') {
+        calculateCashTracker();
+    }
+}
+
+// Production Tab sync
+function syncProductionTab() {
+    if (typeof refreshUI === 'function') {
+        refreshUI();
+    }
+    if (typeof updateAllStoresOverview === 'function') {
+        updateAllStoresOverview(currentOverviewMode);
+    }
+    if (typeof updateMfgCharts === 'function') {
+        updateMfgCharts();
+    }
+}
+
+// Sales Tab sync
+function syncSalesTab() {
+    if (typeof refreshCustomerSales === 'function') {
+        refreshCustomerSales();
+    }
+    if (typeof updateCustomerCharts === 'function') {
+        updateCustomerCharts();
+    }
+    if (typeof renderCustomersTable === 'function') {
+        renderCustomersTable();
+    }
+}
+
+// Calculator Tab sync
+function syncCalculatorTab() {
+    if (typeof loadSalesData === 'function') {
+        loadSalesData(currentCompMode);
+    }
+    if (typeof autoFillTotalSoldQuantity === 'function') {
+        autoFillTotalSoldQuantity();
+    }
+}
+
+// Factory Tab sync
+function syncFactoryTab() {
+    if (typeof updateFactoryUnitsAvailableStats === 'function') {
+        updateFactoryUnitsAvailableStats();
+    }
+    if (typeof updateFactorySummaryCard === 'function') {
+        updateFactorySummaryCard();
+    }
+    if (typeof renderFactoryInventory === 'function') {
+        renderFactoryInventory();
+    }
+    if (typeof renderFactoryHistory === 'function') {
+        renderFactoryHistory();
+    }
+}
+
+// Payments Tab sync
+function syncPaymentsTab() {
+    if (typeof refreshPaymentTab === 'function') {
+        refreshPaymentTab();
+    }
+    if (typeof renderEntityCards === 'function') {
+        renderEntityCards();
+    }
+}
+
+// Cross-tab dependencies sync
+function syncCrossTabData() {
+    // Sync factory production stats (affects all tabs)
+    if (typeof syncFactoryProductionStats === 'function') {
+        syncFactoryProductionStats();
+    }
+    
+    // Update factory inventory value
+    if (typeof updateFactoryInventoryDisplay === 'function') {
+        updateFactoryInventoryDisplay();
+    }
+    
+    // Sync payment summaries
+    if (typeof calculatePaymentSummaries === 'function') {
+        calculatePaymentSummaries();
+    }
+}
+
+// Wrap existing save functions with auto-sync
+function wrapWithAutoSync(funcName, dataType) {
+    const original = window[funcName];
+    if (typeof original === 'function') {
+        window[funcName] = function(...args) {
+            const result = original.apply(this, args);
+            notifyDataChange(dataType);
+            return result;
+        };
+    }
+}
+
+// Initialize auto-sync on key functions
+function initializeAutoSync() {
+    // Production Tab
+    wrapWithAutoSync('recordEntry', 'production');
+    wrapWithAutoSync('deleteProdEntry', 'production');
+    
+    // Sales Tab
+    wrapWithAutoSync('saveCustomerSale', 'sales');
+    wrapWithAutoSync('deleteCustomerSale', 'sales');
+    wrapWithAutoSync('toggleCustomerCreditReceived', 'sales');
+    
+    // Calculator Tab
+    wrapWithAutoSync('saveTransaction', 'calculator');
+    wrapWithAutoSync('deleteSalesEntry', 'calculator');
+    
+    // Factory Tab
+    wrapWithAutoSync('saveFactoryProductionEntry', 'factory');
+    wrapWithAutoSync('deleteFactoryEntry', 'factory');
+    wrapWithAutoSync('saveFactoryInventoryItem', 'factory');
+    wrapWithAutoSync('deleteFactoryInventoryItem', 'factory');
+    wrapWithAutoSync('saveFactoryFormulas', 'factory');
+    
+    // Payments Tab
+    wrapWithAutoSync('savePaymentTransaction', 'payments');
+    wrapWithAutoSync('deletePaymentTransaction', 'payments');
+    wrapWithAutoSync('saveEntity', 'entities');
+    wrapWithAutoSync('deleteEntity', 'entities');
+    
+    // Customer Management
+    wrapWithAutoSync('processBulkPayment', 'sales');
+    wrapWithAutoSync('toggleSingleTransactionStatus', 'sales');
+    
+    console.log('✓ Auto-sync system initialized');
+}
+
+// Periodic sync check (every 1 second)
+function startPeriodicSync() {
+    if (syncState.syncInterval) {
+        clearInterval(syncState.syncInterval);
+    }
+    
+    syncState.syncInterval = setInterval(() => {
+        triggerAutoSync();
+    }, 1000); // Sync every 1 second
+}
+
+// Stop periodic sync (for cleanup)
+function stopPeriodicSync() {
+    if (syncState.syncInterval) {
+        clearInterval(syncState.syncInterval);
+        syncState.syncInterval = null;
+    }
+}
+
+// Listen for localStorage changes from other tabs/windows
+window.addEventListener('storage', function(e) {
+    if (e.key && (
+        e.key === 'mfg_pro_pkr' ||
+        e.key === 'customer_sales' ||
+        e.key === 'noman_history' ||
+        e.key === 'factory_inventory_data' ||
+        e.key === 'factory_production_history' ||
+        e.key === 'payment_entities' ||
+        e.key === 'payment_transactions'
+    )) {
+        // Reload data from localStorage
+        reloadDataFromStorage();
+        // Trigger sync
+        triggerAutoSync();
+    }
+});
+
+// Reload data from localStorage
+function reloadDataFromStorage() {
+    try {
+        db = JSON.parse(localStorage.getItem('mfg_pro_pkr')) || [];
+        customerSales = JSON.parse(localStorage.getItem('customer_sales')) || [];
+        salesHistory = JSON.parse(localStorage.getItem('noman_history')) || [];
+        factoryInventoryData = JSON.parse(localStorage.getItem('factory_inventory_data')) || [];
+        factoryProductionHistory = JSON.parse(localStorage.getItem('factory_production_history')) || [];
+        paymentEntities = JSON.parse(localStorage.getItem('payment_entities')) || [];
+        paymentTransactions = JSON.parse(localStorage.getItem('payment_transactions')) || [];
+        stockReturns = JSON.parse(localStorage.getItem('stock_returns')) || [];
+    } catch (error) {
+        console.error('[RELOAD ERROR]', error);
+    }
+}
+
+// Manual force sync (for debugging)
+window.forceSync = function() {
+    console.log('[FORCE SYNC] Manually triggered');
+    reloadDataFromStorage();
+    triggerAutoSync();
+};
+
+// Tab visibility change sync
+document.addEventListener('visibilitychange', function() {
+    if (!document.hidden) {
+        // Page became visible, force sync
+        reloadDataFromStorage();
+        triggerAutoSync();
+    }
+});
+
+// Enhanced showTab function with auto-sync
+const originalShowTab = window.showTab;
+window.showTab = function(tab) {
+    originalShowTab(tab);
+    // Trigger sync when switching tabs
+    setTimeout(() => triggerAutoSync(), 100);
+};
+
+// ============================================
+// SYNC SYSTEM INITIALIZATION
+// ============================================
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(() => {
+        initializeAutoSync();
+        startPeriodicSync();
+        console.log('✓ Real-time sync system active (1-second intervals)');
+    }, 1000);
+});
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', function() {
+    stopPeriodicSync();
+});
 
     // NEW: Payment entities and transactions
     let paymentEntities = JSON.parse(localStorage.getItem('payment_entities')) || [];
@@ -4837,33 +5156,22 @@ function calculateCashTracker() {
         }
     });
     
-    // 2. Collect SALES data
-    customerSales.forEach(sale => {
-        const saleDate = new Date(sale.date);
-        if (saleDate >= startDate && saleDate <= endDate) {
-            rawData.totalSalesValue += sale.totalValue || 0;
-            rawData.totalSalesQuantity += sale.quantity || 0;
-            
-            const isRepSale = (sale.salesRep === 'NORAN SHAH' || sale.salesRep === 'NOMAN SHAH');
-            
-            if (isRepSale) {
-                rawData.repSalesValue += sale.totalValue || 0;
-                rawData.repSalesQuantity += sale.quantity || 0;
-                
-                if (sale.paymentType === 'CASH' || sale.creditReceived) {
-                    rawData.repSalesCash += sale.totalValue || 0;
-                } else if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
-                    rawData.repSalesCredits += sale.totalValue || 0;
-                }
-            }
-            
-            if (sale.paymentType === 'CASH' || sale.creditReceived) {
-                rawData.salesCash += sale.totalValue || 0;
-            } else if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
-                rawData.salesCredits += sale.totalValue || 0;
-            }
+    // Inside calculateCashTracker() find Phase 1, Step 2: Collect SALES data
+customerSales.forEach(sale => {
+    const saleDate = new Date(sale.date);
+    if (saleDate >= startDate && saleDate <= endDate) {
+        rawData.totalSalesValue += sale.totalValue || 0;
+        
+        // REVISED LOGIC: 
+        // If it was a CASH sale OR a CREDIT sale where the payment was later RECEIVED
+        if (sale.paymentType === 'CASH' || sale.creditReceived === true) {
+            rawData.salesCash += sale.totalValue || 0;
+        } else if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
+            rawData.salesCredits += sale.totalValue || 0;
         }
-    });
+    }
+});
+
     
     // 3. Collect CALCULATOR data (rep collections)
     salesHistory.forEach(item => {
@@ -4874,17 +5182,22 @@ function calculateCashTracker() {
         }
     });
     
-    // 4. Collect PAYMENTS data
+        // 4. Collect PAYMENTS data
     paymentTransactions.forEach(transaction => {
         const transDate = new Date(transaction.date);
         if (transDate >= startDate && transDate <= endDate) {
             if (transaction.type === 'IN') {
                 rawData.paymentsIn += transaction.amount;
             } else if (transaction.type === 'OUT') {
-                rawData.paymentsOut += transaction.amount;
+                // --- FIX: CHECK IF IT IS A PAYABLE ---
+                // We only subtract from Cash in Hand if it is NOT a payable (debt)
+                if (!transaction.isPayable) {
+                    rawData.paymentsOut += transaction.amount;
+                }
             }
         }
     });
+
     
     // ========== PHASE 2: Calculate NET values ==========
     
@@ -10781,22 +11094,26 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 // --- CUSTOMER SEARCH & MANAGEMENT FUNCTIONS ---
 
-// 1. Search customers while typing
+// --- FIX: Advanced Customer Search & Selection ---
+
+// 1. Enhanced Search Function
 function searchCustomers(query) {
     const resultsDiv = document.getElementById('customer-search-results');
     const input = document.getElementById('cust-name');
     
-    // Hide if empty
+    // Safety check
+    if (!resultsDiv || !input) return;
+
+    // Clear and hide if empty
     if (!query || query.length < 1) {
         resultsDiv.classList.add('hidden');
-        document.getElementById('customer-info-display').classList.add('hidden');
         return;
     }
 
-    // Get unique customers from sales history
-    const uniqueCustomers = [...new Set(customerSales.map(s => s.customerName))];
+    // Get unique customers (filter out null/undefined)
+    const uniqueCustomers = [...new Set(customerSales.map(s => s.customerName).filter(n => n))];
     
-    // Filter matches
+    // Filter matches (case-insensitive)
     const matches = uniqueCustomers.filter(name => 
         name.toLowerCase().includes(query.toLowerCase())
     );
@@ -10805,11 +11122,22 @@ function searchCustomers(query) {
     if (matches.length > 0) {
         let html = '';
         matches.forEach(name => {
+            // Escape special chars for the onclick string
+            const safeName = name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            
+            // Use onmousedown instead of onclick to ensure it fires before the input blur event
             html += `
-                <div style="padding: 10px; cursor: pointer; border-bottom: 1px solid var(--glass-border); font-size: 0.85rem;" 
-                     onclick="selectCustomer('${name.replace(/'/g, "\\'")}')"
-                     onmouseover="this.style.background='rgba(37,99,235,0.1)'" 
-                     onmouseout="this.style.background='transparent'">
+                <div style="
+                        padding: 10px; 
+                        cursor: pointer; 
+                        border-bottom: 1px solid var(--glass-border); 
+                        font-size: 0.85rem; 
+                        color: var(--text-main);
+                        background: var(--input-bg);
+                     " 
+                     onmousedown="selectCustomer('${safeName}')"
+                     onmouseover="this.style.background='var(--highlight-bg)'" 
+                     onmouseout="this.style.background='var(--input-bg)'">
                     <strong>${name}</strong>
                 </div>
             `;
@@ -10817,20 +11145,41 @@ function searchCustomers(query) {
         resultsDiv.innerHTML = html;
         resultsDiv.classList.remove('hidden');
     } else {
-        resultsDiv.classList.add('hidden');
+        // Show "Create New" prompt if no match
+        resultsDiv.innerHTML = `
+            <div style="padding: 10px; font-size: 0.8rem; color: var(--text-muted); background: var(--input-bg);">
+                No match found. "${query}" will be created.
+            </div>`;
+        resultsDiv.classList.remove('hidden');
     }
 }
 
-// 2. Select customer from dropdown
+// --- FIX: Corrected Selection Function (No Infinite Loop) ---
 function selectCustomer(name) {
+    console.log("Selecting customer:", name); 
+    
     const input = document.getElementById('cust-name');
     const resultsDiv = document.getElementById('customer-search-results');
     
-    input.value = name;
-    resultsDiv.classList.add('hidden'); // Hide dropdown
+    if(input) {
+        // Just update the value
+        input.value = name;
+        
+        // REMOVED: input.dispatchEvent(new Event('change')); 
+        // ^ This line was causing the crash.
+    }
     
-    calculateCustomerStatsForDisplay(name); // Auto-populate stats
+    if(resultsDiv) {
+        resultsDiv.classList.add('hidden');
+    }
+    
+    // Update the UI stats directly
+    if(typeof calculateCustomerStatsForDisplay === 'function') {
+        calculateCustomerStatsForDisplay(name); 
+    }
 }
+
+
 
 // 3. Calculate and display specific customer stats (Credit & Qty)
 function calculateCustomerStatsForDisplay(name) {
@@ -11420,10 +11769,39 @@ function handleReturnQtyInput() {
     // Call your existing calculation if it exists
     if (typeof calculateSales === 'function') calculateSales();
 }
+// --- FIX: Advanced Customer Table Filter ---
+function filterCustomers() {
+    const input = document.getElementById('customer-filter');
+    const filter = input.value.toLowerCase();
+    const tbody = document.getElementById('customers-table-body');
+    const rows = tbody.getElementsByTagName('tr');
 
+    // Counters for UI feedback
+    let visibleCount = 0;
 
-
-
+    for (let i = 0; i < rows.length; i++) {
+        // Look in the first cell (Name)
+        const nameCell = rows[i].getElementsByTagName('td')[0];
+        
+        if (nameCell) {
+            // Get text from the name cell, ignoring any child elements if necessary
+            const txtValue = nameCell.textContent || nameCell.innerText;
+            
+            if (txtValue.toLowerCase().indexOf(filter) > -1) {
+                rows[i].style.display = "";
+                visibleCount++;
+            } else {
+                rows[i].style.display = "none";
+            }
+        }
+    }
+    
+    // Update the counter text
+    const counterElement = document.getElementById('customer-count');
+    if(counterElement) {
+        counterElement.innerText = `${visibleCount} visible`;
+    }
+}
 </script>
 </body>
 </html>
