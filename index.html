@@ -2021,7 +2021,27 @@ input, textarea, select, [contenteditable] {
         color: white;
         border-color: transparent;
     }
-    
+    /* Add to your existing styles */
+.entity-balance-positive {
+    color: var(--accent-emerald);
+}
+
+.entity-balance-negative {
+    color: var(--danger);
+}
+
+.entity-balance-neutral {
+    color: var(--text-main);
+}
+
+.entity-type-badge {
+    font-size: 0.65rem;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: 800;
+    text-transform: uppercase;
+    backdrop-filter: var(--backdrop-blur);
+}
     /* Add to your existing CSS */
     #cash-net-total {
         font-size: 1.4rem !important;
@@ -4344,12 +4364,10 @@ function initTheme() {
 
 // Call initTheme when the page loads
 window.addEventListener('DOMContentLoaded', initTheme);
-    
-    // ============================================
-// REAL-TIME FORCE SYNC SYSTEM
+// ============================================
+// IMPROVED REAL-TIME SYNC SYSTEM (NON-BLOCKING)
 // ============================================
 
-// Global sync state tracker
 const syncState = {
     lastUpdate: {
         production: 0,
@@ -4360,58 +4378,65 @@ const syncState = {
         entities: 0
     },
     isRefreshing: false,
-    syncInterval: null
+    syncInterval: null,
+    pendingUpdates: new Set()
 };
 
-// Central data change notifier
+// Central data change notifier (non-blocking)
 function notifyDataChange(dataType) {
     syncState.lastUpdate[dataType] = Date.now();
-    triggerAutoSync();
+    syncState.pendingUpdates.add(dataType);
+    
+    // Schedule sync without blocking current operation
+    if (!syncState.isRefreshing) {
+        requestAnimationFrame(() => processSync());
+    }
 }
 
-// Main sync orchestrator
-function triggerAutoSync() {
-    if (syncState.isRefreshing) return;
+// Process sync queue
+function processSync() {
+    if (syncState.isRefreshing || syncState.pendingUpdates.size === 0) return;
     
     syncState.isRefreshing = true;
+    const updates = Array.from(syncState.pendingUpdates);
+    syncState.pendingUpdates.clear();
     
-    // Use requestAnimationFrame for smooth UI updates
-    requestAnimationFrame(() => {
-        try {
-            // Sync all tabs based on current active tab
-            const activeTab = getCurrentActiveTab();
-            
-            // Always sync these core displays
-            syncCoreDisplays();
-            
-            // Sync tab-specific content
-            switch(activeTab) {
-                case 'prod':
-                    syncProductionTab();
+    try {
+        // Sync based on what changed
+        updates.forEach(dataType => {
+            switch(dataType) {
+                case 'production':
+                    if (typeof syncProductionTab === 'function') syncProductionTab();
                     break;
                 case 'sales':
-                    syncSalesTab();
+                    if (typeof syncSalesTab === 'function') syncSalesTab();
                     break;
-                case 'calc':
-                    syncCalculatorTab();
+                case 'calculator':
+                    if (typeof syncCalculatorTab === 'function') syncCalculatorTab();
                     break;
                 case 'factory':
-                    syncFactoryTab();
+                    if (typeof syncFactoryTab === 'function') syncFactoryTab();
                     break;
                 case 'payments':
-                    syncPaymentsTab();
+                case 'entities':
+                    if (typeof syncPaymentsTab === 'function') syncPaymentsTab();
                     break;
             }
-            
-            // Update cross-tab dependencies
-            syncCrossTabData();
-            
-        } catch (error) {
-            console.error('[SYNC ERROR]', error);
-        } finally {
-            syncState.isRefreshing = false;
+        });
+        
+        // Always update core displays
+        syncCoreDisplays();
+        
+    } catch (error) {
+        console.error('[SYNC ERROR]', error);
+    } finally {
+        syncState.isRefreshing = false;
+        
+        // Process any updates that came in during sync
+        if (syncState.pendingUpdates.size > 0) {
+            requestAnimationFrame(() => processSync());
         }
-    });
+    }
 }
 
 // Get currently active tab
@@ -4424,163 +4449,86 @@ function getCurrentActiveTab() {
     return 'prod';
 }
 
-// Core displays that should always be updated
+// Core displays sync
 function syncCoreDisplays() {
-    // Update units available indicator (Production Tab)
-    if (typeof updateUnitsAvailableIndicator === 'function') {
-        updateUnitsAvailableIndicator();
-    }
-    
-    // Update economic dashboard
-    if (typeof calculateNetCash === 'function') {
-        calculateNetCash();
-    }
-    
-    // Update cash tracker
-    if (typeof calculateCashTracker === 'function') {
-        calculateCashTracker();
+    try {
+        if (typeof updateUnitsAvailableIndicator === 'function') {
+            updateUnitsAvailableIndicator();
+        }
+        if (typeof calculateNetCash === 'function') {
+            calculateNetCash();
+        }
+        if (typeof calculateCashTracker === 'function') {
+            calculateCashTracker();
+        }
+    } catch (error) {
+        console.error('[CORE SYNC ERROR]', error);
     }
 }
 
-// Production Tab sync
+// Tab-specific sync functions
 function syncProductionTab() {
-    if (typeof refreshUI === 'function') {
-        refreshUI();
-    }
-    if (typeof updateAllStoresOverview === 'function') {
-        updateAllStoresOverview(currentOverviewMode);
-    }
-    if (typeof updateMfgCharts === 'function') {
-        updateMfgCharts();
+    try {
+        if (typeof refreshUI === 'function') refreshUI();
+        if (typeof updateAllStoresOverview === 'function') updateAllStoresOverview(currentOverviewMode);
+        if (typeof updateMfgCharts === 'function') updateMfgCharts();
+    } catch (error) {
+        console.error('[PRODUCTION SYNC ERROR]', error);
     }
 }
 
-// Sales Tab sync
 function syncSalesTab() {
-    if (typeof refreshCustomerSales === 'function') {
-        refreshCustomerSales();
-    }
-    if (typeof updateCustomerCharts === 'function') {
-        updateCustomerCharts();
-    }
-    if (typeof renderCustomersTable === 'function') {
-        renderCustomersTable();
+    try {
+        if (typeof refreshCustomerSales === 'function') refreshCustomerSales();
+        if (typeof updateCustomerCharts === 'function') updateCustomerCharts();
+        if (typeof renderCustomersTable === 'function') renderCustomersTable();
+    } catch (error) {
+        console.error('[SALES SYNC ERROR]', error);
     }
 }
 
-// Calculator Tab sync
 function syncCalculatorTab() {
-    if (typeof loadSalesData === 'function') {
-        loadSalesData(currentCompMode);
-    }
-    if (typeof autoFillTotalSoldQuantity === 'function') {
-        autoFillTotalSoldQuantity();
+    try {
+        if (typeof loadSalesData === 'function') loadSalesData(currentCompMode);
+        if (typeof autoFillTotalSoldQuantity === 'function') autoFillTotalSoldQuantity();
+    } catch (error) {
+        console.error('[CALCULATOR SYNC ERROR]', error);
     }
 }
 
-// Factory Tab sync
 function syncFactoryTab() {
-    if (typeof updateFactoryUnitsAvailableStats === 'function') {
-        updateFactoryUnitsAvailableStats();
-    }
-    if (typeof updateFactorySummaryCard === 'function') {
-        updateFactorySummaryCard();
-    }
-    if (typeof renderFactoryInventory === 'function') {
-        renderFactoryInventory();
-    }
-    if (typeof renderFactoryHistory === 'function') {
-        renderFactoryHistory();
+    try {
+        if (typeof updateFactoryUnitsAvailableStats === 'function') updateFactoryUnitsAvailableStats();
+        if (typeof updateFactorySummaryCard === 'function') updateFactorySummaryCard();
+        if (typeof renderFactoryInventory === 'function') renderFactoryInventory();
+        if (typeof renderFactoryHistory === 'function') renderFactoryHistory();
+    } catch (error) {
+        console.error('[FACTORY SYNC ERROR]', error);
     }
 }
 
-// Payments Tab sync
 function syncPaymentsTab() {
-    if (typeof refreshPaymentTab === 'function') {
-        refreshPaymentTab();
-    }
-    if (typeof renderEntityCards === 'function') {
-        renderEntityCards();
-    }
-}
-
-// Cross-tab dependencies sync
-function syncCrossTabData() {
-    // Sync factory production stats (affects all tabs)
-    if (typeof syncFactoryProductionStats === 'function') {
-        syncFactoryProductionStats();
-    }
-    
-    // Update factory inventory value
-    if (typeof updateFactoryInventoryDisplay === 'function') {
-        updateFactoryInventoryDisplay();
-    }
-    
-    // Sync payment summaries
-    if (typeof calculatePaymentSummaries === 'function') {
-        calculatePaymentSummaries();
+    try {
+        if (typeof refreshPaymentTab === 'function') refreshPaymentTab();
+        if (typeof renderEntityCards === 'function') renderEntityCards();
+    } catch (error) {
+        console.error('[PAYMENTS SYNC ERROR]', error);
     }
 }
 
-// Wrap existing save functions with auto-sync
-function wrapWithAutoSync(funcName, dataType) {
-    const original = window[funcName];
-    if (typeof original === 'function') {
-        window[funcName] = function(...args) {
-            const result = original.apply(this, args);
-            notifyDataChange(dataType);
-            return result;
-        };
-    }
-}
-
-// Initialize auto-sync on key functions
-function initializeAutoSync() {
-    // Production Tab
-    wrapWithAutoSync('recordEntry', 'production');
-    wrapWithAutoSync('deleteProdEntry', 'production');
-    
-    // Sales Tab
-    wrapWithAutoSync('saveCustomerSale', 'sales');
-    wrapWithAutoSync('deleteCustomerSale', 'sales');
-    wrapWithAutoSync('toggleCustomerCreditReceived', 'sales');
-    
-    // Calculator Tab
-    wrapWithAutoSync('saveTransaction', 'calculator');
-    wrapWithAutoSync('deleteSalesEntry', 'calculator');
-    
-    // Factory Tab
-    wrapWithAutoSync('saveFactoryProductionEntry', 'factory');
-    wrapWithAutoSync('deleteFactoryEntry', 'factory');
-    wrapWithAutoSync('saveFactoryInventoryItem', 'factory');
-    wrapWithAutoSync('deleteFactoryInventoryItem', 'factory');
-    wrapWithAutoSync('saveFactoryFormulas', 'factory');
-    
-    // Payments Tab
-    wrapWithAutoSync('savePaymentTransaction', 'payments');
-    wrapWithAutoSync('deletePaymentTransaction', 'payments');
-    wrapWithAutoSync('saveEntity', 'entities');
-    wrapWithAutoSync('deleteEntity', 'entities');
-    
-    // Customer Management
-    wrapWithAutoSync('processBulkPayment', 'sales');
-    wrapWithAutoSync('toggleSingleTransactionStatus', 'sales');
-    
-    console.log('✓ Auto-sync system initialized');
-}
-
-// Periodic sync check (every 1 second)
+// Debounced sync (every 2 seconds instead of 1)
 function startPeriodicSync() {
     if (syncState.syncInterval) {
         clearInterval(syncState.syncInterval);
     }
     
     syncState.syncInterval = setInterval(() => {
-        triggerAutoSync();
-    }, 1000); // Sync every 1 second
+        if (syncState.pendingUpdates.size > 0) {
+            processSync();
+        }
+    }, 2000);
 }
 
-// Stop periodic sync (for cleanup)
 function stopPeriodicSync() {
     if (syncState.syncInterval) {
         clearInterval(syncState.syncInterval);
@@ -4588,7 +4536,7 @@ function stopPeriodicSync() {
     }
 }
 
-// Listen for localStorage changes from other tabs/windows
+// Listen for storage changes
 window.addEventListener('storage', function(e) {
     if (e.key && (
         e.key === 'mfg_pro_pkr' ||
@@ -4599,14 +4547,12 @@ window.addEventListener('storage', function(e) {
         e.key === 'payment_entities' ||
         e.key === 'payment_transactions'
     )) {
-        // Reload data from localStorage
         reloadDataFromStorage();
-        // Trigger sync
-        triggerAutoSync();
+        notifyDataChange('all');
     }
 });
 
-// Reload data from localStorage
+// Reload data from storage
 function reloadDataFromStorage() {
     try {
         db = JSON.parse(localStorage.getItem('mfg_pro_pkr')) || [];
@@ -4622,40 +4568,36 @@ function reloadDataFromStorage() {
     }
 }
 
-// Manual force sync (for debugging)
+// Manual force sync
 window.forceSync = function() {
     console.log('[FORCE SYNC] Manually triggered');
     reloadDataFromStorage();
-    triggerAutoSync();
+    syncState.pendingUpdates.add('all');
+    processSync();
 };
 
 // Tab visibility change sync
 document.addEventListener('visibilitychange', function() {
     if (!document.hidden) {
-        // Page became visible, force sync
         reloadDataFromStorage();
-        triggerAutoSync();
+        notifyDataChange('all');
     }
 });
 
-// Enhanced showTab function with auto-sync
+// Enhanced showTab with sync
 const originalShowTab = window.showTab;
-window.showTab = function(tab) {
-    originalShowTab(tab);
-    // Trigger sync when switching tabs
-    setTimeout(() => triggerAutoSync(), 100);
-};
-
-// ============================================
-// SYNC SYSTEM INITIALIZATION
-// ============================================
+if (typeof originalShowTab === 'function') {
+    window.showTab = function(tab) {
+        originalShowTab(tab);
+        setTimeout(() => notifyDataChange(tab), 100);
+    };
+}
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
-        initializeAutoSync();
         startPeriodicSync();
-        console.log('✓ Real-time sync system active (1-second intervals)');
+        console.log('✓ Non-blocking sync system active');
     }, 1000);
 });
 
@@ -5094,14 +5036,12 @@ function calculateCashTracker() {
     const selectedDateObj = new Date(selectedDate);
     const selectedYear = selectedDateObj.getFullYear();
     const selectedMonth = selectedDateObj.getMonth();
-    const selectedDay = selectedDateObj.getDate();
     
-    // Calculate date ranges based on mode
     let startDate = new Date(selectedDate);
     let endDate = new Date(selectedDate);
     
     if (currentCashTrackerMode === 'week') {
-        startDate.setDate(selectedDay - 6);
+        startDate.setDate(selectedDateObj.getDate() - 6);
     } else if (currentCashTrackerMode === 'month') {
         startDate = new Date(selectedYear, selectedMonth, 1);
         endDate = new Date(selectedYear, selectedMonth + 1, 0);
@@ -5113,34 +5053,22 @@ function calculateCashTracker() {
         endDate = new Date('2100-12-31');
     }
     
-    // ========== NEW LOGIC STARTS HERE ==========
-    
-    // PHASE 1: Gather ALL raw data
     let rawData = {
-        // Production data
         totalProductionValue: 0,
         totalProductionQuantity: 0,
         productionCredits: 0,
-        
-        // Sales data (including reps)
         totalSalesValue: 0,
         totalSalesQuantity: 0,
         salesCash: 0,
         salesCredits: 0,
-        
-        // Rep-specific sales (Noran/Noman)
         repSalesValue: 0,
         repSalesQuantity: 0,
         repSalesCash: 0,
         repSalesCredits: 0,
-        
-        // Calculator data (rep collections)
         calculatorCash: 0,
         calculatorCredits: 0,
-        
-        // Payments data
         paymentsIn: 0,
-        paymentsOut: 0
+        paymentsOut: 0 // ACTUAL cash expenses (non-payables)
     };
     
     // 1. Collect PRODUCTION data
@@ -5189,11 +5117,11 @@ customerSales.forEach(sale => {
             if (transaction.type === 'IN') {
                 rawData.paymentsIn += transaction.amount;
             } else if (transaction.type === 'OUT') {
-                // --- FIX: CHECK IF IT IS A PAYABLE ---
-                // We only subtract from Cash in Hand if it is NOT a payable (debt)
+                // CRITICAL FIX: Only count as cash out if NOT settling a payable
                 if (!transaction.isPayable) {
                     rawData.paymentsOut += transaction.amount;
                 }
+                // If isPayable = true, it's just moving liability to zero, not spending cash
             }
         }
     });
@@ -5254,6 +5182,7 @@ customerSales.forEach(sale => {
     document.getElementById('cash-payments-in').textContent = `Rs ${safeValue(finalTotals.paymentsIn).toFixed(2)}`;
     document.getElementById('cash-payments-out').textContent = `Rs ${safeValue(finalTotals.paymentsOut).toFixed(2)}`;
     document.getElementById('cash-net-total').textContent = `Rs ${safeValue(netCash).toFixed(2)}`;
+    
     
     // Update Credits Card
     document.getElementById('credit-sales-tab').textContent = `Rs ${safeValue(finalTotals.salesTabCredits).toFixed(2)}`;
@@ -5414,69 +5343,104 @@ function closeEntityTransactions() {
     }
 
     // --- PAYMENTS TAB: TRANSACTION MANAGEMENT ---
-    function savePaymentTransaction() {
-        const entityId = parseInt(document.getElementById('paymentEntity').value);
-        const date = document.getElementById('paymentDate').value;
-        const amount = parseFloat(document.getElementById('paymentAmount').value) || 0;
-        const description = document.getElementById('paymentDescription').value.trim();
-        const type = document.querySelector('input[name="paymentTransactionType"]:checked').value;
-        
-        if (!entityId) {
-            alert("Please select an entity");
-            return;
-        }
-        if (!date) {
-            alert("Please select a date");
-            return;
-        }
-        if (amount <= 0) {
-            alert("Please enter a valid amount");
-            return;
-        }
-        if (!description) {
-            alert("Please enter a description");
-            return;
-        }
-        
-        const entity = paymentEntities.find(e => e.id === entityId);
-        if (!entity) {
-            alert("Selected entity not found");
-            return;
-        }
-        
-        const now = new Date();
-        let hours = now.getHours();
-        const minutes = now.getMinutes();
-        const seconds = now.getSeconds();
-        const ampm = hours >= 12 ? 'PM' : 'AM';
-        hours = hours % 12;
-        hours = hours ? hours : 12;
-        const timeString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} ${ampm}`;
-        
-        paymentTransactions.push({
-            id: Date.now(),
-            entityId: entityId,
-            entityName: entity.name,
-            entityType: entity.type,
-            date: date,
-            time: timeString,
-            amount: amount,
-            description: description,
-            type: type, // 'IN' or 'OUT'
-            timestamp: new Date(date).getTime()
-        });
-        
-        localStorage.setItem('payment_transactions', JSON.stringify(paymentTransactions));
-        
-        // Clear form
-        document.getElementById('paymentAmount').value = '';
-        document.getElementById('paymentDescription').value = '';
-        document.getElementById('payment-type-out').checked = true;
-        
-        refreshPaymentTab();
-        calculateNetCash();
-        alert("Payment transaction saved successfully!");
+    // UPDATED: Save Payment Transaction with Proper Cash Flow Impact
+function savePaymentTransaction() {
+    const entityId = parseInt(document.getElementById('paymentEntity').value);
+    const date = document.getElementById('paymentDate').value;
+    const amount = parseFloat(document.getElementById('paymentAmount').value) || 0;
+    const description = document.getElementById('paymentDescription').value.trim();
+    const type = document.querySelector('input[name="paymentTransactionType"]:checked').value;
+    
+    if (!entityId) {
+        showToast("Please select an entity", 'warning');
+        return;
     }
+    if (!date) {
+        showToast("Please select a date", 'warning');
+        return;
+    }
+    if (amount <= 0) {
+        showToast("Please enter a valid amount", 'warning');
+        return;
+    }
+    if (!description) {
+        showToast("Please enter a description", 'warning');
+        return;
+    }
+    
+    const entity = paymentEntities.find(e => e.id === entityId);
+    if (!entity) {
+        showToast("Selected entity not found", 'error');
+        return;
+    }
+    
+    const now = new Date();
+    let hours = now.getHours();
+    const minutes = now.getMinutes();
+    const seconds = now.getSeconds();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const timeString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} ${ampm}`;
+    
+    // Check if this payment is settling a material purchase
+    let isPayable = false;
+    let materialId = null;
+    
+    // If paying OUT to a supplier, check for pending materials
+    if (type === 'OUT' && entity.isSupplier) {
+        const pendingMaterials = factoryInventoryData.filter(m => 
+            m.supplierId === entityId && 
+            m.paymentStatus === 'pending' &&
+            m.totalPayable > 0
+        );
+        
+        if (pendingMaterials.length > 0) {
+            // Auto-mark oldest pending material as paid
+            const oldestMaterial = pendingMaterials[0];
+            if (amount >= oldestMaterial.totalPayable) {
+                oldestMaterial.paymentStatus = 'paid';
+                oldestMaterial.paidDate = date;
+                materialId = oldestMaterial.id;
+                isPayable = true;
+                localStorage.setItem('factory_inventory_data', JSON.stringify(factoryInventoryData));
+            }
+        }
+    }
+    
+    paymentTransactions.push({
+        id: Date.now(),
+        entityId: entityId,
+        entityName: entity.name,
+        entityType: entity.type, // Keep for reference but don't use for logic
+        date: date,
+        time: timeString,
+        amount: amount,
+        description: description,
+        type: type, // 'IN' or 'OUT'
+        materialId: materialId,
+        isPayable: isPayable, // Marks if this is settling a debt vs actual cash expense
+        timestamp: new Date(date).getTime()
+    });
+    
+    localStorage.setItem('payment_transactions', JSON.stringify(paymentTransactions));
+    
+    // Clear form
+    document.getElementById('paymentAmount').value = '';
+    document.getElementById('paymentDescription').value = '';
+    document.getElementById('payment-type-out').checked = true;
+    
+    refreshPaymentTab();
+    calculateNetCash();
+    calculateCashTracker();
+    
+    let message = `Payment ${type === 'IN' ? 'received from' : 'made to'} ${entity.name}`;
+    if (isPayable) {
+        message += ' (Material purchase settled)';
+    }
+    showToast(message, 'success');
+}
+
     
     function deletePaymentTransaction(id) {
         if (confirm("Are you sure you want to delete this payment transaction?")) {
@@ -6263,6 +6227,7 @@ function updateFactoryInventoryDisplay() {
     }
     
     // --- UPDATED: FACTORY INVENTORY SAVE FUNCTION ---
+// UPDATED: saveFactoryInventoryItem function
 function saveFactoryInventoryItem() {
     const name = document.getElementById('factoryMaterialName').value;
     const qty = parseFloat(document.getElementById('factoryMaterialQuantity').value) || 0;
@@ -6295,11 +6260,12 @@ function saveFactoryInventoryItem() {
             quantity: qty, 
             cost, 
             unit, 
-            totalValue 
+            totalValue,
+            paymentStatus: 'pending' // NEW: Mark as unpaid by default
         });
     }
 
-    // --- NEW LOGIC: Handle supplier linkage ---
+    // --- UPDATED LOGIC: Handle supplier linkage ---
     if (supplierType === 'existing') {
         const existingSupplierId = parseInt(document.getElementById('factoryExistingSupplier').value);
         if (existingSupplierId) {
@@ -6311,7 +6277,6 @@ function saveFactoryInventoryItem() {
         const supplierPhone = document.getElementById('factorySupplierPhone').value.trim();
         
         if (supplierName) {
-            // Create new supplier entity
             const newSupplier = createSupplierFromMaterial({
                 name: supplierName,
                 phone: supplierPhone,
@@ -6320,7 +6285,6 @@ function saveFactoryInventoryItem() {
                 materialTotal: totalValue
             });
             
-            // Link material to this new supplier
             if (newSupplier && newSupplier.id) {
                 linkMaterialToSupplier(materialId, newSupplier.id, totalValue);
             }
@@ -6331,10 +6295,13 @@ function saveFactoryInventoryItem() {
     renderFactoryInventory();
     closeFactoryInventoryModal();
     
-    // Refresh the payment tab to show new entities
+    // IMPORTANT: Refresh payment tab to show updated payables
     refreshPaymentTab();
-    alert("Material saved successfully!");
+    calculateNetCash(); // Recalculate with new payable
+    
+    showToast("Material saved! Liability added to Accounts Payable.", 'success');
 }
+
 
 // --- UPDATED: CREATE SUPPLIER FROM MATERIAL FUNCTION ---
 function createSupplierFromMaterial(supplierData) {
@@ -8392,114 +8359,161 @@ function renderEntityList() {
         footer.style.display = 'table-row';
     }
 }
-
+// --- UPDATED: RENDER ENTITY CARDS ---
 function renderEntityCards() {
-    const entityListBody = document.getElementById('entityListBody');
-    const footer = document.getElementById('entityListFooter');
+    const entityGrid = document.getElementById('entityCardsGrid');
+    const entityFooter = document.getElementById('entityListFooter');
     
-    if (!entityListBody) return;
+    if (!entityGrid) return;
     
-    entityListBody.innerHTML = '';
+    entityGrid.innerHTML = '';
     
-    if (!paymentEntities || paymentEntities.length === 0) {
-        entityListBody.innerHTML = `
-        
-            <tr>
-                <td colspan="4" style="text-align:center; padding:20px; color:var(--text-muted);">
-                    No entities found. Click the <span style="color:var(--accent);">✨</span> button to add entities.
-                </td>
-            </tr>
+    if (paymentEntities.length === 0) {
+        entityGrid.innerHTML = `
+            <div class="no-entities-message">
+                <p>No entities found. Create your first entity to track payments.</p>
+                <button class="btn-theme" onclick="openEntityManagement()">+ Add First Entity</button>
+            </div>
         `;
-        if (footer) footer.style.display = 'none';
+        entityFooter.style.display = 'none';
         return;
     }
     
-    // Sort entities by name
-    const sortedEntities = [...paymentEntities].sort((a, b) => a.name.localeCompare(b.name));
+    // Calculate entity balances using the NEW logic
+    const entityBalances = calculateEntityBalances();
+    let totalBalance = 0;
+    let activeCount = 0;
     
-    // Create a responsive grid for cards
-    const cardsContainer = document.createElement('div');
-    cardsContainer.className = 'entity-grid';
-    cardsContainer.style.gridTemplateColumns = 'repeat(auto-fill, minmax(200px, 1fr))';
+    // Sort entities: Liabilities (Negative) first, then Receivables
+    const sortedEntities = [...paymentEntities].sort((a, b) => {
+        const balanceA = entityBalances[a.id] || 0;
+        const balanceB = entityBalances[b.id] || 0;
+        return balanceA - balanceB; // Sorts negative (payables) to the top
+    });
     
     sortedEntities.forEach(entity => {
-        // Calculate entity balance
-        const entityTransactions = paymentTransactions.filter(t => t.entityId === entity.id);
-        let entityIn = 0, entityOut = 0;
+        const balance = entityBalances[entity.id] || 0;
         
-        entityTransactions.forEach(transaction => {
-            if (transaction.type === 'IN') {
-                entityIn += transaction.amount;
-            } else if (transaction.type === 'OUT') {
-                entityOut += transaction.amount;
-            }
-        });
+        if (Math.abs(balance) > 0.01) activeCount++;
+        totalBalance += balance;
         
-        const netBalance = entityIn - entityOut;
-        const balanceColor = netBalance >= 0 ? 'profit-val' : 'cost-val';
-        const balancePrefix = netBalance >= 0 ? '+' : '';
+        // Get dynamic styling based on the new math
+        let roleInfo = getDynamicRole(balance);
         
         const card = document.createElement('div');
-        card.className = 'entity-card liquid-card';
-        card.style.position = 'relative';
-        card.style.padding = '12px';
-        card.style.minHeight = 'auto';
+        card.className = `entity-card-compact ${selectedEntityId === entity.id ? 'active' : ''}`;
+        card.dataset.id = entity.id;
+        
+        const roleBadgeHtml = `
+            <span class="entity-type-badge" style="background: ${roleInfo.badgeColor}; color: white;">
+                ${roleInfo.icon} ${roleInfo.label}
+            </span>
+        `;
+        
+        const phoneDisplay = entity.phone ? `
+            <div class="entity-contact">
+                <span style="font-size:0.9rem;">📱</span>
+                <span>${entity.phone}</span>
+            </div>
+        ` : '';
+        
+        const walletDisplay = entity.wallet ? `
+            <div class="entity-contact" style="margin-top:2px;">
+                <span style="font-size:0.9rem;">💳</span>
+                <span style="font-size:0.7rem;">${entity.wallet}</span>
+            </div>
+        ` : '';
+        
+        // Format the balance for display
+        const displayBalance = Math.abs(balance).toFixed(2);
         
         card.innerHTML = `
-            <div class="customer-name" style="margin-bottom:8px; font-size:0.9rem;">
-                ${entity.name}
+            <div class="entity-header">
+                <h4 class="entity-name">${entity.name}</h4>
+                ${roleBadgeHtml}
             </div>
             
-            ${entity.phone ? `
-            <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:5px;">
-                📱 ${entity.phone}
-            </div>
-            ` : ''}
+            ${phoneDisplay}
+            ${walletDisplay}
             
-            <hr style="margin:8px 0;">
-            
-            <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-                <span style="font-size:0.75rem; color:var(--text-muted);">Balance:</span>
-                <span class="${balanceColor}" style="font-weight:800; font-size:0.9rem;">
-                    ${Math.abs(netBalance).toFixed(2)}
-                </span>
+            <div class="entity-balance">
+                <div class="entity-balance-label">${roleInfo.label} Amount</div>
+                <div class="entity-balance-value ${roleInfo.colorClass}">
+                    ${roleInfo.sign}Rs ${displayBalance}
+                </div>
             </div>
             
-            <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
-                <span style="font-size:0.75rem; color:var(--text-muted);">Transactions:</span>
-                <span style="font-weight:700; color:var(--text-main);">${entityTransactions.length}</span>
-            </div>
-            
-            <div style="display:flex; gap:5px;">
-                <button class="btn btn-sm" style="flex:1; padding:4px 6px; font-size:0.7rem; background:var(--accent); color:white;" 
-                        onclick="selectEntity(${entity.id})">
-                    Select
-                </button>
-                <button class="btn btn-sm" style="flex:1; padding:4px 6px; font-size:0.7rem; background:var(--input-bg); color:var(--text-main);" 
-                        onclick="editEntity(${entity.id})">
+            <div class="entity-actions">
+                <button class="entity-action-btn edit" onclick="event.stopPropagation(); editEntity(${entity.id})">
                     Edit
+                </button>
+                <button class="entity-action-btn transactions" onclick="event.stopPropagation(); openEntityTransactions(${entity.id})">
+                    View
                 </button>
             </div>
         `;
         
-        cardsContainer.appendChild(card);
+        card.onclick = () => selectEntity(entity.id);
+        entityGrid.appendChild(card);
     });
     
-    // Clear and add the container
-    entityListBody.innerHTML = '';
-    const row = document.createElement('tr');
-    const cell = document.createElement('td');
-    cell.colSpan = 4;
-    cell.style.padding = '0';
-    cell.appendChild(cardsContainer);
-    row.appendChild(cell);
-    entityListBody.appendChild(row);
-    
-    // Hide footer in card view
-    if (footer) {
-        footer.style.display = 'none';
+    // Update footer
+    if (entityFooter) {
+        entityFooter.style.display = 'block';
+        const totalEl = document.getElementById('entityListTotalBalance');
+        
+        // Color the total based on whether we overall OWE or are OWED
+        if (totalBalance > 0) {
+            totalEl.style.color = 'var(--accent-emerald)'; // Net Receivable
+            totalEl.textContent = `+ Rs ${Math.abs(totalBalance).toFixed(2)}`;
+        } else if (totalBalance < 0) {
+            totalEl.style.color = 'var(--danger)'; // Net Payable
+            totalEl.textContent = `- Rs ${Math.abs(totalBalance).toFixed(2)}`;
+        } else {
+            totalEl.style.color = 'var(--accent)';
+            totalEl.textContent = `Rs 0.00`;
+        }
+        
+        document.getElementById('entityCount').textContent = paymentEntities.length;
+        document.getElementById('activeEntityCount').textContent = activeCount;
     }
 }
+
+
+// NEW: Helper function to determine dynamic role
+// --- UPDATED: DYNAMIC ROLE HELPER ---
+function getDynamicRole(balance) {
+    // Threshold to handle floating point errors
+    if (balance > 0.01) {
+        // Positive Balance: They owe me money (Receivable/Asset)
+        return {
+            label: 'Receivable',
+            icon: '↑',
+            colorClass: 'entity-balance-positive',
+            badgeColor: 'linear-gradient(135deg, #059669 0%, #047857 100%)', // Green
+            sign: '+'
+        };
+    } else if (balance < -0.01) {
+        // Negative Balance: I owe them money (Payable/Liability)
+        return {
+            label: 'Payable',
+            icon: '↓',
+            colorClass: 'entity-balance-negative',
+            badgeColor: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)', // Red
+            sign: '' // Negative sign is automatic in number formatting
+        };
+    } else {
+        // Zero Balance: Settled
+        return {
+            label: 'Settled',
+            icon: '✓',
+            colorClass: 'entity-balance-neutral',
+            badgeColor: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)', // Blue
+            sign: ''
+        };
+    }
+}
+
 
 function filterEntityList() {
     const searchTerm = document.getElementById('entity-list-search')?.value.toLowerCase() || '';
@@ -10847,24 +10861,58 @@ function renderEntityCards() {
     }
 }
 
+// Updated Entity Balance Calculation with Dynamic Role
+// --- UPDATED: ENTITY BALANCE CALCULATION (Ledger Logic) ---
 function calculateEntityBalances() {
     const balances = {};
     
+    // Initialize all entities at 0
     paymentEntities.forEach(entity => {
         balances[entity.id] = 0;
     });
-    
+
+    // 1. Process all TRANSACTIONS (The Ledger)
     paymentTransactions.forEach(transaction => {
         if (balances[transaction.entityId] !== undefined) {
+            // LOGIC CHANGE HERE:
             if (transaction.type === 'IN') {
-                balances[transaction.entityId] += transaction.amount;
-            } else if (transaction.type === 'OUT') {
+                // Money IN: I received money. 
+                // Effect: Reduces what they owe me (Asset decreases)
                 balances[transaction.entityId] -= transaction.amount;
+            } else if (transaction.type === 'OUT') {
+                // Money OUT: I paid money.
+                // Effect: Reduces what I owe them (Liability decreases/becomes positive)
+                balances[transaction.entityId] += transaction.amount;
+            }
+        }
+    });
+    
+    // 2. Process all SUPPLIER INVOICES (Liabilities)
+    // We subtract ALL supplier-linked inventory costs to create the liability (Negative Balance).
+    // Note: We include ALL items regardless of 'paymentStatus' because the 
+    // offsetting 'Transaction' (processed above in step 1) balances it out.
+    factoryInventoryData.forEach(material => {
+        if (material.supplierId && material.totalPayable) {
+            if (balances[material.supplierId] !== undefined) {
+                // Purchase = Liability = Negative Balance
+                balances[material.supplierId] -= material.totalPayable;
             }
         }
     });
     
     return balances;
+}
+
+
+// Helper function to get dynamic role based on balance
+function getEntityRole(balance) {
+    if (balance > 0) {
+        return { role: 'Receivable', color: 'profit-val', icon: '↑' }; // They owe you
+    } else if (balance < 0) {
+        return { role: 'Payable', color: 'cost-val', icon: '↓' }; // You owe them
+    } else {
+        return { role: 'Settled', color: 'qty-val', icon: '=' }; // Balanced
+    }
 }
 
 function filterEntityCards() {
@@ -11802,6 +11850,11 @@ function filterCustomers() {
         counterElement.innerText = `${visibleCount} visible`;
     }
 }
+
+
+
+
+
 </script>
 </body>
 </html>
