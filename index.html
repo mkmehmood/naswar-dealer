@@ -3048,6 +3048,11 @@ body.dark-mode .units-available-danger {
             <h3 style="color:var(--text-main); margin:0;">Data Options</h3>
             <button class="btn-theme" onclick="closeDataMenu()">✕</button>
         </div>
+        <hr style="width: 100%; border: 0; border-top: 1px solid var(--glass-border); margin: 5px 0;">
+<button class="btn" id="bio-toggle-btn" style="background: rgba(37, 99, 235, 0.1); color: var(--text-main); border: 1px solid var(--glass-border);" onclick="enableBiometricLock()">
+    Enable Biometric Lock 👆
+</button>
+
         
         <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
             <button class="btn btn-main" onclick="triggerCloudBackup()">
@@ -8071,9 +8076,9 @@ function createAuthOverlay() {
     // Liquid Card styling to match main app cards
     overlay.innerHTML = `
         <div class="liquid-card" style="max-width: 400px; width: 90%; padding: 40px 30px; text-align: center; border: 1px solid var(--glass-border); box-shadow: 0 20px 50px rgba(37, 99, 235, 0.15);">
-            <div style="font-size: 3.5rem; margin-bottom: 10px;">🌥️</div>
-            <h2 class="shimmer-text" style="font-family: 'Great Vibes', cursive; font-size: 2.5rem; margin: 0 0 20px 0;">
-                Naswar Dealers
+            <div style="font-size: 3.5rem; margin-bottom: 10px;">🏞️</div>
+            <h2 class="shimmer-text" style="font-family: 'sans-serif', cursive; font-size: 2.5rem; margin: 0 0 20px 0;">
+               GULL AND ZUBAIR NASWAR DEALER'S
             </h2>
             
             <p style="color: var(--text-muted); margin-bottom: 30px; font-size: 0.9rem;">
@@ -11116,6 +11121,16 @@ function reverseReturnFromProduction(storeKey, quantity, date) {
         initSupabase();
     }, 100);
         initSplashScreen();
+        // Add this inside your existing window.onload function
+if (localStorage.getItem('bio_enabled') === 'true') {
+    const btn = document.getElementById('bio-toggle-btn');
+    if (btn) {
+        btn.innerText = "Disable Biometric Lock"; // Or keep the icon and just change onclick
+        btn.onclick = disableBiometricLock;
+        btn.classList.add('active'); // Optional: Add a style for active state
+    }
+}
+
         
         const today = new Date();
         const year = today.getFullYear();
@@ -12481,6 +12496,182 @@ function unifiedBackup() {
     openDataMenu(); 
 }
 
+// --- BIOMETRIC AUTHENTICATION MODULE ---
+
+const BiometricAuth = {
+    // Check if device supports biometrics
+    isAvailable: async () => {
+        if (!window.PublicKeyCredential) return false;
+        
+        // Check for platform authenticator (TouchID/FaceID/Windows Hello)
+        const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+        return available;
+    },
+
+    // Convert string to Uint8Array (needed for WebAuthn)
+    _strToBin: (str) => {
+        return Uint8Array.from(str, c => c.charCodeAt(0));
+    },
+
+    // Convert ArrayBuffer to Base64 (to save in localStorage)
+    _bufToBase64: (buffer) => {
+        const bytes = new Uint8Array(buffer);
+        let binary = '';
+        for (let i = 0; i < bytes.byteLength; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        return window.btoa(binary);
+    },
+
+    // Convert Base64 to ArrayBuffer
+    _base64ToBuf: (base64) => {
+        const binary_string = window.atob(base64);
+        const len = binary_string.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+            bytes[i] = binary_string.charCodeAt(i);
+        }
+        return bytes.buffer;
+    },
+
+    // REGISTER: Create a new biometric lock
+    register: async (username = 'User') => {
+        try {
+            if (!await BiometricAuth.isAvailable()) {
+                throw new Error("Biometrics not available on this device.");
+            }
+
+            // Random challenge (usually from server, but generated locally here)
+            const challenge = new Uint8Array(32);
+            window.crypto.getRandomValues(challenge);
+
+            const userId = new Uint8Array(16);
+            window.crypto.getRandomValues(userId);
+
+            const publicKey = {
+                challenge: challenge,
+                rp: { name: "Naswar Dealers App" }, // Name shown in the prompt
+                user: {
+                    id: userId,
+                    name: username,
+                    displayName: username
+                },
+                pubKeyCredParams: [{ alg: -7, type: "public-key" }],
+                authenticatorSelection: {
+                    authenticatorAttachment: "platform", // Forces TouchID/FaceID
+                    userVerification: "required"
+                },
+                timeout: 60000
+            };
+
+            const credential = await navigator.credentials.create({ publicKey });
+            
+            // Save the Credential ID to recognize this user later
+            const credId = BiometricAuth._bufToBase64(credential.rawId);
+            localStorage.setItem('bio_cred_id', credId);
+            localStorage.setItem('bio_enabled', 'true');
+            
+            return true;
+        } catch (err) {
+            console.error("Biometric Registration Failed:", err);
+            throw err;
+        }
+    },
+
+    // AUTHENTICATE: Unlock using biometrics
+    authenticate: async () => {
+        try {
+            const savedCredId = localStorage.getItem('bio_cred_id');
+            if (!savedCredId) throw new Error("No biometric set up found.");
+
+            const challenge = new Uint8Array(32);
+            window.crypto.getRandomValues(challenge);
+
+            const publicKey = {
+                challenge: challenge,
+                allowCredentials: [{
+                    id: BiometricAuth._base64ToBuf(savedCredId),
+                    type: "public-key",
+                    transports: ["internal"] // hints at internal authenticators
+                }],
+                userVerification: "required"
+            };
+
+            await navigator.credentials.get({ publicKey });
+            return true; // If this line is reached, authentication passed
+        } catch (err) {
+            console.error("Authentication failed", err);
+            return false;
+        }
+    }
+};
+
+// --- UI INTEGRATION FUNCTIONS ---
+
+async function enableBiometricLock() {
+    try {
+        const success = await BiometricAuth.register("Manager");
+        if(success) {
+            showToast("Biometric Lock Enabled! 🔒", "success");
+            // Update UI to show it's enabled
+            document.getElementById('bio-toggle-btn').innerText = "Disable Biometric Lock";
+            document.getElementById('bio-toggle-btn').onclick = disableBiometricLock;
+        }
+    } catch (e) {
+        showToast("Setup failed: " + e.message, "error");
+    }
+}
+
+function disableBiometricLock() {
+    if(confirm("Remove biometric lock?")) {
+        localStorage.removeItem('bio_enabled');
+        localStorage.removeItem('bio_cred_id');
+        showToast("Biometric Lock Removed", "info");
+        document.getElementById('bio-toggle-btn').innerText = "Enable Biometric Lock 👆";
+        document.getElementById('bio-toggle-btn').onclick = enableBiometricLock;
+    }
+}
+
+// Function to run on app start
+async function checkBiometricLock() {
+    const isEnabled = localStorage.getItem('bio_enabled') === 'true';
+    
+    if (isEnabled) {
+        // Create a lock screen overlay
+        const lockScreen = document.createElement('div');
+        lockScreen.id = 'app-lock-screen';
+        lockScreen.style.cssText = `
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-gradient); z-index: 100000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        `;
+        lockScreen.innerHTML = `
+            <div style="font-size: 4rem; margin-bottom: 20px;">🔒</div>
+            <h2 style="color: var(--text-main);">App Locked</h2>
+            <button class="btn btn-main" style="margin-top: 20px; padding: 15px 30px;" onclick="triggerUnlock()">
+                Unlock with Biometrics
+            </button>
+        `;
+        document.body.appendChild(lockScreen);
+
+        // Define unlock function
+        window.triggerUnlock = async () => {
+            const success = await BiometricAuth.authenticate();
+            if (success) {
+                document.getElementById('app-lock-screen').remove();
+                showToast("Unlocked", "success");
+            } else {
+                showToast("Authentication Failed", "error");
+            }
+        };
+
+        // Try to unlock automatically immediately
+        window.triggerUnlock();
+    }
+}
+
+// Run the check when page loads
+document.addEventListener('DOMContentLoaded', checkBiometricLock);
 
 
 </script>
