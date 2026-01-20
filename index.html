@@ -4007,7 +4007,10 @@ body.dark-mode .units-available-danger {
             <span>Direct Customer Credits:</span>
             <span class="formula-value" id="salesReceivables">Rs 0.00</span>
         </div>
-        
+        <div class="formula-item">
+    <span>Production Tab Credits:</span>
+    <span class="formula-value" id="productionReceivables">Rs 0.00</span>
+</div>
         <div class="formula-item">
             <span>Representative Credits:</span>
             <span class="formula-value" id="calculatorReceivables">Rs 0.00</span>
@@ -5029,8 +5032,6 @@ function setCashTrackerMode(mode) {
     
     calculateCashTracker();
 }
-
-// --- UPDATE calculateCashTracker FUNCTION ---
 function calculateCashTracker() {
     const selectedDate = document.getElementById('paymentDate').value || new Date().toISOString().split('T')[0];
     const selectedDateObj = new Date(selectedDate);
@@ -5066,9 +5067,10 @@ function calculateCashTracker() {
         repSalesCash: 0,
         repSalesCredits: 0,
         calculatorCash: 0,
-        calculatorCredits: 0,
+        calculatorCredits: 0,   // Will store Total Issued Credit
+        calculatorRecovered: 0, // NEW: Will store Total Recovered Credit (prevColl)
         paymentsIn: 0,
-        paymentsOut: 0 // ACTUAL cash expenses (non-payables)
+        paymentsOut: 0 
     };
     
     // 1. Collect PRODUCTION data
@@ -5084,44 +5086,54 @@ function calculateCashTracker() {
         }
     });
     
-    // Inside calculateCashTracker() find Phase 1, Step 2: Collect SALES data
-customerSales.forEach(sale => {
-    const saleDate = new Date(sale.date);
-    if (saleDate >= startDate && saleDate <= endDate) {
-        rawData.totalSalesValue += sale.totalValue || 0;
-        
-        // REVISED LOGIC: 
-        // If it was a CASH sale OR a CREDIT sale where the payment was later RECEIVED
-        if (sale.paymentType === 'CASH' || sale.creditReceived === true) {
-            rawData.salesCash += sale.totalValue || 0;
-        } else if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
-            rawData.salesCredits += sale.totalValue || 0;
+    // 2. Collect SALES data
+    customerSales.forEach(sale => {
+        const saleDate = new Date(sale.date);
+        if (saleDate >= startDate && saleDate <= endDate) {
+            rawData.totalSalesValue += sale.totalValue || 0;
+            rawData.totalSalesQuantity += sale.quantity || 0;
+            
+            const isRepSale = (sale.salesRep === 'NORAN SHAH' || sale.salesRep === 'NOMAN SHAH');
+            
+            if (isRepSale) {
+                rawData.repSalesValue += sale.totalValue || 0;
+                rawData.repSalesQuantity += sale.quantity || 0;
+                
+                if (sale.paymentType === 'CASH' || sale.creditReceived) {
+                    rawData.repSalesCash += sale.totalValue || 0;
+                } else if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
+                    rawData.repSalesCredits += sale.totalValue || 0;
+                }
+            }
+            
+            if (sale.paymentType === 'CASH' || sale.creditReceived) {
+                rawData.salesCash += sale.totalValue || 0;
+            } else if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
+                rawData.salesCredits += sale.totalValue || 0;
+            }
         }
-    }
-});
+    });
 
-    
     // 3. Collect CALCULATOR data (rep collections)
     salesHistory.forEach(item => {
         const itemDate = new Date(item.date);
         if (itemDate >= startDate && itemDate <= endDate) {
             rawData.calculatorCash += item.received || 0;
-            rawData.calculatorCredits += item.creditValue || 0;
+            rawData.calculatorCredits += item.creditValue || 0; // Total Credit Issued
+            rawData.calculatorRecovered += item.prevColl || 0;  // Total Credit Recovered
         }
     });
     
-        // 4. Collect PAYMENTS data
+    // 4. Collect PAYMENTS data
     paymentTransactions.forEach(transaction => {
         const transDate = new Date(transaction.date);
         if (transDate >= startDate && transDate <= endDate) {
             if (transaction.type === 'IN') {
                 rawData.paymentsIn += transaction.amount;
             } else if (transaction.type === 'OUT') {
-                // CRITICAL FIX: Only count as cash out if NOT settling a payable
                 if (!transaction.isPayable) {
                     rawData.paymentsOut += transaction.amount;
                 }
-                // If isPayable = true, it's just moving liability to zero, not spending cash
             }
         }
     });
@@ -5129,35 +5141,34 @@ customerSales.forEach(sale => {
     
     // ========== PHASE 2: Calculate NET values ==========
     
-    // A. NET PRODUCTION VALUE = Total Produced - Value of Quantity Sold in Sales Tab
+    // A. NET PRODUCTION VALUE
     const netProductionValue = Math.max(0, rawData.totalProductionValue - rawData.totalSalesValue);
     
-    // B. NET SALES CASH = Total Sales Cash - Cash Sales from Noran/Noman
+    // B. NET SALES CASH
     const netSalesCash = rawData.salesCash - rawData.repSalesCash;
     
-    // C. NET SALES CREDITS = Total Sales Credits - Credit Sales from Noran/Noman
+    // C. NET SALES CREDITS
     const netSalesCredits = rawData.salesCredits - rawData.repSalesCredits;
-    
-    // D. NET PRODUCTION QUANTITY = Total Produced - Total Quantity Sold
+
+    // D. NET CALCULATOR DEBT (The Fix: Issued - Recovered)
+    const netCalculatorDebt = rawData.calculatorCredits - rawData.calculatorRecovered;
+
+    // E. NET PRODUCTION QUANTITY (Fixed ReferenceError)
     const netProductionQuantity = Math.max(0, rawData.totalProductionQuantity - rawData.totalSalesQuantity);
     
     // ========== PHASE 3: Calculate FINAL totals ==========
     
     const finalTotals = {
-        // NET Production Value (after subtracting what was sold)
         productionValue: netProductionValue,
         productionQuantity: netProductionQuantity,
         productionCredits: rawData.productionCredits,
         
-        // NET Sales values (exclude rep sales - counted in calculator)
         salesTabCash: netSalesCash,
         salesTabCredits: netSalesCredits,
         
-        // Calculator (rep collections)
         calculatorCash: rawData.calculatorCash,
-        calculatorCredits: rawData.calculatorCredits,
+        calculatorCredits: netCalculatorDebt, // Using the correct Net Debt value
         
-        // Payments
         paymentsIn: rawData.paymentsIn,
         paymentsOut: rawData.paymentsOut
     };
@@ -5175,42 +5186,63 @@ customerSales.forEach(sale => {
     // ========== PHASE 4: Update UI ==========
     
     // Update Cash Tracker Card
-    document.getElementById('cash-prod-value').textContent = `Rs ${safeValue(finalTotals.productionValue).toFixed(2)}`;
-    document.getElementById('cash-prod-credits').textContent = `Rs ${safeValue(finalTotals.productionCredits).toFixed(2)}`;
-    document.getElementById('cash-sales-cash').textContent = `Rs ${safeValue(finalTotals.salesTabCash).toFixed(2)}`;
-    document.getElementById('cash-calculator-cash').textContent = `Rs ${safeValue(finalTotals.calculatorCash).toFixed(2)}`;
-    document.getElementById('cash-payments-in').textContent = `Rs ${safeValue(finalTotals.paymentsIn).toFixed(2)}`;
-    document.getElementById('cash-payments-out').textContent = `Rs ${safeValue(finalTotals.paymentsOut).toFixed(2)}`;
-    document.getElementById('cash-net-total').textContent = `Rs ${safeValue(netCash).toFixed(2)}`;
-    
+    const elCashProdValue = document.getElementById('cash-prod-value');
+    if (elCashProdValue) elCashProdValue.textContent = `Rs ${safeValue(finalTotals.productionValue).toFixed(2)}`;
+
+    const elCashProdCredits = document.getElementById('cash-prod-credits');
+    if (elCashProdCredits) elCashProdCredits.textContent = `Rs ${safeValue(finalTotals.productionCredits).toFixed(2)}`;
+
+    const elCashSalesCash = document.getElementById('cash-sales-cash');
+    if (elCashSalesCash) elCashSalesCash.textContent = `Rs ${safeValue(finalTotals.salesTabCash).toFixed(2)}`;
+
+    const elCashCalcCash = document.getElementById('cash-calculator-cash');
+    if (elCashCalcCash) elCashCalcCash.textContent = `Rs ${safeValue(finalTotals.calculatorCash).toFixed(2)}`;
+
+    const elCashPayIn = document.getElementById('cash-payments-in');
+    if (elCashPayIn) elCashPayIn.textContent = `Rs ${safeValue(finalTotals.paymentsIn).toFixed(2)}`;
+
+    const elCashPayOut = document.getElementById('cash-payments-out');
+    if (elCashPayOut) elCashPayOut.textContent = `Rs ${safeValue(finalTotals.paymentsOut).toFixed(2)}`;
+
+    const elCashNet = document.getElementById('cash-net-total');
+    if (elCashNet) elCashNet.textContent = `Rs ${safeValue(netCash).toFixed(2)}`;
     
     // Update Credits Card
-    document.getElementById('credit-sales-tab').textContent = `Rs ${safeValue(finalTotals.salesTabCredits).toFixed(2)}`;
-    document.getElementById('credit-calculator').textContent = `Rs ${safeValue(finalTotals.calculatorCredits).toFixed(2)}`;
+    const elCreditSales = document.getElementById('credit-sales-tab');
+    if (elCreditSales) elCreditSales.textContent = `Rs ${safeValue(finalTotals.salesTabCredits).toFixed(2)}`;
+
+    const elCreditCalc = document.getElementById('credit-calculator');
+    if (elCreditCalc) elCreditCalc.textContent = `Rs ${safeValue(finalTotals.calculatorCredits).toFixed(2)}`;
     
-    // Update production credits display
     const productionCreditsElement = document.getElementById('credit-production');
     if (productionCreditsElement) {
         productionCreditsElement.textContent = `Rs ${safeValue(finalTotals.productionCredits).toFixed(2)}`;
     }
     
-    document.getElementById('credit-total').textContent = `Rs ${safeValue(totalCredits).toFixed(2)}`;
+    const elCreditTotal = document.getElementById('credit-total');
+    if (elCreditTotal) elCreditTotal.textContent = `Rs ${safeValue(totalCredits).toFixed(2)}`;
     
     // Update color based on cash position
-    const netCashElement = document.getElementById('cash-net-total');
-    if (netCash < 0) {
-        netCashElement.className = 'cost-val';
-        netCashElement.style.color = 'var(--danger)';
-    } else {
-        netCashElement.className = 'profit-val';
-        netCashElement.style.color = 'var(--accent-emerald)';
+    if (elCashNet) {
+        if (netCash < 0) {
+            elCashNet.className = 'cost-val';
+            elCashNet.style.color = 'var(--danger)';
+        } else {
+            elCashNet.className = 'profit-val';
+            elCashNet.style.color = 'var(--accent-emerald)';
+        }
     }
-    
-    // ========== PHASE 5: Update Economic Dashboard with NET values ==========
-    
+
+    // Update Economic Dashboard (if function exists)
+    if(typeof updateEconomicDashboardWithNetValues === 'function'){
+        updateEconomicDashboardWithNetValues(finalTotals, totalCredits);
+    }
     
     return finalTotals;
 }
+
+
+
 
 // ========== NEW HELPER FUNCTION ==========
 function updateEconomicDashboardWithNetValues(totals, totalCredits) {
@@ -5342,8 +5374,10 @@ function closeEntityTransactions() {
         });
     }
 
-    // --- PAYMENTS TAB: TRANSACTION MANAGEMENT ---
-    // UPDATED: Save Payment Transaction with Proper Cash Flow Impact
+// ============================================
+// FIXED: SAVE PAYMENT TRANSACTION (Proper Balance Updates)
+// ============================================
+
 function savePaymentTransaction() {
     const entityId = parseInt(document.getElementById('paymentEntity').value);
     const date = document.getElementById('paymentDate').value;
@@ -5387,7 +5421,7 @@ function savePaymentTransaction() {
     let isPayable = false;
     let materialId = null;
     
-    // If paying OUT to a supplier, check for pending materials
+    // FIXED LOGIC: Payment OUT to supplier
     if (type === 'OUT' && entity.isSupplier) {
         const pendingMaterials = factoryInventoryData.filter(m => 
             m.supplierId === entityId && 
@@ -5408,18 +5442,23 @@ function savePaymentTransaction() {
         }
     }
     
+    // Create the transaction
+    // NOTE: The balance calculation in calculateEntityBalances() handles the math
+    // - OUT transaction: balance -= amount (DECREASES their balance, reduces liability)
+    // - IN transaction: balance += amount (INCREASES their balance, creates receivable)
+    
     paymentTransactions.push({
         id: Date.now(),
         entityId: entityId,
         entityName: entity.name,
-        entityType: entity.type, // Keep for reference but don't use for logic
+        entityType: entity.type,
         date: date,
         time: timeString,
         amount: amount,
         description: description,
         type: type, // 'IN' or 'OUT'
         materialId: materialId,
-        isPayable: isPayable, // Marks if this is settling a debt vs actual cash expense
+        isPayable: isPayable,
         timestamp: new Date(date).getTime()
     });
     
@@ -5436,7 +5475,7 @@ function savePaymentTransaction() {
     
     let message = `Payment ${type === 'IN' ? 'received from' : 'made to'} ${entity.name}`;
     if (isPayable) {
-        message += ' (Material purchase settled)';
+        message += ' (Material purchase settled - liability reduced)';
     }
     showToast(message, 'success');
 }
@@ -5465,15 +5504,18 @@ function savePaymentTransaction() {
             }
         });
     }
+// ============================================
+// UPDATED: ECONOMIC DASHBOARD WITH PRODUCTION CREDITS
+// ============================================
+
+// UPDATED: calculateNetCash function with production credits in receivables
 function calculateNetCash() {
-    // This function calculates ALL data (not just for a specific period)
-    
     // ========== PHASE 1: Gather ALL raw data ==========
     let rawData = {
         // Production data
         totalProductionValue: 0,
         totalProductionQuantity: 0,
-        productionCredits: 0,
+        productionCredits: 0, // NEW: Production tab credits
         
         // Sales data (including reps)
         totalSalesValue: 0,
@@ -5489,8 +5531,8 @@ function calculateNetCash() {
         
         // Calculator data (rep collections & debt)
         calculatorCash: 0,
-        calculatorTotalIssued: 0,   // For Market Debt Calculation
-        calculatorTotalRecovered: 0, // For Market Debt Calculation
+        calculatorTotalIssued: 0,
+        calculatorTotalRecovered: 0,
         
         // Payments data
         paymentsIn: 0,
@@ -5502,6 +5544,7 @@ function calculateNetCash() {
         rawData.totalProductionValue += item.totalSale || 0;
         rawData.totalProductionQuantity += item.net || 0;
         
+        // NEW: Track production credits (STORE_C with CREDIT payment status)
         if (item.store === 'STORE_C' && item.paymentStatus === 'CREDIT') {
             rawData.productionCredits += item.totalSale || 0;
         }
@@ -5532,27 +5575,36 @@ function calculateNetCash() {
         }
     });
     
-    // 3. Collect CALCULATOR data (Market Debt Tracker Logic)
+    // 3. Collect CALCULATOR data
     salesHistory.forEach(item => {
-        // Cash currently in hand (Received today)
         rawData.calculatorCash += item.received || 0;
-        
-        // Accumulate totals for Market Debt Tracker
-        rawData.calculatorTotalIssued += item.creditValue || 0; // Credit Given
-        rawData.calculatorTotalRecovered += item.prevColl || 0; // Credit Recovered
+        rawData.calculatorTotalIssued += item.creditValue || 0;
+        rawData.calculatorTotalRecovered += item.prevColl || 0;
     });
     
-    // 4. Collect PAYMENTS data (ALL TIME)
-    paymentTransactions.forEach(trans => {
-        if (trans.type === 'IN') {
-            rawData.paymentsIn += trans.amount;
-        } else if (trans.type === 'OUT') {
-            // Only count as cash out if NOT a payable/debt
-            if (!trans.isPayable) {
-                rawData.paymentsOut += trans.amount;
-            }
+    // 4. Collect PAYMENTS data
+// IMPORTANT LOGIC:
+// - Payment OUT to suppliers: Handled by calculateEntityBalances()
+//   When isPayable=true, it reduces the supplier's positive balance (liability)
+//   This does NOT reduce our cash because we're paying off existing debt
+// - Payment OUT for expenses: This DOES reduce our cash (operating expense)
+//   When isPayable=false, it's actual cash leaving for new expenses
+
+paymentTransactions.forEach(trans => {
+    if (trans.type === 'IN') {
+        // Money IN: They paid me (increases cash)
+        rawData.paymentsIn += trans.amount;
+    } else if (trans.type === 'OUT') {
+        // Money OUT: I paid them
+        // ONLY count as cash expense if NOT settling a payable
+        if (!trans.isPayable) {
+            rawData.paymentsOut += trans.amount;
         }
-    });
+        // If isPayable = true:
+        // - Supplier's balance decreases (liability reduced)
+        // - But our cash stays the same (we already counted the inventory cost)
+    }
+});
     
     // ========== PHASE 2: Calculate NET values ==========
     
@@ -5565,8 +5617,7 @@ function calculateNetCash() {
     // C. NET SALES CREDITS (Direct Customers)
     const netSalesCredits = rawData.salesCredits - rawData.repSalesCredits;
     
-    // ========== FIXED: Calculate COMBINED MARKET DEBT TRACKER ==========
-    // Formula: Total Credit Issued - Total Recovered (from Calculator Tab)
+    // D. COMBINED MARKET DEBT TRACKER
     const combinedMarketDebt = rawData.calculatorTotalIssued - rawData.calculatorTotalRecovered;
     
     // ========== PHASE 3: Calculate FINAL CASH IN HAND ==========
@@ -5577,13 +5628,14 @@ function calculateNetCash() {
     
     // ========== PHASE 4: Calculate ACCOUNTS RECEIVABLE ==========
     let AccountsReceivable = {
-        salesTabCredit: netSalesCredits, // Excluding rep sales
-        // FIXED: Now equals the Combined Market Debt Tracker from Calculator Tab
-        calculatorCredit: Math.max(0, combinedMarketDebt), 
+        productionCredits: rawData.productionCredits, // NEW: Production tab credits
+        salesTabCredit: netSalesCredits,
+        calculatorCredit: Math.max(0, combinedMarketDebt),
         total: 0
     };
     
-    AccountsReceivable.total = AccountsReceivable.salesTabCredit + 
+    AccountsReceivable.total = AccountsReceivable.productionCredits +
+                               AccountsReceivable.salesTabCredit + 
                                AccountsReceivable.calculatorCredit;
     
     // ========== PHASE 5: Calculate CURRENT ASSETS ==========
@@ -5622,7 +5674,7 @@ function calculateNetCash() {
         total: 0
     };
     
-    // A. ACCOUNTS PAYABLE
+    // A. ACCOUNTS PAYABLE - Supplier Payables
     let countedMaterialIds = new Set();
     
     // 1. Count from paymentTransactions
@@ -5670,10 +5722,9 @@ function calculateNetCash() {
                 }
             });
             
-          if (totalOwed > 0) {
-    // Categorize based on entity or last transaction description
-    const lastTrans = entityTransactions[entityTransactions.length - 1];
-    const desc = lastTrans ? (lastTrans.description || '').toLowerCase() : '';
+            if (totalOwed > 0) {
+                const lastTrans = entityTransactions[entityTransactions.length - 1];
+                const desc = lastTrans ? (lastTrans.description || '').toLowerCase() : '';
                 
                 if (desc.includes('loan') || desc.includes('debt')) {
                     CurrentLiabilities.accountsPayable.otherPayables.loans += totalOwed;
@@ -5736,8 +5787,9 @@ function calculateNetCash() {
         },
         
         receivables: {
+            productionCredits: AccountsReceivable.productionCredits, // NEW
             salesTab: AccountsReceivable.salesTabCredit,
-            calculator: AccountsReceivable.calculatorCredit, // This is now Combined Market Debt Tracker
+            calculator: AccountsReceivable.calculatorCredit,
             total: AccountsReceivable.total
         },
         
@@ -5760,12 +5812,11 @@ function calculateNetCash() {
     return indicators;
 }
 
+// ============================================
+// UPDATED: ECONOMIC DASHBOARD UI
+// ============================================
 
-
-
-
-
-// --- UPDATED: ECONOMIC DASHBOARD UI UPDATER - FIXED ---
+// UPDATED: updateEconomicDashboard with production credits display
 function updateEconomicDashboard(indicators) {
     // 1. MAIN CASH DISPLAY
     const netCashValueElement = document.getElementById('netCashValue');
@@ -5776,13 +5827,13 @@ function updateEconomicDashboard(indicators) {
                                          'var(--accent-emerald)';
     }
     
-    // 2. CASH DETAILS BREAKDOWN (From Cash Tracker logic)
+    // 2. OPERATING CASH FLOW
     const operatingCashElement = document.getElementById('operatingCashFlow');
     if (operatingCashElement) {
         operatingCashElement.textContent = `Rs ${safeValue(indicators.operatingCashFlow).toFixed(2)}`;
     }
     
-    // Cash Details Breakdown (NET values from Cash Tracker logic)
+    // 3. CASH DETAILS BREAKDOWN
     document.getElementById('cashDetailDirectSales').textContent = `Rs ${safeValue(indicators.cashDetails.directSales).toFixed(2)}`;
     document.getElementById('cashDetailProductionCash').textContent = `Rs ${safeValue(indicators.cashDetails.productionCash).toFixed(2)}`;
     document.getElementById('cashDetailRepCollections').textContent = `Rs ${safeValue(indicators.cashDetails.repCollections).toFixed(2)}`;
@@ -5790,32 +5841,35 @@ function updateEconomicDashboard(indicators) {
     document.getElementById('cashDetailPaymentsOut').textContent = `Rs ${safeValue(indicators.cashDetails.paymentsOut).toFixed(2)}`;
     document.getElementById('cashDetailNet').textContent = `Rs ${safeValue(indicators.cashInHand).toFixed(2)}`;
     
-    // 3. CURRENT ASSETS
+    // 4. CURRENT ASSETS
     document.getElementById('formulaProdTotal').textContent = `Rs ${safeValue(indicators.assets.cash).toFixed(2)}`;
     document.getElementById('formulaRawMaterials').textContent = `Rs ${safeValue(indicators.assets.rawMaterials).toFixed(2)}`;
     document.getElementById('formulaUnitsValue').textContent = `Rs ${safeValue(indicators.assets.formulaUnits).toFixed(2)}`;
     
-    // 4. ACCOUNTS RECEIVABLE (Money OWED TO YOU)
-    // REMOVED: Production credits from receivables (now counted in production inventory)
+    // 5. ACCOUNTS RECEIVABLE (NEW: Now includes production credits)
+    
+    // Add production credits display (if element exists in your HTML)
+    const productionCreditsElement = document.getElementById('productionReceivables');
+    if (productionCreditsElement) {
+        productionCreditsElement.textContent = `Rs ${safeValue(indicators.receivables.productionCredits).toFixed(2)}`;
+    }
+    
     document.getElementById('salesReceivables').textContent = `Rs ${safeValue(indicators.receivables.salesTab).toFixed(2)}`;
-    
-    // FIXED: This now shows the Combined Market Debt Tracker value from Calculator Tab
     document.getElementById('calculatorReceivables').textContent = `Rs ${safeValue(indicators.receivables.calculator).toFixed(2)}`;
-    
     document.getElementById('formulaReceivables').textContent = `Rs ${safeValue(indicators.receivables.total).toFixed(2)}`;
     
-    // 5. CURRENT LIABILITIES (Money YOU OWE)
+    // 6. CURRENT LIABILITIES
     document.getElementById('supplierPayables').textContent = `Rs ${safeValue(indicators.liabilities.accountsPayable.supplierPayables).toFixed(2)}`;
     document.getElementById('otherPayablesOperating').textContent = `Rs ${safeValue(indicators.liabilities.accountsPayable.otherPayables.operating).toFixed(2)}`;
     document.getElementById('otherPayablesLoans').textContent = `Rs ${safeValue(indicators.liabilities.accountsPayable.otherPayables.loans).toFixed(2)}`;
     document.getElementById('otherPayablesMisc').textContent = `Rs ${safeValue(indicators.liabilities.accountsPayable.otherPayables.miscellaneous).toFixed(2)}`;
     document.getElementById('formulaPayOut').textContent = `Rs ${safeValue(indicators.liabilities.accountsPayable.total).toFixed(2)}`;
     
-    // 6. TOTALS
+    // 7. TOTALS
     document.getElementById('currentAssetsTotal').textContent = `Rs ${safeValue(indicators.assets.currentAssetsTotal).toFixed(2)}`;
     document.getElementById('currentLiabilitiesTotal').textContent = `Rs ${safeValue(indicators.liabilities.total).toFixed(2)}`;
     
-    // 7. ECONOMIC HEALTH INDICATORS
+    // 8. ECONOMIC HEALTH INDICATORS
     const workingCapitalElement = document.getElementById('formulaPayIn');
     if (workingCapitalElement) {
         workingCapitalElement.textContent = `Rs ${safeValue(indicators.workingCapital).toFixed(2)}`;
@@ -5826,7 +5880,7 @@ function updateEconomicDashboard(indicators) {
     
     document.getElementById('formulaFinal').textContent = `Rs ${safeValue(indicators.totalEnterpriseValue).toFixed(2)}`;
     
-    // 8. FINANCIAL RATIOS
+    // 9. FINANCIAL RATIOS
     const currentRatioElement = document.getElementById('formulaCalcDisc');
     if (currentRatioElement) {
         const currentRatio = indicators.liquidityRatios.currentRatio;
@@ -5834,9 +5888,6 @@ function updateEconomicDashboard(indicators) {
         currentRatioElement.style.color = currentRatio < 1 ? 'var(--danger)' : 
                                          currentRatio < 2 ? 'var(--warning)' : 
                                          'var(--accent-emerald)';
-        currentRatioElement.title = currentRatio < 1 ? "Poor - Insufficient liquidity" : 
-                                   currentRatio < 2 ? "Adequate - Acceptable liquidity" : 
-                                   "Good - Strong liquidity position";
     }
     
     const quickRatioElement = document.getElementById('quickRatio');
@@ -6211,23 +6262,105 @@ function updateFactoryInventoryDisplay() {
         document.getElementById('factoryMaterialCost').value = '';
     }
     
-    function editFactoryInventoryItem(id) {
-        const item = factoryInventoryData.find(i => i.id === id);
-        if(item) {
-            openFactoryInventoryModal();
-            document.getElementById('factoryInventoryModalTitle').innerText = 'Edit Material';
-            document.getElementById('deleteFactoryInventoryBtn').style.display = 'block'; 
+    // UPDATED: Edit Factory Inventory Item with Supplier Display
+function editFactoryInventoryItem(id) {
+    const item = factoryInventoryData.find(i => i.id === id);
+    if(item) {
+        openFactoryInventoryModal();
+        document.getElementById('factoryInventoryModalTitle').innerText = 'Edit Material';
+        document.getElementById('deleteFactoryInventoryBtn').style.display = 'block'; 
+        
+        document.getElementById('factoryMaterialName').value = item.name;
+        document.getElementById('factoryMaterialQuantity').value = item.quantity;
+        document.getElementById('factoryMaterialUnit').value = item.unit;
+        document.getElementById('factoryMaterialCost').value = item.cost;
+        
+        // Handle supplier display
+        const supplierTypeSelect = document.getElementById('factoryMaterialSupplierType');
+        const existingSupplierSection = document.getElementById('existingSupplierSection');
+        const newSupplierSection = document.getElementById('newSupplierSection');
+        
+        if (item.supplierId) {
+            // Material is linked to a supplier
+            supplierTypeSelect.value = 'existing';
+            existingSupplierSection.classList.remove('hidden');
+            newSupplierSection.classList.add('hidden');
             
-            document.getElementById('factoryMaterialName').value = item.name;
-            document.getElementById('factoryMaterialQuantity').value = item.quantity;
-            document.getElementById('factoryMaterialUnit').value = item.unit;
-            document.getElementById('factoryMaterialCost').value = item.cost;
-            editingFactoryInventoryId = id;
+            loadExistingSuppliers();
+            document.getElementById('factoryExistingSupplier').value = item.supplierId;
+            
+            // Show unlink option
+            showSupplierUnlinkOption(item);
+        } else {
+            // No supplier linked
+            supplierTypeSelect.value = 'none';
+            existingSupplierSection.classList.add('hidden');
+            newSupplierSection.classList.add('hidden');
         }
+        
+        editingFactoryInventoryId = id;
+    }
+}
+
+// NEW: Show supplier unlink option in modal
+function showSupplierUnlinkOption(material) {
+    const existingSupplierSection = document.getElementById('existingSupplierSection');
+    
+    // Check if unlink button already exists
+    let unlinkButton = existingSupplierSection.querySelector('.unlink-supplier-btn');
+    
+    if (!unlinkButton) {
+        unlinkButton = document.createElement('button');
+        unlinkButton.className = 'btn btn-danger unlink-supplier-btn';
+        unlinkButton.style.cssText = 'width: 100%; margin-top: 10px; font-size: 0.8rem;';
+        unlinkButton.innerHTML = ' Unlink Supplier & Reverse Transactions';
+        unlinkButton.onclick = function(e) {
+            e.preventDefault();
+            unlinkSupplierConfirmation(material);
+        };
+        
+        existingSupplierSection.appendChild(unlinkButton);
+    }
+}
+
+// NEW: Confirmation dialog for unlinking supplier
+function unlinkSupplierConfirmation(material) {
+    const linkedTransactions = paymentTransactions.filter(t => 
+        t.materialId === material.id && 
+        t.entityId === material.supplierId && 
+        t.isPayable === true
+    );
+    
+    let confirmMsg = `⚠️ Unlink ${material.supplierName} from ${material.name}?\n\n`;
+    confirmMsg += `This will:\n`;
+    confirmMsg += `✓ Remove supplier association\n`;
+    confirmMsg += `✓ Reset payment status to 'pending'\n`;
+    
+    if (linkedTransactions.length > 0) {
+        const totalReversed = linkedTransactions.reduce((sum, t) => sum + t.amount, 0);
+        confirmMsg += `✓ Reverse ${linkedTransactions.length} payment transaction(s) totaling Rs ${totalReversed.toFixed(2)}\n`;
     }
     
-    // --- UPDATED: FACTORY INVENTORY SAVE FUNCTION ---
-// UPDATED: saveFactoryInventoryItem function
+    confirmMsg += `\nThe material will be ready to link with a different supplier.`;
+    
+    if (confirm(confirmMsg)) {
+        unlinkSupplierFromMaterial(material);
+        
+        // Refresh modal display
+        closeFactoryInventoryModal();
+        setTimeout(() => editFactoryInventoryItem(material.id), 100);
+        
+        // Refresh all displays
+        refreshPaymentTab();
+        calculateNetCash();
+        renderFactoryInventory();
+    }
+}
+// ============================================
+// DYNAMIC SUPPLIER LINKING SYSTEM
+// ============================================
+
+// UPDATED: saveFactoryInventoryItem with dynamic unlinking capability
 function saveFactoryInventoryItem() {
     const name = document.getElementById('factoryMaterialName').value;
     const qty = parseFloat(document.getElementById('factoryMaterialQuantity').value) || 0;
@@ -6235,15 +6368,29 @@ function saveFactoryInventoryItem() {
     const unit = document.getElementById('factoryMaterialUnit').value;
     const supplierType = document.getElementById('factoryMaterialSupplierType').value;
 
-    if(!name) return alert("Name required");
+    if(!name) return showToast("Name required", 'warning');
 
     const totalValue = qty * cost;
     const materialId = editingFactoryInventoryId || Date.now();
+    let existingMaterial = null;
 
-    // Handle entity/transaction ID for editing
+    // Handle editing existing material
     if(editingFactoryInventoryId) {
         const idx = factoryInventoryData.findIndex(i => i.id === editingFactoryInventoryId);
         if(idx !== -1) {
+            existingMaterial = factoryInventoryData[idx];
+            
+            // Check if supplier is being changed or removed
+            const oldSupplierId = existingMaterial.supplierId;
+            const isSupplierChanging = (supplierType === 'none' && oldSupplierId) || 
+                                      (supplierType === 'existing' && oldSupplierId !== parseInt(document.getElementById('factoryExistingSupplier').value));
+            
+            // If supplier is changing, unlink the old one first
+            if (isSupplierChanging) {
+                unlinkSupplierFromMaterial(existingMaterial);
+            }
+            
+            // Update material data
             factoryInventoryData[idx] = { 
                 ...factoryInventoryData[idx], 
                 name, 
@@ -6254,6 +6401,7 @@ function saveFactoryInventoryItem() {
             };
         }
     } else {
+        // Create new material
         factoryInventoryData.push({ 
             id: materialId, 
             name, 
@@ -6261,12 +6409,24 @@ function saveFactoryInventoryItem() {
             cost, 
             unit, 
             totalValue,
-            paymentStatus: 'pending' // NEW: Mark as unpaid by default
+            paymentStatus: 'pending'
         });
     }
 
-    // --- UPDATED LOGIC: Handle supplier linkage ---
-    if (supplierType === 'existing') {
+    // Handle supplier linkage based on selection
+    if (supplierType === 'none') {
+        // No supplier - ensure material is clean
+        const material = factoryInventoryData.find(m => m.id === materialId);
+        if (material) {
+            delete material.supplierId;
+            delete material.supplierName;
+            delete material.supplierContact;
+            delete material.supplierType;
+            material.paymentStatus = 'pending';
+            delete material.totalPayable;
+        }
+    } 
+    else if (supplierType === 'existing') {
         const existingSupplierId = parseInt(document.getElementById('factoryExistingSupplier').value);
         if (existingSupplierId) {
             linkMaterialToSupplier(materialId, existingSupplierId, totalValue);
@@ -6295,17 +6455,58 @@ function saveFactoryInventoryItem() {
     renderFactoryInventory();
     closeFactoryInventoryModal();
     
-    // IMPORTANT: Refresh payment tab to show updated payables
     refreshPaymentTab();
-    calculateNetCash(); // Recalculate with new payable
+    calculateNetCash();
     
-    showToast("Material saved! Liability added to Accounts Payable.", 'success');
+    showToast("Material saved successfully!", 'success');
 }
 
+// NEW: Function to unlink supplier from material
+function unlinkSupplierFromMaterial(material) {
+    if (!material || !material.supplierId) return;
+    
+    const supplierId = material.supplierId;
+    const materialId = material.id;
+    
+    console.log(` Unlinking supplier ${material.supplierName} from material ${material.name}`);
+    
+    // Step 1: Find and remove any payment transactions linked to this material
+    const linkedTransactions = paymentTransactions.filter(t => 
+        t.materialId === materialId && 
+        t.entityId === supplierId && 
+        t.isPayable === true
+    );
+    
+    if (linkedTransactions.length > 0) {
+        console.log(`   Found ${linkedTransactions.length} linked payment(s) to reverse`);
+        
+        linkedTransactions.forEach(transaction => {
+            // Remove the transaction
+            paymentTransactions = paymentTransactions.filter(t => t.id !== transaction.id);
+            console.log(`   ↩ Reversed payment transaction: ${transaction.description} - Rs ${transaction.amount}`);
+        });
+        
+        localStorage.setItem('payment_transactions', JSON.stringify(paymentTransactions));
+    }
+    
+    // Step 2: Clear supplier information from material
+    delete material.supplierId;
+    delete material.supplierName;
+    delete material.supplierContact;
+    delete material.supplierType;
+    material.paymentStatus = 'pending';
+    delete material.totalPayable;
+    delete material.paidDate;
+    
+    console.log(`   ✓ Supplier link removed from material`);
+    
+    localStorage.setItem('factory_inventory_data', JSON.stringify(factoryInventoryData));
+    
+    showToast(`Supplier unlinked from ${material.name}. All linked transactions reversed.`, 'info');
+}
 
-// --- UPDATED: CREATE SUPPLIER FROM MATERIAL FUNCTION ---
+// UPDATED: createSupplierFromMaterial - NO immediate transaction
 function createSupplierFromMaterial(supplierData) {
-    // Check if supplier already exists
     const existingSupplier = paymentEntities.find(e => 
         e.name.toLowerCase() === supplierData.name.toLowerCase() && e.type === 'payee'
     );
@@ -6314,7 +6515,6 @@ function createSupplierFromMaterial(supplierData) {
         return existingSupplier;
     }
     
-    // Create a new entity for the supplier
     const supplierEntity = {
         id: Date.now(),
         name: supplierData.name,
@@ -6327,41 +6527,12 @@ function createSupplierFromMaterial(supplierData) {
         supplierCategory: 'raw_materials'
     };
     
-    // Add to payment entities
     paymentEntities.push(supplierEntity);
     localStorage.setItem('payment_entities', JSON.stringify(paymentEntities));
     
-    // Create an initial payable transaction for this material purchase
-    const today = new Date().toISOString().split('T')[0];
-    const now = new Date();
-    let hours = now.getHours();
-    const minutes = now.getMinutes();
-    const seconds = now.getSeconds();
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12;
-    hours = hours ? hours : 12;
-    const timeString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} ${ampm}`;
-    
-    paymentTransactions.push({
-        id: Date.now(),
-        entityId: supplierEntity.id,
-        entityName: supplierEntity.name,
-        entityType: 'payee',
-        date: today,
-        time: timeString,
-        amount: supplierData.materialTotal || 0,
-        description: `Material purchase: ${supplierData.materialName}`,
-        type: 'OUT',
-        materialId: supplierData.materialId,
-        supplierTransaction: true,
-        isPayable: true, // Mark as payable
-        timestamp: new Date(today).getTime()
-    });
-    
-    localStorage.setItem('payment_transactions', JSON.stringify(paymentTransactions));
-    
     return supplierEntity;
 }
+
 
 // --- UPDATED: LINK MATERIAL TO SUPPLIER FUNCTION ---
 function linkMaterialToSupplier(materialId, supplierId, totalCost) {
@@ -6387,7 +6558,8 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
     refreshPaymentTab();
 }
     
-    function renderFactoryInventory() {
+    // UPDATED: renderFactoryInventory with unlink capability
+function renderFactoryInventory() {
     const tbody = document.getElementById('factoryInventoryTableBody');
     tbody.innerHTML = '';
     let totalVal = 0;
@@ -6398,13 +6570,29 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
         factoryInventoryData.forEach(item => {
             totalVal += item.totalValue;
             
-            // Check for linked supplier info
+            // Build supplier info section
             let supplierHtml = '';
             if (item.supplierName) {
-                supplierHtml = `<div style="font-size:0.65rem; color:var(--text-muted); margin-top:2px;">
-                    <span style="background:rgba(37, 99, 235, 0.1); color:var(--accent); padding:1px 4px; border-radius:3px;">SUPPLIER</span> 
-                    ${item.supplierName}
-                </div>`;
+                const paymentStatus = item.paymentStatus === 'paid' ? 
+                    '<span style="color:var(--accent-emerald);">✓ PAID</span>' : 
+                    '<span style="color:var(--warning);">PENDING</span>';
+                
+                supplierHtml = `
+                    <div style="font-size:0.65rem; color:var(--text-muted); margin-top:2px;">
+                        <div style="background:rgba(37, 99, 235, 0.1); color:var(--accent); padding:2px 6px; border-radius:3px; display:inline-block; margin-bottom:3px;">
+                            <strong>SUPPLIER:</strong> ${item.supplierName}
+                        </div>
+                        <div style="margin-top:2px;">
+                            ${paymentStatus} | ${(item.totalPayable || 0).toFixed(2)}
+                        </div>
+                    </div>
+                `;
+            } else {
+                supplierHtml = `
+                    <div style="font-size:0.65rem; color:var(--text-muted); margin-top:2px; font-style:italic;">
+                        No supplier linked
+                    </div>
+                `;
             }
 
             const tr = document.createElement('tr');
@@ -6417,13 +6605,54 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
                 <td style="text-align:right;">${formatCurrency(item.cost)}</td>
                 <td style="text-align:right; font-weight:700;">${formatCurrency(item.totalValue)}</td>
                 <td style="text-align:center;">
-                    <button class="btn-theme" style="padding:2px 8px; font-size:0.75rem;" onclick="editFactoryInventoryItem(${item.id})">Edit</button>
+                    <div style="display:flex; gap:5px; justify-content:center; flex-wrap:wrap;">
+                        <button class="btn-theme" style="padding:2px 8px; font-size:0.75rem;" onclick="editFactoryInventoryItem(${item.id})">Edit</button>
+                        ${item.supplierId ? `
+                            <button class="btn btn-danger btn-sm" style="padding:2px 8px; font-size:0.7rem;" onclick="unlinkSupplierFromMaterialById(${item.id})">
+                               Unlink
+                            </button>
+                        ` : ''}
+                    </div>
                 </td>
             `;
             tbody.appendChild(tr);
         });
     }
     document.getElementById('factoryTotalInventoryValue').innerText = formatCurrency(totalVal);
+}
+
+// NEW: Quick unlink function for table button
+function unlinkSupplierFromMaterialById(materialId) {
+    const material = factoryInventoryData.find(m => m.id === materialId);
+    if (!material) {
+        showToast("Material not found", 'error');
+        return;
+    }
+    
+    if (!material.supplierId) {
+        showToast("Material has no supplier linked", 'warning');
+        return;
+    }
+    
+    const linkedTransactions = paymentTransactions.filter(t => 
+        t.materialId === materialId && 
+        t.entityId === material.supplierId && 
+        t.isPayable === true
+    );
+    
+    let confirmMsg = `Unlink ${material.supplierName} from ${material.name}?\n\n`;
+    if (linkedTransactions.length > 0) {
+        const totalReversed = linkedTransactions.reduce((sum, t) => sum + t.amount, 0);
+        confirmMsg += `This will reverse ${linkedTransactions.length} payment(s) totaling Rs ${totalReversed.toFixed(2)}.`;
+    }
+    
+    if (confirm(confirmMsg)) {
+        unlinkSupplierFromMaterial(material);
+        renderFactoryInventory();
+        refreshPaymentTab();
+        calculateNetCash();
+        showToast("Supplier unlinked successfully", 'success');
+    }
 }
 
     
@@ -6524,62 +6753,31 @@ function createSupplierFromMaterial(supplierData) {
     return supplierEntity;
 }
 
+// UPDATED: linkMaterialToSupplier - Enhanced with unlinking capability
 function linkMaterialToSupplier(materialId, supplierId, totalCost) {
-    // Find the material
     const material = factoryInventoryData.find(m => m.id === materialId);
     if (!material) return;
     
-    // Find the supplier entity
     const supplier = paymentEntities.find(e => e.id === supplierId);
     if (!supplier) return;
     
-    // Update material with supplier info
+    // If material was previously linked to a different supplier, unlink first
+    if (material.supplierId && material.supplierId !== supplierId) {
+        unlinkSupplierFromMaterial(material);
+    }
+    
+    // Update material with new supplier info
     material.supplierId = supplierId;
     material.supplierName = supplier.name;
     material.supplierContact = supplier.phone || '';
+    material.supplierType = 'payee';
     material.paymentStatus = 'pending';
     material.totalPayable = totalCost;
     
-    // Check if there's already a transaction for this material
-    const existingTransaction = paymentTransactions.find(t => 
-        t.materialId === materialId && t.entityId === supplierId
-    );
-    
-    if (!existingTransaction && totalCost > 0) {
-        // Create a payable transaction
-        const today = new Date().toISOString().split('T')[0];
-        const now = new Date();
-        let hours = now.getHours();
-        const minutes = now.getMinutes();
-        const seconds = now.getSeconds();
-        const ampm = hours >= 12 ? 'PM' : 'AM';
-        hours = hours % 12;
-        hours = hours ? hours : 12;
-        const timeString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} ${ampm}`;
-        
-        paymentTransactions.push({
-            id: Date.now(),
-            entityId: supplierId,
-            entityName: supplier.name,
-            entityType: 'payee',
-            date: today,
-            time: timeString,
-            amount: totalCost,
-            description: `Material purchase: ${material.name} (${material.quantity} ${material.unit})`,
-            type: 'OUT',
-            materialId: materialId,
-            supplierTransaction: true,
-            isPayable: true, // <--- THIS WAS MISSING. Marks it as a debt, not cash out.
-            paymentStatus: 'pending',
-            timestamp: new Date(today).getTime()
-        });
-        
-        localStorage.setItem('payment_transactions', JSON.stringify(paymentTransactions));
-    }
-    
     localStorage.setItem('factory_inventory_data', JSON.stringify(factoryInventoryData));
     
-    // Refresh to show updated statuses
+    console.log(`🔗 Linked material ${material.name} to supplier ${supplier.name}`);
+    
     refreshPaymentTab();
 }
 
@@ -8238,128 +8436,7 @@ function refreshUI() {
             }
         });
     }
-// --- PAYMENTS TAB: ENTITY LIST MANAGEMENT ---
-let entityListViewType = 'table'; // 'table' or 'cards'
-
-function toggleEntityListView() {
-    const toggleBtn = document.getElementById('entityListViewToggle');
-    const table = document.getElementById('entityListTable');
-    const entityListBody = document.getElementById('entityListBody');
-    
-    if (entityListViewType === 'table') {
-        entityListViewType = 'cards';
-        toggleBtn.innerHTML = '📃';
-        toggleBtn.title = "Table View";
-        if (table) table.style.display = 'cards';
-        renderEntityCards();
-    } else {
-        entityListViewType = 'table';
-        toggleBtn.innerHTML = '☰';
-        toggleBtn.title = "Cards";
-        if (table) table.style.display = '';
-        renderEntityList();
-    }
-}
-const card = document.createElement('div');
-card.className = 'entity-card liquid-card';
-card.style.position = 'relative';
-card.style.padding = '12px';
-card.style.minHeight = 'auto';
-// NEW: Add click functionality
-card.style.cursor = 'pointer';
-card.onclick = () => openEntityTransactions(entity.id);
-
-
-function renderEntityList() {
-    const tbody = document.getElementById('entityListBody');
-    const footer = document.getElementById('entityListFooter');
-    
-    if (!tbody) return;
-    
-    tbody.innerHTML = '';
-    
-    if (!paymentEntities || paymentEntities.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="4" style="text-align:center; padding:20px; color:var(--text-muted);">
-                    No entities found. Click the <span style="color:var(--accent);">✨</span> button to add entities.
-                </td>
-            </tr>
-        `;
-        if (footer) footer.style.display = 'none';
-        return;
-    }
-    
-    let totalBalance = 0;
-    
-    // Sort entities by name
-    const sortedEntities = [...paymentEntities].sort((a, b) => a.name.localeCompare(b.name));
-    
-    sortedEntities.forEach(entity => {
-        // Calculate entity balance
-        const entityTransactions = paymentTransactions.filter(t => t.entityId === entity.id);
-        let entityIn = 0, entityOut = 0;
-        
-        entityTransactions.forEach(transaction => {
-            if (transaction.type === 'IN') {
-                entityIn += transaction.amount;
-            } else if (transaction.type === 'OUT') {
-                entityOut += transaction.amount;
-            }
-        });
-        
-        const netBalance = entityIn - entityOut;
-        totalBalance += netBalance;
-        
-        const balanceColor = netBalance >= 0 ? 'profit-val' : 'cost-val';
-        const balancePrefix = netBalance >= 0 ? '+' : '';
-        
-        const row = document.createElement('tr');
-        // NEW: Add onclick to row for opening transactions overlay
-        row.style.cursor = 'pointer';
-        row.onclick = () => openEntityTransactions(entity.id);
-        row.onmouseover = () => row.style.backgroundColor = 'rgba(37, 99, 235, 0.05)';
-        row.onmouseout = () => row.style.backgroundColor = '';
-        
-        row.innerHTML = `
-            <td style="text-align:left;">
-                <div style="display:flex; flex-direction:column; gap:2px;">
-                    <strong>${entity.name}</strong>
-                    ${entity.phone ? `<div style="font-size:0.7rem; color:var(--text-muted);">${entity.phone}</div>` : ''}
-                </div>
-            </td>
-            <td style="text-align:center; font-weight:800;" class="${balanceColor}">
-                ${Math.abs(netBalance).toFixed(2)}
-            </td>
-            <td style="text-align:center; color:var(--text-muted); font-weight:700;">
-                ${entityTransactions.length}
-            </td>
-            <td style="text-align:center;" onclick="event.stopPropagation()">
-                <div style="display:flex; gap:5px; justify-content:center;">
-                    <button class="btn-theme" onclick="selectEntity(${entity.id})" style="padding:2px 8px; font-size:0.7rem;" title="Select">Select</button>
-                    <button class="btn-theme" onclick="editEntity(${entity.id})" style="padding:2px 8px; font-size:0.7rem;" title="Edit">Edit</button>
-                </div>
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
-    
-    // Update footer total balance
-    if (footer) {
-        const totalBalanceColor = totalBalance >= 0 ? 'profit-val' : 'cost-val';
-        const totalBalancePrefix = totalBalance >= 0 ? '+' : '';
-        
-        const totalBalanceElement = document.getElementById('entityListTotalBalance');
-        if (totalBalanceElement) {
-            // NEW: Remove Rs sign, show only number
-            totalBalanceElement.textContent = `${Math.abs(totalBalance).toFixed(2)}`;
-            totalBalanceElement.className = totalBalanceColor;
-        }
-        
-        footer.style.display = 'table-row';
-    }
-}
-// --- UPDATED: RENDER ENTITY CARDS ---
+// UPDATED: Add supplier indicator in renderEntityCards
 function renderEntityCards() {
     const entityGrid = document.getElementById('entityCardsGrid');
     const entityFooter = document.getElementById('entityListFooter');
@@ -8379,16 +8456,14 @@ function renderEntityCards() {
         return;
     }
     
-    // Calculate entity balances using the NEW logic
     const entityBalances = calculateEntityBalances();
     let totalBalance = 0;
     let activeCount = 0;
     
-    // Sort entities: Liabilities (Negative) first, then Receivables
     const sortedEntities = [...paymentEntities].sort((a, b) => {
         const balanceA = entityBalances[a.id] || 0;
         const balanceB = entityBalances[b.id] || 0;
-        return balanceA - balanceB; // Sorts negative (payables) to the top
+        return balanceB - balanceA;
     });
     
     sortedEntities.forEach(entity => {
@@ -8397,8 +8472,14 @@ function renderEntityCards() {
         if (Math.abs(balance) > 0.01) activeCount++;
         totalBalance += balance;
         
-        // Get dynamic styling based on the new math
         let roleInfo = getDynamicRole(balance);
+        
+        // NEW: Check if this entity is a supplier with linked materials
+        const linkedMaterials = factoryInventoryData.filter(m => m.supplierId === entity.id);
+        const supplierBadge = entity.isSupplier && linkedMaterials.length > 0 ? 
+            `<div style="font-size:0.65rem; color:var(--accent); margin-top:3px;">
+                ${linkedMaterials.length} material(s) linked
+            </div>` : '';
         
         const card = document.createElement('div');
         card.className = `entity-card-compact ${selectedEntityId === entity.id ? 'active' : ''}`;
@@ -8417,14 +8498,6 @@ function renderEntityCards() {
             </div>
         ` : '';
         
-        const walletDisplay = entity.wallet ? `
-            <div class="entity-contact" style="margin-top:2px;">
-                <span style="font-size:0.9rem;">💳</span>
-                <span style="font-size:0.7rem;">${entity.wallet}</span>
-            </div>
-        ` : '';
-        
-        // Format the balance for display
         const displayBalance = Math.abs(balance).toFixed(2);
         
         card.innerHTML = `
@@ -8434,7 +8507,7 @@ function renderEntityCards() {
             </div>
             
             ${phoneDisplay}
-            ${walletDisplay}
+            ${supplierBadge}
             
             <div class="entity-balance">
                 <div class="entity-balance-label">${roleInfo.label} Amount</div>
@@ -8462,12 +8535,11 @@ function renderEntityCards() {
         entityFooter.style.display = 'block';
         const totalEl = document.getElementById('entityListTotalBalance');
         
-        // Color the total based on whether we overall OWE or are OWED
         if (totalBalance > 0) {
-            totalEl.style.color = 'var(--accent-emerald)'; // Net Receivable
+            totalEl.style.color = 'var(--danger)';
             totalEl.textContent = `+ Rs ${Math.abs(totalBalance).toFixed(2)}`;
         } else if (totalBalance < 0) {
-            totalEl.style.color = 'var(--danger)'; // Net Payable
+            totalEl.style.color = 'var(--accent-emerald)';
             totalEl.textContent = `- Rs ${Math.abs(totalBalance).toFixed(2)}`;
         } else {
             totalEl.style.color = 'var(--accent)';
@@ -8478,7 +8550,6 @@ function renderEntityCards() {
         document.getElementById('activeEntityCount').textContent = activeCount;
     }
 }
-
 
 // NEW: Helper function to determine dynamic role
 // --- UPDATED: DYNAMIC ROLE HELPER ---
@@ -10728,141 +10799,10 @@ function toggleEntityViewMode() {
     renderEntityCards();
 }
 
-function renderEntityCards() {
-    const entityGrid = document.getElementById('entityCardsGrid');
-    const entityFooter = document.getElementById('entityListFooter');
-    
-    if (!entityGrid) return;
-    
-    entityGrid.innerHTML = '';
-    
-    if (paymentEntities.length === 0) {
-        entityGrid.innerHTML = `
-            <div class="no-entities-message">
-                <p>No entities found. Create your first entity to track payments.</p>
-                <button class="btn-theme" onclick="openEntityManagement()">+ Add First Entity</button>
-            </div>
-        `;
-        entityFooter.style.display = 'none';
-        return;
-    }
-    
-    // Calculate entity balances
-    const entityBalances = calculateEntityBalances();
-    let totalBalance = 0;
-    let activeCount = 0;
-    
-    // Sort entities by balance (highest to lowest)
-    const sortedEntities = [...paymentEntities].sort((a, b) => {
-        const balanceA = Math.abs(entityBalances[a.id] || 0);
-        const balanceB = Math.abs(entityBalances[b.id] || 0);
-        return balanceB - balanceA;
-    });
-    
-    sortedEntities.forEach(entity => {
-        const balance = entityBalances[entity.id] || 0;
-        
-        if (balance !== 0) activeCount++;
-        totalBalance += balance;
-        
-        // Determine balance styling
-        let balanceClass = 'entity-balance-neutral';
-        let balanceSign = '';
-        
-        if (entity.type === 'payee') {
-            // For payee, positive balance means WE owe THEM
-            if (balance > 0) {
-                balanceClass = 'entity-balance-negative';
-                balanceSign = '+';
-            } else if (balance < 0) {
-                balanceClass = 'entity-balance-positive';
-            }
-        } else {
-            // For payor, positive balance means THEY owe US
-            if (balance > 0) {
-                balanceClass = 'entity-balance-positive';
-                balanceSign = '+';
-            } else if (balance < 0) {
-                balanceClass = 'entity-balance-negative';
-            }
-        }
-        
-        // Create entity card
-        const card = document.createElement('div');
-        card.className = `entity-card-compact ${selectedEntityId === entity.id ? 'active' : ''}`;
-        card.dataset.id = entity.id;
-        
-        // Entity type badge
-        const typeBadgeClass = entity.type === 'payee' ? 'entity-type-payee' : 'entity-type-payor';
-        const typeBadgeText = entity.type === '' ? '' : '';
-        
-        // Phone display
-        const phoneDisplay = entity.phone ? `
-            <div class="entity-contact">
-                <span style="font-size:0.9rem;"></span>
-                <span>${entity.phone}</span>
-            </div>
-        ` : '';
-        
-        // Wallet display
-        const walletDisplay = entity.wallet ? `
-            <div class="entity-contact" style="margin-top:2px;">
-                <span style="font-size:0.9rem;"></span>
-                <span style="font-size:0.7rem;">${entity.wallet}</span>
-            </div>
-        ` : '';
-        
-        card.innerHTML = `
-            <div class="entity-header">
-                <h4 class="entity-name">${entity.name}</h4>
-                <span class="entity-type-badge ${typeBadgeClass}">${typeBadgeText}</span>
-            </div>
-            
-            ${phoneDisplay}
-            ${walletDisplay}
-            
-            <div class="entity-balance">
-                <div class="entity-balance-label">Balance</div>
-                <div class="entity-balance-value ${balanceClass}">
-                    ${balanceSign}Rs ${Math.abs(balance).toFixed(2)}
-                </div>
-            </div>
-            
-            <div class="entity-actions">
-                <button class="entity-action-btn edit" onclick="event.stopPropagation(); editEntity(${entity.id})">
-                    Edit
-                </button>
-                <button class="entity-action-btn transactions" onclick="event.stopPropagation(); openEntityTransactions(${entity.id})">
-                    View
-                </button>
-            </div>
-        `;
-        
-        // Add click handler to select entity
-        card.onclick = () => selectEntity(entity.id);
-        
-        entityGrid.appendChild(card);
-    });
-    
-    // Update footer
-    entityFooter.style.display = 'block';
-    document.getElementById('entityListTotalBalance').textContent = `Rs ${totalBalance.toFixed(2)}`;
-    document.getElementById('entityCount').textContent = paymentEntities.length;
-    document.getElementById('activeEntityCount').textContent = activeCount;
-    
-    // Update footer color based on total balance
-    const totalBalanceEl = document.getElementById('entityListTotalBalance');
-    if (totalBalance > 0) {
-        totalBalanceEl.style.color = 'var(--accent-emerald)';
-    } else if (totalBalance < 0) {
-        totalBalanceEl.style.color = 'var(--danger)';
-    } else {
-        totalBalanceEl.style.color = 'var(--accent)';
-    }
-}
+// ============================================
+// FIXED: ENTITY BALANCE CALCULATION (Proper Ledger Logic)
+// ============================================
 
-// Updated Entity Balance Calculation with Dynamic Role
-// --- UPDATED: ENTITY BALANCE CALCULATION (Ledger Logic) ---
 function calculateEntityBalances() {
     const balances = {};
     
@@ -10871,31 +10811,30 @@ function calculateEntityBalances() {
         balances[entity.id] = 0;
     });
 
-    // 1. Process all TRANSACTIONS (The Ledger)
+    // Process all TRANSACTIONS (The Ledger)
     paymentTransactions.forEach(transaction => {
         if (balances[transaction.entityId] !== undefined) {
-            // LOGIC CHANGE HERE:
-            if (transaction.type === 'IN') {
-                // Money IN: I received money. 
-                // Effect: Reduces what they owe me (Asset decreases)
+            if (transaction.type === 'OUT') {
+                // Money OUT: I paid them
+                // Effect: DECREASES what I owe them (reduces liability)
+                // Balance becomes MORE NEGATIVE (I paid off debt)
                 balances[transaction.entityId] -= transaction.amount;
-            } else if (transaction.type === 'OUT') {
-                // Money OUT: I paid money.
-                // Effect: Reduces what I owe them (Liability decreases/becomes positive)
+            } else if (transaction.type === 'IN') {
+                // Money IN: They paid me
+                // Effect: INCREASES what they owe me (creates receivable)
+                // Balance becomes MORE POSITIVE (they now owe me)
                 balances[transaction.entityId] += transaction.amount;
             }
         }
     });
     
-    // 2. Process all SUPPLIER INVOICES (Liabilities)
-    // We subtract ALL supplier-linked inventory costs to create the liability (Negative Balance).
-    // Note: We include ALL items regardless of 'paymentStatus' because the 
-    // offsetting 'Transaction' (processed above in step 1) balances it out.
+    // Process all SUPPLIER INVOICES (Unpaid Liabilities)
     factoryInventoryData.forEach(material => {
-        if (material.supplierId && material.totalPayable) {
+        if (material.supplierId && material.totalPayable && material.paymentStatus === 'pending') {
             if (balances[material.supplierId] !== undefined) {
-                // Purchase = Liability = Negative Balance
-                balances[material.supplierId] -= material.totalPayable;
+                // Unpaid Purchase = Liability = I owe them
+                // Balance becomes MORE POSITIVE (I need to pay them)
+                balances[material.supplierId] += material.totalPayable;
             }
         }
     });
@@ -10903,18 +10842,69 @@ function calculateEntityBalances() {
     return balances;
 }
 
-
 // Helper function to get dynamic role based on balance
-function getEntityRole(balance) {
-    if (balance > 0) {
-        return { role: 'Receivable', color: 'profit-val', icon: '↑' }; // They owe you
-    } else if (balance < 0) {
-        return { role: 'Payable', color: 'cost-val', icon: '↓' }; // You owe them
+function getDynamicRole(balance) {
+    if (balance > 0.01) {
+        // Positive Balance: I owe them money (Payable/Liability)
+        return {
+            label: 'Payable',
+            icon: '↓',
+            colorClass: 'entity-balance-negative',
+            badgeColor: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+            sign: '+'
+        };
+    } else if (balance < -0.01) {
+        // Negative Balance: They owe me money (Receivable/Asset)
+        return {
+            label: 'Receivable',
+            icon: '↑',
+            colorClass: 'entity-balance-positive',
+            badgeColor: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+            sign: ''
+        };
     } else {
-        return { role: 'Settled', color: 'qty-val', icon: '=' }; // Balanced
+        // Zero Balance: Settled
+        return {
+            label: 'Settled',
+            icon: '✓',
+            colorClass: 'entity-balance-neutral',
+            badgeColor: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+            sign: ''
+        };
     }
 }
 
+// Helper function to get dynamic role based on balance
+function getDynamicRole(balance) {
+    if (balance > 0.01) {
+        // Positive Balance: I owe them money (Payable/Liability)
+        return {
+            label: 'Payable',
+            icon: '↓',
+            colorClass: 'entity-balance-negative',
+            badgeColor: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
+            sign: '+'
+        };
+    } else if (balance < -0.01) {
+        // Negative Balance: They owe me money (Receivable/Asset)
+        return {
+            label: 'Receivable',
+            icon: '↑',
+            colorClass: 'entity-balance-positive',
+            badgeColor: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+            sign: ''
+        };
+    } else {
+        // Zero Balance: Settled
+        return {
+            label: 'Settled',
+            icon: '✓',
+            colorClass: 'entity-balance-neutral',
+            badgeColor: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+            sign: ''
+        };
+    }
+}
 function filterEntityCards() {
     const searchTerm = document.getElementById('entity-list-search').value.toLowerCase().trim();
     const entityCards = document.querySelectorAll('#entityCardsGrid .entity-card-compact');
@@ -11068,13 +11058,26 @@ function getMetricLabel(metric) {
         default: return 'Metric';
     }
 }
+// UPDATED: deleteFactoryInventoryItem with supplier cleanup
 function deleteFactoryInventoryItem() {
-    if (editingFactoryInventoryId && confirm("Delete this inventory item permanently?")) {
+    if (editingFactoryInventoryId && confirm("Delete this inventory item permanently?\n\nThis will also unlink any supplier associations and reverse related transactions.")) {
+        const material = factoryInventoryData.find(i => i.id === editingFactoryInventoryId);
+        
+        if (material && material.supplierId) {
+            // Unlink supplier first (this reverses transactions)
+            unlinkSupplierFromMaterial(material);
+        }
+        
+        // Delete the material
         factoryInventoryData = factoryInventoryData.filter(item => item.id !== editingFactoryInventoryId);
         localStorage.setItem('factory_inventory_data', JSON.stringify(factoryInventoryData));
+        
         closeFactoryInventoryModal();
         renderFactoryInventory();
-        alert("Inventory item deleted!");
+        refreshPaymentTab();
+        calculateNetCash();
+        
+        showToast("Inventory item deleted!", 'success');
     }
 }
 // Add these at the top of your JavaScript or with other helper functions
