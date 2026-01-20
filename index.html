@@ -9,6 +9,7 @@
 
     <title>GULL AND ZUBAIR NASWAR DEALERS</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/dist/umd/supabase.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700;800&amp;family=Great+Vibes&amp;family=Playfair+Display:wght@400;700&amp;display=swap" rel="stylesheet">
     
     <style>
@@ -3034,13 +3035,44 @@ body.dark-mode .units-available-danger {
     <span style="font-weight:800; font-size:0.85rem; color:var(--accent);" class="shimmer-text">MAHMOOD KHAN</span>
     
     <div style="display:flex; gap:8px; align-items: center;">
-        <!-- Add the moon icon here -->
         <button class="btn-theme" id="themeToggle" onclick="toggleDarkMode()" title="Toggle Dark Mode">🌕</button>
-        <button class="btn btn-noman btn-sm" onclick="unifiedBackup()">Backup</button>
-        <button class="btn btn-sm" style="background:var(--glass-border); color:var(--text-main);" onclick="document.getElementById('restoreInput').click()">Restore</button>
-        <input type="file" id="restoreInput" class="hidden" accept=".json" onchange="unifiedRestore(event)">
+        <button class="btn-theme" onclick="openDataMenu()" title="Data Management">🌥️</button>
     </div>
 </div>
+
+<input type="file" id="restoreInput" class="hidden" accept=".json" onchange="unifiedRestore(event)">
+
+<div id="dataMenuOverlay" class="factory-overlay">
+    <div class="factory-overlay-card liquid-card" style="max-width: 350px; text-align: center;">
+        <div class="section-header">
+            <h3 style="color:var(--text-main); margin:0;">Data Options</h3>
+            <button class="btn-theme" onclick="closeDataMenu()">✕</button>
+        </div>
+        
+        <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
+            <button class="btn btn-main" onclick="triggerCloudBackup()">
+                ☁️ Backup to Cloud
+            </button>
+            <button class="btn btn-noman" onclick="triggerCloudRestore()">
+                📥 Restore from Cloud
+            </button>
+            
+            <hr style="width: 100%; border: 0; border-top: 1px solid var(--glass-border); margin: 5px 0;">
+            
+            <button class="btn" style="background: rgba(37, 99, 235, 0.1); color: var(--text-main); border: 1px solid var(--glass-border);" onclick="triggerLocalBackup()">
+                💾 Backup to Phone
+            </button>
+            <button class="btn" style="background: rgba(37, 99, 235, 0.1); color: var(--text-main); border: 1px solid var(--glass-border);" onclick="document.getElementById('restoreInput').click(); closeDataMenu();">
+                📂 Restore from Phone
+            </button>
+        </div>
+        
+        <div id="lastSyncDisplay" style="margin-top: 15px; font-size: 0.7rem; color: var(--text-muted);">
+            Last Synced: Checking...
+        </div>
+    </div>
+</div>
+
 
     <div class="nav-tabs">
         <button class="tab-btn active" onclick="showTab('prod')">PRODUCTION</button>
@@ -4570,6 +4602,7 @@ function reloadDataFromStorage() {
         console.error('[RELOAD ERROR]', error);
     }
 }
+
 
 // Manual force sync
 window.forceSync = function() {
@@ -7699,7 +7732,519 @@ function deleteCustomerSale(id) {
 
 // 1. Initialize return storage
 let stockReturns = JSON.parse(localStorage.getItem('stock_returns')) || [];
+// ============================================
+// SUPABASE CLOUD SYNC - COMPLETE IMPLEMENTATION
+// ============================================
 
+const SUPABASE_URL = 'https://znxhlwbmoqwoijkhglcb.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpueGhsd2Jtb3F3b2lqa2hnbGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg4OTA1MjIsImV4cCI6MjA4NDQ2NjUyMn0.4RuwqqM-uxGRzpCxtgHx572OdFICfZjMXYFOHRU3lrI';
+
+let supabaseClient = null;
+let currentUser = null;
+let isAuthReady = false;
+let syncTimeout = null;
+
+// Initialize Supabase
+function initSupabase() {
+    try {
+        if (typeof window.supabase === 'undefined') {
+            console.error('❌ Supabase library not loaded');
+            showToast('Cloud sync unavailable - Supabase not loaded', 'warning', 3000);
+            return;
+        }
+        
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        console.log('✓ Supabase client created');
+        
+        setupAuthListener();
+        checkAuthState();
+        
+    } catch (error) {
+        console.error('❌ Supabase initialization error:', error);
+        showToast('Cloud sync unavailable - initialization failed', 'warning', 3000);
+    }
+}
+
+// Check authentication state
+// --- AUTHENTICATION & SESSION MANAGEMENT ---
+// --- AUTHENTICATION & SESSION MANAGEMENT ---
+
+function checkAuthState() {
+    if (!supabaseClient) return;
+    
+    // 1. Check for Auto-Logout (3 Days = 72 hours)
+    const lastLogin = localStorage.getItem('login_timestamp');
+    const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+    
+    // If timestamp exists and 3 days have passed, force logout
+    if (lastLogin && (Date.now() - parseInt(lastLogin) > threeDaysMs)) {
+        console.log('⏳ Session expired (3 days). Logging out...');
+        supabaseClient.auth.signOut().then(() => {
+            localStorage.removeItem('login_timestamp');
+            currentUser = null;
+            showAuthOverlay();
+            showToast('Session expired. Please log in again.', 'info');
+        });
+        return;
+    }
+
+    // 2. Standard Session Check
+    supabaseClient.auth.getUser().then(({ data: { user }, error }) => {
+        if (error || !user) {
+            console.log('No active session');
+            showAuthOverlay();
+        } else {
+            currentUser = user;
+            isAuthReady = true;
+            hideAuthOverlay();
+            
+            // Note: We do NOT update the timestamp here. 
+            // The 3-day timer counts from the INITIAL login, not the last activity.
+            
+            console.log('✓ User authenticated');
+            setTimeout(() => pullDataFromCloud(), 1000); // Auto-sync on load
+        }
+    });
+}
+
+// Updated Auth Listener to set timestamp on login
+function setupAuthListener() {
+    if (!supabaseClient) return;
+    
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_IN') {
+            currentUser = session?.user;
+            // SET TIMESTAMP ONLY ON EXPLICIT LOGIN
+            localStorage.setItem('login_timestamp', Date.now());
+            
+            hideAuthOverlay();
+            // Note: removed addSignOutButton() call to remove the button
+            setTimeout(() => pullDataFromCloud(), 500);
+            showToast(`Welcome! Sync Active.`, 'success');
+        } else if (event === 'SIGNED_OUT') {
+            currentUser = null;
+            localStorage.removeItem('login_timestamp');
+            showAuthOverlay();
+        }
+    });
+}
+
+// Empty functions to ensure no logout button is rendered
+function addSignOutButton() {
+    // Intentionally left empty to remove logout button
+}
+
+function removeSignOutButton() {
+    // Intentionally left empty
+}
+
+
+// ============================================
+// CLOUD SYNC FUNCTIONS
+// ============================================
+
+async function pushDataToCloud() {
+    if (!currentUser || !supabaseClient) {
+        console.log('⚠ Cannot sync: not authenticated');
+        return false;
+    }
+    
+    try {
+        console.log('📤 Pushing data to cloud...');
+        
+        const dataToSync = {
+            mfg_pro_pkr: db,
+            customer_sales: customerSales,
+            noman_history: salesHistory,
+            factory_inventory_data: factoryInventoryData,
+            factory_production_history: factoryProductionHistory,
+            factory_default_formulas: factoryDefaultFormulas,
+            factory_additional_costs: factoryAdditionalCosts,
+            factory_cost_adjustment_factor: factoryCostAdjustmentFactor,
+            factory_sale_prices: factorySalePrices,
+            factory_unit_tracking: factoryUnitTracking,
+            payment_entities: paymentEntities,
+            payment_transactions: paymentTransactions,
+            stock_returns: stockReturns,
+            naswar_default_settings: defaultSettings,
+            last_synced: new Date().toISOString()
+        };
+        
+        const { data, error } = await supabaseClient
+            .from('user_data')
+            .upsert({
+                user_id: currentUser.id,
+                data: dataToSync,
+                last_synced: new Date().toISOString()
+            }, {
+                onConflict: 'user_id'
+            });
+        
+        if (error) {
+            console.error('❌ Cloud backup error:', error);
+            throw error;
+        }
+        
+        console.log('✓ Cloud backup successful');
+        localStorage.setItem('last_synced', new Date().toISOString());
+        showToast('💾 Backed up to cloud', 'success', 2000);
+        return true;
+        
+    } catch (error) {
+        console.error('❌ Cloud backup failed:', error);
+        showToast('Cloud backup failed - saved locally', 'warning', 3000);
+        return false;
+    }
+}
+
+async function pullDataFromCloud() {
+    if (!currentUser || !supabaseClient) {
+        console.log('⚠ Cannot restore: not authenticated');
+        return false;
+    }
+    
+    try {
+        console.log('📥 Pulling data from cloud...');
+        
+        const { data, error } = await supabaseClient
+            .from('user_data')
+            .select('data, last_synced')
+            .eq('user_id', currentUser.id)
+            .maybeSingle();
+        
+        if (error && error.code !== 'PGRST116') {
+            console.error('❌ Cloud restore error:', error);
+            throw error;
+        }
+        
+        if (!data) {
+            console.log('ℹ No cloud data - new user');
+            showToast('Welcome! Your data will be backed up to cloud.', 'info', 3000);
+            // Push current data to cloud
+            setTimeout(() => pushDataToCloud(), 1000);
+            return true;
+        }
+        
+        if (!data.data) {
+            console.log('ℹ Cloud data empty');
+            return true;
+        }
+        
+        const cloudData = data.data;
+        const cloudTimestamp = new Date(cloudData.last_synced || 0).getTime();
+        const localTimestamp = new Date(localStorage.getItem('last_synced') || 0).getTime();
+        
+        if (cloudTimestamp <= localTimestamp && localTimestamp > 0) {
+            console.log('ℹ Local data is newer');
+            showToast('Using latest local data', 'info', 2000);
+            // Push local data to cloud
+            setTimeout(() => pushDataToCloud(), 1000);
+            return true;
+        }
+        
+        console.log('📥 Restoring cloud data...');
+        
+        // Restore all data
+        if (cloudData.mfg_pro_pkr) {
+            localStorage.setItem('mfg_pro_pkr', JSON.stringify(cloudData.mfg_pro_pkr));
+            db = cloudData.mfg_pro_pkr;
+        }
+        
+        if (cloudData.customer_sales) {
+            localStorage.setItem('customer_sales', JSON.stringify(cloudData.customer_sales));
+            customerSales = cloudData.customer_sales;
+        }
+        
+        if (cloudData.noman_history) {
+            localStorage.setItem('noman_history', JSON.stringify(cloudData.noman_history));
+            salesHistory = cloudData.noman_history;
+        }
+        
+        if (cloudData.factory_inventory_data) {
+            localStorage.setItem('factory_inventory_data', JSON.stringify(cloudData.factory_inventory_data));
+            factoryInventoryData = cloudData.factory_inventory_data;
+        }
+        
+        if (cloudData.factory_production_history) {
+            localStorage.setItem('factory_production_history', JSON.stringify(cloudData.factory_production_history));
+            factoryProductionHistory = cloudData.factory_production_history;
+        }
+        
+        if (cloudData.factory_default_formulas) {
+            localStorage.setItem('factory_default_formulas', JSON.stringify(cloudData.factory_default_formulas));
+            factoryDefaultFormulas = cloudData.factory_default_formulas;
+        }
+        
+        if (cloudData.factory_additional_costs) {
+            localStorage.setItem('factory_additional_costs', JSON.stringify(cloudData.factory_additional_costs));
+            factoryAdditionalCosts = cloudData.factory_additional_costs;
+        }
+        
+        if (cloudData.factory_cost_adjustment_factor) {
+            localStorage.setItem('factory_cost_adjustment_factor', JSON.stringify(cloudData.factory_cost_adjustment_factor));
+            factoryCostAdjustmentFactor = cloudData.factory_cost_adjustment_factor;
+        }
+        
+        if (cloudData.factory_sale_prices) {
+            localStorage.setItem('factory_sale_prices', JSON.stringify(cloudData.factory_sale_prices));
+            factorySalePrices = cloudData.factory_sale_prices;
+        }
+        
+        if (cloudData.factory_unit_tracking) {
+            localStorage.setItem('factory_unit_tracking', JSON.stringify(cloudData.factory_unit_tracking));
+            factoryUnitTracking = cloudData.factory_unit_tracking;
+        }
+        
+        if (cloudData.payment_entities) {
+            localStorage.setItem('payment_entities', JSON.stringify(cloudData.payment_entities));
+            paymentEntities = cloudData.payment_entities;
+        }
+        
+        if (cloudData.payment_transactions) {
+            localStorage.setItem('payment_transactions', JSON.stringify(cloudData.payment_transactions));
+            paymentTransactions = cloudData.payment_transactions;
+        }
+        
+        if (cloudData.stock_returns) {
+            localStorage.setItem('stock_returns', JSON.stringify(cloudData.stock_returns));
+            stockReturns = cloudData.stock_returns;
+        }
+        
+        if (cloudData.naswar_default_settings) {
+            localStorage.setItem('naswar_default_settings', JSON.stringify(cloudData.naswar_default_settings));
+            defaultSettings = cloudData.naswar_default_settings;
+        }
+        
+        localStorage.setItem('last_synced', cloudData.last_synced);
+        
+        console.log('✓ Cloud data restored');
+        showToast('☁️ Data restored from cloud', 'success', 2000);
+        
+        // Refresh displays
+        setTimeout(() => {
+            if (typeof refreshAllDisplays === 'function') {
+                refreshAllDisplays();
+            }
+        }, 500);
+        
+        return true;
+        
+    } catch (error) {
+        console.error('❌ Cloud restore failed:', error);
+        showToast('Could not restore cloud data', 'warning', 3000);
+        return false;
+    }
+}
+
+function scheduleCloudSync() {
+    if (!currentUser || !isAuthReady) {
+        console.log('⚠ Skipping sync - not authenticated');
+        return;
+    }
+    
+    clearTimeout(syncTimeout);
+    syncTimeout = setTimeout(() => {
+        console.log('⏰ Auto-syncing to cloud...');
+        pushDataToCloud();
+    }, 3000);
+}
+
+// ============================================
+// AUTHENTICATION UI
+// ============================================
+
+// --- REDESIGNED AUTH UI ---
+function createAuthOverlay() {
+    const existing = document.getElementById('auth-overlay');
+    if (existing) existing.remove();
+    
+    const overlay = document.createElement('div');
+    overlay.id = 'auth-overlay';
+    // Matches the app's bg-gradient
+    overlay.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: linear-gradient(135deg, rgba(240, 248, 255, 0.95) 0%, rgba(230, 240, 255, 0.95) 100%);
+        backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+        z-index: 99999; display: flex; align-items: center; justify-content: center;
+    `;
+    
+    // Liquid Card styling to match main app cards
+    overlay.innerHTML = `
+        <div class="liquid-card" style="max-width: 400px; width: 90%; padding: 40px 30px; text-align: center; border: 1px solid var(--glass-border); box-shadow: 0 20px 50px rgba(37, 99, 235, 0.15);">
+            <div style="font-size: 3.5rem; margin-bottom: 10px;">🌥️</div>
+            <h2 class="shimmer-text" style="font-family: 'Great Vibes', cursive; font-size: 2.5rem; margin: 0 0 20px 0;">
+                Naswar Dealers
+            </h2>
+            
+            <p style="color: var(--text-muted); margin-bottom: 30px; font-size: 0.9rem;">
+                Sign in to sync your business data
+            </p>
+            
+            <form id="auth-form" style="display: flex; flex-direction: column; gap: 15px;">
+                <input type="email" id="auth-email" placeholder="Email Address" required 
+                    style="width: 100%; padding: 12px; background: var(--input-bg); border: 1px solid var(--glass-border); border-radius: 12px; box-sizing: border-box; color: var(--text-main);">
+                
+                <input type="password" id="auth-password" placeholder="Password" required 
+                    style="width: 100%; padding: 12px; background: var(--input-bg); border: 1px solid var(--glass-border); border-radius: 12px; box-sizing: border-box; color: var(--text-main);">
+                
+                <button type="submit" class="btn btn-main" style="padding: 12px; font-size: 1rem; margin-top: 10px; border-radius: 12px;">
+                    Sign In
+                </button>
+            </form>
+            
+            <div id="auth-message" style="font-size: 0.8rem; margin-top: 15px; min-height: 20px;"></div>
+            
+            <button id="auth-offline-btn" class="btn-theme" 
+                style="margin-top: 25px; font-size: 0.75rem; width: 100%; opacity: 0.7;">
+                Continue Offline (No Sync)
+            </button>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    
+    // Check dark mode preference to adjust overlay background immediately
+    if (document.body.classList.contains('dark-mode')) {
+        overlay.style.background = 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.98) 100%)';
+    }
+
+    document.getElementById('auth-form').addEventListener('submit', handleSignIn);
+    document.getElementById('auth-offline-btn').addEventListener('click', () => {
+        if (confirm('Data will only be saved on this device. Continue?')) {
+            hideAuthOverlay();
+        }
+    });
+}
+
+
+function showAuthOverlay() {
+    let overlay = document.getElementById('auth-overlay');
+    if (!overlay) {
+        createAuthOverlay();
+    } else {
+        overlay.style.display = 'flex';
+    }
+}
+
+function hideAuthOverlay() {
+    const overlay = document.getElementById('auth-overlay');
+    if (overlay) {
+        overlay.style.display = 'none';
+    }
+}
+
+async function handleSignIn(e) {
+    e.preventDefault();
+    const email = document.getElementById('auth-email').value.trim();
+    const password = document.getElementById('auth-password').value;
+    const messageDiv = document.getElementById('auth-message');
+    
+    if (!email || !password) {
+        messageDiv.textContent = '⚠️ Please enter both email and password';
+        messageDiv.style.color = 'var(--warning)';
+        return;
+    }
+    
+    messageDiv.textContent = '🔄 Signing in...';
+    messageDiv.style.color = 'var(--accent)';
+    
+    try {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+            email: email,
+            password: password
+        });
+        
+        if (error) throw error;
+        
+        messageDiv.textContent = '✓ Success! Loading your data...';
+        messageDiv.style.color = 'var(--accent-emerald)';
+        
+    } catch (error) {
+        console.error('Sign in error:', error);
+        messageDiv.textContent = '❌ ' + (error.message || 'Sign in failed. Check your credentials.');
+        messageDiv.style.color = 'var(--danger)';
+    }
+}
+
+async function handleSignUp() {
+    const email = document.getElementById('auth-email').value.trim();
+    const password = document.getElementById('auth-password').value;
+    const messageDiv = document.getElementById('auth-message');
+    
+    if (!email || !password) {
+        messageDiv.textContent = '⚠️ Please enter email and password';
+        messageDiv.style.color = 'var(--danger)';
+        return;
+    }
+    
+    if (password.length < 6) {
+        messageDiv.textContent = '⚠️ Password must be at least 6 characters';
+        messageDiv.style.color = 'var(--danger)';
+        return;
+    }
+    
+    messageDiv.textContent = '🔄 Creating account...';
+    messageDiv.style.color = 'var(--accent)';
+    
+    try {
+        const { data, error } = await supabaseClient.auth.signUp({
+            email: email,
+            password: password
+        });
+        
+        if (error) throw error;
+        
+        messageDiv.textContent = '✓ Account created! Please check your email to confirm.';
+        messageDiv.style.color = 'var(--accent-emerald)';
+        
+    } catch (error) {
+        console.error('Sign up error:', error);
+        messageDiv.textContent = '❌ ' + (error.message || 'Sign up failed. Try a different email.');
+        messageDiv.style.color = 'var(--danger)';
+    }
+}
+
+async function signOut() {
+    if (!confirm('Sign out and return to login screen?')) return;
+    
+    try {
+        const { error } = await supabaseClient.auth.signOut();
+        if (error) throw error;
+        
+        currentUser = null;
+        showAuthOverlay();
+        
+    } catch (error) {
+        console.error('Sign out error:', error);
+        showToast('Sign out failed', 'error');
+    }
+}
+
+function addSignOutButton() {
+    // Remove existing button if any
+    removeSignOutButton();
+    
+    const systemControls = document.querySelector('.system-controls');
+    if (systemControls && currentUser) {
+        const btnContainer = systemControls.querySelector('div');
+        if (btnContainer) {
+            const signOutBtn = document.createElement('button');
+            signOutBtn.className = 'btn-theme';
+            signOutBtn.id = 'cloud-signout-btn';
+            signOutBtn.innerHTML = '🚪';
+            signOutBtn.title = `Sign Out (${currentUser.email})`;
+            signOutBtn.onclick = signOut;
+            signOutBtn.style.marginLeft = '8px';
+            btnContainer.appendChild(signOutBtn);
+        }
+    }
+}
+
+
+function removeSignOutButton() {
+    const btn = document.getElementById('cloud-signout-btn');
+    if (btn) btn.remove();
+}
 // 2. UI Control for Return Section
 function handleReturnQtyInput() {
     const retQty = parseFloat(document.getElementById('returnedQuantity').value) || 0;
@@ -7733,6 +8278,8 @@ function saveTransaction() {
             return;
         }
     }
+    
+
     
     const costPerKg = calculateSalesCostPerKg('standard');
     const salePrice = factorySalePrices.standard || 0;
@@ -8726,6 +9273,12 @@ function syncSuppliersToEntities() {
 }
     // --- Backup & Restore ---
     function unifiedBackup() {
+    if (currentUser) {
+        if (confirm('📤 Backup to cloud?\n\nYes = Cloud backup\nNo = Download file')) {
+            pushDataToCloud();
+            return;
+        }
+    }
         const data = { 
             mfg: db, 
             sales: JSON.parse(localStorage.getItem('noman_history')) || [],
@@ -8742,17 +9295,17 @@ function syncSuppliersToEntities() {
             settings: JSON.parse(localStorage.getItem('naswar_default_settings')) || defaultSettings
         };
         const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        const timestamp = new Date().toISOString().split('T')[0];
-        a.download = `NaswarDealers_Backup_${timestamp}.json`;
-        
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        
-        alert("Backup created successfully!");
-    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const timestamp = new Date().toISOString().split('T')[0];
+    a.download = `NaswarDealers_Backup_${timestamp}.json`;
+    
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    
+    alert("Backup created successfully!");
+}
 
     function unifiedRestore(event) {
         const file = event.target.files[0];
@@ -10557,6 +11110,11 @@ function reverseReturnFromProduction(storeKey, quantity, date) {
 
     // --- INITIALIZATION ---
     window.onload = () => {
+    // FIRST: Initialize Supabase
+    setTimeout(() => {
+        console.log('🚀 Initializing Supabase...');
+        initSupabase();
+    }, 100);
         initSplashScreen();
         
         const today = new Date();
@@ -11854,7 +12412,74 @@ function filterCustomers() {
     }
 }
 
+// --- DATA MENU FUNCTIONS ---
+function openDataMenu() {
+    document.getElementById('dataMenuOverlay').style.display = 'flex';
+    
+    // Update last sync time display if available
+    const lastSync = localStorage.getItem('last_synced');
+    const display = document.getElementById('lastSyncDisplay');
+    if (display) {
+        display.textContent = lastSync ? 
+            `Last Cloud Sync: ${new Date(lastSync).toLocaleString()}` : 
+            'Not synced yet';
+    }
+}
 
+function closeDataMenu() {
+    document.getElementById('dataMenuOverlay').style.display = 'none';
+}
+
+function triggerCloudBackup() {
+    closeDataMenu();
+    pushDataToCloud(); // Calls existing cloud backup logic
+}
+
+function triggerCloudRestore() {
+    closeDataMenu();
+    if(confirm("⚠️ Overwrite current data with Cloud data?")) {
+        pullDataFromCloud(); // Calls existing cloud restore logic
+    }
+}
+
+function triggerLocalBackup() {
+    closeDataMenu();
+    
+    // Extracted logic from original unifiedBackup to force local download
+    const data = { 
+        mfg: db, 
+        sales: JSON.parse(localStorage.getItem('noman_history')) || [],
+        customerSales: JSON.parse(localStorage.getItem('customer_sales')) || [],
+        factoryInventoryData: factoryInventoryData,
+        factoryProductionHistory: factoryProductionHistory,
+        factoryDefaultFormulas: factoryDefaultFormulas,
+        factoryAdditionalCosts: factoryAdditionalCosts,
+        factoryCostAdjustmentFactor: factoryCostAdjustmentFactor,
+        factorySalePrices: factorySalePrices,
+        factoryUnitTracking: factoryUnitTracking,
+        paymentEntities: paymentEntities,
+        paymentTransactions: paymentTransactions,
+        stockReturns: stockReturns, 
+        settings: JSON.parse(localStorage.getItem('naswar_default_settings')) || defaultSettings
+    };
+    
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const timestamp = new Date().toISOString().split('T')[0];
+    a.download = `NaswarDealers_Backup_${timestamp}.json`;
+    
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    
+    showToast("Backup file downloaded!", "success");
+}
+
+// Ensure compatibility if unifiedBackup is called elsewhere
+function unifiedBackup() {
+    openDataMenu(); 
+}
 
 
 
