@@ -3036,7 +3036,7 @@ body.dark-mode .units-available-danger {
     
     <div style="display:flex; gap:8px; align-items: center;">
         <button class="btn-theme" id="themeToggle" onclick="toggleDarkMode()" title="Toggle Dark Mode">🌕</button>
-        <button class="btn-theme" onclick="openDataMenu()" title="Data Management">🌥️</button>
+        <button class="btn-theme" id="cloudMenuBtn" onclick="openDataMenu()" title="Data Management">🌥️</button>
     </div>
 </div>
 
@@ -3052,15 +3052,33 @@ body.dark-mode .units-available-danger {
 <button class="btn" id="bio-toggle-btn" style="background: rgba(37, 99, 235, 0.1); color: var(--text-main); border: 1px solid var(--glass-border);" onclick="enableBiometricLock()">
     Enable Biometric Lock 👆
 </button>
+<div style="background: rgba(245, 158, 11, 0.1); padding: 10px; border-radius: 10px; margin-bottom: 15px; border: 1px solid var(--warning);">
+    <h4 style="margin: 0 0 10px 0; color: var(--warning); font-size: 0.8rem;">ADMIN CONTROLS</h4>
+    <div class="field" style="margin-bottom: 10px;">
+        <label>Set Admin PIN</label>
+        <input type="password" id="setting-admin-pin" placeholder="Default: 1234" maxlength="4" style="text-align:center;">
+    </div>
+    <div class="field" style="margin-bottom: 10px;">
+        <label>Select Rep for this Device</label>
+        <select id="setting-rep-select" class="store-selector">
+            <option value="NORAN SHAH">NORAN SHAH</option>
+            <option value="NOMAN SHAH">NOMAN SHAH</option>
+        </select>
+    </div>
+    <button class="btn btn-danger" onclick="activateRepMode()">🔒 Switch to Rep Mode</button>
+</div>
+<hr style="width: 100%; border: 0; border-top: 1px solid var(--glass-border); margin: 5px 0;">
 
         
         <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
-            <button class="btn btn-main" onclick="triggerCloudBackup()">
-                ☁️ Backup to Cloud
-            </button>
-            <button class="btn btn-noman" onclick="triggerCloudRestore()">
-                📥 Restore from Cloud
-            </button>
+                <button class="btn btn-main" onclick="triggerCloudAction('backup')">
+        ☁️ Backup to Cloud
+    </button>
+</div>
+<div class="field">
+    <button class="btn btn-noman" onclick="triggerCloudAction('restore')">
+        📥 Restore from Cloud
+    </button>
             
             <hr style="width: 100%; border: 0; border-top: 1px solid var(--glass-border); margin: 5px 0;">
             
@@ -3086,6 +3104,109 @@ body.dark-mode .units-available-danger {
         <button class="tab-btn" onclick="showTab('factory')">FACTORY</button>
         <button class="tab-btn" onclick="showTab('payments')">PAYMENTS</button>
     </div>
+<div id="rep-header" class="hidden" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; background: var(--glass); padding: 15px; border-radius: 20px; border: 1px solid var(--glass-border);">
+    <div>
+        <h2 style="margin:0; color:var(--accent);">👤 <span id="current-rep-name-display">REP MODE</span></h2>
+        <span style="font-size: 0.7rem; color: var(--text-muted);">Restricted Access</span>
+    </div>
+    <button class="btn btn-danger" onclick="openAdminPinModal()">🔓 Admin Access</button>
+</div>
+
+<div id="adminPinOverlay" class="factory-overlay">
+    <div class="factory-overlay-card liquid-card" style="max-width: 300px; text-align: center;">
+        <h3 style="color:var(--text-main); margin-bottom: 15px;">Enter Admin PIN</h3>
+        <input type="password" id="admin-pin-input" class="search-bar" style="text-align: center; font-size: 1.5rem; letter-spacing: 5px; margin-bottom: 20px;" maxlength="4" placeholder="••••">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <button class="btn" style="background: var(--input-bg); border: 1px solid var(--glass-border);" onclick="closeAdminPinModal()">Cancel</button>
+            <button class="btn btn-main" onclick="verifyAdminPin()">Unlock</button>
+        </div>
+    </div>
+</div>
+<div id="tab-rep" class="hidden">
+    <div class="section liquid-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <h3 style="color:var(--accent); margin:0;">New Transaction</h3>
+            <div style="background:var(--input-bg); padding:4px; border-radius:8px; border:1px solid var(--glass-border); display:flex;">
+                <button id="btn-mode-sale" class="toggle-opt active" onclick="setRepMode('sale')" style="padding:6px 12px; font-size:0.8rem;">📦 Sale</button>
+                <button id="btn-mode-coll" class="toggle-opt" onclick="setRepMode('collection')" style="padding:6px 12px; font-size:0.8rem;">💰Collection</button>
+            </div>
+        </div>
+        
+        <div class="grid-inputs">
+            <div class="field"><label>Date</label><input type="date" id="rep-date"></div>
+            <div class="field">
+                <label>Customer Name</label>
+                <input type="text" id="rep-cust-name" placeholder="Search my customers..." 
+                       oninput="searchRepCustomers(this.value)" autocomplete="off">
+                <div id="rep-customer-search-results" class="hidden" style="position: absolute; z-index: 1000; width: 100%; max-height: 200px; overflow-y: auto; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 10px; margin-top: 60px; box-shadow: var(--shadow);"></div>
+            </div>
+        </div>
+
+        <div id="rep-sale-inputs">
+            <div class="grid-inputs">
+                <div class="field"><label>Quantity (kg)</label><input type="number" id="rep-quantity" step="0.001" oninput="calculateRepSalePreview()"></div>
+                <div class="field">
+                    <label>Payment Type</label>
+                    <div class="payment-type-container">
+                        <div class="payment-option">
+                            <input type="radio" id="rep-pay-credit" name="rep-payment" value="CREDIT" checked onchange="calculateRepSalePreview()">
+                            <label for="rep-pay-credit">Credit</label>
+                        </div>
+                        <div class="payment-option">
+                            <input type="radio" id="rep-pay-cash" name="rep-payment" value="CASH" onchange="calculateRepSalePreview()">
+                            <label for="rep-pay-cash">Cash</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="rep-coll-inputs" class="hidden">
+            <div class="field">
+                <label>Amount Collected (Rs)</label>
+                <input type="number" id="rep-amount-collected" step="1" placeholder="Enter Cash Received">
+            </div>
+        </div>
+
+        <div id="rep-customer-info-display" class="hidden" style="margin: 10px 0; padding: 12px; background: rgba(37, 99, 235, 0.05); border-radius: 10px; border: 1px solid var(--glass-border);">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">Current Debt:</span>
+                <span id="rep-customer-current-credit" style="color: var(--warning); font-weight: 800;">Rs 0.00</span>
+            </div>
+        </div>
+
+        <div class="result-box" style="display: flex; justify-content: space-between; align-items: center;">
+            <span id="rep-result-label">Transaction Value:</span>
+            <span id="rep-total-value" style="font-size: 1.1rem; color: var(--accent);">Rs 0.00</span>
+        </div>
+
+        <button class="btn btn-main" onclick="saveRepTransaction()">Submit Transaction</button>
+    </div>
+
+    <div class="section liquid-card">
+        <div class="section-header">
+            <h3 style="color:var(--text-main); margin:0;">My Customer List</h3>
+            <input type="text" id="rep-filter" class="search-bar" placeholder="Filter list..." style="width: 150px; font-size: 0.7rem;" oninput="renderRepCustomerTable()">
+        </div>
+        <div style="overflow-x: auto; max-height: 400px; overflow-y: auto;">
+          <table class="comp-table" style="font-size: 0.75rem;">
+    <thead>
+        <tr>
+            <th style="text-align: left; font-weight: 800;">Customer</th>
+            <th style="text-align: right; font-weight: 800;">Credit</th>
+            <th style="text-align: right; font-weight: 800;">Activity</th>
+            <th style="text-align: center; font-weight: 800;">Actions</th>
+        </tr>
+    </thead>
+    <tbody id="rep-customers-table-body"></tbody>
+</table>
+</div>
+</div>
+    <div class="section liquid-card">
+        <h3 style="color:var(--text-main); margin:0 0 15px 0;">Today's Activity</h3>
+        <div id="repHistoryList" class="report-grid"></div>
+    </div>
+</div>
 
     <!-- PRODUCTION TAB -->
     <div id="tab-prod">
@@ -4646,6 +4767,7 @@ document.addEventListener('DOMContentLoaded', function() {
 window.addEventListener('beforeunload', function() {
     stopPeriodicSync();
 });
+
 
     // NEW: Payment entities and transactions
     let paymentEntities = JSON.parse(localStorage.getItem('payment_entities')) || [];
@@ -7774,73 +7896,55 @@ function initSupabase() {
 // --- AUTHENTICATION & SESSION MANAGEMENT ---
 // --- AUTHENTICATION & SESSION MANAGEMENT ---
 
+// --- UPDATED: AUTHENTICATION & SESSION MANAGEMENT ---
 function checkAuthState() {
     if (!supabaseClient) return;
-    
-    // 1. Check for Auto-Logout (3 Days = 72 hours)
-    const lastLogin = localStorage.getItem('login_timestamp');
-    const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
-    
-    // If timestamp exists and 3 days have passed, force logout
-    if (lastLogin && (Date.now() - parseInt(lastLogin) > threeDaysMs)) {
-        console.log('⏳ Session expired (3 days). Logging out...');
-        supabaseClient.auth.signOut().then(() => {
-            localStorage.removeItem('login_timestamp');
-            currentUser = null;
-            showAuthOverlay();
-            showToast('Session expired. Please log in again.', 'info');
-        });
-        return;
-    }
 
-    // 2. Standard Session Check
     supabaseClient.auth.getUser().then(({ data: { user }, error }) => {
         if (error || !user) {
             console.log('No active session');
-            showAuthOverlay();
+            // REMOVED: showAuthOverlay(); <-- Do not show on load
         } else {
             currentUser = user;
             isAuthReady = true;
-            hideAuthOverlay();
-            
-            // Note: We do NOT update the timestamp here. 
-            // The 3-day timer counts from the INITIAL login, not the last activity.
-            
+            hideAuthOverlay(); 
             console.log('✓ User authenticated');
-            setTimeout(() => pullDataFromCloud(), 1000); // Auto-sync on load
+            setTimeout(() => pullDataFromCloud(), 1000);
         }
     });
 }
 
-// Updated Auth Listener to set timestamp on login
 function setupAuthListener() {
     if (!supabaseClient) return;
-    
     supabaseClient.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_IN') {
             currentUser = session?.user;
-            // SET TIMESTAMP ONLY ON EXPLICIT LOGIN
             localStorage.setItem('login_timestamp', Date.now());
-            
             hideAuthOverlay();
-            // Note: removed addSignOutButton() call to remove the button
             setTimeout(() => pullDataFromCloud(), 500);
             showToast(`Welcome! Sync Active.`, 'success');
         } else if (event === 'SIGNED_OUT') {
             currentUser = null;
             localStorage.removeItem('login_timestamp');
-            showAuthOverlay();
+            // REMOVED: showAuthOverlay(); <-- Do not show on logout
         }
     });
 }
+/**
+ * Triggers the Cloud Action or shows Login if needed
+ */
+async function triggerCloudAction(actionType) {
+    if (!currentUser) {
+        showToast("Please login to use cloud features", "info");
+        showAuthOverlay(); // Only shows when button is clicked
+        return;
+    }
 
-// Empty functions to ensure no logout button is rendered
-function addSignOutButton() {
-    // Intentionally left empty to remove logout button
-}
-
-function removeSignOutButton() {
-    // Intentionally left empty
+    if (actionType === 'backup') {
+        await pushDataToCloud();
+    } else if (actionType === 'restore') {
+        await pullDataFromCloud();
+    }
 }
 
 
@@ -10703,34 +10807,79 @@ function calculateTotalSoldForRepresentative(seller) {
 }
 
 // 2. Auto-fill total sold quantity when seller or date changes
+// ==========================================
+// ADMIN LINKAGE: CALCULATOR AUTO-FILL
+// ==========================================
+
 function autoFillTotalSoldQuantity() {
     const seller = document.getElementById('sellerSelect').value;
-    const totalSoldField = document.getElementById('totalSold');
+    const date = document.getElementById('sale-date').value;
     
-    if (!totalSoldField) return;
+    const totalSoldField = document.getElementById('totalSold');
+    const creditSalesField = document.getElementById('creditSales');
+    const recoveredField = document.getElementById('prevCreditReceived');
     
     if (seller === 'COMBINED') {
-        totalSoldField.value = '';
-        totalSoldField.readOnly = true;
+        if(totalSoldField) { totalSoldField.value = ''; totalSoldField.readOnly = true; }
         return;
     }
     
-    // Calculate all-time pending credit sales for this representative
-    const totalSold = calculateTotalSoldForRepresentative(seller);
+    let totalSoldKg = 0;
+    let creditSalesKg = 0;
+    let recoveredCash = 0;
     
-    // Auto-fill the field
-    totalSoldField.value = totalSold.toFixed(3);
+    customerSales.forEach(sale => {
+        if (sale.salesRep === seller && sale.date === date) {
+            // Total Sold (exclude collections)
+            if (sale.paymentType !== 'COLLECTION') {
+                totalSoldKg += (sale.quantity || 0);
+            }
+            
+            // Credit Sales Qty
+            if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
+                creditSalesKg += (sale.quantity || 0);
+            }
+            
+            // Recovered Credit (Collections)
+            if (sale.paymentType === 'COLLECTION') {
+                recoveredCash += (sale.totalValue || 0);
+            }
+        }
+    });
     
-    // Make it read-only so user can't edit it
-    totalSoldField.readOnly = true;
-    totalSoldField.style.background = 'rgba(37, 99, 235, 0.1)';
-    totalSoldField.style.color = 'var(--accent)';
-    totalSoldField.style.fontWeight = 'bold';
-    totalSoldField.style.border = '1px solid var(--accent)';
+    // Auto-fill fields
+    if(totalSoldField) {
+        totalSoldField.value = totalSoldKg.toFixed(3);
+        styleAutoFilledField(totalSoldField);
+    }
     
-    // Auto-calculate sales
+    if(creditSalesField) {
+        creditSalesField.value = creditSalesKg.toFixed(3);
+        styleAutoFilledField(creditSalesField);
+    }
+    
+    if(recoveredField) {
+        recoveredField.value = recoveredCash.toFixed(2);
+        styleAutoFilledField(recoveredField);
+    }
+    
     calculateSales();
 }
+
+function styleAutoFilledField(field) {
+    field.style.background = 'rgba(37, 99, 235, 0.1)';
+    field.style.color = 'var(--accent)';
+    field.style.fontWeight = 'bold';
+    field.style.border = '1px solid var(--accent)';
+}
+
+function styleAutoFilledField(field) {
+    field.style.background = 'rgba(37, 99, 235, 0.1)';
+    field.style.color = 'var(--accent)';
+    field.style.fontWeight = 'bold';
+    field.style.border = '1px solid var(--accent)';
+}
+
 
 // 3. Enhanced loadSalesData to include auto-fill
 function loadSalesData(compMode = 'all') {
@@ -11932,8 +12081,21 @@ function openCustomerManagement(customerName) {
 function closeCustomerManagement() {
     document.getElementById('customerManagementOverlay').style.display = 'none';
     currentManagingCustomer = null;
-    refreshAllCalculations(); // Ensure Sales Tab updates on close
-    renderCustomersTable();
+    
+    // Refresh calculations
+    if(typeof refreshAllCalculations === 'function') {
+        refreshAllCalculations();
+    }
+    
+    // Refresh customer tables
+    if(typeof renderCustomersTable === 'function') {
+        renderCustomersTable();
+    }
+    
+    // If in rep mode, refresh rep table
+    if(appMode === 'rep' && typeof renderRepCustomerTable === 'function') {
+        renderRepCustomerTable();
+    }
 }
 
 function renderCustomerTransactions(name) {
@@ -12427,11 +12589,15 @@ function filterCustomers() {
     }
 }
 
-// --- DATA MENU FUNCTIONS ---
 function openDataMenu() {
+    // Check if user is in rep mode
+    if(appMode === 'rep') {
+        showToast("Data menu is not available in Rep Mode", "warning");
+        return;
+    }
+    
     document.getElementById('dataMenuOverlay').style.display = 'flex';
     
-    // Update last sync time display if available
     const lastSync = localStorage.getItem('last_synced');
     const display = document.getElementById('lastSyncDisplay');
     if (display) {
@@ -12673,6 +12839,702 @@ async function checkBiometricLock() {
 // Run the check when page loads
 document.addEventListener('DOMContentLoaded', checkBiometricLock);
 
+// ==========================================
+// SALES REP SYSTEM (With Admin Linkage)
+// ==========================================
+
+let repTransactionMode = 'sale'; // 'sale' or 'collection'
+
+// --- 1. UI TOGGLES ---
+function setRepMode(mode) {
+    repTransactionMode = mode;
+    
+    // Update Buttons
+    document.getElementById('btn-mode-sale').className = `toggle-opt ${mode === 'sale' ? 'active' : ''}`;
+    document.getElementById('btn-mode-coll').className = `toggle-opt ${mode === 'collection' ? 'active' : ''}`;
+    
+    // Toggle Fields
+    if(mode === 'sale') {
+        document.getElementById('rep-sale-inputs').classList.remove('hidden');
+        document.getElementById('rep-coll-inputs').classList.add('hidden');
+        document.getElementById('rep-result-label').innerText = "Total Sale Value:";
+        calculateRepSalePreview();
+    } else {
+        document.getElementById('rep-sale-inputs').classList.add('hidden');
+        document.getElementById('rep-coll-inputs').classList.remove('hidden');
+        document.getElementById('rep-result-label').innerText = "New Balance After Collection:";
+        // Reset preview
+        const currentDebtText = document.getElementById('rep-customer-current-credit').innerText.replace('Rs ','').replace(/,/g,'');
+        const currentDebt = parseFloat(currentDebtText) || 0;
+        document.getElementById('rep-total-value').innerText = "Rs " + formatCurrency(currentDebt).replace('PKR ','');
+    }
+}
+
+// --- 2. ISOLATED CUSTOMER SEARCH ---
+function searchRepCustomers(query) {
+    const resultsDiv = document.getElementById('rep-customer-search-results');
+    if (!query || query.length < 1) { resultsDiv.classList.add('hidden'); return; }
+
+    // STRATEGY: Filter specifically for this Rep's customers, EXCLUDING rep names
+    const myCustomers = customerSales.filter(s => 
+        s.salesRep === currentRepProfile &&
+        s.customerName !== 'NORAN SHAH' && 
+        s.customerName !== 'NOMAN SHAH'
+    );
+    
+    const uniqueNames = [...new Set(myCustomers.map(s => s.customerName))];
+    const matches = uniqueNames.filter(name => name.toLowerCase().includes(query.toLowerCase()));
+
+    let html = '';
+    if (matches.length > 0) {
+        matches.forEach(name => {
+            const safeName = name.replace(/'/g, "\\'");
+            html += `<div style="padding:10px; cursor:pointer; border-bottom:1px solid var(--glass-border); font-size:0.85rem; background: var(--input-bg);" 
+                     onmousedown="selectRepCustomer('${safeName}')"
+                     onmouseover="this.style.background='var(--highlight-bg)'" 
+                     onmouseout="this.style.background='var(--input-bg)'">
+                    <strong>${name}</strong>
+                </div>`;
+        });
+    } else {
+        html = `<div style="padding:10px; color:var(--text-muted); font-size:0.8rem; background: var(--input-bg);">
+                New customer "${query}" will be created
+            </div>`;
+    }
+    
+    resultsDiv.innerHTML = html;
+    resultsDiv.classList.remove('hidden');
+}
+
+function selectRepCustomer(name) {
+    document.getElementById('rep-cust-name').value = name;
+    document.getElementById('rep-customer-search-results').classList.add('hidden');
+    calculateRepCustomerStats(name);
+}
+
+// --- 3. CUSTOMER STATS & LOGIC ---
+function calculateRepCustomerStats(name) {
+    // Validate that this isn't a representative name
+    if(name === 'NORAN SHAH' || name === 'NOMAN SHAH') {
+        document.getElementById('rep-customer-info-display').classList.add('hidden');
+        showToast("Cannot create transaction with representative name", "warning");
+        return;
+    }
+    
+    // Calculate total debt for this specific customer
+    const history = customerSales.filter(s => 
+        s.customerName.toLowerCase() === name.toLowerCase() &&
+        s.salesRep === currentRepProfile
+    );
+    
+    let debt = 0;
+    
+    history.forEach(h => {
+        // Add Credit Sales
+        if (h.paymentType === 'CREDIT' && !h.creditReceived) debt += (h.totalValue || 0);
+        // Subtract Collections
+        if (h.paymentType === 'COLLECTION') debt -= (h.totalValue || 0);
+    });
+
+    document.getElementById('rep-customer-current-credit').innerText = "Rs " + debt.toFixed(2);
+    document.getElementById('rep-customer-info-display').classList.remove('hidden');
+    
+    // Update preview if in collection mode
+    if(repTransactionMode === 'collection') {
+        const inputAmt = parseFloat(document.getElementById('rep-amount-collected').value) || 0;
+        document.getElementById('rep-total-value').innerText = "Rs " + (debt - inputAmt).toFixed(2);
+    }
+}
+
+function calculateRepSalePreview() {
+    if(repTransactionMode === 'sale') {
+        const qty = parseFloat(document.getElementById('rep-quantity').value) || 0;
+        // STRATEGY: Use Default Factory Price
+        const salePrice = factorySalePrices.standard || 0; 
+        document.getElementById('rep-total-value').innerText = "Rs " + (qty * salePrice).toFixed(2);
+    }
+}
+
+// Event listener for collection input to update dynamic balance
+document.getElementById('rep-amount-collected').addEventListener('input', function() {
+    const currentDebt = parseFloat(document.getElementById('rep-customer-current-credit').innerText.replace('Rs ','')) || 0;
+    const inputAmt = parseFloat(this.value) || 0;
+    document.getElementById('rep-total-value').innerText = "Rs " + (currentDebt - inputAmt).toFixed(2);
+});
+
+// --- 4. SAVE TRANSACTION (HANDLES BOTH MODES) ---
+function saveRepTransaction() {
+    const date = document.getElementById('rep-date').value;
+    const name = document.getElementById('rep-cust-name').value.trim();
+    if(!date || !name) { showToast("Date and Name required", "warning"); return; }
+
+    const now = new Date();
+    const timeString = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    
+    // Standard Pricing
+    const costPerKg = calculateSalesCostPerKg('standard');
+    const salePrice = factorySalePrices.standard || 0;
+
+    let transactionRecord = {};
+
+    if(repTransactionMode === 'sale') {
+        // --- SALE LOGIC ---
+        const qty = parseFloat(document.getElementById('rep-quantity').value) || 0;
+        const payType = document.querySelector('input[name="rep-payment"]:checked').value; // CASH or CREDIT
+        
+        if(qty <= 0) { showToast("Enter Quantity", "warning"); return; }
+
+        const totalValue = qty * salePrice;
+        
+        transactionRecord = {
+            id: Date.now(),
+            date: date,
+            time: timeString,
+            customerName: name,
+            quantity: qty,
+            supplyStore: 'STORE_A', // Default to Standard
+            paymentType: payType, // 'CREDIT' or 'CASH'
+            salesRep: currentRepProfile, // STRATEGY: Tag with Rep Name
+            totalCost: qty * costPerKg,
+            totalValue: totalValue,
+            profit: totalValue - (qty * costPerKg),
+            creditReceived: (payType === 'CASH'), // If cash, it's settled. If Credit, it's debt.
+            timestamp: now.getTime()
+        };
+
+    } else {
+        // --- COLLECTION LOGIC ---
+        const amount = parseFloat(document.getElementById('rep-amount-collected').value) || 0;
+        if(amount <= 0) { showToast("Enter Amount", "warning"); return; }
+
+        transactionRecord = {
+            id: Date.now(),
+            date: date,
+            time: timeString,
+            customerName: name,
+            quantity: 0, // No stock movement
+            supplyStore: 'STORE_A',
+            paymentType: 'COLLECTION', // STRATEGY: New Type
+            salesRep: currentRepProfile,
+            totalCost: 0,
+            totalValue: amount, // The cash amount collected
+            profit: amount, // Technically cash flow
+            creditReceived: true,
+            isCollection: true, // Flag for Admin Logic
+            timestamp: now.getTime()
+        };
+    }
+
+    customerSales.push(transactionRecord);
+    localStorage.setItem('customer_sales', JSON.stringify(customerSales));
+
+    // Reset UI
+    document.getElementById('rep-quantity').value = '';
+    document.getElementById('rep-cust-name').value = '';
+    document.getElementById('rep-amount-collected').value = '';
+    document.getElementById('rep-customer-info-display').classList.add('hidden');
+    document.getElementById('rep-total-value').innerText = 'Rs 0.00';
+
+    refreshRepUI();
+    showToast("Transaction Saved", "success");
+    
+    // IMPORTANT: If this runs in Admin mode (testing), refresh Calculator
+    if(typeof autoFillTotalSoldQuantity === 'function') autoFillTotalSoldQuantity(); 
+}
+
+// --- 5. RENDER REP TABLES ---
+function renderRepCustomerTable() {
+    const tbody = document.getElementById('rep-customers-table-body');
+    const filter = document.getElementById('rep-filter').value.toLowerCase();
+    tbody.innerHTML = '';
+
+    // Filter Sales for THIS Rep only, EXCLUDING sales to themselves
+    const myData = customerSales.filter(s => 
+        s.salesRep === currentRepProfile && 
+        s.customerName !== currentRepProfile && 
+        s.customerName !== 'NORAN SHAH' && 
+        s.customerName !== 'NOMAN SHAH'
+    );
+    
+    const custMap = {};
+
+    myData.forEach(s => {
+        if(!custMap[s.customerName]) custMap[s.customerName] = { debt: 0, count: 0 };
+        custMap[s.customerName].count++;
+        // Calculate Net Debt
+        if(s.paymentType === 'CREDIT' && !s.creditReceived) custMap[s.customerName].debt += s.totalValue;
+        if(s.paymentType === 'COLLECTION') custMap[s.customerName].debt -= s.totalValue;
+    });
+
+    const sortedCustomers = Object.keys(custMap).sort();
+    
+    if(sortedCustomers.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:15px; color:var(--text-muted);">No customers yet</td></tr>`;
+        return;
+    }
+
+    sortedCustomers.forEach(name => {
+        if(filter && !name.toLowerCase().includes(filter)) return;
+        const data = custMap[name];
+        
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="text-align:left;"><strong>${name}</strong></td>
+            <td style="text-align:right; color:${data.debt > 1 ? 'var(--warning)' : 'var(--accent-emerald)'}; font-weight: 600;">
+                Rs ${data.debt.toFixed(0)}
+            </td>
+            <td style="text-align:right;">${data.count} transactions</td>
+            <td style="text-align:center;">
+                <button class="btn-theme" style="padding:4px 10px; font-size:0.75rem;" 
+                    onclick="event.stopPropagation(); openRepCustomerManagement('${name.replace(/'/g, "\\'")}')">
+                    Edit
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+// --- 3. OPEN CUSTOMER MANAGEMENT FOR REP (SIMPLIFIED VERSION) ---
+function openRepCustomerManagement(customerName) {
+    // Use the existing customer management overlay
+    currentManagingCustomer = customerName;
+    
+    // Filter transactions for this specific customer and rep
+    const customerTransactions = customerSales.filter(s => 
+        s.customerName === customerName && 
+        s.salesRep === currentRepProfile
+    );
+    
+    // Calculate current debt
+    let currentDebt = 0;
+    customerTransactions.forEach(t => {
+        if(t.paymentType === 'CREDIT' && !t.creditReceived) {
+            currentDebt += t.totalValue;
+        }
+        if(t.paymentType === 'COLLECTION') {
+            currentDebt -= t.totalValue;
+        }
+    });
+    
+    // Update overlay title and stats
+    document.getElementById('manageCustomerTitle').innerText = customerName;
+    document.getElementById('manageCustomerStats').innerText = `Current Debt: ${formatCurrency(currentDebt)}`;
+    document.getElementById('bulkPaymentAmount').value = '';
+    
+    // Show the overlay
+    document.getElementById('customerManagementOverlay').style.display = 'flex';
+    
+    // Render transactions (filtered for this rep)
+    renderRepCustomerTransactions(customerName);
+}
+function renderRepCustomerTransactions(name) {
+    const list = document.getElementById('customerManagementHistoryList');
+    list.innerHTML = '';
+
+    // Filter sales for this customer AND this rep
+    const transactions = customerSales.filter(s => 
+        s.customerName === name && 
+        s.salesRep === currentRepProfile
+    );
+    
+    // Calculate Stats
+    let currentDebt = 0;
+    transactions.forEach(t => {
+        if(t.paymentType === 'CREDIT' && !t.creditReceived) currentDebt += t.totalValue;
+        if(t.paymentType === 'COLLECTION') currentDebt -= t.totalValue;
+    });
+    
+    document.getElementById('manageCustomerStats').innerText = `Current Debt: ${formatCurrency(currentDebt)}`;
+
+    // Sort: Pending Credits First, then Newest Date
+    transactions.sort((a,b) => {
+        const aPending = (a.paymentType === 'CREDIT' && !a.creditReceived) ? 1 : 0;
+        const bPending = (b.paymentType === 'CREDIT' && !b.creditReceived) ? 1 : 0;
+        if (bPending !== aPending) return bPending - aPending;
+        return b.timestamp - a.timestamp;
+    });
+
+    if(transactions.length === 0) {
+        list.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">No history found</div>';
+        return;
+    }
+
+    transactions.forEach(t => {
+        const isCredit = t.paymentType === 'CREDIT';
+        const isCollection = t.paymentType === 'COLLECTION';
+        const isReceived = t.creditReceived === true;
+        
+        let statusText, statusClass, btnText;
+        
+        if(isCollection) {
+            statusText = 'COLLECTION';
+            statusClass = 'status-received';
+            btnText = '';
+        } else if(!isCredit) {
+            statusText = 'CASH';
+            statusClass = 'units-available-good';
+            btnText = '';
+        } else {
+            statusText = isReceived ? 'CREDIT RECEIVED' : 'PENDING CREDIT';
+            statusClass = isReceived ? 'status-received' : 'status-pending';
+            btnText = isReceived ? 'Mark Pending' : 'Mark Received';
+        }
+        
+        const item = document.createElement('div');
+        item.className = 'cust-history-item';
+        
+        // Render logic for Toggle Button (only for credit transactions)
+        let toggleBtnHtml = '';
+        if(isCredit) {
+            toggleBtnHtml = `<button class="status-toggle-btn ${statusClass}" onclick="toggleSingleTransactionStatus(${t.id})">${btnText}</button>`;
+        } else if(isCollection) {
+            toggleBtnHtml = `<span class="status-toggle-btn" style="background:rgba(5, 150, 105, 0.1); color:var(--accent-emerald);">💰 COLLECTION</span>`;
+        } else {
+            toggleBtnHtml = `<span class="status-toggle-btn" style="background:rgba(37, 99, 235, 0.1); color:var(--accent);">CASH SALE</span>`;
+        }
+
+        item.innerHTML = `
+            <div class="cust-history-info">
+                <div style="font-weight:700; font-size:0.85rem; color:var(--text-main);">${t.date}</div>
+                <div style="font-size:0.75rem; color:var(--text-muted);">
+                    ${isCollection ? `Collection: ${formatCurrency(t.totalValue)}` : `${t.quantity.toFixed(2)} kg @ ${formatCurrency(t.totalValue)}`}
+                </div>
+                <div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">
+                    ${getStoreLabel(t.supplyStore)}
+                </div>
+            </div>
+            <div class="cust-history-actions">
+                ${toggleBtnHtml}
+                <button class="btn btn-sm btn-danger" style="padding:4px 8px;" onclick="deleteRepTransaction(${t.id})">🗑️</button>
+            </div>
+        `;
+        list.appendChild(item);
+    });
+}
+function renderRepHistory() {
+    const list = document.getElementById('repHistoryList');
+    list.innerHTML = '';
+    
+    // Show only today's activity for this Rep
+    const today = new Date().toISOString().split('T')[0];
+    const todayData = customerSales
+        .filter(s => s.salesRep === currentRepProfile && s.date === today)
+        .sort((a,b) => b.timestamp - a.timestamp);
+
+    if(todayData.length === 0) {
+        list.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted);">No activity today</div>`;
+        return;
+    }
+
+    // Create compact list view
+    let tableHTML = `
+        <div class="section liquid-card" style="padding: 15px;">
+            <h4 style="margin: 0 0 15px 0; color: var(--accent); font-size: 0.9rem;">Today's Activity</h4>
+            <div style="max-height: 400px; overflow-y: auto;">
+    `;
+
+    todayData.forEach(item => {
+        let typeIcon = '';
+        let typeColor = '';
+        let qtyAmount = '';
+        
+        if(item.paymentType === 'COLLECTION') {
+            typeIcon = '💰';
+            typeColor = 'var(--accent-emerald)';
+            qtyAmount = `Collected: Rs ${item.totalValue.toFixed(2)}`;
+        } else if (item.paymentType === 'CREDIT') {
+            typeIcon = '📝';
+            typeColor = 'var(--warning)';
+            qtyAmount = `${item.quantity.toFixed(2)} kg - Rs ${item.totalValue.toFixed(2)}`;
+        } else {
+            typeIcon = '💵';
+            typeColor = 'var(--accent)';
+            qtyAmount = `${item.quantity.toFixed(2)} kg - Rs ${item.totalValue.toFixed(2)}`;
+        }
+
+        tableHTML += `
+            <div style="
+                display: flex; 
+                justify-content: space-between; 
+                align-items: center;
+                padding: 12px;
+                margin-bottom: 8px;
+                background: var(--input-bg);
+                border-radius: 10px;
+                border: 1px solid var(--glass-border);
+                transition: all 0.2s;
+            " onmouseover="this.style.background='var(--card-hover)'" onmouseout="this.style.background='var(--input-bg)'">
+                <div style="flex: 1;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                        <span style="font-size: 1.2rem;">${typeIcon}</span>
+                        <strong style="color: var(--text-main); font-size: 0.9rem;">${item.customerName}</strong>
+                    </div>
+                    <div style="font-size: 0.75rem; color: ${typeColor}; font-weight: 600;">
+                        ${qtyAmount}
+                    </div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 2px;">
+                        ${item.time}
+                    </div>
+                    <div style="font-size: 0.65rem; padding: 2px 6px; background: ${typeColor}20; color: ${typeColor}; border-radius: 4px; font-weight: 700;">
+                        ${item.paymentType}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    tableHTML += `
+            </div>
+        </div>
+    `;
+
+    list.innerHTML = tableHTML;
+}
+
+function refreshRepUI() {
+    renderRepCustomerTable();
+    renderRepHistory();
+}
+// ==========================================
+// ADMIN & REP MODE LOGIC (GLOBAL SCOPE)
+// ==========================================
+
+// Global Settings
+let appMode = localStorage.getItem('appMode') || 'admin'; 
+let currentRepProfile = localStorage.getItem('repProfile') || 'NORAN SHAH';
+let adminPin = localStorage.getItem('adminPin') || '1234';
+
+// 1. ACTIVATE REP MODE (Called from Data Menu)
+function activateRepMode() {
+    const newPinInput = document.getElementById('setting-admin-pin');
+    const selectedRepInput = document.getElementById('setting-rep-select');
+    
+    // Safety check if elements exist
+    if (!newPinInput || !selectedRepInput) {
+        console.error("Admin controls not found in DOM");
+        return;
+    }
+
+    const newPin = newPinInput.value;
+    const selectedRep = selectedRepInput.value;
+    
+    if(newPin.length < 4) {
+        alert("Please set a 4-digit PIN first.");
+        return;
+    }
+    
+    if(confirm(`Confirm locking this device for ${selectedRep}?\n\nYou will need the PIN to access Admin tabs again.`)) {
+        adminPin = newPin;
+        currentRepProfile = selectedRep;
+        appMode = 'rep';
+        
+        localStorage.setItem('adminPin', adminPin);
+        localStorage.setItem('repProfile', currentRepProfile);
+        localStorage.setItem('appMode', appMode);
+        
+        lockToRepMode();
+        
+        // Close menu if function exists
+        if(typeof closeDataMenu === 'function') closeDataMenu();
+    }
+}
+
+// 2. LOCK UI (Hides Admin Tabs)
+function lockToRepMode() {
+    // Hide standard nav tabs
+    const nav = document.querySelector('.nav-tabs');
+    if(nav) nav.style.display = 'none';
+    
+    // Hide all main content tabs
+    ['prod', 'sales', 'calc', 'factory', 'payments'].forEach(t => {
+        const el = document.getElementById('tab-' + t);
+        if(el) el.classList.add('hidden');
+    });
+    
+    // Show Rep Tab
+    const repTab = document.getElementById('tab-rep');
+    if(repTab) repTab.classList.remove('hidden');
+    
+    // Show Rep Header
+    const repHeader = document.getElementById('rep-header');
+    if(repHeader) {
+        repHeader.classList.remove('hidden');
+        repHeader.style.display = 'flex';
+    }
+    
+    // Update Display Name
+    const nameDisplay = document.getElementById('current-rep-name-display');
+    if(nameDisplay) nameDisplay.innerText = currentRepProfile;
+    
+    // Refresh Data if function exists
+    if(typeof refreshRepUI === 'function') refreshRepUI();
+}
+
+// 3. OPEN ADMIN PIN MODAL
+function openAdminPinModal() {
+    const modal = document.getElementById('adminPinOverlay');
+    if(modal) {
+        modal.style.display = 'flex';
+        const input = document.getElementById('admin-pin-input');
+        if(input) {
+            input.value = '';
+            input.focus();
+        }
+    }
+}
+
+// 4. CLOSE ADMIN PIN MODAL
+function closeAdminPinModal() {
+    const modal = document.getElementById('adminPinOverlay');
+    if(modal) modal.style.display = 'none';
+}
+
+// 5. VERIFY PIN & UNLOCK
+function verifyAdminPin() {
+    const input = document.getElementById('admin-pin-input').value;
+    if (input === adminPin) {
+        unlockAdminMode();
+    } else {
+        alert("Incorrect PIN");
+        document.getElementById('admin-pin-input').value = '';
+    }
+}
+
+// 6. UNLOCK ADMIN MODE
+// ==========================================
+// PERSISTENT MODE LOCK (ENHANCED)
+// ==========================================
+
+// --- 1. CHECK MODE ON EVERY PAGE LOAD ---
+function enforceRepModeLock() {
+    const storedMode = localStorage.getItem('appMode');
+    
+    if (storedMode === 'rep') {
+        // Force lock to rep mode
+        appMode = 'rep';
+        currentRepProfile = localStorage.getItem('repProfile') || 'NORAN SHAH';
+        adminPin = localStorage.getItem('adminPin') || '1234';
+        
+        // Lock UI immediately
+        lockToRepMode();
+        
+        console.log('🔒 Rep Mode Enforced:', currentRepProfile);
+    }
+}
+
+// --- 2. PREVENT ACCESS TO ADMIN TABS IN REP MODE ---
+function preventAdminAccess() {
+    if (appMode === 'rep') {
+        // Override showTab function to block admin tabs
+        const originalShowTab = window.showTab;
+        window.showTab = function(tab) {
+            const adminTabs = ['prod', 'sales', 'calc', 'factory', 'payments'];
+            
+            if (adminTabs.includes(tab)) {
+                showToast("⚠️ Access Denied - Admin PIN Required", "warning");
+                openAdminPinModal();
+                return;
+            }
+            
+            // Allow rep tab
+            if (tab === 'rep' || !adminTabs.includes(tab)) {
+                if (typeof originalShowTab === 'function') {
+                    originalShowTab(tab);
+                }
+            }
+        };
+        
+        // Hide admin tabs from navigation
+        const navTabs = document.querySelectorAll('.tab-btn');
+        navTabs.forEach((btn, index) => {
+            const tabNames = ['prod', 'sales', 'calc', 'factory', 'payments'];
+            if (tabNames.includes(tabNames[index])) {
+                btn.style.display = 'none';
+            }
+        });
+    }
+}
+
+// --- 3. ENHANCED UNLOCK FUNCTION ---
+function unlockAdminMode() {
+    appMode = 'admin';
+    localStorage.setItem('appMode', 'admin');
+    
+    // Restore navigation
+    const nav = document.querySelector('.nav-tabs');
+    if(nav) nav.style.display = 'flex';
+    
+    // Show all tab buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.style.display = '';
+    });
+    
+    // Restore original showTab if it was overridden
+    location.reload(); // Safest way to restore all functionality
+}
+
+// --- 4. INITIALIZE ON LOAD (ENHANCED) ---
+document.addEventListener('DOMContentLoaded', function() {
+    // CRITICAL: Enforce mode lock first
+    enforceRepModeLock();
+    
+    // Then prevent access
+    preventAdminAccess();
+    
+    // Pre-fill settings if in admin mode
+    if (appMode === 'admin') {
+        const pinInput = document.getElementById('setting-admin-pin');
+        if(pinInput) pinInput.value = adminPin;
+        
+        const repSelect = document.getElementById('setting-rep-select');
+        if(repSelect) repSelect.value = currentRepProfile;
+    }
+});
+
+// --- 5. ALSO ENFORCE ON WINDOW LOAD (BACKUP) ---
+window.addEventListener('load', function() {
+    if (localStorage.getItem('appMode') === 'rep') {
+        enforceRepModeLock();
+        preventAdminAccess();
+    }
+});
+
+// Initialize Mode on Load
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if we should be locked
+    if (appMode === 'rep') {
+        lockToRepMode();
+    }
+    
+    // Pre-fill settings menu if available
+    const pinInput = document.getElementById('setting-admin-pin');
+    if(pinInput) pinInput.value = adminPin;
+    
+    const repSelect = document.getElementById('setting-rep-select');
+    if(repSelect) repSelect.value = currentRepProfile;
+});
+function deleteRepTransaction(id) {
+    if(confirm("Permanently delete this record?")) {
+        customerSales = customerSales.filter(s => s.id !== id);
+        localStorage.setItem('customer_sales', JSON.stringify(customerSales));
+        
+        // Re-render the transactions
+        renderRepCustomerTransactions(currentManagingCustomer);
+        
+        // Refresh the customer table
+        renderRepCustomerTable();
+        
+        // Refresh all calculations
+        if(typeof refreshAllCalculations === 'function') {
+            refreshAllCalculations();
+        }
+        
+        showToast("Transaction deleted successfully", "success");
+    }
+}
 
 </script>
 </body>
