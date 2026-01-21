@@ -10048,7 +10048,6 @@ function initFactoryTab() {
         
         refreshUI();
     }
-// --- FIXED: UPDATE ALL STORES OVERVIEW (Production Credits + Date Specific Returns) ---
 function updateAllStoresOverview(mode = 'day') {
     currentOverviewMode = mode;
     
@@ -10063,46 +10062,27 @@ function updateAllStoresOverview(mode = 'day') {
     
     // Initialize Combined Totals
     let totalCombined = {
-        production: 0,
-        returns: 0,
-        qty: 0,
-        value: 0,
-        cost: 0,
-        profit: 0,
-        formulaUnits: 0,
-        formulaCost: 0
+        production: 0, returns: 0, qty: 0, value: 0, cost: 0, profit: 0, formulaUnits: 0, formulaCost: 0
     };
     
     const allStoresGrid = document.getElementById('all-stores-grid');
     allStoresGrid.innerHTML = '';
     
     const allTimesCard = document.getElementById('all-times-production-card');
-    if (allTimesCard) {
-        allTimesCard.style.display = (mode === 'all') ? '' : 'none';
-    }
+    if (allTimesCard) allTimesCard.style.display = (mode === 'all') ? '' : 'none';
     
     stores.forEach((store, index) => {
-        // Initialize Store Data
         let storeData = {
-            production: 0, 
-            returns: 0,    
-            value: 0,
-            cost: 0,
-            profit: 0,
-            formulaUnits: 0,
-            formulaCost: 0,
-            productionCredit: 0 // NEW: Track credits specifically from Production Tab
+            production: 0, returns: 0, value: 0, cost: 0, profit: 0, formulaUnits: 0, formulaCost: 0, productionCredit: 0
         };
         
-        // 1. Calculate INVENTORY IN (Production + Returns) from DB
+        // 1. Calculate INVENTORY IN (Production + Returns)
         db.forEach(item => {
             const itemDate = new Date(item.date);
             const itemYear = itemDate.getFullYear();
             const itemMonth = itemDate.getMonth();
-            
             let includeItem = false;
             
-            // STRICT DATE FILTERING
             if (mode === 'day' && item.date === selectedDate) includeItem = true;
             else if (mode === 'week') {
                 const weekStart = new Date(selectedDateObj);
@@ -10113,7 +10093,6 @@ function updateAllStoresOverview(mode = 'day') {
             else if (mode === 'year' && itemYear === selectedYear) includeItem = true;
             else if (mode === 'all') includeItem = true;
             
-            // STRICT STORE FILTERING
             if (includeItem && item.store === store) {
                 if (item.isReturn) {
                     storeData.returns += item.net;
@@ -10121,14 +10100,8 @@ function updateAllStoresOverview(mode = 'day') {
                     storeData.production += item.net;
                     storeData.formulaUnits += (item.formulaUnits || 0);
                     storeData.formulaCost += (item.formulaCost || 0);
-                    
-                    // NEW: Calculate Credit specifically for Production Tab entries
-                    if (store === 'STORE_C' && item.paymentStatus === 'CREDIT') {
-                        storeData.productionCredit += (item.totalSale || 0);
-                    }
+                    if (store === 'STORE_C' && item.paymentStatus === 'CREDIT') storeData.productionCredit += (item.totalSale || 0);
                 }
-                
-                // Value/Cost/Profit aggregates
                 storeData.value += item.totalSale;
                 storeData.cost += item.totalCost;
                 storeData.profit += item.profit;
@@ -10139,10 +10112,13 @@ function updateAllStoresOverview(mode = 'day') {
         let soldQty = 0;
 
         customerSales.forEach(sale => {
+            // --- CRITICAL FIX: EXCLUDE REP SALES FROM STORE INVENTORY ---
+            // If this sale belongs to a Rep (Noran/Noman), skip it.
+            if (sale.salesRep && sale.salesRep !== 'NONE') return; 
+
             const saleDate = new Date(sale.date);
             const saleYear = saleDate.getFullYear();
             const saleMonth = saleDate.getMonth();
-            
             let includeSale = false;
 
             if (mode === 'day' && sale.date === selectedDate) includeSale = true;
@@ -10175,17 +10151,8 @@ function updateAllStoresOverview(mode = 'day') {
         totalCombined.formulaCost += storeData.formulaCost;
         
         // 5. Build HTML
-        // NEW: Only show Production Credit for Asaan Store (STORE_C)
-        let extraInfoHtml = '';
-        if (store === 'STORE_C') {
-            extraInfoHtml = `<p><span>Production Credit:</span> <span style="color:var(--warning); font-weight:800;">Rs ${safeValue(storeData.productionCredit).toFixed(2)}</span></p>`;
-        }
-
-        // Render Return Line ONLY if returns exist
-        let returnsHtml = '';
-        if (storeData.returns > 0) {
-            returnsHtml = `<p><span>Returns Recvd:</span> <span style="color:#10b981; font-weight:800;">+${safeValue(storeData.returns).toFixed(2)} kg</span></p>`;
-        }
+        let extraInfoHtml = (store === 'STORE_C') ? `<p><span>Production Credit:</span> <span style="color:var(--warning); font-weight:800;">Rs ${safeValue(storeData.productionCredit).toFixed(2)}</span></p>` : '';
+        let returnsHtml = (storeData.returns > 0) ? `<p><span>Returns Recvd:</span> <span style="color:#10b981; font-weight:800;">+${safeValue(storeData.returns).toFixed(2)} kg</span></p>` : '';
 
         const card = document.createElement('div');
         card.className = `overview-card liquid-card`;
@@ -10193,20 +10160,16 @@ function updateAllStoresOverview(mode = 'day') {
         card.innerHTML = `
             <span class="store-badge ${storeColors[index]}">${storeNames[index]}</span>
             <h4>${storeNames[index]} (${mode === 'all' ? 'All Times' : mode.charAt(0).toUpperCase() + mode.slice(1)})</h4>
-            
             <p><span>Produced:</span> <span class="qty-val" style="color:var(--text-main);">${safeValue(storeData.production).toFixed(2)} kg</span></p>
             ${returnsHtml}
-            <p><span>Sold (Sales Tab):</span> <span class="cost-val">${safeValue(soldQty).toFixed(2)} kg</span></p>
-            
+            <p><span>Sold (Main):</span> <span class="cost-val">${safeValue(soldQty).toFixed(2)} kg</span></p>
             <div style="border-top:1px dashed var(--glass-border); margin:4px 0; padding-top:4px;">
                 <p><span>Remaining:</span> <span class="profit-val" style="font-size:1.1rem;">${safeValue(remainingQty).toFixed(2)} kg</span></p>
             </div>
-            
             <div style="background:rgba(37,99,235,0.03); padding:5px; border-radius:6px; margin:5px 0;">
                 <p><span>Formula Units:</span> <span class="qty-val" style="font-weight:700;">${safeValue(storeData.formulaUnits).toFixed(2)}</span></p>
                 <p><span>Formula Cost:</span> <span class="cost-val" style="font-weight:700;">Rs ${safeValue(storeData.formulaCost).toFixed(2)}</span></p>
             </div>
-
             <hr>
             <p><span>Total Value:</span> <span class="rev-val">Rs ${safeValue(storeData.value).toFixed(2)}</span></p>
             ${extraInfoHtml}
@@ -10215,18 +10178,16 @@ function updateAllStoresOverview(mode = 'day') {
         allStoresGrid.appendChild(card);
     });
     
-    // 6. Build Combined Card
+    // Combined Card logic... (omitted for brevity, keep your existing logic here)
     const combinedCard = document.createElement('div');
     combinedCard.className = `overview-card liquid-card highlight-card`;
     combinedCard.innerHTML = `
         <h4 style="color: var(--accent);">Total Combined</h4>
         <p><span>Fresh Production:</span> <span class="qty-val">${safeValue(totalCombined.production).toFixed(3)} kg</span></p>
         ${totalCombined.returns > 0 ? `<p><span>Total Returns:</span> <span style="color:#10b981; font-weight:800;">+${safeValue(totalCombined.returns).toFixed(3)} kg</span></p>` : ''}
-        
         <p><span>Total Formula Units:</span> <span class="qty-val">${safeValue(totalCombined.formulaUnits).toFixed(2)}</span></p>
         <p><span>Total Formula Cost:</span> <span class="cost-val">Rs ${safeValue(totalCombined.formulaCost).toFixed(2)}</span></p>
         <hr style="margin:8px 0;">
-        
         <p><span>Total Value:</span> <span class="rev-val">Rs ${safeValue(totalCombined.value).toFixed(2)}</span></p>
         <p><span>Total Cost:</span> <span class="cost-val">Rs ${safeValue(totalCombined.cost).toFixed(2)}</span></p>
         <p><span>Net Profit:</span> <span class="profit-val">Rs ${safeValue(totalCombined.profit).toFixed(2)}</span></p>
@@ -10235,6 +10196,7 @@ function updateAllStoresOverview(mode = 'day') {
     
     updateStoreComparisonChart(mode);
 }
+
 
 
 
@@ -11872,21 +11834,18 @@ document.addEventListener('DOMContentLoaded', function() {
 // 1. Enhanced Search Function
 function searchCustomers(query) {
     const resultsDiv = document.getElementById('customer-search-results');
-    const input = document.getElementById('cust-name');
-    
-    // Safety check
-    if (!resultsDiv || !input) return;
-
-    // Clear and hide if empty
     if (!query || query.length < 1) {
         resultsDiv.classList.add('hidden');
         return;
     }
 
-    // Get unique customers (filter out null/undefined)
-    const uniqueCustomers = [...new Set(customerSales.map(s => s.customerName).filter(n => n))];
-    
-    // Filter matches (case-insensitive)
+    // STRATEGY: Filter only for customers that DO NOT have a sales rep assigned
+    // This separates Store customers from Representative customers
+    const uniqueCustomers = [...new Set(customerSales
+        .filter(s => !s.salesRep || s.salesRep === 'NONE') 
+        .map(s => s.customerName)
+        .filter(n => n))];
+
     const matches = uniqueCustomers.filter(name => 
         name.toLowerCase().includes(query.toLowerCase())
     );
@@ -11990,38 +11949,32 @@ function renderCustomersTable() {
     const tbody = document.getElementById('customers-table-body');
     const filterValue = document.getElementById('customer-filter').value.toLowerCase();
     
-    // Update Header
     const thead = document.querySelector('#customers-card thead tr');
-    if(thead) {
-        thead.children[3].innerText = "Actions"; // Change 4th column header
-    }
+    if(thead) thead.children[3].innerText = "Actions"; 
 
     tbody.innerHTML = ''; 
-    
-    // 1. Aggregate Data
     const customerStats = {};
     
     customerSales.forEach(sale => {
+        // --- FIX: Filter out Representative Customers ---
+        if (sale.salesRep && sale.salesRep !== 'NONE') return;
+
         const name = sale.customerName;
         if (!customerStats[name]) {
             customerStats[name] = { name: name, credit: 0, quantity: 0, lastSaleDate: 0 };
         }
         
         customerStats[name].quantity += (sale.quantity || 0);
-        
-        // Track outstanding credit
         if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
             customerStats[name].credit += (sale.totalValue || 0);
         }
         
-        // Track recency
         const timestamp = new Date(sale.date).getTime();
         if (timestamp > customerStats[name].lastSaleDate) {
             customerStats[name].lastSaleDate = timestamp;
         }
     });
 
-    // 2. Sort and Filter
     let sortedCustomers = Object.values(customerStats).sort((a, b) => {
         if (b.credit !== a.credit) return b.credit - a.credit; 
         return b.lastSaleDate - a.lastSaleDate; 
@@ -12032,18 +11985,15 @@ function renderCustomersTable() {
     }
 
     document.getElementById('customer-count').innerText = `${sortedCustomers.length} active`;
-
     let totalOutstanding = 0;
     let totalGlobalQty = 0;
 
-    // 3. Render Rows
     if (sortedCustomers.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:15px; color:var(--text-muted);">No customers found</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:15px; color:var(--text-muted);">No direct customers found</td></tr>`;
     } else {
         sortedCustomers.forEach(c => {
             totalOutstanding += c.credit;
             totalGlobalQty += c.quantity;
-
             const row = document.createElement('tr');
             const creditStyle = c.credit > 0 ? 'color:var(--warning); font-weight:800;' : 'color:var(--text-muted); opacity:0.5;';
             
@@ -12053,18 +12003,17 @@ function renderCustomersTable() {
                 <td style="text-align:right;">${safeValue(c.quantity).toFixed(1)}</td>
                 <td style="text-align:center;">
                     <button class="btn-theme" style="padding:4px 10px; font-size:0.75rem;" 
-                        onclick="event.stopPropagation(); openCustomerManagement('${c.name.replace(/'/g, "\\'")}')">
-                        Edit
-                    </button>
+                        onclick="event.stopPropagation(); openCustomerManagement('${c.name.replace(/'/g, "\\'")}')">Edit</button>
                 </td>
             `;
             tbody.appendChild(row);
         });
     }
-
+    // Update summary text
     document.getElementById('customers-total-credit').innerText = formatCurrency(totalOutstanding);
     document.getElementById('customers-total-quantity').innerText = totalGlobalQty.toFixed(2) + ' kg';
 }
+
 // --- NEW CUSTOMER MANAGEMENT LOGIC ---
 
 let currentManagingCustomer = null;
@@ -12873,23 +12822,36 @@ function setRepMode(mode) {
 // --- 2. ISOLATED CUSTOMER SEARCH ---
 function searchRepCustomers(query) {
     const resultsDiv = document.getElementById('rep-customer-search-results');
-    if (!query || query.length < 1) { resultsDiv.classList.add('hidden'); return; }
+    
+    // Safety check: ensure the results div exists before trying to access it
+    if (!resultsDiv) {
+        console.error("Error: Element 'rep-customer-search-results' not found in DOM.");
+        return;
+    }
 
-    // STRATEGY: Filter specifically for this Rep's customers, EXCLUDING rep names
+    if (!query || query.length < 1) { 
+        resultsDiv.classList.add('hidden'); 
+        return; 
+    }
+
+    // --- FIX: Filter customers belonging strictly to the CURRENT logged-in Rep ---
     const myCustomers = customerSales.filter(s => 
-        s.salesRep === currentRepProfile &&
+        s.salesRep === currentRepProfile && // Must match current profile
         s.customerName !== 'NORAN SHAH' && 
         s.customerName !== 'NOMAN SHAH'
     );
     
+    // Get unique names to avoid duplicates in the dropdown
     const uniqueNames = [...new Set(myCustomers.map(s => s.customerName))];
     const matches = uniqueNames.filter(name => name.toLowerCase().includes(query.toLowerCase()));
 
     let html = '';
     if (matches.length > 0) {
         matches.forEach(name => {
-            const safeName = name.replace(/'/g, "\\'");
-            html += `<div style="padding:10px; cursor:pointer; border-bottom:1px solid var(--glass-border); font-size:0.85rem; background: var(--input-bg);" 
+            // Escape special characters for the onclick string to prevent syntax errors
+            const safeName = name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            html += `
+                <div style="padding:10px; cursor:pointer; border-bottom:1px solid var(--glass-border); font-size:0.85rem; background: var(--input-bg);" 
                      onmousedown="selectRepCustomer('${safeName}')"
                      onmouseover="this.style.background='var(--highlight-bg)'" 
                      onmouseout="this.style.background='var(--input-bg)'">
@@ -12897,14 +12859,17 @@ function searchRepCustomers(query) {
                 </div>`;
         });
     } else {
-        html = `<div style="padding:10px; color:var(--text-muted); font-size:0.8rem; background: var(--input-bg);">
-                New customer "${query}" will be created
+        html = `
+            <div style="padding:10px; color:var(--text-muted); font-size:0.8rem; background: var(--input-bg);">
+                New customer "${query}" will be created for ${currentRepProfile}
             </div>`;
     }
     
     resultsDiv.innerHTML = html;
     resultsDiv.classList.remove('hidden');
 }
+
+
 
 function selectRepCustomer(name) {
     document.getElementById('rep-cust-name').value = name;
@@ -13535,6 +13500,44 @@ function deleteRepTransaction(id) {
         showToast("Transaction deleted successfully", "success");
     }
 }
+// --- AUTO-INITIALIZE DATES ON REFRESH ---
+document.addEventListener('DOMContentLoaded', function() {
+    // 1. Get Today's Date in YYYY-MM-DD format
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${year}-${month}-${day}`;
+
+    // 2. Array of all Date Input IDs in your system
+    const dateInputs = [
+        'sys-date',      // Production Tab
+        'cust-date',     // Sales Tab
+        'sale-date',     // Calculator Tab
+        'factory-date',  // Factory Tab
+        'paymentDate',   // Payments Tab
+        'rep-date'       // Sales Rep Tab (Crucial for your new feature)
+    ];
+
+    // 3. Loop through and set value
+    dateInputs.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            // Set to today
+            element.value = todayStr;
+            
+            // Optional: Trigger change event in case other functions listen for it
+            // element.dispatchEvent(new Event('change')); 
+        }
+    });
+
+    // 4. Sync Factory Global Variable
+    if (typeof currentFactoryDate !== 'undefined') {
+        currentFactoryDate = todayStr;
+    }
+    
+    console.log("📅 All date fields initialized to:", todayStr);
+});
 
 </script>
 </body>
