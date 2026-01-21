@@ -4482,58 +4482,6 @@ body.dark-mode .units-available-danger {
             unitCostHistory: []
         }
     };
-    
-    const SalesIsolator = {
-    // The shared storage key
-    KEY: 'customer_sales',
-
-    /**
-     * 1. GET DATA (Filtered)
-     * Returns ONLY the data meant for the specific tab.
-     * @param {string} context - 'admin' or 'repo'
-     */
-    get: function(context) {
-        const allData = JSON.parse(localStorage.getItem(this.KEY)) || [];
-        
-        if (context === 'admin') {
-            // Admin sees items tagged 'admin' OR items with no tag (legacy data)
-            return allData.filter(item => item.dataContext === 'admin' || !item.dataContext);
-        } else if (context === 'repo') {
-            // Repo ONLY sees items tagged 'repo'
-            return allData.filter(item => item.dataContext === 'repo');
-        }
-        return [];
-    },
-
-    /**
-     * 2. SAVE DATA (Tagged)
-     * Saves data with the specific tag so it doesn't leak to the other tab.
-     */
-    add: function(context, newItem) {
-        const allData = JSON.parse(localStorage.getItem(this.KEY)) || [];
-        
-        // Force the tag onto the new item
-        newItem.dataContext = context; 
-        
-        allData.push(newItem);
-        localStorage.setItem(this.KEY, JSON.stringify(allData));
-        
-        // Update the global variable to keep app in sync
-        customerSales = allData; 
-    },
-
-    /**
-     * 3. DELETE DATA (Safe)
-     * Ensures you don't accidentally delete an ID that exists in the other tab.
-     */
-    delete: function(id) {
-        let allData = JSON.parse(localStorage.getItem(this.KEY)) || [];
-        allData = allData.filter(item => item.id !== id);
-        localStorage.setItem(this.KEY, JSON.stringify(allData));
-        customerSales = allData;
-    }
-};
-
     // --- DARK MODE TOGGLE ---
 function toggleDarkMode() {
     const body = document.body;
@@ -10207,12 +10155,10 @@ function updateAllStoresOverview(mode = 'day') {
             else if (mode === 'year' && saleYear === selectedYear) includeSale = true;
             else if (mode === 'all') includeSale = true;
 
-               if (sale.salesRep && sale.salesRep !== 'NONE') return; // Skip Rep Sales
-
-    if (includeSale && sale.supplyStore === store) {
-        soldQty += (sale.quantity || 0);
-    }
-});
+            if (includeSale && sale.supplyStore === store) {
+                soldQty += (sale.quantity || 0);
+            }
+        });
 
         // 3. Calculate Remaining
         const totalIn = storeData.production + storeData.returns;
@@ -10533,138 +10479,202 @@ function updateAllStoresOverview(mode = 'day') {
     }
 
     function refreshCustomerSales() {
-    const selectedDate = document.getElementById('cust-date').value;
-    if (!selectedDate) return;
-    
-    const selectedDateObj = new Date(selectedDate);
-    const selectedYear = selectedDateObj.getFullYear();
-    const selectedMonth = selectedDateObj.getMonth();
-    const selectedDay = selectedDateObj.getDate();
-    
-    const weekStart = new Date(selectedDateObj);
-    weekStart.setDate(selectedDay - 6);
-    
-    let stats = {
-        day: {q:0, v:0, cash:0, credit:0, profit:0},
-        week: {q:0, v:0, cash:0, credit:0, profit:0},
-        month: {q:0, v:0, cash:0, credit:0, profit:0},
-        year: {q:0, v:0, cash:0, credit:0, profit:0},
-        all: {q:0, v:0, cash:0, credit:0, profit:0}
-    };
+        const selectedDate = document.getElementById('cust-date').value;
+        if (!selectedDate) return;
+        
+        const selectedDateObj = new Date(selectedDate);
+        const selectedYear = selectedDateObj.getFullYear();
+        const selectedMonth = selectedDateObj.getMonth();
+        const selectedDay = selectedDateObj.getDate();
+        
+        const weekStart = new Date(selectedDateObj);
+        weekStart.setDate(selectedDay - 6);
+        
+        let stats = {
+            day: {q:0, v:0, cash:0, credit:0, profit:0},
+            week: {q:0, v:0, cash:0, credit:0, profit:0},
+            month: {q:0, v:0, cash:0, credit:0, profit:0},
+            year: {q:0, v:0, cash:0, credit:0, profit:0},
+            all: {q:0, v:0, cash:0, credit:0, profit:0}
+        };
 
-    const histContainer = document.getElementById('custHistoryList');
-    histContainer.innerHTML = '';
+        const histContainer = document.getElementById('custHistoryList');
+        histContainer.innerHTML = '';
 
-    // ISOLATION FILTER: Exclude Rep Data
-    const sortedSales = customerSales
-        .filter(item => item.salesRep === 'NONE' || !item.salesRep) // ONLY Show Direct Sales
-        .sort((a,b) => {
+        const sortedSales = [...customerSales].sort((a,b) => {
             if (a.date === selectedDate && b.date !== selectedDate) return -1;
             if (a.date !== selectedDate && b.date === selectedDate) return 1;
             return b.timestamp - a.timestamp;
         });
 
-    sortedSales.forEach(item => {
-        const rowDate = new Date(item.date);
-        const rowYear = rowDate.getFullYear();
-        const rowMonth = rowDate.getMonth();
+        sortedSales.forEach(item => {
+            const rowDate = new Date(item.date);
+            const rowYear = rowDate.getFullYear();
+            const rowMonth = rowDate.getMonth();
+            const rowDay = rowDate.getDate();
 
-        // Stats Accumulation Logic (Standard)
-        if(item.date === selectedDate) {
-            stats.day.q += item.quantity; stats.day.v += item.totalValue; stats.day.profit += item.profit;
-            if(item.paymentType === 'CASH' || item.creditReceived) stats.day.cash += item.totalValue;
-            else if(item.paymentType === 'CREDIT') stats.day.credit += item.totalValue;
-        }
-        if(rowDate >= weekStart && rowDate <= selectedDateObj) {
-            stats.week.q += item.quantity; stats.week.v += item.totalValue; stats.week.profit += item.profit;
-            if(item.paymentType === 'CASH' || item.creditReceived) stats.week.cash += item.totalValue;
-            else if(item.paymentType === 'CREDIT') stats.week.credit += item.totalValue;
-        }
-        if(rowYear === selectedYear && rowMonth === selectedMonth) {
-            stats.month.q += item.quantity; stats.month.v += item.totalValue; stats.month.profit += item.profit;
-            if(item.paymentType === 'CASH' || item.creditReceived) stats.month.cash += item.totalValue;
-            else if(item.paymentType === 'CREDIT') stats.month.credit += item.totalValue;
-        }
-        if(rowYear === selectedYear) {
-            stats.year.q += item.quantity; stats.year.v += item.totalValue; stats.year.profit += item.profit;
-            if(item.paymentType === 'CASH' || item.creditReceived) stats.year.cash += item.totalValue;
-            else if(item.paymentType === 'CREDIT') stats.year.credit += item.totalValue;
-        }
-        stats.all.q += item.quantity; stats.all.v += item.totalValue; stats.all.profit += item.profit;
-        if(item.paymentType === 'CASH' || item.creditReceived) stats.all.cash += item.totalValue;
-        else if(item.paymentType === 'CREDIT') stats.all.credit += item.totalValue;
-    });
+            if(item.date === selectedDate) {
+                stats.day.q += item.quantity;
+                stats.day.v += item.totalValue;
+                stats.day.profit += item.profit;
+                if(item.paymentType === 'CASH' || item.creditReceived) {
+                    stats.day.cash += item.totalValue;
+                } else if(item.paymentType === 'CREDIT' && !item.creditReceived) {
+                    stats.day.credit += item.totalValue;
+                }
+            }
 
-    // Update DOM Stats
-    document.getElementById('cust-day-qty').innerText = safeValue(stats.day.q).toFixed(2) + ' kg';
-    document.getElementById('cust-day-value').innerText = 'Rs ' + safeValue(stats.day.v).toFixed(2);
-    document.getElementById('cust-day-cash').innerText = 'Rs ' + safeValue(stats.day.cash).toFixed(2);
-    document.getElementById('cust-day-credit').innerText = 'Rs ' + safeValue(stats.day.credit).toFixed(2);
-    document.getElementById('cust-day-profit').innerText = 'Rs ' + safeValue(stats.day.profit).toFixed(2);
+            if(rowDate >= weekStart && rowDate <= selectedDateObj) {
+                stats.week.q += item.quantity;
+                stats.week.v += item.totalValue;
+                stats.week.profit += item.profit;
+                if(item.paymentType === 'CASH' || item.creditReceived) {
+                    stats.week.cash += item.totalValue;
+                } else if(item.paymentType === 'CREDIT' && !item.creditReceived) {
+                    stats.week.credit += item.totalValue;
+                }
+            }
 
-    document.getElementById('cust-week-qty').innerText = safeValue(stats.week.q).toFixed(2) + ' kg';
-    document.getElementById('cust-week-value').innerText = 'Rs ' + safeValue(stats.week.v).toFixed(2);
-    document.getElementById('cust-week-cash').innerText = 'Rs ' + safeValue(stats.week.cash).toFixed(2);
-    document.getElementById('cust-week-credit').innerText = 'Rs ' + safeValue(stats.week.credit).toFixed(2);
-    document.getElementById('cust-week-profit').innerText = 'Rs ' + safeValue(stats.week.profit).toFixed(2);
+            if(rowYear === selectedYear && rowMonth === selectedMonth) {
+                stats.month.q += item.quantity;
+                stats.month.v += item.totalValue;
+                stats.month.profit += item.profit;
+                if(item.paymentType === 'CASH' || item.creditReceived) {
+                    stats.month.cash += item.totalValue;
+                } else if(item.paymentType === 'CREDIT' && !item.creditReceived) {
+                    stats.month.credit += item.totalValue;
+                }
+            }
 
-    document.getElementById('cust-month-qty').innerText = safeValue(stats.month.q).toFixed(2) + ' kg';
-    document.getElementById('cust-month-value').innerText = 'Rs ' + safeValue(stats.month.v).toFixed(2);
-    document.getElementById('cust-month-cash').innerText = 'Rs ' + safeValue(stats.month.cash).toFixed(2);
-    document.getElementById('cust-month-credit').innerText = 'Rs ' + safeValue(stats.month.credit).toFixed(2);
-    document.getElementById('cust-month-profit').innerText = 'Rs ' + safeValue(stats.month.profit).toFixed(2);
+            if(rowYear === selectedYear) {
+                stats.year.q += item.quantity;
+                stats.year.v += item.totalValue;
+                stats.year.profit += item.profit;
+                if(item.paymentType === 'CASH' || item.creditReceived) {
+                    stats.year.cash += item.totalValue;
+                } else if(item.paymentType === 'CREDIT' && !item.creditReceived) {
+                    stats.year.credit += item.totalValue;
+                }
+            }
+            
+            stats.all.q += item.quantity;
+            stats.all.v += item.totalValue;
+            stats.all.profit += item.profit;
+            if(item.paymentType === 'CASH' || item.creditReceived) {
+                stats.all.cash += item.totalValue;
+            } else if(item.paymentType === 'CREDIT' && !item.creditReceived) {
+                stats.all.credit += item.totalValue;
+            }
+        });
 
-    document.getElementById('cust-year-qty').innerText = safeValue(stats.year.q).toFixed(2) + ' kg';
-    document.getElementById('cust-year-value').innerText = 'Rs ' + safeValue(stats.year.v).toFixed(2);
-    document.getElementById('cust-year-cash').innerText = 'Rs ' + safeValue(stats.year.cash).toFixed(2);
-    document.getElementById('cust-year-credit').innerText = 'Rs ' + safeValue(stats.year.credit).toFixed(2);
-    document.getElementById('cust-year-profit').innerText = 'Rs ' + safeValue(stats.year.profit).toFixed(2);
-    
-    // Render History Cards
-    sortedSales.forEach(item => {
-        const isSelected = item.date === selectedDate;
-        const highlightClass = isSelected ? 'highlight-card' : '';
-        const dateDisplay = isSelected ? `${item.date} (Selected)` : item.date;
+        document.getElementById('cust-day-qty').innerText = safeValue(stats.day.q).toFixed(2) + ' kg';
+        document.getElementById('cust-day-value').innerText = 'Rs ' + safeValue(stats.day.v).toFixed(2);
+        document.getElementById('cust-day-cash').innerText = 'Rs ' + safeValue(stats.day.cash).toFixed(2);
+        document.getElementById('cust-day-credit').innerText = 'Rs ' + safeValue(stats.day.credit).toFixed(2);
+        document.getElementById('cust-day-profit').innerText = 'Rs ' + safeValue(stats.day.profit).toFixed(2);
+
+        document.getElementById('cust-week-qty').innerText = safeValue(stats.week.q).toFixed(2) + ' kg';
+        document.getElementById('cust-week-value').innerText = 'Rs ' + safeValue(stats.week.v).toFixed(2);
+        document.getElementById('cust-week-cash').innerText = 'Rs ' + safeValue(stats.week.cash).toFixed(2);
+        document.getElementById('cust-week-credit').innerText = 'Rs ' + safeValue(stats.week.credit).toFixed(2);
+        document.getElementById('cust-week-profit').innerText = 'Rs ' + safeValue(stats.week.profit).toFixed(2);
+
+        document.getElementById('cust-month-qty').innerText = safeValue(stats.month.q).toFixed(2) + ' kg';
+        document.getElementById('cust-month-value').innerText = 'Rs ' + safeValue(stats.month.v).toFixed(2);
+        document.getElementById('cust-month-cash').innerText = 'Rs ' + safeValue(stats.month.cash).toFixed(2);
+        document.getElementById('cust-month-credit').innerText = 'Rs ' + safeValue(stats.month.credit).toFixed(2);
+        document.getElementById('cust-month-profit').innerText = 'Rs ' + safeValue(stats.month.profit).toFixed(2);
+
+        document.getElementById('cust-year-qty').innerText = safeValue(stats.year.q).toFixed(2) + ' kg';
+        document.getElementById('cust-year-value').innerText = 'Rs ' + safeValue(stats.year.v).toFixed(2);
+        document.getElementById('cust-year-cash').innerText = 'Rs ' + safeValue(stats.year.cash).toFixed(2);
+        document.getElementById('cust-year-credit').innerText = 'Rs ' + safeValue(stats.year.credit).toFixed(2);
+        document.getElementById('cust-year-profit').innerText = 'Rs ' + safeValue(stats.year.profit).toFixed(2);
         
-        const creditReceived = item.creditReceived || false;
-        const paymentType = item.paymentType;
-        const badgeClass = creditReceived ? 'received' : paymentType.toLowerCase();
-        const badgeText = creditReceived ? 'RECEIVED' : paymentType;
+        document.getElementById('cust-all-qty').innerText = safeValue(stats.all.q).toFixed(2) + ' kg';
+        document.getElementById('cust-all-value').innerText = 'Rs ' + safeValue(stats.all.v).toFixed(2);
+        document.getElementById('cust-all-cash').innerText = 'Rs ' + safeValue(stats.all.cash).toFixed(2);
+        document.getElementById('cust-all-credit').innerText = 'Rs ' + safeValue(stats.all.credit).toFixed(2);
+        document.getElementById('cust-all-profit').innerText = 'Rs ' + safeValue(stats.all.profit).toFixed(2);
         
-        const supplyTagClass = item.supplyStore === 'STORE_A' ? 'store-a' : item.supplyStore === 'STORE_B' ? 'store-b' : 'store-c';
-        const supplyTagText = item.supplyStore === 'STORE_A' ? 'ZUBAIR' : item.supplyStore === 'STORE_B' ? 'MAHMOOD' : 'ASAAN';
+        const allTimesCard = document.getElementById('all-times-sales-card');
+        allTimesCard.style.display = 'none';
 
-        let creditSection = '';
-        if (paymentType === 'CREDIT' && !creditReceived) {
-            creditSection = `
-            <div class="credit-checkbox-container" onclick="toggleCustomerCreditReceived(${item.id}, event)">
-                <input type="checkbox" class="credit-checkbox" onclick="toggleCustomerCreditReceived(${item.id}, event);">
-                <label class="credit-checkbox-label">Mark as Received</label>
-            </div>`;
-        } else if (paymentType === 'CREDIT' && creditReceived) {
-            creditSection = `<div class="received-indicator">Credit Received ✓</div>`;
+        sortedSales.forEach(item => {
+            const isSelected = item.date === selectedDate;
+            const highlightClass = isSelected ? 'highlight-card' : '';
+            const dateDisplay = isSelected ? `${item.date} (Selected)` : item.date;
+            
+            const creditReceived = item.creditReceived || false;
+            const paymentType = item.paymentType;
+            const badgeClass = creditReceived ? 'received' : paymentType.toLowerCase();
+            const badgeText = creditReceived ? 'RECEIVED' : paymentType;
+            
+            const supplyTagClass = item.supplyStore === 'STORE_A' ? 'store-a' : 
+                                 item.supplyStore === 'STORE_B' ? 'store-b' : 'store-c';
+            const supplyTagText = item.supplyStore === 'STORE_A' ? 'ZUBAIR' : 
+                                item.supplyStore === 'STORE_B' ? 'MAHMOOD' : 'ASAAN';
+
+            const card = document.createElement('div');
+            card.className = `card liquid-card ${highlightClass}`;
+            
+            let creditSection = '';
+            if (paymentType === 'CREDIT' && !creditReceived) {
+                creditSection = `
+                <div class="credit-checkbox-container" onclick="toggleCustomerCreditReceived(${item.id}, event)">
+                    <input type="checkbox" class="credit-checkbox" onclick="toggleCustomerCreditReceived(${item.id}, event);">
+                    <label class="credit-checkbox-label">Mark as Received</label>
+                </div>
+                `;
+            } else if (paymentType === 'CREDIT' && creditReceived) {
+                creditSection = `<div class="received-indicator">Credit Received ✓</div>`;
+            }
+            
+            const supplySection = `<div class="supply-tag ${supplyTagClass}">Supply: ${supplyTagText}</div>`;
+
+            card.innerHTML = `
+                <div class="payment-badge ${badgeClass}">${badgeText}</div>
+                <div class="customer-name" style="margin-top: 12px;">${item.customerName}</div>
+                <h4 style="margin-top: 5px; font-size: 0.85rem; color: var(--text-muted);">${dateDisplay}</h4>
+                ${supplySection}
+                <hr>
+                <p><span>Quantity:</span> <span class="qty-val">${safeValue(item.quantity).toFixed(3)} kg</span></p>
+                <p><span>Cost Price:</span> <span class="cost-val">Rs ${safeValue(item.costPrice).toFixed(2)}/kg</span></p>
+                <p><span>Sale Price:</span> <span class="rev-val">Rs ${safeValue(item.salePrice).toFixed(2)}/kg</span></p>
+                <hr>
+                <p><span>Total Cost:</span> <span class="cost-val">Rs ${safeValue(item.totalCost).toFixed(2)}</span></p>
+                <p><span>Total Value:</span> <span class="rev-val">Rs ${safeValue(item.totalValue).toFixed(2)}</span></p>
+                <p><span>Net Profit:</span> <span class="profit-val">Rs ${safeValue(item.profit).toFixed(2)}</span></p>
+                ${creditSection}
+                <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="deleteCustomerSale(${item.id})">Delete</button>
+            `;
+            histContainer.appendChild(card);
+        });
+renderCustomersTable(); 
+        updateCustomerCharts();
+    }
+
+    function toggleCustomerCreditReceived(id, event) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
         }
-
-        const card = document.createElement('div');
-        card.className = `card liquid-card ${highlightClass}`;
-        card.innerHTML = `
-            <div class="payment-badge ${badgeClass}">${badgeText}</div>
-            <div class="customer-name" style="margin-top: 12px;">${item.customerName}</div>
-            <h4 style="margin-top: 5px; font-size: 0.85rem; color: var(--text-muted);">${dateDisplay}</h4>
-            <div class="supply-tag ${supplyTagClass}">Supply: ${supplyTagText}</div>
-            <hr>
-            <p><span>Quantity:</span> <span class="qty-val">${safeValue(item.quantity).toFixed(3)} kg</span></p>
-            <p><span>Total Value:</span> <span class="rev-val">Rs ${safeValue(item.totalValue).toFixed(2)}</span></p>
-            ${creditSection}
-            <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="deleteCustomerSale(${item.id})">Delete</button>
-        `;
-        histContainer.appendChild(card);
-    });
-    
-    // Also isolate chart data
-    updateCustomerCharts();
-}
-
+        
+        const saleIndex = customerSales.findIndex(item => item.id === id);
+        
+        if (saleIndex !== -1) {
+            customerSales[saleIndex].creditReceived = !customerSales[saleIndex].creditReceived;
+            localStorage.setItem('customer_sales', JSON.stringify(customerSales));
+            
+            if (customerSales[saleIndex].creditReceived) {
+                customerSales[saleIndex].paymentType = 'CASH';
+                localStorage.setItem('customer_sales', JSON.stringify(customerSales));
+            }
+            
+            refreshCustomerSales();
+            updateCustomerCharts();
+        }
+    }
 
     function deleteCustomerSale(id) {
         if(confirm("Delete this sale transaction permanently?")) {
@@ -13505,25 +13515,30 @@ document.addEventListener('DOMContentLoaded', function() {
     if(repSelect) repSelect.value = currentRepProfile;
 });
 function deleteRepTransaction(id) {
-    if(confirm("Permanently delete this record?")) {
-        // 1. Remove from array
-        customerSales = customerSales.filter(s => s.id !== id);
+    if (confirm("Are you sure you should delete this transaction? This will also remove it from Today's Activity.")) {
+        // 1. Filter out the transaction from the customerSales array
+        customerSales = customerSales.filter(transaction => transaction.id !== id);
         
-        // 2. Update LocalStorage
+        // 2. Persist the updated data to LocalStorage
         localStorage.setItem('customer_sales', JSON.stringify(customerSales));
         
-        // 3. REFRESH THE UI COMPONENTS IMMEDIATELY
-        if(typeof renderRepHistory === 'function') {
-            renderRepHistory(); // This makes it disappear from "Today's Activity"
+        // 3. REFRESH UI: Update the Today's Activity list
+        // This ensures the deleted item is immediately cleared from the display
+        if (typeof renderTodayActivity === 'function') {
+            renderTodayActivity();
+        }
+
+        // 4. Update stats and other tabs
+        if (typeof refreshAllCalculations === 'function') {
+            refreshAllCalculations();
         }
         
-        // Refresh specific customer views if they are open
-        if(typeof currentManagingCustomer !== 'undefined' && currentManagingCustomer) {
-            renderRepCustomerTransactions(currentManagingCustomer);
-            renderRepCustomerTable();
+        // 5. Notify the sync system (if applicable)
+        if (typeof notifyDataChange === 'function') {
+            notifyDataChange('sales');
         }
-        
-        showToast("Transaction deleted successfully", "success");
+
+        showToast("Transaction deleted and activity updated", "success");
     }
 }
 
