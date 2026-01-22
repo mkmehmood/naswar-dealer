@@ -8130,14 +8130,25 @@ function triggerSeamlessBackup() {
 }
 
 // --- PUSH DATA (BACKUP) ---
+// --- UPDATED: PUSH DATA (BACKUP) ---
 async function pushDataToCloud(silent = false) {
-    if (!currentUser || !supabaseClient) return;
+    // 1. Re-verify User
+    if (!currentUser) {
+        const { data } = await supabaseClient.auth.getUser();
+        currentUser = data.user;
+    }
+
+    if (!currentUser || !supabaseClient) {
+        console.error("❌ Backup Failed: User not logged in or Supabase not ready.");
+        if (!silent) showToast("You must be logged in to backup.", "error");
+        return;
+    }
 
     try {
-        if (!silent) console.log('📤 Uploading to cloud...');
+        if (!silent) showToast('📤 Uploading to cloud...', 'info');
+        console.log('📤 Preparing backup...');
         
-        // Ensure we are pulling the most recent data from global variables
-        // which are synced exclusively with IndexedDB
+        // 2. Prepare Data (Get fresh data from IndexedDB/Globals)
         const dataToSync = {
             mfg_pro_pkr: db,
             customer_sales: customerSales,
@@ -8159,6 +8170,7 @@ async function pushDataToCloud(silent = false) {
             last_synced: new Date().toISOString()
         };
 
+        // 3. Send to Supabase
         const { error } = await supabaseClient
             .from('user_data')
             .upsert({ 
@@ -8169,15 +8181,17 @@ async function pushDataToCloud(silent = false) {
 
         if (error) throw error;
 
+        // 4. Success Handling
         await idb.set('last_synced', new Date().toISOString());
         if (!silent) showToast('Data backed up to cloud', 'success');
-        console.log('✅ Auto-save complete');
+        console.log('✅ Backup successful at', new Date().toLocaleTimeString());
 
     } catch (error) {
         console.error('Cloud Backup Error:', error);
-        if (!silent) showToast('Backup failed. Will retry...', 'warning');
+        if (!silent) showToast('Backup failed: ' + error.message, 'error');
     }
 }
+
 
 // --- PULL DATA (RESTORE) ---
 async function pullDataFromCloud(silent = false) {
@@ -8272,35 +8286,39 @@ async function pullDataFromCloud(silent = false) {
 }
 
 // --- UPDATED: TRIGGER CLOUD ACTION (WITH AUTH CHECK) ---
+// --- UPDATED: TRIGGER CLOUD ACTION (ROBUST AUTH CHECK) ---
 async function triggerCloudAction(action) {
-    // 1. Close the data menu first so it doesn't block the view
+    // 1. Close the menu
     closeDataMenu();
 
-    // 2. Check if Supabase client is ready
+    // 2. Check Supabase Client
     if (!supabaseClient) {
-        showToast("Cloud system not initialized. Check internet connection.", "error");
+        showToast("Cloud system not initialized.", "error");
         return;
     }
 
-    // 3. CRITICAL: Check if user is logged in
+    // 3. ROBUST AUTH CHECK: Get user directly from Supabase if variable is null
     if (!currentUser) {
-        // If not logged in, force the login overlay to open
-        showToast("Please sign in to access Cloud functions.", "info");
-        showAuthOverlay();
-        return; // Stop here
+        const { data } = await supabaseClient.auth.getUser();
+        currentUser = data.user;
     }
 
-    // 4. If logged in, proceed with the requested action
+    // 4. Still no user? Force Login.
+    if (!currentUser) {
+        showToast("Please sign in to access Cloud functions.", "info");
+        showAuthOverlay();
+        return; 
+    }
+
+    // 5. Proceed with Action
     if (action === 'backup') {
-        // Optional: Add a confirmation for manual backup
         if(confirm("📤 Upload local data to Cloud?")) {
             await pushDataToCloud(false); // false = show success/error toasts
         }
     }
     
     if (action === 'restore') {
-        // Essential: Confirmation for restore to prevent accidental overwrites
-        if(confirm("⚠️ RESTORE FROM CLOUD?\n\nThis will overwrite your current local data with the version saved in the cloud.\n\nContinue?")) {
+        if(confirm("⚠️ RESTORE FROM CLOUD?\n\nThis will overwrite your current local data.\n\nContinue?")) {
             await pullDataFromCloud(false);
         }
     }
