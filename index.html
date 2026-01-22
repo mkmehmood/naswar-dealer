@@ -10806,7 +10806,6 @@ function calculateTotalSoldForRepresentative(seller) {
     return totalSold;
 }
 
-// 2. Auto-fill total sold quantity when seller or date changes
 // ==========================================
 // ADMIN LINKAGE: CALCULATOR AUTO-FILL
 // ==========================================
@@ -10814,28 +10813,31 @@ function calculateTotalSoldForRepresentative(seller) {
 function autoFillTotalSoldQuantity() {
     const seller = document.getElementById('sellerSelect').value;
     const date = document.getElementById('sale-date').value;
-    
+
     const totalSoldField = document.getElementById('totalSold');
-    const creditSalesField = document.getElementById('creditSales');
-    const recoveredField = document.getElementById('prevCreditReceived');
+    const creditSalesField = document.getElementById('creditSales'); // CREDIT SALES QTY
+    const recoveredField = document.getElementById('prevCreditReceived'); // RECOVERED CREDIT
     
     if (seller === 'COMBINED') {
-        if(totalSoldField) { totalSoldField.value = ''; totalSoldField.readOnly = true; }
+        if(totalSoldField) { 
+            totalSoldField.value = ''; 
+            totalSoldField.readOnly = true; 
+        }
         return;
     }
     
-    let totalSoldKg = 0;
+    // REPLACED: Calculate all-time pending credit sales for this representative (from part 2)
+    const totalSoldKg = calculateTotalSoldForRepresentative(seller);
+    
+    // 2. Calculate Stats for Credit Sales and Recovered Credit (keep date-specific logic)
     let creditSalesKg = 0;
     let recoveredCash = 0;
     
     customerSales.forEach(sale => {
+        // Match Rep AND Date (for credit and recovery calculations)
         if (sale.salesRep === seller && sale.date === date) {
-            // Total Sold (exclude collections)
-            if (sale.paymentType !== 'COLLECTION') {
-                totalSoldKg += (sale.quantity || 0);
-            }
             
-            // Credit Sales Qty
+            // Credit Sales Qty (Only Credit transactions)
             if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
                 creditSalesKg += (sale.quantity || 0);
             }
@@ -10847,15 +10849,17 @@ function autoFillTotalSoldQuantity() {
         }
     });
     
-    // Auto-fill fields
+    // 3. Auto-Fill Fields
     if(totalSoldField) {
         totalSoldField.value = totalSoldKg.toFixed(3);
         styleAutoFilledField(totalSoldField);
+        totalSoldField.readOnly = true; // Added from part 2
     }
     
     if(creditSalesField) {
         creditSalesField.value = creditSalesKg.toFixed(3);
         styleAutoFilledField(creditSalesField);
+        // Note: Admin can still override if needed, but usually shouldn't
     }
     
     if(recoveredField) {
@@ -10863,7 +10867,15 @@ function autoFillTotalSoldQuantity() {
         styleAutoFilledField(recoveredField);
     }
     
+    // 4. Trigger Calculation to update expected cash
     calculateSales();
+}
+
+function styleAutoFilledField(field) {
+    field.style.background = 'rgba(37, 99, 235, 0.1)';
+    field.style.color = 'var(--accent)';
+    field.style.fontWeight = 'bold';
+    field.style.border = '1px solid var(--accent)';
 }
 
 function styleAutoFilledField(field) {
