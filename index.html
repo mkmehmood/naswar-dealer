@@ -4548,11 +4548,18 @@ function notifyDataChange(dataType) {
     syncState.lastUpdate[dataType] = Date.now();
     syncState.pendingUpdates.add(dataType);
     
-    // Schedule sync without blocking current operation
+    // 1. Schedule local sync (existing logic)
     if (!syncState.isRefreshing) {
         requestAnimationFrame(() => processSync());
     }
+
+    // 2. TRIGGER SEAMLESS CLOUD BACKUP (New Logic)
+    // This will wait 5 seconds after the last change, then push to cloud
+    if (typeof triggerSeamlessBackup === 'function') {
+        triggerSeamlessBackup();
+    }
 }
+
 
 // Process sync queue
 function processSync() {
@@ -5709,9 +5716,10 @@ function calculateNetCash() {
             rawData.productionCredits += item.totalSale || 0;
         }
     });
-    
-    // 2. Collect SALES data (ALL TIME)
+   // 2. Collect SALES data (ISOLATED)
     customerSales.forEach(sale => {
+        // --- ISOLATION: SKIP REP MODE ENTRIES ---
+        if (sale.isRepModeEntry === true) return;
         rawData.totalSalesValue += sale.totalValue || 0;
         rawData.totalSalesQuantity += sale.quantity || 0;
         
@@ -7568,7 +7576,7 @@ function saveCustomerSale() {
     hours = hours ? hours : 12;
     const timeString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} ${ampm}`;
     
-    // Create sale record
+      // Create sale record
     const saleRecord = {
         id: Date.now(),
         date: date,
@@ -7582,7 +7590,9 @@ function saveCustomerSale() {
         totalValue: totalValue,
         profit: profit,
         creditReceived: paymentType === 'CASH' ? true : false,
-        timestamp: new Date(date).getTime()
+        timestamp: new Date(date).getTime(),
+        // --- ISOLATION FLAG ---
+        isRepModeEntry: false // Tag as Admin Mode
     };
     
     customerSales.push(saleRecord);
@@ -7863,103 +7873,82 @@ let stockReturns = JSON.parse(localStorage.getItem('stock_returns')) || [];
 // SUPABASE CLOUD SYNC - COMPLETE IMPLEMENTATION
 // ============================================
 
+// ============================================
+// SEAMLESS CLOUD SYNC MODULE (AUTO-SAVE)
+// ============================================
+
 const SUPABASE_URL = 'https://znxhlwbmoqwoijkhglcb.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpueGhsd2Jtb3F3b2lqa2hnbGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg4OTA1MjIsImV4cCI6MjA4NDQ2NjUyMn0.4RuwqqM-uxGRzpCxtgHx572OdFICfZjMXYFOHRU3lrI';
 
 let supabaseClient = null;
 let currentUser = null;
-let isAuthReady = false;
-let syncTimeout = null;
+let autoSaveTimer = null;
+const AUTO_SAVE_DELAY = 5000; // Auto-save 5 seconds after last change
 
 // Initialize Supabase
 function initSupabase() {
-    try {
-        if (typeof window.supabase === 'undefined') {
-            console.error('❌ Supabase library not loaded');
-            showToast('Cloud sync unavailable - Supabase not loaded', 'warning', 3000);
-            return;
-        }
-        
-        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        console.log('✓ Supabase client created');
-        
-        setupAuthListener();
-        checkAuthState();
-        
-    } catch (error) {
-        console.error('❌ Supabase initialization error:', error);
-        showToast('Cloud sync unavailable - initialization failed', 'warning', 3000);
+    if (typeof window.supabase === 'undefined') {
+        console.error('❌ Supabase SDK not loaded.');
+        return;
+    }
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    setupAuthListener();
+    checkAuthState();
+}
+
+// Check Session & Auto-Restore on Load
+async function checkAuthState() {
+    if (!supabaseClient) return;
+    const { data: { user }, error } = await supabaseClient.auth.getUser();
+    
+    if (user) {
+        currentUser = user;
+        console.log(`✅ Logged in as ${user.email}`);
+        // Seamlessly pull data on startup
+        await pullDataFromCloud(true); // true = silent mode
+        addSignOutButton();
     }
 }
 
-// Check authentication state
-// --- AUTHENTICATION & SESSION MANAGEMENT ---
-// --- AUTHENTICATION & SESSION MANAGEMENT ---
-
-// --- UPDATED: AUTHENTICATION & SESSION MANAGEMENT ---
-function checkAuthState() {
-    if (!supabaseClient) return;
-
-    supabaseClient.auth.getUser().then(({ data: { user }, error }) => {
-        if (error || !user) {
-            console.log('No active session');
-            // REMOVED: showAuthOverlay(); <-- Do not show on load
-        } else {
-            currentUser = user;
-            isAuthReady = true;
-            hideAuthOverlay(); 
-            console.log('✓ User authenticated');
-            setTimeout(() => pullDataFromCloud(), 1000);
-        }
-    });
-}
-
+// Listen for Auth Changes
 function setupAuthListener() {
-    if (!supabaseClient) return;
     supabaseClient.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_IN') {
             currentUser = session?.user;
-            localStorage.setItem('login_timestamp', Date.now());
-            hideAuthOverlay();
-            setTimeout(() => pullDataFromCloud(), 500);
-            showToast(`Welcome! Sync Active.`, 'success');
+            showToast(`Cloud Sync Active`, 'success');
+            pullDataFromCloud(true); // Auto-pull on login
+            addSignOutButton();
         } else if (event === 'SIGNED_OUT') {
             currentUser = null;
-            localStorage.removeItem('login_timestamp');
-            // REMOVED: showAuthOverlay(); <-- Do not show on logout
+            removeSignOutButton();
         }
     });
 }
-/**
- * Triggers the Cloud Action or shows Login if needed
- */
-async function triggerCloudAction(actionType) {
-    if (!currentUser) {
-        showToast("Please login to use cloud features", "info");
-        showAuthOverlay(); // Only shows when button is clicked
-        return;
-    }
 
-    if (actionType === 'backup') {
-        await pushDataToCloud();
-    } else if (actionType === 'restore') {
-        await pullDataFromCloud();
-    }
+// --- CORE: TRIGGER AUTO-SAVE ---
+// Call this function whenever data changes (hooked into notifyDataChange)
+function triggerSeamlessBackup() {
+    if (!currentUser) return;
+
+    // Reset the timer on every change (debounce)
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
+
+    // Visual feedback (optional: could add a small "saving..." spinner in UI)
+    const syncBadge = document.getElementById('cloudMenuBtn');
+    if(syncBadge) syncBadge.innerText = '⏳'; 
+
+    autoSaveTimer = setTimeout(() => {
+        pushDataToCloud(true); // Silent auto-save
+        if(syncBadge) syncBadge.innerText = '☁️';
+    }, AUTO_SAVE_DELAY);
 }
 
+// --- PUSH DATA (BACKUP) ---
+async function pushDataToCloud(silent = false) {
+    if (!currentUser || !supabaseClient) return;
 
-// ============================================
-// CLOUD SYNC FUNCTIONS
-// ============================================
-
-async function pushDataToCloud() {
-    if (!currentUser || !supabaseClient) {
-        console.log('⚠ Cannot sync: not authenticated');
-        return false;
-    }
-    
     try {
-        console.log('📤 Pushing data to cloud...');
+        if (!silent) console.log('📤 Uploading to cloud...');
         
         const dataToSync = {
             mfg_pro_pkr: db,
@@ -7976,173 +7965,118 @@ async function pushDataToCloud() {
             payment_transactions: paymentTransactions,
             stock_returns: stockReturns,
             naswar_default_settings: defaultSettings,
-            last_synced: new Date().toISOString()
+            last_synced: new Date().toISOString() // Important for conflict resolution
         };
-        
-        const { data, error } = await supabaseClient
+
+        const { error } = await supabaseClient
             .from('user_data')
-            .upsert({
-                user_id: currentUser.id,
+            .upsert({ 
+                user_id: currentUser.id, 
                 data: dataToSync,
                 last_synced: new Date().toISOString()
-            }, {
-                onConflict: 'user_id'
-            });
-        
-        if (error) {
-            console.error('❌ Cloud backup error:', error);
-            throw error;
-        }
-        
-        console.log('✓ Cloud backup successful');
+            }, { onConflict: 'user_id' });
+
+        if (error) throw error;
+
         localStorage.setItem('last_synced', new Date().toISOString());
-        showToast('💾 Backed up to cloud', 'success', 2000);
-        return true;
-        
+        if (!silent) showToast('Data backed up to cloud', 'success');
+        console.log('✅ Auto-save complete');
+
     } catch (error) {
-        console.error('❌ Cloud backup failed:', error);
-        showToast('Cloud backup failed - saved locally', 'warning', 3000);
-        return false;
+        console.error('Cloud Backup Error:', error);
+        if (!silent) showToast('Backup failed. Will retry...', 'warning');
     }
 }
 
-async function pullDataFromCloud() {
-    if (!currentUser || !supabaseClient) {
-        console.log('⚠ Cannot restore: not authenticated');
-        return false;
-    }
-    
+// --- PULL DATA (RESTORE) ---
+async function pullDataFromCloud(silent = false) {
+    if (!currentUser || !supabaseClient) return;
+
     try {
-        console.log('📥 Pulling data from cloud...');
-        
+        if (!silent) console.log('📥 Checking for cloud updates...');
+
         const { data, error } = await supabaseClient
             .from('user_data')
             .select('data, last_synced')
             .eq('user_id', currentUser.id)
             .maybeSingle();
-        
-        if (error && error.code !== 'PGRST116') {
-            console.error('❌ Cloud restore error:', error);
-            throw error;
-        }
-        
+
+        if (error && error.code !== 'PGRST116') throw error;
+
+        // 1. New User / No Data
         if (!data) {
-            console.log('ℹ No cloud data - new user');
-            showToast('Welcome! Your data will be backed up to cloud.', 'info', 3000);
-            // Push current data to cloud
-            setTimeout(() => pushDataToCloud(), 1000);
-            return true;
-        }
-        
-        if (!data.data) {
-            console.log('ℹ Cloud data empty');
-            return true;
-        }
-        
-        const cloudData = data.data;
-        const cloudTimestamp = new Date(cloudData.last_synced || 0).getTime();
-        const localTimestamp = new Date(localStorage.getItem('last_synced') || 0).getTime();
-        
-        if (cloudTimestamp <= localTimestamp && localTimestamp > 0) {
-            console.log('ℹ Local data is newer');
-            showToast('Using latest local data', 'info', 2000);
-            // Push local data to cloud
-            setTimeout(() => pushDataToCloud(), 1000);
-            return true;
-        }
-        
-        console.log('📥 Restoring cloud data...');
-        
-        // Restore all data
-        if (cloudData.mfg_pro_pkr) {
-            localStorage.setItem('mfg_pro_pkr', JSON.stringify(cloudData.mfg_pro_pkr));
-            db = cloudData.mfg_pro_pkr;
-        }
-        
-        if (cloudData.customer_sales) {
-            localStorage.setItem('customer_sales', JSON.stringify(cloudData.customer_sales));
-            customerSales = cloudData.customer_sales;
-        }
-        
-        if (cloudData.noman_history) {
-            localStorage.setItem('noman_history', JSON.stringify(cloudData.noman_history));
-            salesHistory = cloudData.noman_history;
-        }
-        
-        if (cloudData.factory_inventory_data) {
-            localStorage.setItem('factory_inventory_data', JSON.stringify(cloudData.factory_inventory_data));
-            factoryInventoryData = cloudData.factory_inventory_data;
-        }
-        
-        if (cloudData.factory_production_history) {
-            localStorage.setItem('factory_production_history', JSON.stringify(cloudData.factory_production_history));
-            factoryProductionHistory = cloudData.factory_production_history;
-        }
-        
-        if (cloudData.factory_default_formulas) {
-            localStorage.setItem('factory_default_formulas', JSON.stringify(cloudData.factory_default_formulas));
-            factoryDefaultFormulas = cloudData.factory_default_formulas;
-        }
-        
-        if (cloudData.factory_additional_costs) {
-            localStorage.setItem('factory_additional_costs', JSON.stringify(cloudData.factory_additional_costs));
-            factoryAdditionalCosts = cloudData.factory_additional_costs;
-        }
-        
-        if (cloudData.factory_cost_adjustment_factor) {
-            localStorage.setItem('factory_cost_adjustment_factor', JSON.stringify(cloudData.factory_cost_adjustment_factor));
-            factoryCostAdjustmentFactor = cloudData.factory_cost_adjustment_factor;
-        }
-        
-        if (cloudData.factory_sale_prices) {
-            localStorage.setItem('factory_sale_prices', JSON.stringify(cloudData.factory_sale_prices));
-            factorySalePrices = cloudData.factory_sale_prices;
-        }
-        
-        if (cloudData.factory_unit_tracking) {
-            localStorage.setItem('factory_unit_tracking', JSON.stringify(cloudData.factory_unit_tracking));
-            factoryUnitTracking = cloudData.factory_unit_tracking;
-        }
-        
-        if (cloudData.payment_entities) {
-            localStorage.setItem('payment_entities', JSON.stringify(cloudData.payment_entities));
-            paymentEntities = cloudData.payment_entities;
-        }
-        
-        if (cloudData.payment_transactions) {
-            localStorage.setItem('payment_transactions', JSON.stringify(cloudData.payment_transactions));
-            paymentTransactions = cloudData.payment_transactions;
-        }
-        
-        if (cloudData.stock_returns) {
-            localStorage.setItem('stock_returns', JSON.stringify(cloudData.stock_returns));
-            stockReturns = cloudData.stock_returns;
-        }
-        
-        if (cloudData.naswar_default_settings) {
-            localStorage.setItem('naswar_default_settings', JSON.stringify(cloudData.naswar_default_settings));
-            defaultSettings = cloudData.naswar_default_settings;
-        }
-        
-        localStorage.setItem('last_synced', cloudData.last_synced);
-        
-        console.log('✓ Cloud data restored');
-        showToast('☁️ Data restored from cloud', 'success', 2000);
-        
-        // Refresh displays
-        setTimeout(() => {
-            if (typeof refreshAllDisplays === 'function') {
-                refreshAllDisplays();
+            if (!silent) showToast('No cloud data found. Starting fresh.', 'info');
+            // If we have local data, push it up immediately to initialize cloud
+            if (db.length > 0 || customerSales.length > 0) {
+                await pushDataToCloud(true);
             }
-        }, 500);
-        
-        return true;
-        
+            return;
+        }
+
+        // 2. Compare Timestamps (Conflict Resolution)
+        const cloudTime = new Date(data.last_synced || 0).getTime();
+        const localTime = new Date(localStorage.getItem('last_synced') || 0).getTime();
+
+        // If Cloud is OLDER than local, don't overwrite (unless forced manually)
+        if (cloudTime <= localTime && silent) {
+            console.log('⚡ Local data is up-to-date.');
+            return;
+        }
+
+        // 3. Restore Data
+        const cloud = data.data;
+        if (cloud) {
+            // Restore Global Variables & LocalStorage
+            db = cloud.mfg_pro_pkr || [];
+            customerSales = cloud.customer_sales || [];
+            salesHistory = cloud.noman_history || [];
+            factoryInventoryData = cloud.factory_inventory_data || [];
+            factoryProductionHistory = cloud.factory_production_history || [];
+            factoryDefaultFormulas = cloud.factory_default_formulas || { standard: [], asaan: [] };
+            factoryAdditionalCosts = cloud.factory_additional_costs || { standard: 0, asaan: 0 };
+            factoryCostAdjustmentFactor = cloud.factory_cost_adjustment_factor || { standard: 1, asaan: 1 };
+            factorySalePrices = cloud.factory_sale_prices || { standard: 0, asaan: 0 };
+            factoryUnitTracking = cloud.factory_unit_tracking || {};
+            paymentEntities = cloud.payment_entities || [];
+            paymentTransactions = cloud.payment_transactions || [];
+            stockReturns = cloud.stock_returns || [];
+            defaultSettings = cloud.naswar_default_settings || {};
+
+            // Persist to LocalStorage
+            localStorage.setItem('mfg_pro_pkr', JSON.stringify(db));
+            localStorage.setItem('customer_sales', JSON.stringify(customerSales));
+            localStorage.setItem('noman_history', JSON.stringify(salesHistory));
+            localStorage.setItem('factory_inventory_data', JSON.stringify(factoryInventoryData));
+            localStorage.setItem('factory_production_history', JSON.stringify(factoryProductionHistory));
+            localStorage.setItem('factory_default_formulas', JSON.stringify(factoryDefaultFormulas));
+            localStorage.setItem('factory_additional_costs', JSON.stringify(factoryAdditionalCosts));
+            localStorage.setItem('factory_cost_adjustment_factor', JSON.stringify(factoryCostAdjustmentFactor));
+            localStorage.setItem('factory_sale_prices', JSON.stringify(factorySalePrices));
+            localStorage.setItem('factory_unit_tracking', JSON.stringify(factoryUnitTracking));
+            localStorage.setItem('payment_entities', JSON.stringify(paymentEntities));
+            localStorage.setItem('payment_transactions', JSON.stringify(paymentTransactions));
+            localStorage.setItem('stock_returns', JSON.stringify(stockReturns));
+            localStorage.setItem('naswar_default_settings', JSON.stringify(defaultSettings));
+            
+            // Update Sync Timestamp
+            localStorage.setItem('last_synced', data.last_synced);
+
+            if (!silent) showToast('Data restored from cloud!', 'success');
+            
+            // Refresh UI
+            refreshAllDisplays();
+        }
+
     } catch (error) {
-        console.error('❌ Cloud restore failed:', error);
-        showToast('Could not restore cloud data', 'warning', 3000);
-        return false;
+        console.error('Cloud Restore Error:', error);
+        if (!silent) showToast('Sync failed. Using local data.', 'error');
     }
+}
+
+// Wrapper for manual buttons (keep existing functionality)
+function triggerCloudAction(action) {
+    if (action === 'backup') pushDataToCloud(false);
+    if (action === 'restore') pullDataFromCloud(false);
 }
 
 function scheduleCloudSync() {
@@ -8338,13 +8272,7 @@ function addSignOutButton() {
         const btnContainer = systemControls.querySelector('div');
         if (btnContainer) {
             const signOutBtn = document.createElement('button');
-            signOutBtn.className = 'btn-theme';
-            signOutBtn.id = 'cloud-signout-btn';
-            signOutBtn.innerHTML = '🚪';
-            signOutBtn.title = `Sign Out (${currentUser.email})`;
-            signOutBtn.onclick = signOut;
-            signOutBtn.style.marginLeft = '8px';
-            btnContainer.appendChild(signOutBtn);
+            
         }
     }
 }
@@ -10139,6 +10067,8 @@ function updateAllStoresOverview(mode = 'day') {
         let soldQty = 0;
 
         customerSales.forEach(sale => {
+        // --- ISOLATION: IGNORE REP MODE SALES FOR INVENTORY ---
+        if (sale.isRepModeEntry === true) return;
             const saleDate = new Date(sale.date);
             const saleYear = saleDate.getFullYear();
             const saleMonth = saleDate.getMonth();
@@ -10479,180 +10409,187 @@ function updateAllStoresOverview(mode = 'day') {
     }
 
     function refreshCustomerSales() {
-        const selectedDate = document.getElementById('cust-date').value;
-        if (!selectedDate) return;
+    const selectedDate = document.getElementById('cust-date').value;
+    if (!selectedDate) return;
+    
+    const selectedDateObj = new Date(selectedDate);
+    const selectedYear = selectedDateObj.getFullYear();
+    const selectedMonth = selectedDateObj.getMonth();
+    const selectedDay = selectedDateObj.getDate();
+    
+    const weekStart = new Date(selectedDateObj);
+    weekStart.setDate(selectedDay - 6);
+    
+    let stats = {
+        day: {q:0, v:0, cash:0, credit:0, profit:0},
+        week: {q:0, v:0, cash:0, credit:0, profit:0},
+        month: {q:0, v:0, cash:0, credit:0, profit:0},
+        year: {q:0, v:0, cash:0, credit:0, profit:0},
+        all: {q:0, v:0, cash:0, credit:0, profit:0}
+    };
+
+    const histContainer = document.getElementById('custHistoryList');
+    histContainer.innerHTML = '';
+
+    const sortedSales = [...customerSales].sort((a,b) => {
+        if (a.date === selectedDate && b.date !== selectedDate) return -1;
+        if (a.date !== selectedDate && b.date === selectedDate) return 1;
+        return b.timestamp - a.timestamp;
+    });
+
+    sortedSales.forEach(item => {
+        // ISOLATION: Skip rep mode entries
+        if (item.isRepModeEntry === true) return;
         
-        const selectedDateObj = new Date(selectedDate);
-        const selectedYear = selectedDateObj.getFullYear();
-        const selectedMonth = selectedDateObj.getMonth();
-        const selectedDay = selectedDateObj.getDate();
-        
-        const weekStart = new Date(selectedDateObj);
-        weekStart.setDate(selectedDay - 6);
-        
-        let stats = {
-            day: {q:0, v:0, cash:0, credit:0, profit:0},
-            week: {q:0, v:0, cash:0, credit:0, profit:0},
-            month: {q:0, v:0, cash:0, credit:0, profit:0},
-            year: {q:0, v:0, cash:0, credit:0, profit:0},
-            all: {q:0, v:0, cash:0, credit:0, profit:0}
-        };
+        const rowDate = new Date(item.date);
+        const rowYear = rowDate.getFullYear();
+        const rowMonth = rowDate.getMonth();
+        const rowDay = rowDate.getDate();
 
-        const histContainer = document.getElementById('custHistoryList');
-        histContainer.innerHTML = '';
-
-        const sortedSales = [...customerSales].sort((a,b) => {
-            if (a.date === selectedDate && b.date !== selectedDate) return -1;
-            if (a.date !== selectedDate && b.date === selectedDate) return 1;
-            return b.timestamp - a.timestamp;
-        });
-
-        sortedSales.forEach(item => {
-            const rowDate = new Date(item.date);
-            const rowYear = rowDate.getFullYear();
-            const rowMonth = rowDate.getMonth();
-            const rowDay = rowDate.getDate();
-
-            if(item.date === selectedDate) {
-                stats.day.q += item.quantity;
-                stats.day.v += item.totalValue;
-                stats.day.profit += item.profit;
-                if(item.paymentType === 'CASH' || item.creditReceived) {
-                    stats.day.cash += item.totalValue;
-                } else if(item.paymentType === 'CREDIT' && !item.creditReceived) {
-                    stats.day.credit += item.totalValue;
-                }
-            }
-
-            if(rowDate >= weekStart && rowDate <= selectedDateObj) {
-                stats.week.q += item.quantity;
-                stats.week.v += item.totalValue;
-                stats.week.profit += item.profit;
-                if(item.paymentType === 'CASH' || item.creditReceived) {
-                    stats.week.cash += item.totalValue;
-                } else if(item.paymentType === 'CREDIT' && !item.creditReceived) {
-                    stats.week.credit += item.totalValue;
-                }
-            }
-
-            if(rowYear === selectedYear && rowMonth === selectedMonth) {
-                stats.month.q += item.quantity;
-                stats.month.v += item.totalValue;
-                stats.month.profit += item.profit;
-                if(item.paymentType === 'CASH' || item.creditReceived) {
-                    stats.month.cash += item.totalValue;
-                } else if(item.paymentType === 'CREDIT' && !item.creditReceived) {
-                    stats.month.credit += item.totalValue;
-                }
-            }
-
-            if(rowYear === selectedYear) {
-                stats.year.q += item.quantity;
-                stats.year.v += item.totalValue;
-                stats.year.profit += item.profit;
-                if(item.paymentType === 'CASH' || item.creditReceived) {
-                    stats.year.cash += item.totalValue;
-                } else if(item.paymentType === 'CREDIT' && !item.creditReceived) {
-                    stats.year.credit += item.totalValue;
-                }
-            }
-            
-            stats.all.q += item.quantity;
-            stats.all.v += item.totalValue;
-            stats.all.profit += item.profit;
+        if(item.date === selectedDate) {
+            stats.day.q += item.quantity;
+            stats.day.v += item.totalValue;
+            stats.day.profit += item.profit;
             if(item.paymentType === 'CASH' || item.creditReceived) {
-                stats.all.cash += item.totalValue;
+                stats.day.cash += item.totalValue;
             } else if(item.paymentType === 'CREDIT' && !item.creditReceived) {
-                stats.all.credit += item.totalValue;
+                stats.day.credit += item.totalValue;
             }
-        });
+        }
 
-        document.getElementById('cust-day-qty').innerText = safeValue(stats.day.q).toFixed(2) + ' kg';
-        document.getElementById('cust-day-value').innerText = 'Rs ' + safeValue(stats.day.v).toFixed(2);
-        document.getElementById('cust-day-cash').innerText = 'Rs ' + safeValue(stats.day.cash).toFixed(2);
-        document.getElementById('cust-day-credit').innerText = 'Rs ' + safeValue(stats.day.credit).toFixed(2);
-        document.getElementById('cust-day-profit').innerText = 'Rs ' + safeValue(stats.day.profit).toFixed(2);
-
-        document.getElementById('cust-week-qty').innerText = safeValue(stats.week.q).toFixed(2) + ' kg';
-        document.getElementById('cust-week-value').innerText = 'Rs ' + safeValue(stats.week.v).toFixed(2);
-        document.getElementById('cust-week-cash').innerText = 'Rs ' + safeValue(stats.week.cash).toFixed(2);
-        document.getElementById('cust-week-credit').innerText = 'Rs ' + safeValue(stats.week.credit).toFixed(2);
-        document.getElementById('cust-week-profit').innerText = 'Rs ' + safeValue(stats.week.profit).toFixed(2);
-
-        document.getElementById('cust-month-qty').innerText = safeValue(stats.month.q).toFixed(2) + ' kg';
-        document.getElementById('cust-month-value').innerText = 'Rs ' + safeValue(stats.month.v).toFixed(2);
-        document.getElementById('cust-month-cash').innerText = 'Rs ' + safeValue(stats.month.cash).toFixed(2);
-        document.getElementById('cust-month-credit').innerText = 'Rs ' + safeValue(stats.month.credit).toFixed(2);
-        document.getElementById('cust-month-profit').innerText = 'Rs ' + safeValue(stats.month.profit).toFixed(2);
-
-        document.getElementById('cust-year-qty').innerText = safeValue(stats.year.q).toFixed(2) + ' kg';
-        document.getElementById('cust-year-value').innerText = 'Rs ' + safeValue(stats.year.v).toFixed(2);
-        document.getElementById('cust-year-cash').innerText = 'Rs ' + safeValue(stats.year.cash).toFixed(2);
-        document.getElementById('cust-year-credit').innerText = 'Rs ' + safeValue(stats.year.credit).toFixed(2);
-        document.getElementById('cust-year-profit').innerText = 'Rs ' + safeValue(stats.year.profit).toFixed(2);
-        
-        document.getElementById('cust-all-qty').innerText = safeValue(stats.all.q).toFixed(2) + ' kg';
-        document.getElementById('cust-all-value').innerText = 'Rs ' + safeValue(stats.all.v).toFixed(2);
-        document.getElementById('cust-all-cash').innerText = 'Rs ' + safeValue(stats.all.cash).toFixed(2);
-        document.getElementById('cust-all-credit').innerText = 'Rs ' + safeValue(stats.all.credit).toFixed(2);
-        document.getElementById('cust-all-profit').innerText = 'Rs ' + safeValue(stats.all.profit).toFixed(2);
-        
-        const allTimesCard = document.getElementById('all-times-sales-card');
-        allTimesCard.style.display = 'none';
-
-        sortedSales.forEach(item => {
-            const isSelected = item.date === selectedDate;
-            const highlightClass = isSelected ? 'highlight-card' : '';
-            const dateDisplay = isSelected ? `${item.date} (Selected)` : item.date;
-            
-            const creditReceived = item.creditReceived || false;
-            const paymentType = item.paymentType;
-            const badgeClass = creditReceived ? 'received' : paymentType.toLowerCase();
-            const badgeText = creditReceived ? 'RECEIVED' : paymentType;
-            
-            const supplyTagClass = item.supplyStore === 'STORE_A' ? 'store-a' : 
-                                 item.supplyStore === 'STORE_B' ? 'store-b' : 'store-c';
-            const supplyTagText = item.supplyStore === 'STORE_A' ? 'ZUBAIR' : 
-                                item.supplyStore === 'STORE_B' ? 'MAHMOOD' : 'ASAAN';
-
-            const card = document.createElement('div');
-            card.className = `card liquid-card ${highlightClass}`;
-            
-            let creditSection = '';
-            if (paymentType === 'CREDIT' && !creditReceived) {
-                creditSection = `
-                <div class="credit-checkbox-container" onclick="toggleCustomerCreditReceived(${item.id}, event)">
-                    <input type="checkbox" class="credit-checkbox" onclick="toggleCustomerCreditReceived(${item.id}, event);">
-                    <label class="credit-checkbox-label">Mark as Received</label>
-                </div>
-                `;
-            } else if (paymentType === 'CREDIT' && creditReceived) {
-                creditSection = `<div class="received-indicator">Credit Received ✓</div>`;
+        if(rowDate >= weekStart && rowDate <= selectedDateObj) {
+            stats.week.q += item.quantity;
+            stats.week.v += item.totalValue;
+            stats.week.profit += item.profit;
+            if(item.paymentType === 'CASH' || item.creditReceived) {
+                stats.week.cash += item.totalValue;
+            } else if(item.paymentType === 'CREDIT' && !item.creditReceived) {
+                stats.week.credit += item.totalValue;
             }
-            
-            const supplySection = `<div class="supply-tag ${supplyTagClass}">Supply: ${supplyTagText}</div>`;
+        }
 
-            card.innerHTML = `
-                <div class="payment-badge ${badgeClass}">${badgeText}</div>
-                <div class="customer-name" style="margin-top: 12px;">${item.customerName}</div>
-                <h4 style="margin-top: 5px; font-size: 0.85rem; color: var(--text-muted);">${dateDisplay}</h4>
-                ${supplySection}
-                <hr>
-                <p><span>Quantity:</span> <span class="qty-val">${safeValue(item.quantity).toFixed(3)} kg</span></p>
-                <p><span>Cost Price:</span> <span class="cost-val">Rs ${safeValue(item.costPrice).toFixed(2)}/kg</span></p>
-                <p><span>Sale Price:</span> <span class="rev-val">Rs ${safeValue(item.salePrice).toFixed(2)}/kg</span></p>
-                <hr>
-                <p><span>Total Cost:</span> <span class="cost-val">Rs ${safeValue(item.totalCost).toFixed(2)}</span></p>
-                <p><span>Total Value:</span> <span class="rev-val">Rs ${safeValue(item.totalValue).toFixed(2)}</span></p>
-                <p><span>Net Profit:</span> <span class="profit-val">Rs ${safeValue(item.profit).toFixed(2)}</span></p>
-                ${creditSection}
-                <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="deleteCustomerSale(${item.id})">Delete</button>
+        if(rowYear === selectedYear && rowMonth === selectedMonth) {
+            stats.month.q += item.quantity;
+            stats.month.v += item.totalValue;
+            stats.month.profit += item.profit;
+            if(item.paymentType === 'CASH' || item.creditReceived) {
+                stats.month.cash += item.totalValue;
+            } else if(item.paymentType === 'CREDIT' && !item.creditReceived) {
+                stats.month.credit += item.totalValue;
+            }
+        }
+
+        if(rowYear === selectedYear) {
+            stats.year.q += item.quantity;
+            stats.year.v += item.totalValue;
+            stats.year.profit += item.profit;
+            if(item.paymentType === 'CASH' || item.creditReceived) {
+                stats.year.cash += item.totalValue;
+            } else if(item.paymentType === 'CREDIT' && !item.creditReceived) {
+                stats.year.credit += item.totalValue;
+            }
+        }
+        
+        stats.all.q += item.quantity;
+        stats.all.v += item.totalValue;
+        stats.all.profit += item.profit;
+        if(item.paymentType === 'CASH' || item.creditReceived) {
+            stats.all.cash += item.totalValue;
+        } else if(item.paymentType === 'CREDIT' && !item.creditReceived) {
+            stats.all.credit += item.totalValue;
+        }
+    });
+
+    document.getElementById('cust-day-qty').innerText = safeValue(stats.day.q).toFixed(2) + ' kg';
+    document.getElementById('cust-day-value').innerText = 'Rs ' + safeValue(stats.day.v).toFixed(2);
+    document.getElementById('cust-day-cash').innerText = 'Rs ' + safeValue(stats.day.cash).toFixed(2);
+    document.getElementById('cust-day-credit').innerText = 'Rs ' + safeValue(stats.day.credit).toFixed(2);
+    document.getElementById('cust-day-profit').innerText = 'Rs ' + safeValue(stats.day.profit).toFixed(2);
+
+    document.getElementById('cust-week-qty').innerText = safeValue(stats.week.q).toFixed(2) + ' kg';
+    document.getElementById('cust-week-value').innerText = 'Rs ' + safeValue(stats.week.v).toFixed(2);
+    document.getElementById('cust-week-cash').innerText = 'Rs ' + safeValue(stats.week.cash).toFixed(2);
+    document.getElementById('cust-week-credit').innerText = 'Rs ' + safeValue(stats.week.credit).toFixed(2);
+    document.getElementById('cust-week-profit').innerText = 'Rs ' + safeValue(stats.week.profit).toFixed(2);
+
+    document.getElementById('cust-month-qty').innerText = safeValue(stats.month.q).toFixed(2) + ' kg';
+    document.getElementById('cust-month-value').innerText = 'Rs ' + safeValue(stats.month.v).toFixed(2);
+    document.getElementById('cust-month-cash').innerText = 'Rs ' + safeValue(stats.month.cash).toFixed(2);
+    document.getElementById('cust-month-credit').innerText = 'Rs ' + safeValue(stats.month.credit).toFixed(2);
+    document.getElementById('cust-month-profit').innerText = 'Rs ' + safeValue(stats.month.profit).toFixed(2);
+
+    document.getElementById('cust-year-qty').innerText = safeValue(stats.year.q).toFixed(2) + ' kg';
+    document.getElementById('cust-year-value').innerText = 'Rs ' + safeValue(stats.year.v).toFixed(2);
+    document.getElementById('cust-year-cash').innerText = 'Rs ' + safeValue(stats.year.cash).toFixed(2);
+    document.getElementById('cust-year-credit').innerText = 'Rs ' + safeValue(stats.year.credit).toFixed(2);
+    document.getElementById('cust-year-profit').innerText = 'Rs ' + safeValue(stats.year.profit).toFixed(2);
+    
+    document.getElementById('cust-all-qty').innerText = safeValue(stats.all.q).toFixed(2) + ' kg';
+    document.getElementById('cust-all-value').innerText = 'Rs ' + safeValue(stats.all.v).toFixed(2);
+    document.getElementById('cust-all-cash').innerText = 'Rs ' + safeValue(stats.all.cash).toFixed(2);
+    document.getElementById('cust-all-credit').innerText = 'Rs ' + safeValue(stats.all.credit).toFixed(2);
+    document.getElementById('cust-all-profit').innerText = 'Rs ' + safeValue(stats.all.profit).toFixed(2);
+    
+    const allTimesCard = document.getElementById('all-times-sales-card');
+    allTimesCard.style.display = 'none';
+
+    sortedSales.forEach(item => {
+        // ISOLATION: Skip rep mode entries in the display loop too
+        if (item.isRepModeEntry === true) return;
+        
+        const isSelected = item.date === selectedDate;
+        const highlightClass = isSelected ? 'highlight-card' : '';
+        const dateDisplay = isSelected ? `${item.date} (Selected)` : item.date;
+        
+        const creditReceived = item.creditReceived || false;
+        const paymentType = item.paymentType;
+        const badgeClass = creditReceived ? 'received' : paymentType.toLowerCase();
+        const badgeText = creditReceived ? 'RECEIVED' : paymentType;
+        
+        const supplyTagClass = item.supplyStore === 'STORE_A' ? 'store-a' : 
+                             item.supplyStore === 'STORE_B' ? 'store-b' : 'store-c';
+        const supplyTagText = item.supplyStore === 'STORE_A' ? 'ZUBAIR' : 
+                            item.supplyStore === 'STORE_B' ? 'MAHMOOD' : 'ASAAN';
+
+        const card = document.createElement('div');
+        card.className = `card liquid-card ${highlightClass}`;
+        
+        let creditSection = '';
+        if (paymentType === 'CREDIT' && !creditReceived) {
+            creditSection = `
+            <div class="credit-checkbox-container" onclick="toggleCustomerCreditReceived(${item.id}, event)">
+                <input type="checkbox" class="credit-checkbox" onclick="toggleCustomerCreditReceived(${item.id}, event);">
+                <label class="credit-checkbox-label">Mark as Received</label>
+            </div>
             `;
-            histContainer.appendChild(card);
-        });
-renderCustomersTable(); 
-        updateCustomerCharts();
-    }
+        } else if (paymentType === 'CREDIT' && creditReceived) {
+            creditSection = `<div class="received-indicator">Credit Received ✓</div>`;
+        }
+        
+        const supplySection = `<div class="supply-tag ${supplyTagClass}">Supply: ${supplyTagText}</div>`;
+
+        card.innerHTML = `
+            <div class="payment-badge ${badgeClass}">${badgeText}</div>
+            <div class="customer-name" style="margin-top: 12px;">${item.customerName}</div>
+            <h4 style="margin-top: 5px; font-size: 0.85rem; color: var(--text-muted);">${dateDisplay}</h4>
+            ${supplySection}
+            <hr>
+            <p><span>Quantity:</span> <span class="qty-val">${safeValue(item.quantity).toFixed(3)} kg</span></p>
+            <p><span>Cost Price:</span> <span class="cost-val">Rs ${safeValue(item.costPrice).toFixed(2)}/kg</span></p>
+            <p><span>Sale Price:</span> <span class="rev-val">Rs ${safeValue(item.salePrice).toFixed(2)}/kg</span></p>
+            <hr>
+            <p><span>Total Cost:</span> <span class="cost-val">Rs ${safeValue(item.totalCost).toFixed(2)}</span></p>
+            <p><span>Total Value:</span> <span class="rev-val">Rs ${safeValue(item.totalValue).toFixed(2)}</span></p>
+            <p><span>Net Profit:</span> <span class="profit-val">Rs ${safeValue(item.profit).toFixed(2)}</span></p>
+            ${creditSection}
+            <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="deleteCustomerSale(${item.id})">Delete</button>
+        `;
+        histContainer.appendChild(card);
+    });
+    
+    renderCustomersTable(); 
+    updateCustomerCharts();
+}
 
     function toggleCustomerCreditReceived(id, event) {
         if (event) {
@@ -10789,16 +10726,18 @@ renderCustomersTable();
 // --- ENHANCED CALCULATOR TAB: AUTOMATIC CREDIT TRACKING ---
 
 // 1. Calculate all-time total sold quantity for a representative from Sales Tab
+// 1. Calculate all-time pending credit sales for a representative (ADMIN DATA ONLY)
 function calculateTotalSoldForRepresentative(seller) {
     if (!seller || seller === 'COMBINED') return 0;
     
     let totalSold = 0;
     
-    // Filter for this representative's credit sales that haven't been received yet
+    // Filter for Admin-assigned stock (isRepModeEntry !== true)
     customerSales.forEach(sale => {
         if (sale.salesRep === seller && 
             sale.paymentType === 'CREDIT' && 
-            !sale.creditReceived) {
+            !sale.creditReceived &&
+            sale.isRepModeEntry !== true) { // ISOLATION: Fetch only Admin entries
             totalSold += (sale.quantity || 0);
         }
     });
@@ -10806,10 +10745,8 @@ function calculateTotalSoldForRepresentative(seller) {
     return totalSold;
 }
 
-// ==========================================
-// ADMIN LINKAGE: CALCULATOR AUTO-FILL
-// ==========================================
 
+// 2. Auto-Fill Calculator Fields with ISOLATED Data
 function autoFillTotalSoldQuantity() {
     const seller = document.getElementById('sellerSelect').value;
     const date = document.getElementById('sale-date').value;
@@ -10818,48 +10755,52 @@ function autoFillTotalSoldQuantity() {
     const creditSalesField = document.getElementById('creditSales'); // CREDIT SALES QTY
     const recoveredField = document.getElementById('prevCreditReceived'); // RECOVERED CREDIT
     
+    if (!totalSoldField) return;
+    
     if (seller === 'COMBINED') {
-        if(totalSoldField) { 
-            totalSoldField.value = ''; 
-            totalSoldField.readOnly = true; 
-        }
+        totalSoldField.value = '';
+        totalSoldField.readOnly = true;
         return;
     }
     
-    // REPLACED: Calculate all-time pending credit sales for this representative (from part 2)
-    const totalSoldKg = calculateTotalSoldForRepresentative(seller);
+    // --- FIELD 1: TOTAL SOLD (Read-Only) ---
+    // SOURCE: Sales Tab (Admin) ONLY
+    const totalSold = calculateTotalSoldForRepresentative(seller);
     
-    // 2. Calculate Stats for Credit Sales and Recovered Credit (keep date-specific logic)
+    totalSoldField.value = totalSold.toFixed(3);
+    totalSoldField.readOnly = true;
+    totalSoldField.style.background = 'rgba(37, 99, 235, 0.1)';
+    totalSoldField.style.color = 'var(--accent)';
+    totalSoldField.style.fontWeight = 'bold';
+    totalSoldField.style.border = '1px solid var(--accent)';
+    
+    // --- FIELDS 2 & 3: CREDIT SALES & RECOVERED ---
+    // SOURCE: Sales Rep Tab (Hidden) ONLY
     let creditSalesKg = 0;
     let recoveredCash = 0;
     
     customerSales.forEach(sale => {
-        // Match Rep AND Date (for credit and recovery calculations)
-        if (sale.salesRep === seller && sale.date === date) {
+        // Filter: Must be this Rep, this Date, AND created in Rep Mode
+        if (sale.salesRep === seller && 
+            sale.date === date && 
+            sale.isRepModeEntry === true) { // ISOLATION: Fetch only Rep entries
             
-            // Credit Sales Qty (Only Credit transactions)
-            if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
+            // 2. Credit Sales Qty (Rep sold on credit)
+            if (sale.paymentType === 'CREDIT') {
                 creditSalesKg += (sale.quantity || 0);
             }
             
-            // Recovered Credit (Collections)
+            // 3. Recovered Credit (Rep collected cash)
             if (sale.paymentType === 'COLLECTION') {
                 recoveredCash += (sale.totalValue || 0);
             }
         }
     });
     
-    // 3. Auto-Fill Fields
-    if(totalSoldField) {
-        totalSoldField.value = totalSoldKg.toFixed(3);
-        styleAutoFilledField(totalSoldField);
-        totalSoldField.readOnly = true; // Added from part 2
-    }
-    
+    // Apply values to inputs
     if(creditSalesField) {
         creditSalesField.value = creditSalesKg.toFixed(3);
         styleAutoFilledField(creditSalesField);
-        // Note: Admin can still override if needed, but usually shouldn't
     }
     
     if(recoveredField) {
@@ -10867,30 +10808,17 @@ function autoFillTotalSoldQuantity() {
         styleAutoFilledField(recoveredField);
     }
     
-    // 4. Trigger Calculation to update expected cash
+    // Trigger Calculation to update expected cash
     calculateSales();
 }
 
 function styleAutoFilledField(field) {
-    field.style.background = 'rgba(37, 99, 235, 0.1)';
-    field.style.color = 'var(--accent)';
+    field.style.background = 'rgba(5, 150, 105, 0.1)'; // Different color (Greenish) to indicate Rep Data
+    field.style.color = 'var(--accent-emerald)';
     field.style.fontWeight = 'bold';
-    field.style.border = '1px solid var(--accent)';
+    field.style.border = '1px solid var(--accent-emerald)';
 }
 
-function styleAutoFilledField(field) {
-    field.style.background = 'rgba(37, 99, 235, 0.1)';
-    field.style.color = 'var(--accent)';
-    field.style.fontWeight = 'bold';
-    field.style.border = '1px solid var(--accent)';
-}
-
-function styleAutoFilledField(field) {
-    field.style.background = 'rgba(37, 99, 235, 0.1)';
-    field.style.color = 'var(--accent)';
-    field.style.fontWeight = 'bold';
-    field.style.border = '1px solid var(--accent)';
-}
 
 
 // 3. Enhanced loadSalesData to include auto-fill
@@ -11273,48 +11201,148 @@ function reverseReturnFromProduction(storeKey, quantity, date) {
             refreshPaymentTab();
         }
     }
+// ==========================================
+// CONSOLIDATED APP INITIALIZATION
+// ==========================================
 
-    // --- INITIALIZATION ---
-    window.onload = () => {
-    // FIRST: Initialize Supabase
+document.addEventListener('DOMContentLoaded', async function() {
+    console.log("🚀 System Initializing...");
+
+    // ----------------------------------------------------
+    // 1. CORE SETUP & SECURITY (Must run first)
+    // ----------------------------------------------------
+    
+    // Apply Theme Preference
+    initTheme(); 
+
+    // Enforce Security Modes (Admin vs Rep)
+    // We check this immediately to lock UI if necessary
+    enforceRepModeLock(); 
+    preventAdminAccess();
+
+    // Check Biometric Lock (Async)
+    // If enabled, this triggers the lock overlay immediately
+    await checkBiometricLock(); 
+
+    // Initialize Supabase Connectivity
+    // Small timeout ensures the external library script has parsed
     setTimeout(() => {
-        console.log('🚀 Initializing Supabase...');
-        initSupabase();
+        if (typeof initSupabase === 'function') {
+            console.log('☁️ Initializing Cloud Sync...');
+            initSupabase();
+        } else {
+            console.error("❌ Supabase client not loaded.");
+        }
     }, 100);
-        initSplashScreen();
-        // Add this inside your existing window.onload function
-if (localStorage.getItem('bio_enabled') === 'true') {
-    const btn = document.getElementById('bio-toggle-btn');
-    if (btn) {
-        btn.innerText = "Disable Biometric Lock"; // Or keep the icon and just change onclick
-        btn.onclick = disableBiometricLock;
-        btn.classList.add('active'); // Optional: Add a style for active state
-    }
-}
 
+    // ----------------------------------------------------
+    // 2. UI INITIALIZATION (Inputs & Toggles)
+    // ----------------------------------------------------
+
+    // Set Default Dates for ALL Date Inputs to Today
+    const today = new Date().toISOString().split('T')[0];
+    const dateInputIds = [
+        'sys-date', 
+        'sale-date', 
+        'cust-date', 
+        'factory-date', 
+        'paymentDate', 
+        'rep-date'
+    ];
+    
+    dateInputIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = today;
+    });
+    
+    // Sync Factory Date Global Variable
+    currentFactoryDate = today;
+
+    // Initialize Biometric Button State in Menu
+    if (localStorage.getItem('bio_enabled') === 'true') {
+        const bioBtn = document.getElementById('bio-toggle-btn');
+        if (bioBtn) {
+            bioBtn.innerText = "Disable Biometric Lock";
+            bioBtn.onclick = disableBiometricLock;
+            bioBtn.classList.add('active');
+        }
+    }
+
+    // Pre-fill Admin Settings inputs (if in Admin mode)
+    if (appMode === 'admin') {
+        const pinInput = document.getElementById('setting-admin-pin');
+        if (pinInput) pinInput.value = adminPin;
         
-        const today = new Date();
-        const year = today.getFullYear();
-        const month = String(today.getMonth() + 1).padStart(2, '0');
-        const day = String(today.getDate()).padStart(2, '0');
-        const dateString = `${year}-${month}-${day}`;
-        
-        document.getElementById('sys-date').value = dateString;
-        document.getElementById('sale-date').value = dateString;
-        document.getElementById('cust-date').value = dateString;
-        document.getElementById('factory-date').value = dateString;
-        document.getElementById('paymentDate').value = dateString;
-        currentFactoryDate = dateString;
-        
-        setProductionView('combined');
-        syncFactoryProductionStats();
-        updateAllTabsWithFactoryCosts();
-        
-        // Add event listener to store selector for payment status visibility
-        document.getElementById('storeSelector').addEventListener('change', updatePaymentStatusVisibility);
-        
-        refreshAllDisplays();
-    };
+        const repSelect = document.getElementById('setting-rep-select');
+        if (repSelect) repSelect.value = currentRepProfile;
+    }
+
+    // ----------------------------------------------------
+    // 3. EVENT LISTENERS SETUP
+    // ----------------------------------------------------
+
+    // Factory Date Change Listener
+    const factoryDateEl = document.getElementById('factory-date');
+    if (factoryDateEl) {
+        factoryDateEl.addEventListener('change', function() {
+            currentFactoryDate = this.value;
+            updateFactorySummaryCard();
+        });
+    }
+
+    // Calculator Auto-Fill Listeners (Seller or Date change)
+    const sellerSelect = document.getElementById('sellerSelect');
+    const saleDate = document.getElementById('sale-date');
+    
+    if (sellerSelect) sellerSelect.addEventListener('change', autoFillTotalSoldQuantity);
+    if (saleDate) saleDate.addEventListener('change', autoFillTotalSoldQuantity);
+
+    // Production Payment Status Toggle Listener
+    const storeSelector = document.getElementById('storeSelector');
+    if (storeSelector) {
+        storeSelector.addEventListener('change', updateProductionCostOnStoreChange);
+    }
+
+  
+
+    // ----------------------------------------------------
+    // 4. DATA RENDERING & FINAL DISPLAY REFRESH
+    // ----------------------------------------------------
+
+    // Initialize Splash Screen Animation
+    initSplashScreen();
+
+    // Set Default View States
+    setProductionView('combined');
+    
+    // Sync Unit Statistics
+    syncFactoryProductionStats();
+    
+    // Sync Cost Calculations across tabs
+    updateAllTabsWithFactoryCosts();
+
+    // Force a full UI Refresh
+    // This calls: refreshUI(), refreshCustomerSales(), loadSalesData(), refreshPaymentTab()
+    refreshAllDisplays();
+
+    // Rep Mode Specific Refresh (if active)
+    if (appMode === 'rep') {
+        if (typeof renderRepHistory === 'function') renderRepHistory();
+        if (typeof renderRepCustomerTable === 'function') renderRepCustomerTable();
+    }
+
+    // ----------------------------------------------------
+    // 5. CLEANUP
+    // ----------------------------------------------------
+
+    // Hide Splash Screen after delay
+    setTimeout(() => {
+        const splash = document.getElementById('splash-screen');
+        if (splash) splash.style.display = 'none';
+        console.log("✅ Initialization Complete");
+    }, 1500);
+});
+
     // Ensure your deleteCustomerSale looks like this to keep dashboard sync:
 function deleteCustomerSale(id) {
     if(confirm("Delete this sale transaction permanently?")) {
@@ -11470,46 +11498,10 @@ function reverseReturnFromProduction(storeKey, quantity, date) {
 }
 
 
-// 8. Add event listener to seller select to auto-fill quantity
-document.addEventListener('DOMContentLoaded', function() {
-    const sellerSelect = document.getElementById('sellerSelect');
-    if (sellerSelect) {
-        sellerSelect.addEventListener('change', function() {
-            autoFillTotalSoldQuantity();
-        });
-    }
-    
-    // Also trigger on date change
-    const saleDate = document.getElementById('sale-date');
-    if (saleDate) {
-        saleDate.addEventListener('change', function() {
-            autoFillTotalSoldQuantity();
-        });
-    }
-});
 
 
-    // --- WebView Download Compatibility ---
-    document.addEventListener('DOMContentLoaded', function() {
-        document.addEventListener('click', function(e) {
-            if (e.target.tagName === 'A' && e.target.download) {
-                e.preventDefault();
-                const url = e.target.href;
-                const fileName = e.target.download;
-                
-                if (window.Android && window.Android.downloadFile) {
-                    window.Android.downloadFile(url, fileName);
-                } else {
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = fileName;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                }
-            }
-        });
-    });
+
+  
     // Add this function to your JavaScript
 // --- ENTITY CARD VIEW FUNCTIONS ---
 let entityViewMode = 'detailed'; // 'detailed' or 'compact'
@@ -11746,21 +11738,7 @@ function refreshEntityBalances() {
     alert("Entity balances refreshed!");
 }
 
-// Initialize the entity view on page load
-document.addEventListener('DOMContentLoaded', function() {
-    // Set up entity view mode toggle
-    const toggleBtn = document.getElementById('entityViewModeToggle');
-    if (toggleBtn) {
-        toggleBtn.onclick = toggleEntityViewMode;
-    }
-    
-    // Initialize entity cards
-    setTimeout(() => {
-        if (document.getElementById('entityCardsGrid')) {
-            renderEntityCards();
-        }
-    }, 500);
-});
+
 // Replace the incomplete getMetricValue function with this:
 function getMetricValue(historyItem, metric) {
     switch(metric) {
@@ -11848,35 +11826,7 @@ try {
 }
 // Missing update functions
 
-// Add this to your DOMContentLoaded or initialization function
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize all components
-    initSplashScreen();
-    refreshUI();
-    renderFactoryInventory();
-    syncFactoryProductionStats();
-    refreshPaymentTab();
-    
-    // Set default dates
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('sys-date').value = today;
-    document.getElementById('cust-date').value = today;
-    document.getElementById('sale-date').value = today;
-    document.getElementById('paymentDate').value = today;
-    document.getElementById('factory-date').value = today;
-    currentFactoryDate = today;
-    
-    // Set up factory tab refresh
-    document.getElementById('factory-date').addEventListener('change', function() {
-        currentFactoryDate = this.value;
-        updateFactorySummaryCard();
-    });
-    
-    // Hide splash screen after animation
-    setTimeout(() => {
-        document.getElementById('splash-screen').style.display = 'none';
-    }, 1500);
-});
+
 // --- CUSTOMER SEARCH & MANAGEMENT FUNCTIONS ---
 
 // --- FIX: Advanced Customer Search & Selection ---
@@ -11889,10 +11839,9 @@ function searchCustomers(query) {
         return;
     }
 
-    // STRATEGY: Filter only for customers that DO NOT have a sales rep assigned
-    // This separates Store customers from Representative customers
+    // ISOLATION: Only show customers from Admin entries (isRepModeEntry !== true)
     const uniqueCustomers = [...new Set(customerSales
-        .filter(s => !s.salesRep || s.salesRep === 'NONE') 
+        .filter(s => s.isRepModeEntry !== true) 
         .map(s => s.customerName)
         .filter(n => n))];
 
@@ -11904,37 +11853,26 @@ function searchCustomers(query) {
     if (matches.length > 0) {
         let html = '';
         matches.forEach(name => {
-            // Escape special chars for the onclick string
             const safeName = name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-            
-            // Use onmousedown instead of onclick to ensure it fires before the input blur event
             html += `
-                <div style="
-                        padding: 10px; 
-                        cursor: pointer; 
-                        border-bottom: 1px solid var(--glass-border); 
-                        font-size: 0.85rem; 
-                        color: var(--text-main);
-                        background: var(--input-bg);
-                     " 
+                <div style="padding: 10px; cursor: pointer; border-bottom: 1px solid var(--glass-border); font-size: 0.85rem; color: var(--text-main); background: var(--input-bg);" 
                      onmousedown="selectCustomer('${safeName}')"
                      onmouseover="this.style.background='var(--highlight-bg)'" 
                      onmouseout="this.style.background='var(--input-bg)'">
                     <strong>${name}</strong>
-                </div>
-            `;
+                </div>`;
         });
         resultsDiv.innerHTML = html;
         resultsDiv.classList.remove('hidden');
     } else {
-        // Show "Create New" prompt if no match
         resultsDiv.innerHTML = `
             <div style="padding: 10px; font-size: 0.8rem; color: var(--text-muted); background: var(--input-bg);">
-                No match found. "${query}" will be created.
+                No match in Admin records. "${query}" will be created.
             </div>`;
         resultsDiv.classList.remove('hidden');
     }
 }
+
 
 // --- FIX: Corrected Selection Function (No Infinite Loop) ---
 function selectCustomer(name) {
@@ -11999,18 +11937,13 @@ function renderCustomersTable() {
     const tbody = document.getElementById('customers-table-body');
     const filterValue = document.getElementById('customer-filter').value.toLowerCase();
     
-    // Update Header
-    const thead = document.querySelector('#customers-card thead tr');
-    if(thead) {
-        thead.children[3].innerText = "Actions"; // Change 4th column header
-    }
-
     tbody.innerHTML = ''; 
-    
-    // 1. Aggregate Data
     const customerStats = {};
     
     customerSales.forEach(sale => {
+        // --- ISOLATION: Skip Rep Mode Entries ---
+        if (sale.isRepModeEntry === true) return;
+
         const name = sale.customerName;
         if (!customerStats[name]) {
             customerStats[name] = { name: name, credit: 0, quantity: 0, lastSaleDate: 0 };
@@ -12018,12 +11951,10 @@ function renderCustomersTable() {
         
         customerStats[name].quantity += (sale.quantity || 0);
         
-        // Track outstanding credit
         if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
             customerStats[name].credit += (sale.totalValue || 0);
         }
         
-        // Track recency
         const timestamp = new Date(sale.date).getTime();
         if (timestamp > customerStats[name].lastSaleDate) {
             customerStats[name].lastSaleDate = timestamp;
@@ -12845,8 +12776,7 @@ async function checkBiometricLock() {
     }
 }
 
-// Run the check when page loads
-document.addEventListener('DOMContentLoaded', checkBiometricLock);
+
 
 // ==========================================
 // SALES REP SYSTEM (With Admin Linkage)
@@ -12884,11 +12814,10 @@ function searchRepCustomers(query) {
     const resultsDiv = document.getElementById('rep-customer-search-results');
     if (!query || query.length < 1) { resultsDiv.classList.add('hidden'); return; }
 
-    // STRATEGY: Filter specifically for this Rep's customers, EXCLUDING rep names
+    // ISOLATION: Only show customers for THIS Rep created in Rep Mode
     const myCustomers = customerSales.filter(s => 
-        s.salesRep === currentRepProfile &&
-        s.customerName !== 'NORAN SHAH' && 
-        s.customerName !== 'NOMAN SHAH'
+        s.isRepModeEntry === true && // Must be a Rep Entry
+        s.salesRep === currentRepProfile
     );
     
     const uniqueNames = [...new Set(myCustomers.map(s => s.customerName))];
@@ -12914,6 +12843,7 @@ function searchRepCustomers(query) {
     resultsDiv.innerHTML = html;
     resultsDiv.classList.remove('hidden');
 }
+
 
 function selectRepCustomer(name) {
     document.getElementById('rep-cust-name').value = name;
@@ -12987,9 +12917,8 @@ function saveRepTransaction() {
     let transactionRecord = {};
 
     if(repTransactionMode === 'sale') {
-        // --- SALE LOGIC ---
         const qty = parseFloat(document.getElementById('rep-quantity').value) || 0;
-        const payType = document.querySelector('input[name="rep-payment"]:checked').value; // CASH or CREDIT
+        const payType = document.querySelector('input[name="rep-payment"]:checked').value; 
         
         if(qty <= 0) { showToast("Enter Quantity", "warning"); return; }
 
@@ -13001,18 +12930,20 @@ function saveRepTransaction() {
             time: timeString,
             customerName: name,
             quantity: qty,
-            supplyStore: 'STORE_A', // Default to Standard
-            paymentType: payType, // 'CREDIT' or 'CASH'
-            salesRep: currentRepProfile, // STRATEGY: Tag with Rep Name
+            supplyStore: 'STORE_A', 
+            paymentType: payType, 
+            salesRep: currentRepProfile, 
             totalCost: qty * costPerKg,
             totalValue: totalValue,
             profit: totalValue - (qty * costPerKg),
-            creditReceived: (payType === 'CASH'), // If cash, it's settled. If Credit, it's debt.
-            timestamp: now.getTime()
+            creditReceived: (payType === 'CASH'), 
+            timestamp: now.getTime(),
+            // --- ISOLATION FLAGS ---
+            isRepModeEntry: true, // Tag as Rep Mode
+            affectsInventory: false // Explicitly disable inventory deduction
         };
 
     } else {
-        // --- COLLECTION LOGIC ---
         const amount = parseFloat(document.getElementById('rep-amount-collected').value) || 0;
         if(amount <= 0) { showToast("Enter Amount", "warning"); return; }
 
@@ -13021,16 +12952,19 @@ function saveRepTransaction() {
             date: date,
             time: timeString,
             customerName: name,
-            quantity: 0, // No stock movement
+            quantity: 0, 
             supplyStore: 'STORE_A',
-            paymentType: 'COLLECTION', // STRATEGY: New Type
+            paymentType: 'COLLECTION', 
             salesRep: currentRepProfile,
             totalCost: 0,
-            totalValue: amount, // The cash amount collected
-            profit: amount, // Technically cash flow
+            totalValue: amount, 
+            profit: amount, 
             creditReceived: true,
-            isCollection: true, // Flag for Admin Logic
-            timestamp: now.getTime()
+            isCollection: true, 
+            timestamp: now.getTime(),
+            // --- ISOLATION FLAGS ---
+            isRepModeEntry: true,
+            affectsInventory: false
         };
     }
 
@@ -13045,10 +12979,7 @@ function saveRepTransaction() {
     document.getElementById('rep-total-value').innerText = 'Rs 0.00';
 
     refreshRepUI();
-    showToast("Transaction Saved", "success");
-    
-    // IMPORTANT: If this runs in Admin mode (testing), refresh Calculator
-    if(typeof autoFillTotalSoldQuantity === 'function') autoFillTotalSoldQuantity(); 
+    showToast("Transaction Saved (Rep Mode)", "success");
 }
 
 // --- 5. RENDER REP TABLES ---
@@ -13057,12 +12988,10 @@ function renderRepCustomerTable() {
     const filter = document.getElementById('rep-filter').value.toLowerCase();
     tbody.innerHTML = '';
 
-    // Filter Sales for THIS Rep only, EXCLUDING sales to themselves
+    // ISOLATION: Filter strictly for Rep Mode entries
     const myData = customerSales.filter(s => 
-        s.salesRep === currentRepProfile && 
-        s.customerName !== currentRepProfile && 
-        s.customerName !== 'NORAN SHAH' && 
-        s.customerName !== 'NOMAN SHAH'
+        s.isRepModeEntry === true &&
+        s.salesRep === currentRepProfile 
     );
     
     const custMap = {};
@@ -13225,10 +13154,13 @@ function renderRepHistory() {
     const list = document.getElementById('repHistoryList');
     list.innerHTML = '';
     
-    // Show only today's activity for this Rep
     const today = new Date().toISOString().split('T')[0];
     const todayData = customerSales
-        .filter(s => s.salesRep === currentRepProfile && s.date === today)
+        .filter(s => 
+            s.isRepModeEntry === true && // Strict check for Rep Mode
+            s.salesRep === currentRepProfile && 
+            s.date === today
+        )
         .sort((a,b) => b.timestamp - a.timestamp);
 
     if(todayData.length === 0) {
@@ -13504,28 +13436,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// --- 5. ALSO ENFORCE ON WINDOW LOAD (BACKUP) ---
-window.addEventListener('load', function() {
-    if (localStorage.getItem('appMode') === 'rep') {
-        enforceRepModeLock();
-        preventAdminAccess();
-    }
-});
 
-// Initialize Mode on Load
-document.addEventListener('DOMContentLoaded', function() {
-    // Check if we should be locked
-    if (appMode === 'rep') {
-        lockToRepMode();
-    }
-    
-    // Pre-fill settings menu if available
-    const pinInput = document.getElementById('setting-admin-pin');
-    if(pinInput) pinInput.value = adminPin;
-    
-    const repSelect = document.getElementById('setting-rep-select');
-    if(repSelect) repSelect.value = currentRepProfile;
-});
+
+
 function deleteRepTransaction(id) {
     if (confirm("Are you sure you should delete this transaction? This will also remove it from Today's Activity.")) {
         // 1. Filter out the transaction from the customerSales array
@@ -13555,20 +13468,7 @@ function deleteRepTransaction(id) {
 }
 
 
-document.addEventListener('DOMContentLoaded', function() {
-    // 1. Set the date input to today's date automatically
-    const today = new Date().toISOString().split('T')[0];
-    const repDateInput = document.getElementById('rep-date');
-    
-    if (repDateInput) {
-        repDateInput.value = today;
-        
-        // 2. Manually trigger the history refresh so activity shows up immediately
-        if (typeof renderRepHistory === 'function') {
-            renderRepHistory();
-        }
-    }
-});
+
 
 </script>
 </body>
