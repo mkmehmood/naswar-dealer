@@ -4435,6 +4435,7 @@ body.dark-mode .units-available-danger {
     </div>
 </div>
 
+
 <script>
     // --- DATA INITIALIZATION ---
     let db = JSON.parse(localStorage.getItem('mfg_pro_pkr')) || [];
@@ -7910,20 +7911,32 @@ async function checkAuthState() {
     }
 }
 
-// Listen for Auth Changes
+// --- UPDATED LISTENER: Closes overlay on success ---
 function setupAuthListener() {
     supabaseClient.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_IN') {
             currentUser = session?.user;
+            
+            // 1. Close the login screen immediately
+            hideAuthOverlay(); 
+            
+            // 2. Show success message
             showToast(`Cloud Sync Active`, 'success');
+            
+            // 3. Sync data
             pullDataFromCloud(true); // Auto-pull on login
             addSignOutButton();
+            
         } else if (event === 'SIGNED_OUT') {
             currentUser = null;
             removeSignOutButton();
+            // Optional: You can uncomment the line below if you want 
+            // the login screen to appear immediately upon logout:
+            // showAuthOverlay(); 
         }
     });
 }
+
 
 // --- CORE: TRIGGER AUTO-SAVE ---
 // Call this function whenever data changes (hooked into notifyDataChange)
@@ -8073,24 +8086,41 @@ async function pullDataFromCloud(silent = false) {
     }
 }
 
-// Wrapper for manual buttons (keep existing functionality)
+// --- UPDATED: TRIGGER CLOUD ACTION (WITH AUTH CHECK) ---
 function triggerCloudAction(action) {
-    if (action === 'backup') pushDataToCloud(false);
-    if (action === 'restore') pullDataFromCloud(false);
-}
+    // 1. Close the data menu first so it doesn't block the view
+    closeDataMenu();
 
-function scheduleCloudSync() {
-    if (!currentUser || !isAuthReady) {
-        console.log('⚠ Skipping sync - not authenticated');
+    // 2. Check if Supabase client is ready
+    if (!supabaseClient) {
+        showToast("Cloud system not initialized. Check internet connection.", "error");
         return;
     }
+
+    // 3. CRITICAL: Check if user is logged in
+    if (!currentUser) {
+        // If not logged in, force the login overlay to open
+        showToast("Please sign in to access Cloud functions.", "info");
+        showAuthOverlay();
+        return; // Stop here
+    }
+
+    // 4. If logged in, proceed with the requested action
+    if (action === 'backup') {
+        // Optional: Add a confirmation for manual backup
+        if(confirm("📤 Upload local data to Cloud?")) {
+            pushDataToCloud(false); // false = show success/error toasts
+        }
+    }
     
-    clearTimeout(syncTimeout);
-    syncTimeout = setTimeout(() => {
-        console.log('⏰ Auto-syncing to cloud...');
-        pushDataToCloud();
-    }, 3000);
+    if (action === 'restore') {
+        // Essential: Confirmation for restore to prevent accidental overwrites
+        if(confirm("⚠️ RESTORE FROM CLOUD?\n\nThis will overwrite your current local data with the version saved in the cloud.\n\nContinue?")) {
+            pullDataFromCloud(false);
+        }
+    }
 }
+
 
 // ============================================
 // AUTHENTICATION UI
@@ -10285,6 +10315,8 @@ function updateAllStoresOverview(mode = 'day') {
         }
 
         customerSales.forEach(item => {
+        // FILTER: Exclude Rep Data from Charts
+        if (item.isRepModeEntry === true || (item.salesRep && item.salesRep !== 'NONE')) return;
             const d = new Date(item.date);
             const dYear = d.getFullYear();
             const dMonth = d.getMonth();
@@ -10438,8 +10470,9 @@ function updateAllStoresOverview(mode = 'day') {
     });
 
     sortedSales.forEach(item => {
-        // ISOLATION: Skip rep mode entries
-        if (item.isRepModeEntry === true) return;
+        // --- STRICT FILTER: Exclude Rep Data from Summaries ---
+        // Exclude if tagged as Rep Mode OR if a specific Sales Rep is assigned
+        if (item.isRepModeEntry === true || (item.salesRep && item.salesRep !== 'NONE')) return;
         
         const rowDate = new Date(item.date);
         const rowYear = rowDate.getFullYear();
@@ -10551,6 +10584,11 @@ function updateAllStoresOverview(mode = 'day') {
         const supplyTagText = item.supplyStore === 'STORE_A' ? 'ZUBAIR' : 
                             item.supplyStore === 'STORE_B' ? 'MAHMOOD' : 'ASAAN';
 
+// Rep Indicator (New visual aid)
+        let repBadge = '';
+        if (item.salesRep && item.salesRep !== 'NONE') {
+            repBadge = `<span style="font-size:0.65rem; background:#e0e7ff; color:#3730a3; padding:2px 6px; border-radius:4px; margin-left:5px;">👤 ${item.salesRep.split(' ')[0]}</span>`;
+        }
         const card = document.createElement('div');
         card.className = `card liquid-card ${highlightClass}`;
         
@@ -10570,15 +10608,12 @@ function updateAllStoresOverview(mode = 'day') {
 
         card.innerHTML = `
             <div class="payment-badge ${badgeClass}">${badgeText}</div>
-            <div class="customer-name" style="margin-top: 12px;">${item.customerName}</div>
+            <div class="customer-name" style="margin-top: 12px;">${item.customerName} ${repBadge}</div>
             <h4 style="margin-top: 5px; font-size: 0.85rem; color: var(--text-muted);">${dateDisplay}</h4>
-            ${supplySection}
+            <div class="supply-tag ${supplyTagClass}">Supply: ${supplyTagText}</div>
             <hr>
             <p><span>Quantity:</span> <span class="qty-val">${safeValue(item.quantity).toFixed(3)} kg</span></p>
-            <p><span>Cost Price:</span> <span class="cost-val">Rs ${safeValue(item.costPrice).toFixed(2)}/kg</span></p>
-            <p><span>Sale Price:</span> <span class="rev-val">Rs ${safeValue(item.salePrice).toFixed(2)}/kg</span></p>
-            <hr>
-            <p><span>Total Cost:</span> <span class="cost-val">Rs ${safeValue(item.totalCost).toFixed(2)}</span></p>
+                   
             <p><span>Total Value:</span> <span class="rev-val">Rs ${safeValue(item.totalValue).toFixed(2)}</span></p>
             <p><span>Net Profit:</span> <span class="profit-val">Rs ${safeValue(item.profit).toFixed(2)}</span></p>
             ${creditSection}
@@ -10590,6 +10625,7 @@ function updateAllStoresOverview(mode = 'day') {
     renderCustomersTable(); 
     updateCustomerCharts();
 }
+
 
     function toggleCustomerCreditReceived(id, event) {
         if (event) {
@@ -13440,32 +13476,38 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 function deleteRepTransaction(id) {
-    if (confirm("Are you sure you should delete this transaction? This will also remove it from Today's Activity.")) {
+    if (confirm("Are you sure you want to delete this transaction?")) {
         // 1. Filter out the transaction from the customerSales array
         customerSales = customerSales.filter(transaction => transaction.id !== id);
         
         // 2. Persist the updated data to LocalStorage
         localStorage.setItem('customer_sales', JSON.stringify(customerSales));
         
-        // 3. REFRESH UI: Update the Today's Activity list
-        // This ensures the deleted item is immediately cleared from the display
-        if (typeof renderTodayActivity === 'function') {
-            renderTodayActivity();
+        // 3. REFRESH UI: Update the specific Rep History List
+        // FIX: The function to render rep history is renderRepHistory(), not renderTodayActivity
+        if (typeof renderRepHistory === 'function') {
+            renderRepHistory();
+        }
+        
+        // Also refresh the rep customer list table
+        if (typeof renderRepCustomerTable === 'function') {
+            renderRepCustomerTable();
         }
 
-        // 4. Update stats and other tabs
+        // 4. Update stats and other tabs in background
         if (typeof refreshAllCalculations === 'function') {
             refreshAllCalculations();
         }
         
-        // 5. Notify the sync system (if applicable)
+        // 5. Notify the sync system
         if (typeof notifyDataChange === 'function') {
             notifyDataChange('sales');
         }
 
-        showToast("Transaction deleted and activity updated", "success");
+        showToast("Transaction deleted successfully", "success");
     }
 }
+
 
 
 
