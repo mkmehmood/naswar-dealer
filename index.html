@@ -2803,7 +2803,7 @@ body.dark-mode .units-available-danger {
             </div>
         </div>
         
-        <button class="btn btn-noman" onclick="saveFactoryFormulas()">Save Formula Settings</button>
+        <button class="btn btn-noman" onclick="(async () => { await saveFactoryFormulas() })()">Save Formula Settings</button>
     </div>
 </div>
 
@@ -2892,8 +2892,8 @@ body.dark-mode .units-available-danger {
         </div>
 
         <div style="margin-top:20px; display:flex; gap:10px;">
-            <button class="btn btn-danger" id="deleteFactoryInventoryBtn" onclick="deleteFactoryInventoryItem()" style="display:none; flex:1;">Delete</button>
-            <button class="btn btn-noman" onclick="saveFactoryInventoryItem()" style="flex:2;">Save Material & Update Entities</button>
+            <button class="btn btn-danger" id="deleteFactoryInventoryBtn" onclick="(async () => { await deleteFactoryInventoryItem() })()" style="display:none; flex:1;">Delete</button>
+            <button class="btn btn-noman" onclick="(async () => { await saveFactoryInventoryItem() })()" style="flex:2;">Save Material & Update Entities</button>
         </div>
     </div>
 </div>
@@ -2933,8 +2933,8 @@ body.dark-mode .units-available-danger {
         </div>
         
         <div style="margin-top:20px; display:flex; gap:10px;">
-            <button class="btn btn-danger" id="deleteEntityBtn" onclick="deleteEntity()" style="display:none; flex:1;">Delete</button>
-            <button class="btn btn-noman" onclick="saveEntity()" style="flex:2;">Save Entity</button>
+            <button class="btn btn-danger" id="deleteEntityBtn" onclick="(async () => { await deleteEntity() })()" style="display:none; flex:1;">Delete</button>
+            <button class="btn btn-noman" onclick="(async () => { await saveEntity() })()" style="flex:2;">Save Entity</button>
         </div>
     </div>
 </div>
@@ -2992,7 +2992,7 @@ body.dark-mode .units-available-danger {
                     <label>Amount Received</label>
                     <input type="number" id="bulkPaymentAmount" placeholder="Enter amount..." style="width: 100%;">
                 </div>
-                <button class="btn btn-noman" style="width: auto;" onclick="processBulkPayment()">Process Payment</button>
+                <button class="btn btn-noman" style="width: auto;" onclick="(async () => { await processBulkPayment() })()">Process Payment</button>
             </div>
             <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 5px;">
                 * This will automatically mark oldest credit transactions as "Received" up to this amount.
@@ -3035,12 +3035,12 @@ body.dark-mode .units-available-danger {
     <span style="font-weight:800; font-size:0.85rem; color:var(--accent);" class="shimmer-text">MAHMOOD KHAN</span>
     
     <div style="display:flex; gap:8px; align-items: center;">
-        <button class="btn-theme" id="themeToggle" onclick="toggleDarkMode()" title="Toggle Dark Mode">🌕</button>
-        <button class="btn-theme" id="cloudMenuBtn" onclick="openDataMenu()" title="Data Management">🌥️</button>
+        <button class="btn-theme" id="themeToggle" onclick="(async () => { await toggleDarkMode() })()" title="Toggle Dark Mode">🌕</button>
+        <button class="btn-theme" id="cloudMenuBtn" onclick="(async () => { await openDataMenu() })()" title="Data Management">🌥️</button>
     </div>
 </div>
 
-<input type="file" id="restoreInput" class="hidden" accept=".json" onchange="unifiedRestore(event)">
+<input type="file" id="restoreInput" class="hidden" accept=".json" onchange="(async () => { await unifiedRestore(event) })()">
 
 <div id="dataMenuOverlay" class="factory-overlay">
     <div class="factory-overlay-card liquid-card" style="max-width: 350px; text-align: center;">
@@ -3065,7 +3065,7 @@ body.dark-mode .units-available-danger {
             <option value="NOMAN SHAH">NOMAN SHAH</option>
         </select>
     </div>
-    <button class="btn btn-danger" onclick="activateRepMode()">🔒 Switch to Rep Mode</button>
+    <button class="btn btn-danger" onclick="(async () => { await activateRepMode() })()">🔒 Switch to Rep Mode</button>
 </div>
 <hr style="width: 100%; border: 0; border-top: 1px solid var(--glass-border); margin: 5px 0;">
 
@@ -3082,7 +3082,7 @@ body.dark-mode .units-available-danger {
             
             <hr style="width: 100%; border: 0; border-top: 1px solid var(--glass-border); margin: 5px 0;">
             
-            <button class="btn" style="background: rgba(37, 99, 235, 0.1); color: var(--text-main); border: 1px solid var(--glass-border);" onclick="triggerLocalBackup()">
+            <button class="btn" style="background: rgba(37, 99, 235, 0.1); color: var(--text-main); border: 1px solid var(--glass-border);" onclick="(async () => { await triggerLocalBackup() })()">
                 💾 Backup to Phone
             </button>
             <button class="btn" style="background: rgba(37, 99, 235, 0.1); color: var(--text-main); border: 1px solid var(--glass-border);" onclick="document.getElementById('restoreInput').click(); closeDataMenu();">
@@ -3180,7 +3180,7 @@ body.dark-mode .units-available-danger {
             <span id="rep-total-value" style="font-size: 1.1rem; color: var(--accent);">Rs 0.00</span>
         </div>
 
-        <button class="btn btn-main" onclick="saveRepTransaction()">Submit Transaction</button>
+        <button class="btn btn-main" onclick="(async () => { await saveRepTransaction() })()">Submit Transaction</button>
     </div>
 
     <div class="section liquid-card">
@@ -3325,7 +3325,7 @@ body.dark-mode .units-available-danger {
                 Insufficient formula units available! Please reduce formula units used.
             </div>
 
-            <button class="btn btn-main" onclick="recordEntry()">Save Production</button>
+            <button class="btn btn-main" onclick="(async () => { await recordEntry() })()">Save Production</button>
         </div>
 
         <!-- Combined Overview -->
@@ -3555,7 +3555,7 @@ body.dark-mode .units-available-danger {
                 Profit: Rs <span id="cust-profit">0.00</span>
             </div>
 
-            <button class="btn btn-main" onclick="saveCustomerSale()">Save Transaction</button>
+            <button class="btn btn-main" onclick="(async () => { await saveCustomerSale() })()">Save Transaction</button>
         </div>
 <!-- CUSTOMERS CARD - Updated with Edit Button -->
 <div class="section liquid-card" id="customers-card">
@@ -3683,7 +3683,7 @@ body.dark-mode .units-available-danger {
 
         <div class="section liquid-card">
             <label>Sales Representative:</label>
-            <select id="sellerSelect" class="store-selector" onchange="loadSalesData()">
+            <select id="sellerSelect" class="store-selector" onchange="(async () => { await loadSalesData() })()">
                 <option value="NORAN SHAH">NORAN SHAH</option>
                 <option value="NOMAN SHAH">NOMAN SHAH</option>
                 <option value="COMBINED">COMPARISON</option>
@@ -3691,7 +3691,7 @@ body.dark-mode .units-available-danger {
 
             <div id="entrySection" class="hidden">
                 <div class="grid-inputs">
-                    <div class="field"><label>Date</label><input type="date" id="sale-date" onchange="loadSalesData()"></div>
+                    <div class="field"><label>Date</label><input type="date" id="sale-date" onchange="(async () => { await loadSalesData() })()"></div>
                     <div class="field">
     <label>Total Sold Qty</label>
     <input type="number" id="totalSold" readonly style="background:rgba(37, 99, 235, 0.1); color:var(--text-main); font-weight:800; border:1px solid var(--accent);">
@@ -3727,24 +3727,24 @@ body.dark-mode .units-available-danger {
                 <div class="result-box">Expected Cash: Rs <span id="totalExpectedCash">0.00</span></div>
                 <div class="result-box" id="discrepancyBox">Status: <span id="discrepancyStatus">OK</span></div>
                 
-                <button class="btn btn-noman" onclick="saveTransaction()">Save Transaction</button>
+                <button class="btn btn-noman" onclick="(async () => { await saveTransaction() })()">Save Transaction</button>
             </div>
 
             <div id="combinedSection" class="hidden">
                 <div class="section-header">
                     <h3 style="color:var(--text-main); margin:0;">Comparison</h3>
                     <div class="toggle-group">
-                        <div class="toggle-opt" id="comp-week-btn" onclick="loadSalesData('week')">Week</div>
-                        <div class="toggle-opt" id="comp-month-btn" onclick="loadSalesData('month')">Month</div>
-                        <div class="toggle-opt" id="comp-year-btn" onclick="loadSalesData('year')">Year</div>
-                        <div class="toggle-opt active" id="comp-all-btn" onclick="loadSalesData('all')">All Time</div>
+                        <div class="toggle-opt" id="comp-week-btn" onclick="(async () => { await loadSalesData('week') })()">Week</div>
+                        <div class="toggle-opt" id="comp-month-btn" onclick="(async () => { await loadSalesData('month') })()">Month</div>
+                        <div class="toggle-opt" id="comp-year-btn" onclick="(async () => { await loadSalesData('year') })()">Year</div>
+                        <div class="toggle-opt active" id="comp-all-btn" onclick="(async () => { await loadSalesData('all') })()">All Time</div>
                     </div>
                 </div>
                 
                 <div id="combinedExportArea">
                     <div class="field" style="margin-bottom: 12px;">
                         <label>View Chart For:</label>
-                        <select id="metricSelector" class="store-selector" onchange="loadSalesData(currentCompMode)">
+                        <select id="metricSelector" class="store-selector" onchange="(async () => { await loadSalesData(currentCompMode) })()">
                             <option value="prof">Net Profit (Value)</option>
                             <option value="rev">Gross Revenue (Value)</option>
                             <option value="sold">Quantity Sold</option>
@@ -3900,7 +3900,7 @@ body.dark-mode .units-available-danger {
                 Select a store...
             </div>
 
-            <button class="btn btn-noman" onclick="saveFactoryProductionEntry()">Save Production Entry</button>
+            <button class="btn btn-noman" onclick="(async () => { await saveFactoryProductionEntry() })()">Save Production Entry</button>
         </div>
 
         <div class="section liquid-card">
@@ -4355,7 +4355,7 @@ body.dark-mode .units-available-danger {
                 </div>
             </div>
             
-            <button class="btn btn-main" onclick="savePaymentTransaction()">Save Transaction</button>
+            <button class="btn btn-main" onclick="(async () => { await savePaymentTransaction() })()">Save Transaction</button>
         </div>
 <!-- ENTITY LIST CARD - REPLACED TABLE WITH CARD VIEW -->
 <div class="section liquid-card">
@@ -4437,39 +4437,193 @@ body.dark-mode .units-available-danger {
 
 
 <script>
+
+    // --- GLOBAL ENFORCEMENT ---
+    const USE_IDB_ONLY = true;
+
+    // --- INDEXEDDB STORAGE MANAGER ---
+    const IDB_CONFIG = {
+        name: 'NaswarDealersDB',
+        version: 1,
+        store: 'app_data'
+    };
+
+    const idb = {
+        db: null,
+        async init() {
+            if (this.db) return this.db;
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(IDB_CONFIG.name, IDB_CONFIG.version);
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains(IDB_CONFIG.store)) {
+                        db.createObjectStore(IDB_CONFIG.store);
+                    }
+                };
+                request.onsuccess = (e) => {
+                    this.db = e.target.result;
+                    resolve(this.db);
+                };
+                request.onerror = (e) => reject(e.target.error);
+            });
+        },
+        async get(key, defaultValue = null) {
+            await this.init();
+            return new Promise((resolve, reject) => {
+                const transaction = this.db.transaction(IDB_CONFIG.store, 'readonly');
+                const store = transaction.objectStore(IDB_CONFIG.store);
+                const request = store.get(key);
+                request.onsuccess = () => {
+                    const val = request.result;
+                    if (val === undefined) resolve(defaultValue);
+                    else {
+                        try {
+                            resolve(JSON.parse(val));
+                        } catch (e) {
+                            resolve(val);
+                        }
+                    }
+                };
+                request.onerror = () => reject(request.error);
+            });
+        },
+        async set(key, value) {
+            await this.init();
+            return new Promise((resolve, reject) => {
+                const transaction = this.db.transaction(IDB_CONFIG.store, 'readwrite');
+                const store = transaction.objectStore(IDB_CONFIG.store);
+                const val = typeof value === 'string' ? value : JSON.stringify(value);
+                const request = store.put(val, key);
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject(request.error);
+            });
+        },
+        async remove(key) {
+            await this.init();
+            return new Promise((resolve, reject) => {
+                const transaction = this.db.transaction(IDB_CONFIG.store, 'readwrite');
+                const store = transaction.objectStore(IDB_CONFIG.store);
+                const request = store.delete(key);
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject(request.error);
+            });
+        }
+    };
+
+    // Global data loading function with Strict Purge Protocol
+    async function loadAllData() {
+        // 1. Purge Protocol: One-time migration from LocalStorage to IndexedDB
+        const keysToMigrate = [
+            'mfg_pro_pkr', 'noman_history', 'customer_sales', 'factory_inventory_data',
+            'factory_production_history', 'factory_default_formulas', 'factory_additional_costs',
+            'factory_sale_prices', 'factory_cost_adjustment_factor', 'factory_unit_tracking',
+            'payment_entities', 'payment_transactions', 'stock_returns', 'naswar_default_settings',
+            'appMode', 'repProfile', 'adminPin', 'theme', 'bio_enabled', 'bio_cred_id', 'last_synced'
+        ];
+
+        let migrationNeeded = false;
+        for (const key of keysToMigrate) {
+            if (localStorage.getItem(key) !== null) {
+                migrationNeeded = true;
+                break;
+            }
+        }
+
+        if (migrationNeeded) {
+            console.log("⚠️ LocalStorage data detected. Initiating Purge Protocol...");
+            for (const key of keysToMigrate) {
+                const lsValue = localStorage.getItem(key);
+                if (lsValue !== null) {
+                    try {
+                        let parsedValue;
+                        try {
+                            parsedValue = JSON.parse(lsValue);
+                        } catch (e) {
+                            parsedValue = lsValue;
+                        }
+                        await idb.set(key, parsedValue);
+                    } catch (e) {
+                        console.error(`Migration failed for key ${key}:`, e);
+                    }
+                }
+            }
+            localStorage.clear();
+            console.log("✓ Data migrated and LocalStorage purged successfully.");
+        }
+
+        // 2. Strict Initialization: Load data exclusively from IndexedDB
+        const [
+            idb_db, idb_salesHistory, idb_customerSales, idb_factoryInventoryData,
+            idb_factoryProductionHistory, idb_factoryDefaultFormulas, idb_factoryAdditionalCosts,
+            idb_factorySalePrices, idb_factoryCostAdjustmentFactor, idb_factoryUnitTracking,
+            idb_paymentEntities, idb_paymentTransactions, idb_stockReturns, idb_defaultSettings,
+            idb_appMode, idb_currentRepProfile, idb_adminPin
+        ] = await Promise.all([
+            idb.get('mfg_pro_pkr', []),
+            idb.get('noman_history', []),
+            idb.get('customer_sales', []),
+            idb.get('factory_inventory_data', []),
+            idb.get('factory_production_history', []),
+            idb.get('factory_default_formulas', { standard: [], asaan: [] }),
+            idb.get('factory_additional_costs', { standard: 0, asaan: 0 }),
+            idb.get('factory_sale_prices', { standard: 0, asaan: 0 }),
+            idb.get('factory_cost_adjustment_factor', { standard: 1, asaan: 1 }),
+            idb.get('factory_unit_tracking', {
+                standard: { produced: 0, consumed: 0, available: 0, unitCostHistory: [] },
+                asaan: { produced: 0, consumed: 0, available: 0, unitCostHistory: [] }
+            }),
+            idb.get('payment_entities', []),
+            idb.get('payment_transactions', []),
+            idb.get('stock_returns', []),
+            idb.get('naswar_default_settings', {}),
+            idb.get('appMode', 'admin'),
+            idb.get('repProfile', 'NORAN SHAH'),
+            idb.get('adminPin', '1234')
+        ]);
+
+        // Populate global variables
+        db = idb_db;
+        salesHistory = idb_salesHistory;
+        customerSales = idb_customerSales;
+        factoryInventoryData = idb_factoryInventoryData;
+        factoryProductionHistory = idb_factoryProductionHistory;
+        factoryDefaultFormulas = idb_factoryDefaultFormulas;
+        factoryAdditionalCosts = idb_factoryAdditionalCosts;
+        factorySalePrices = idb_factorySalePrices;
+        factoryCostAdjustmentFactor = idb_factoryCostAdjustmentFactor;
+        factoryUnitTracking = idb_factoryUnitTracking;
+        paymentEntities = idb_paymentEntities;
+        paymentTransactions = idb_paymentTransactions;
+        stockReturns = idb_stockReturns;
+        defaultSettings = idb_defaultSettings;
+        appMode = idb_appMode;
+        currentRepProfile = idb_currentRepProfile;
+        adminPin = idb_adminPin;
+        
+        console.log("✓ Global variables populated from IndexedDB.");
+    }
+    
     // --- DATA INITIALIZATION ---
-    let db = JSON.parse(localStorage.getItem('mfg_pro_pkr')) || [];
-    let salesHistory = JSON.parse(localStorage.getItem('noman_history')) || [];
-    let customerSales = JSON.parse(localStorage.getItem('customer_sales')) || [];
+    let db = [];
+    let salesHistory = [];
+    let customerSales = [];
     
     // Factory data
-    let factoryInventoryData = JSON.parse(localStorage.getItem('factory_inventory_data')) || [];
-    let factoryProductionHistory = JSON.parse(localStorage.getItem('factory_production_history')) || [];
-    let factoryDefaultFormulas = JSON.parse(localStorage.getItem('factory_default_formulas')) || { 
-        standard: [], 
-        asaan: [] 
-    };
+    let factoryInventoryData = [];
+    let factoryProductionHistory = [];
+    let factoryDefaultFormulas = { standard: [], asaan: [] };
     
     // Factory additional costs per unit
-    let factoryAdditionalCosts = JSON.parse(localStorage.getItem('factory_additional_costs')) || {
-        standard: 0,
-        asaan: 0
-    };
+    let factoryAdditionalCosts = { standard: 0, asaan: 0 };
     
     // NEW: Factory sale prices
-    let factorySalePrices = JSON.parse(localStorage.getItem('factory_sale_prices')) || {
-        standard: 0,
-        asaan: 0
-    };
+    let factorySalePrices = { standard: 0, asaan: 0 };
     
     // NEW: Cost adjustment factor (X)
-    let factoryCostAdjustmentFactor = JSON.parse(localStorage.getItem('factory_cost_adjustment_factor')) || {
-        standard: 1,
-        asaan: 1
-    };
+    let factoryCostAdjustmentFactor = { standard: 1, asaan: 1 };
     
     // Unit tracking data structure
-    let factoryUnitTracking = JSON.parse(localStorage.getItem('factory_unit_tracking')) || {
+    let factoryUnitTracking = {
         standard: {
             produced: 0,
             consumed: 0,
@@ -4484,7 +4638,7 @@ body.dark-mode .units-available-danger {
         }
     };
     // --- DARK MODE TOGGLE ---
-function toggleDarkMode() {
+async function toggleDarkMode() {
     const body = document.body;
     const themeToggle = document.getElementById('themeToggle');
     
@@ -4493,11 +4647,11 @@ function toggleDarkMode() {
     if (body.classList.contains('dark-mode')) {
         themeToggle.textContent = '☀️';
         themeToggle.title = "Switch to Light Mode";
-        localStorage.setItem('theme', 'dark');
+        await idb.set('theme', 'dark');
     } else {
         themeToggle.textContent = '🌕';
         themeToggle.title = "Switch to Dark Mode";
-        localStorage.setItem('theme', 'light');
+        await idb.set('theme', 'light');
     }
     
     // Update charts if they exist
@@ -4512,8 +4666,8 @@ function toggleDarkMode() {
 }
 
 // Check for saved theme preference on load
-function initTheme() {
-    const savedTheme = localStorage.getItem('theme');
+async function initTheme() {
+    const savedTheme = await idb.get('theme');
     const themeToggle = document.getElementById('themeToggle');
     
     if (savedTheme === 'dark') {
@@ -4656,9 +4810,9 @@ function syncSalesTab() {
     }
 }
 
-function syncCalculatorTab() {
+async function syncCalculatorTab() {
     try {
-        if (typeof loadSalesData === 'function') loadSalesData(currentCompMode);
+        if (typeof loadSalesData === 'function') await loadSalesData(currentCompMode);
         if (typeof autoFillTotalSoldQuantity === 'function') autoFillTotalSoldQuantity();
     } catch (error) {
         console.error('[CALCULATOR SYNC ERROR]', error);
@@ -4706,32 +4860,12 @@ function stopPeriodicSync() {
 }
 
 // Listen for storage changes
-window.addEventListener('storage', function(e) {
-    if (e.key && (
-        e.key === 'mfg_pro_pkr' ||
-        e.key === 'customer_sales' ||
-        e.key === 'noman_history' ||
-        e.key === 'factory_inventory_data' ||
-        e.key === 'factory_production_history' ||
-        e.key === 'payment_entities' ||
-        e.key === 'payment_transactions'
-    )) {
-        reloadDataFromStorage();
-        notifyDataChange('all');
-    }
-});
+
 
 // Reload data from storage
-function reloadDataFromStorage() {
+async function reloadDataFromStorage() {
     try {
-        db = JSON.parse(localStorage.getItem('mfg_pro_pkr')) || [];
-        customerSales = JSON.parse(localStorage.getItem('customer_sales')) || [];
-        salesHistory = JSON.parse(localStorage.getItem('noman_history')) || [];
-        factoryInventoryData = JSON.parse(localStorage.getItem('factory_inventory_data')) || [];
-        factoryProductionHistory = JSON.parse(localStorage.getItem('factory_production_history')) || [];
-        paymentEntities = JSON.parse(localStorage.getItem('payment_entities')) || [];
-        paymentTransactions = JSON.parse(localStorage.getItem('payment_transactions')) || [];
-        stockReturns = JSON.parse(localStorage.getItem('stock_returns')) || [];
+        await loadAllData();
     } catch (error) {
         console.error('[RELOAD ERROR]', error);
     }
@@ -4739,17 +4873,17 @@ function reloadDataFromStorage() {
 
 
 // Manual force sync
-window.forceSync = function() {
+window.forceSync = async function() {
     console.log('[FORCE SYNC] Manually triggered');
-    reloadDataFromStorage();
+    await reloadDataFromStorage();
     syncState.pendingUpdates.add('all');
     processSync();
 };
 
 // Tab visibility change sync
-document.addEventListener('visibilitychange', function() {
+document.addEventListener('visibilitychange', async function() {
     if (!document.hidden) {
-        reloadDataFromStorage();
+        await reloadDataFromStorage();
         notifyDataChange('all');
     }
 });
@@ -4778,11 +4912,11 @@ window.addEventListener('beforeunload', function() {
 
 
     // NEW: Payment entities and transactions
-    let paymentEntities = JSON.parse(localStorage.getItem('payment_entities')) || [];
-    let paymentTransactions = JSON.parse(localStorage.getItem('payment_transactions')) || [];
+    let paymentEntities = [];
+    let paymentTransactions = [];
     
     // Default settings
-    let defaultSettings = JSON.parse(localStorage.getItem('naswar_default_settings')) || {
+    let defaultSettings = {
         production: {
             STORE_A: { cost: 0, sale: 0 },
             STORE_B: { cost: 0, sale: 0 },
@@ -4868,7 +5002,7 @@ window.addEventListener('beforeunload', function() {
     }
 
     // Update recordEntry to include payment status
-    function recordEntry() {
+    async function recordEntry() {
         const net = parseFloat(document.getElementById('net-wt').value) || 0;
         const inputDate = document.getElementById('sys-date').value;
         const store = document.getElementById('storeSelector').value;
@@ -4947,8 +5081,9 @@ window.addEventListener('beforeunload', function() {
             timestamp: new Date(inputDate).getTime()
         });
         
-        localStorage.setItem('mfg_pro_pkr', JSON.stringify(db));
-        
+        await idb.set('mfg_pro_pkr', db);
+        notifyDataChange('all');
+
         syncFactoryProductionStats();
         
         document.getElementById('gross-wt').value = '';
@@ -4961,7 +5096,7 @@ window.addEventListener('beforeunload', function() {
         document.getElementById('total-formula-cost-display').innerText = 'Rs 0.00';
         document.getElementById('dynamic-cost-per-kg').innerText = 'Rs 0.00/kg';
         
-        refreshAllDisplays();
+        await refreshAllDisplays();
         alert("Production record saved successfully!");
     }
 
@@ -5051,7 +5186,7 @@ window.addEventListener('beforeunload', function() {
                     ${item.paymentStatus === 'CREDIT' ? `<p><span>Payment:</span> <span class="cost-val" style="color:var(--credit-color);">Credit</span></p>` : ''}
                     ${item.formulaUnits ? `<p><span>Formula Units:</span> <span class="qty-val">${item.formulaUnits.toFixed(3)}</span></p>` : ''}
                     ${item.formulaCost ? `<p><span>Formula Cost:</span> <span class="cost-val">Rs ${item.formulaCost.toFixed(2)}</span></p>` : ''}
-                    <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="deleteProdEntry(${item.id})">Delete</button>
+                    <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="(async () => { await deleteProdEntry(${item.id}) })()">Delete</button>
                 </div>
             `;
         });
@@ -5101,7 +5236,7 @@ window.addEventListener('beforeunload', function() {
         document.getElementById('entityWallet').value = '';
     }
     
-    function saveEntity() {
+    async function saveEntity() {
         const name = document.getElementById('entityName').value.trim();
         const type = document.getElementById('entityType').value;
         const phone = document.getElementById('entityPhone').value.trim();
@@ -5138,16 +5273,20 @@ window.addEventListener('beforeunload', function() {
             });
         }
         
-        localStorage.setItem('payment_entities', JSON.stringify(paymentEntities));
+        await idb.set('payment_entities', paymentEntities);
         closeEntityManagement();
         refreshPaymentTab();
         alert("Entity saved successfully!");
+        notifyDataChange('all');
+
     }
     
-    function deleteEntity() {
+    async function deleteEntity() {
         if (editingEntityId && confirm("Are you sure you want to delete this entity?")) {
             paymentEntities = paymentEntities.filter(e => e.id !== editingEntityId);
-            localStorage.setItem('payment_entities', JSON.stringify(paymentEntities));
+            await idb.set('payment_entities', paymentEntities);
+            notifyDataChange('all');
+
             closeEntityManagement();
             refreshPaymentTab();
             alert("Entity deleted successfully!");
@@ -5546,7 +5685,7 @@ function closeEntityTransactions() {
 // FIXED: SAVE PAYMENT TRANSACTION (Proper Balance Updates)
 // ============================================
 
-function savePaymentTransaction() {
+async function savePaymentTransaction() {
     const entityId = parseInt(document.getElementById('paymentEntity').value);
     const date = document.getElementById('paymentDate').value;
     const amount = parseFloat(document.getElementById('paymentAmount').value) || 0;
@@ -5605,7 +5744,9 @@ function savePaymentTransaction() {
                 oldestMaterial.paidDate = date;
                 materialId = oldestMaterial.id;
                 isPayable = true;
-                localStorage.setItem('factory_inventory_data', JSON.stringify(factoryInventoryData));
+                await idb.set('factory_inventory_data', factoryInventoryData);
+                notifyDataChange('all');
+
             }
         }
     }
@@ -5630,8 +5771,9 @@ function savePaymentTransaction() {
         timestamp: new Date(date).getTime()
     });
     
-    localStorage.setItem('payment_transactions', JSON.stringify(paymentTransactions));
-    
+    await idb.set('payment_transactions', paymentTransactions);
+    notifyDataChange('all');
+
     // Clear form
     document.getElementById('paymentAmount').value = '';
     document.getElementById('paymentDescription').value = '';
@@ -5645,14 +5787,17 @@ function savePaymentTransaction() {
     if (isPayable) {
         message += ' (Material purchase settled - liability reduced)';
     }
+
     showToast(message, 'success');
 }
 
     
-    function deletePaymentTransaction(id) {
+    async function deletePaymentTransaction(id) {
         if (confirm("Are you sure you want to delete this payment transaction?")) {
             paymentTransactions = paymentTransactions.filter(t => t.id !== id);
-            localStorage.setItem('payment_transactions', JSON.stringify(paymentTransactions));
+            await idb.set('payment_transactions', paymentTransactions);
+            notifyDataChange('all');
+
             refreshPaymentTab();
             calculateNetCash();
             alert("Transaction deleted successfully!");
@@ -6226,7 +6371,7 @@ function updateFactoryInventoryDisplay() {
                 <p><span>Description:</span> <span>${transaction.description}</span></p>
                 <hr>
                 <p><span>Amount:</span> <span class="${transaction.type === 'IN' ? 'profit-val' : 'cost-val'}">Rs ${safeValue(transaction.amount).toFixed(2)}</span></p>
-                <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="deletePaymentTransaction(${transaction.id})">Delete</button>
+                <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="(async () => { await deletePaymentTransaction(${transaction.id}) })()">Delete</button>
             `;
             historyList.appendChild(card);
         });
@@ -6253,7 +6398,7 @@ function updateFactoryInventoryDisplay() {
         renderFactorySettingsRows();
     }
     
-    function renderFactorySettingsRows() {
+    async function renderFactorySettingsRows() {
         const container = document.getElementById('factoryRawMaterialsContainer');
         container.innerHTML = '';
         const formula = factoryDefaultFormulas[currentFactorySettingsStore];
@@ -6289,10 +6434,10 @@ function updateFactoryInventoryDisplay() {
         const salesCostPerKg = adjustmentFactor > 0 ? perUnitCost / adjustmentFactor : perUnitCost;
         
         document.getElementById('factorySettingsUnitWeight').innerText = totalWeight.toFixed(2) + ' kg';
-        document.getElementById('factorySettingsRawCostPerUnit').innerText = formatCurrency(totalRawCost);
-        document.getElementById('factorySettingsPerUnit').innerText = formatCurrency(perUnitCost);
+        document.getElementById('factorySettingsRawCostPerUnit').innerText = await formatCurrency(totalRawCost);
+        document.getElementById('factorySettingsPerUnit').innerText = await formatCurrency(perUnitCost);
         document.getElementById('factorySettingsAvailableUnits').innerText = available;
-        document.getElementById('factorySettingsSalesCostPerKg').innerText = formatCurrency(salesCostPerKg);
+        document.getElementById('factorySettingsSalesCostPerKg').innerText = await formatCurrency(salesCostPerKg);
     }
     
     function createFactorySettingRow(container, selectedId = '', qtyVal = '') {
@@ -6333,7 +6478,7 @@ function updateFactoryInventoryDisplay() {
         updateFactoryFormulasSummary();
     }
     
-    function updateFactoryFormulasSummary() {
+    async function updateFactoryFormulasSummary() {
         const container = document.getElementById('factoryRawMaterialsContainer');
         const rows = container.querySelectorAll('.factory-formula-grid');
         let totalRawCost = 0, totalWeight = 0;
@@ -6356,13 +6501,13 @@ function updateFactoryInventoryDisplay() {
         const salesCostPerKg = adjustmentFactor > 0 ? perUnitCost / adjustmentFactor : perUnitCost;
         
         document.getElementById('factorySettingsUnitWeight').innerText = totalWeight.toFixed(2) + ' kg';
-        document.getElementById('factorySettingsRawCostPerUnit').innerText = formatCurrency(totalRawCost);
-        document.getElementById('factorySettingsPerUnit').innerText = formatCurrency(perUnitCost);
+        document.getElementById('factorySettingsRawCostPerUnit').innerText = await formatCurrency(totalRawCost);
+        document.getElementById('factorySettingsPerUnit').innerText = await formatCurrency(perUnitCost);
         document.getElementById('factorySettingsAvailableUnits').innerText = available;
-        document.getElementById('factorySettingsSalesCostPerKg').innerText = formatCurrency(salesCostPerKg);
+        document.getElementById('factorySettingsSalesCostPerKg').innerText = await formatCurrency(salesCostPerKg);
     }
     
-    function saveFactoryFormulas() {
+    async function saveFactoryFormulas() {
         const container = document.getElementById('factoryRawMaterialsContainer');
         const rows = container.querySelectorAll('.factory-formula-grid');
         const newFormula = [];
@@ -6400,11 +6545,21 @@ function updateFactoryInventoryDisplay() {
         factorySalePrices.standard = salePriceStandard;
         factorySalePrices.asaan = salePriceAsaan;
         
-        localStorage.setItem('factory_default_formulas', JSON.stringify(factoryDefaultFormulas));
-        localStorage.setItem('factory_additional_costs', JSON.stringify(factoryAdditionalCosts));
-        localStorage.setItem('factory_cost_adjustment_factor', JSON.stringify(factoryCostAdjustmentFactor));
-        localStorage.setItem('factory_sale_prices', JSON.stringify(factorySalePrices));
-        
+        // Atomic Save: Group all factory settings updates
+        try {
+            await Promise.all([
+                idb.set('factory_default_formulas', factoryDefaultFormulas),
+                idb.set('factory_additional_costs', factoryAdditionalCosts),
+                idb.set('factory_cost_adjustment_factor', factoryCostAdjustmentFactor),
+                idb.set('factory_sale_prices', factorySalePrices)
+            ]);
+        } catch (e) {
+            console.error("Atomic settings save failed:", e);
+            alert("Failed to save settings. Please try again.");
+            return;
+        }
+        notifyDataChange('all');
+
         calculateFactoryProduction(); // Recalculate preview
         updateAllTabsWithFactoryCosts();
         closeFactorySettings();
@@ -6493,7 +6648,7 @@ function showSupplierUnlinkOption(material) {
 }
 
 // NEW: Confirmation dialog for unlinking supplier
-function unlinkSupplierConfirmation(material) {
+async function unlinkSupplierConfirmation(material) {
     const linkedTransactions = paymentTransactions.filter(t => 
         t.materialId === material.id && 
         t.entityId === material.supplierId && 
@@ -6513,7 +6668,7 @@ function unlinkSupplierConfirmation(material) {
     confirmMsg += `\nThe material will be ready to link with a different supplier.`;
     
     if (confirm(confirmMsg)) {
-        unlinkSupplierFromMaterial(material);
+        await unlinkSupplierFromMaterial(material);
         
         // Refresh modal display
         closeFactoryInventoryModal();
@@ -6530,7 +6685,7 @@ function unlinkSupplierConfirmation(material) {
 // ============================================
 
 // UPDATED: saveFactoryInventoryItem with dynamic unlinking capability
-function saveFactoryInventoryItem() {
+async function saveFactoryInventoryItem() {
     const name = document.getElementById('factoryMaterialName').value;
     const qty = parseFloat(document.getElementById('factoryMaterialQuantity').value) || 0;
     const cost = parseFloat(document.getElementById('factoryMaterialCost').value) || 0;
@@ -6556,7 +6711,7 @@ function saveFactoryInventoryItem() {
             
             // If supplier is changing, unlink the old one first
             if (isSupplierChanging) {
-                unlinkSupplierFromMaterial(existingMaterial);
+                await unlinkSupplierFromMaterial(existingMaterial);
             }
             
             // Update material data
@@ -6598,7 +6753,7 @@ function saveFactoryInventoryItem() {
     else if (supplierType === 'existing') {
         const existingSupplierId = parseInt(document.getElementById('factoryExistingSupplier').value);
         if (existingSupplierId) {
-            linkMaterialToSupplier(materialId, existingSupplierId, totalValue);
+            await linkMaterialToSupplier(materialId, existingSupplierId, totalValue);
         }
     } 
     else if (supplierType === 'new') {
@@ -6606,7 +6761,7 @@ function saveFactoryInventoryItem() {
         const supplierPhone = document.getElementById('factorySupplierPhone').value.trim();
         
         if (supplierName) {
-            const newSupplier = createSupplierFromMaterial({
+            const newSupplier = await createSupplierFromMaterial({
                 name: supplierName,
                 phone: supplierPhone,
                 materialId: materialId,
@@ -6615,12 +6770,12 @@ function saveFactoryInventoryItem() {
             });
             
             if (newSupplier && newSupplier.id) {
-                linkMaterialToSupplier(materialId, newSupplier.id, totalValue);
+                await linkMaterialToSupplier(materialId, newSupplier.id, totalValue);
             }
         }
     }
 
-    localStorage.setItem('factory_inventory_data', JSON.stringify(factoryInventoryData));
+    await idb.set('factory_inventory_data', factoryInventoryData);
     renderFactoryInventory();
     closeFactoryInventoryModal();
     
@@ -6631,7 +6786,7 @@ function saveFactoryInventoryItem() {
 }
 
 // NEW: Function to unlink supplier from material
-function unlinkSupplierFromMaterial(material) {
+async function unlinkSupplierFromMaterial(material) {
     if (!material || !material.supplierId) return;
     
     const supplierId = material.supplierId;
@@ -6655,7 +6810,9 @@ function unlinkSupplierFromMaterial(material) {
             console.log(`   ↩ Reversed payment transaction: ${transaction.description} - Rs ${transaction.amount}`);
         });
         
-        localStorage.setItem('payment_transactions', JSON.stringify(paymentTransactions));
+        await idb.set('payment_transactions', paymentTransactions);
+        notifyDataChange('all');
+
     }
     
     // Step 2: Clear supplier information from material
@@ -6669,13 +6826,13 @@ function unlinkSupplierFromMaterial(material) {
     
     console.log(`   ✓ Supplier link removed from material`);
     
-    localStorage.setItem('factory_inventory_data', JSON.stringify(factoryInventoryData));
+    await idb.set('factory_inventory_data', factoryInventoryData);
     
     showToast(`Supplier unlinked from ${material.name}. All linked transactions reversed.`, 'info');
 }
 
 // UPDATED: createSupplierFromMaterial - NO immediate transaction
-function createSupplierFromMaterial(supplierData) {
+async function createSupplierFromMaterial(supplierData) {
     const existingSupplier = paymentEntities.find(e => 
         e.name.toLowerCase() === supplierData.name.toLowerCase() && e.type === 'payee'
     );
@@ -6697,14 +6854,15 @@ function createSupplierFromMaterial(supplierData) {
     };
     
     paymentEntities.push(supplierEntity);
-    localStorage.setItem('payment_entities', JSON.stringify(paymentEntities));
-    
+    await idb.set('payment_entities', paymentEntities);
+    notifyDataChange('all');
+
     return supplierEntity;
 }
 
 
 // --- UPDATED: LINK MATERIAL TO SUPPLIER FUNCTION ---
-function linkMaterialToSupplier(materialId, supplierId, totalCost) {
+async function linkMaterialToSupplier(materialId, supplierId, totalCost) {
     // Find the material
     const material = factoryInventoryData.find(m => m.id === materialId);
     if (!material) return;
@@ -6721,14 +6879,15 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
     material.paymentStatus = 'pending';
     material.totalPayable = totalCost;
     
-    localStorage.setItem('factory_inventory_data', JSON.stringify(factoryInventoryData));
-    
+    await idb.set('factory_inventory_data', factoryInventoryData);
+    notifyDataChange('all');
+
     // Refresh payment tab to show updated entity list
     refreshPaymentTab();
 }
     
     // UPDATED: renderFactoryInventory with unlink capability
-function renderFactoryInventory() {
+async function renderFactoryInventory() {
     const tbody = document.getElementById('factoryInventoryTableBody');
     tbody.innerHTML = '';
     let totalVal = 0;
@@ -6736,7 +6895,7 @@ function renderFactoryInventory() {
     if (factoryInventoryData.length === 0) {
         tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--text-muted);">No items in inventory</td></tr>';
     } else {
-        factoryInventoryData.forEach(item => {
+        for (const item of factoryInventoryData) {
             totalVal += item.totalValue;
             
             // Build supplier info section
@@ -6771,8 +6930,8 @@ function renderFactoryInventory() {
                     ${supplierHtml}
                 </td>
                 <td style="text-align:center;">${item.quantity} ${item.unit}</td>
-                <td style="text-align:right;">${formatCurrency(item.cost)}</td>
-                <td style="text-align:right; font-weight:700;">${formatCurrency(item.totalValue)}</td>
+                <td style="text-align:right;">${await formatCurrency(item.cost)}</td>
+                <td style="text-align:right; font-weight:700;">${await formatCurrency(item.totalValue)}</td>
                 <td style="text-align:center;">
                     <div style="display:flex; gap:5px; justify-content:center; flex-wrap:wrap;">
                         <button class="btn-theme" style="padding:2px 8px; font-size:0.75rem;" onclick="editFactoryInventoryItem(${item.id})">Edit</button>
@@ -6785,13 +6944,13 @@ function renderFactoryInventory() {
                 </td>
             `;
             tbody.appendChild(tr);
-        });
+        }
     }
-    document.getElementById('factoryTotalInventoryValue').innerText = formatCurrency(totalVal);
+    document.getElementById('factoryTotalInventoryValue').innerText = await formatCurrency(totalVal);
 }
 
 // NEW: Quick unlink function for table button
-function unlinkSupplierFromMaterialById(materialId) {
+async function unlinkSupplierFromMaterialById(materialId) {
     const material = factoryInventoryData.find(m => m.id === materialId);
     if (!material) {
         showToast("Material not found", 'error');
@@ -6816,7 +6975,7 @@ function unlinkSupplierFromMaterialById(materialId) {
     }
     
     if (confirm(confirmMsg)) {
-        unlinkSupplierFromMaterial(material);
+        await unlinkSupplierFromMaterial(material);
         renderFactoryInventory();
         refreshPaymentTab();
         calculateNetCash();
@@ -6869,7 +7028,7 @@ function loadExistingSuppliers() {
     }
 }
 
-function createSupplierFromMaterial(supplierData) {
+async function createSupplierFromMaterial(supplierData) {
     // Create a new entity for the supplier
     const supplierEntity = {
         id: Date.now(),
@@ -6889,8 +7048,9 @@ function createSupplierFromMaterial(supplierData) {
     
     // Add to payment entities
     paymentEntities.push(supplierEntity);
-    localStorage.setItem('payment_entities', JSON.stringify(paymentEntities));
-    
+    await idb.set('payment_entities', paymentEntities);
+    notifyDataChange('all');
+
     // Create an initial payable transaction for this material purchase
     const today = new Date().toISOString().split('T')[0];
     const now = new Date();
@@ -6917,13 +7077,14 @@ function createSupplierFromMaterial(supplierData) {
         timestamp: new Date(today).getTime()
     });
     
-    localStorage.setItem('payment_transactions', JSON.stringify(paymentTransactions));
-    
+    await idb.set('payment_transactions', paymentTransactions);
+    notifyDataChange('all');
+
     return supplierEntity;
 }
 
 // UPDATED: linkMaterialToSupplier - Enhanced with unlinking capability
-function linkMaterialToSupplier(materialId, supplierId, totalCost) {
+async function linkMaterialToSupplier(materialId, supplierId, totalCost) {
     const material = factoryInventoryData.find(m => m.id === materialId);
     if (!material) return;
     
@@ -6932,7 +7093,7 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
     
     // If material was previously linked to a different supplier, unlink first
     if (material.supplierId && material.supplierId !== supplierId) {
-        unlinkSupplierFromMaterial(material);
+        await unlinkSupplierFromMaterial(material);
     }
     
     // Update material with new supplier info
@@ -6943,8 +7104,9 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
     material.paymentStatus = 'pending';
     material.totalPayable = totalCost;
     
-    localStorage.setItem('factory_inventory_data', JSON.stringify(factoryInventoryData));
-    
+    await idb.set('factory_inventory_data', factoryInventoryData);
+    notifyDataChange('all');
+
     console.log(`🔗 Linked material ${material.name} to supplier ${supplier.name}`);
     
     refreshPaymentTab();
@@ -6959,7 +7121,7 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
         calculateFactoryProduction();
     }
     
-    function calculateFactoryProduction() {
+    async function calculateFactoryProduction() {
         const units = parseInt(document.getElementById('factoryProductionUnits').value) || 1;
         const settings = factoryDefaultFormulas[currentFactoryEntryStore];
         const additionalCost = factoryAdditionalCosts[currentFactoryEntryStore] || 0;
@@ -6969,22 +7131,22 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
         let html = `<h4 style="margin:0 0 5px 0; font-size:0.9rem;">${currentFactoryEntryStore.toUpperCase()} Formula (${units} Units)</h4>`;
         
         if (settings && settings.length > 0) {
-            settings.forEach(i => {
+            for (const i of settings) {
                 const lineTotal = i.cost * i.quantity * units;
                 baseCost += lineTotal;
                 rawMaterialsUsed += i.quantity * units;
                 html += `<div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:2px;">
                     <span>${i.name} (${i.quantity * units} kg)</span>
-                    <span>${formatCurrency(lineTotal)}</span>
+                    <span>${await formatCurrency(lineTotal)}</span>
                 </div>`;
-            });
+            }
             
             // Add additional cost line
             const totalAdditionalCost = additionalCost * units;
             if (totalAdditionalCost > 0) {
                 html += `<div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:2px; color:var(--danger);">
                     <span>Additional Cost (${additionalCost} per unit)</span>
-                    <span>${formatCurrency(totalAdditionalCost)}</span>
+                    <span>${await formatCurrency(totalAdditionalCost)}</span>
                 </div>`;
                 baseCost += totalAdditionalCost;
             }
@@ -6993,10 +7155,10 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
         }
 
         document.getElementById('factoryFormulaDisplay').innerHTML = html;
-        document.getElementById('factoryTotalProductionCostDisplay').innerText = formatCurrency(baseCost);
+        document.getElementById('factoryTotalProductionCostDisplay').innerText = await formatCurrency(baseCost);
     }
     
-    function saveFactoryProductionEntry() {
+    async function saveFactoryProductionEntry() {
         const units = parseInt(document.getElementById('factoryProductionUnits').value) || 0;
         if(units <= 0) return alert("Invalid units");
 
@@ -7031,8 +7193,9 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
                 }
             });
             
+            // Atomic Update: Group inventory and production history saves
             if(inventoryUpdated) {
-                localStorage.setItem('factory_inventory_data', JSON.stringify(factoryInventoryData));
+                // We will save both together below to ensure integrity
             }
         }
 
@@ -7049,10 +7212,20 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
             timestamp: Date.now()
         });
 
-        localStorage.setItem('factory_production_history', JSON.stringify(factoryProductionHistory));
+        // Atomic Save: Ensure both inventory and history are updated or neither is
+        try {
+            await Promise.all([
+                idb.set('factory_inventory_data', factoryInventoryData),
+                idb.set('factory_production_history', factoryProductionHistory)
+            ]);
+        } catch (e) {
+            console.error("Atomic save failed:", e);
+            alert("Failed to save production data. Please try again.");
+            return; // Prevent UI refresh if save fails
+        }
         
         // Update unit tracking
-        syncFactoryProductionStats();
+        await syncFactoryProductionStats();
         
         // Update all displays
         updateFactorySummaryCard();
@@ -7095,7 +7268,7 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
     }
     
     // --- FACTORY HISTORY FUNCTIONS ---
-    function renderFactoryHistory() {
+    async function renderFactoryHistory() {
         const list = document.getElementById('factoryHistoryList');
         list.innerHTML = '';
 
@@ -7107,7 +7280,7 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
         // Show last 10 entries
         const recent = factoryProductionHistory.slice(0, 10);
         
-        recent.forEach(entry => {
+        for (const entry of recent) {
             const dateObj = new Date(entry.date);
             const dateStr = dateObj.toLocaleDateString() + ' ' + entry.time;
             const badgeClass = entry.store === 'standard' ? 'factory-badge-std' : 'factory-badge-asn';
@@ -7134,19 +7307,19 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
                 </div>
                 <div class="factory-summary-row">
                     <span class="factory-summary-label">Material Cost</span>
-                    <span class="cost-val">${formatCurrency(entry.materialsCost || 0)}</span>
+                    <span class="cost-val">${await formatCurrency(entry.materialsCost || 0)}</span>
                 </div>
                 ${totalAdditionalCost > 0 ? `<div class="factory-summary-row">
                     <span class="factory-summary-label">Additional Cost</span>
-                    <span class="cost-val">${formatCurrency(totalAdditionalCost)}</span>
+                    <span class="cost-val">${await formatCurrency(totalAdditionalCost)}</span>
                 </div>` : ''}
                 <div class="factory-summary-row">
                     <span class="factory-summary-label">Per Unit Cost</span>
-                    <span class="cost-val">${formatCurrency(perUnitCost)}</span>
+                    <span class="cost-val">${await formatCurrency(perUnitCost)}</span>
                 </div>
                 <div class="factory-summary-row">
                     <span class="factory-summary-label">Total Cost</span>
-                    <span class="rev-val">${formatCurrency(entry.totalCost)}</span>
+                    <span class="rev-val">${await formatCurrency(entry.totalCost)}</span>
                 </div>
                 <div class="factory-summary-row">
                     <span class="factory-summary-label">Raw Materials Used</span>
@@ -7155,10 +7328,10 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
                 <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="deleteFactoryEntry(${entry.id})">Delete & Restore Inventory</button>
             `;
             list.appendChild(div);
-        });
+        }
     }
     
-    function deleteFactoryEntry(id) {
+    async function deleteFactoryEntry(id) {
         const entryIndex = factoryProductionHistory.findIndex(e => e.id === id);
         if (entryIndex === -1) return;
 
@@ -7184,14 +7357,14 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
                 });
 
                 if (inventoryUpdated) {
-                    localStorage.setItem('factory_inventory_data', JSON.stringify(factoryInventoryData));
+                    await idb.set('factory_inventory_data', factoryInventoryData);
                     renderFactoryInventory();
                 }
             }
 
             // 2. Remove entry from history
             factoryProductionHistory.splice(entryIndex, 1);
-            localStorage.setItem('factory_production_history', JSON.stringify(factoryProductionHistory));
+            await idb.set('factory_production_history', factoryProductionHistory);
 
             // 3. Recalculate all stats
             syncFactoryProductionStats();
@@ -7269,7 +7442,7 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
         return costPerKgForSales;
     }
     
-    function updateFormulaInventory() {
+    async function updateFormulaInventory() {
         const tracking = {
             standard: { produced: 0, consumed: 0, available: 0, unitCostHistory: [] },
             asaan: { produced: 0, consumed: 0, available: 0, unitCostHistory: [] }
@@ -7306,15 +7479,15 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
         tracking.standard.available = Math.max(0, tracking.standard.produced - tracking.standard.consumed);
         tracking.asaan.available = Math.max(0, tracking.asaan.produced - tracking.asaan.consumed);
         
-        // Save to localStorage
+        // Save to IndexedDB
         factoryUnitTracking = tracking;
-        localStorage.setItem('factory_unit_tracking', JSON.stringify(factoryUnitTracking));
+        await idb.set('factory_unit_tracking', factoryUnitTracking);
         
         return tracking;
     }
     
-    function syncFactoryProductionStats() {
-        const tracking = updateFormulaInventory();
+    async function syncFactoryProductionStats() {
+        const tracking = await updateFormulaInventory();
         
         updateUnitsAvailableIndicator();
         updateFactoryUnitsAvailableStats();
@@ -7435,12 +7608,12 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
         calculateDynamicProductionCost();
     }
 
-    function deleteProdEntry(id) {
+    async function deleteProdEntry(id) {
         const entryToDelete = db.find(item => item.id === id);
         
         if(confirm("Delete this production record permanently?")) {
             db = db.filter(item => item.id !== id);
-            localStorage.setItem('mfg_pro_pkr', JSON.stringify(db));
+            await idb.set('mfg_pro_pkr', db);
             
             syncFactoryProductionStats();
             
@@ -7452,7 +7625,7 @@ function linkMaterialToSupplier(materialId, supplierId, totalCost) {
   // --- UPDATED: Sales Tab Inventory Validation ---
 // Replace the entire saveCustomerSale function with this updated version:
 
-function saveCustomerSale() {
+async function saveCustomerSale() {
     const date = document.getElementById('cust-date').value;
     const name = document.getElementById('cust-name').value.trim();
     const quantity = parseFloat(document.getElementById('cust-quantity').value) || 0;
@@ -7597,7 +7770,7 @@ function saveCustomerSale() {
     };
     
     customerSales.push(saleRecord);
-    localStorage.setItem('customer_sales', JSON.stringify(customerSales));
+    await idb.set('customer_sales', customerSales);
     
     // Clear form
     document.getElementById('cust-name').value = '';
@@ -7812,10 +7985,10 @@ function createInventoryWarningElement() {
 
 
 // --- REPLACE YOUR EXISTING deleteCustomerSale FUNCTION WITH THIS ---
-function deleteCustomerSale(id) {
+async function deleteCustomerSale(id) {
     if(confirm("Delete this sale transaction permanently?")) {
         customerSales = customerSales.filter(item => item.id !== id);
-        localStorage.setItem('customer_sales', JSON.stringify(customerSales));
+        await idb.set('customer_sales', customerSales);
         
         refreshCustomerSales(); 
         calculateNetCash();     
@@ -7869,7 +8042,7 @@ function deleteCustomerSale(id) {
 // --- ENHANCED RETURN HANDLING SYSTEM ---
 
 // 1. Initialize return storage
-let stockReturns = JSON.parse(localStorage.getItem('stock_returns')) || [];
+let stockReturns = [];
 // ============================================
 // SUPABASE CLOUD SYNC - COMPLETE IMPLEMENTATION
 // ============================================
@@ -7913,7 +8086,7 @@ async function checkAuthState() {
 
 // --- UPDATED LISTENER: Closes overlay on success ---
 function setupAuthListener() {
-    supabaseClient.auth.onAuthStateChange((event, session) => {
+    supabaseClient.auth.onAuthStateChange(async (event, session) => {
         if (event === 'SIGNED_IN') {
             currentUser = session?.user;
             
@@ -7924,7 +8097,7 @@ function setupAuthListener() {
             showToast(`Cloud Sync Active`, 'success');
             
             // 3. Sync data
-            pullDataFromCloud(true); // Auto-pull on login
+            await pullDataFromCloud(true); // Auto-pull on login
             addSignOutButton();
             
         } else if (event === 'SIGNED_OUT') {
@@ -7950,8 +8123,8 @@ function triggerSeamlessBackup() {
     const syncBadge = document.getElementById('cloudMenuBtn');
     if(syncBadge) syncBadge.innerText = '⏳'; 
 
-    autoSaveTimer = setTimeout(() => {
-        pushDataToCloud(true); // Silent auto-save
+    autoSaveTimer = setTimeout(async () => {
+        await pushDataToCloud(true); // Silent auto-save
         if(syncBadge) syncBadge.innerText = '☁️';
     }, AUTO_SAVE_DELAY);
 }
@@ -7963,6 +8136,8 @@ async function pushDataToCloud(silent = false) {
     try {
         if (!silent) console.log('📤 Uploading to cloud...');
         
+        // Ensure we are pulling the most recent data from global variables
+        // which are synced exclusively with IndexedDB
         const dataToSync = {
             mfg_pro_pkr: db,
             customer_sales: customerSales,
@@ -7978,7 +8153,10 @@ async function pushDataToCloud(silent = false) {
             payment_transactions: paymentTransactions,
             stock_returns: stockReturns,
             naswar_default_settings: defaultSettings,
-            last_synced: new Date().toISOString() // Important for conflict resolution
+            appMode: appMode,
+            repProfile: currentRepProfile,
+            adminPin: adminPin,
+            last_synced: new Date().toISOString()
         };
 
         const { error } = await supabaseClient
@@ -7991,7 +8169,7 @@ async function pushDataToCloud(silent = false) {
 
         if (error) throw error;
 
-        localStorage.setItem('last_synced', new Date().toISOString());
+        await idb.set('last_synced', new Date().toISOString());
         if (!silent) showToast('Data backed up to cloud', 'success');
         console.log('✅ Auto-save complete');
 
@@ -8028,7 +8206,7 @@ async function pullDataFromCloud(silent = false) {
 
         // 2. Compare Timestamps (Conflict Resolution)
         const cloudTime = new Date(data.last_synced || 0).getTime();
-        const localTime = new Date(localStorage.getItem('last_synced') || 0).getTime();
+        const localTime = new Date(await idb.get('last_synced') || 0).getTime();
 
         // If Cloud is OLDER than local, don't overwrite (unless forced manually)
         if (cloudTime <= localTime && silent) {
@@ -8054,30 +8232,37 @@ async function pullDataFromCloud(silent = false) {
             paymentTransactions = cloud.payment_transactions || [];
             stockReturns = cloud.stock_returns || [];
             defaultSettings = cloud.naswar_default_settings || {};
-
-            // Persist to LocalStorage
-            localStorage.setItem('mfg_pro_pkr', JSON.stringify(db));
-            localStorage.setItem('customer_sales', JSON.stringify(customerSales));
-            localStorage.setItem('noman_history', JSON.stringify(salesHistory));
-            localStorage.setItem('factory_inventory_data', JSON.stringify(factoryInventoryData));
-            localStorage.setItem('factory_production_history', JSON.stringify(factoryProductionHistory));
-            localStorage.setItem('factory_default_formulas', JSON.stringify(factoryDefaultFormulas));
-            localStorage.setItem('factory_additional_costs', JSON.stringify(factoryAdditionalCosts));
-            localStorage.setItem('factory_cost_adjustment_factor', JSON.stringify(factoryCostAdjustmentFactor));
-            localStorage.setItem('factory_sale_prices', JSON.stringify(factorySalePrices));
-            localStorage.setItem('factory_unit_tracking', JSON.stringify(factoryUnitTracking));
-            localStorage.setItem('payment_entities', JSON.stringify(paymentEntities));
-            localStorage.setItem('payment_transactions', JSON.stringify(paymentTransactions));
-            localStorage.setItem('stock_returns', JSON.stringify(stockReturns));
-            localStorage.setItem('naswar_default_settings', JSON.stringify(defaultSettings));
             
-            // Update Sync Timestamp
-            localStorage.setItem('last_synced', data.last_synced);
+            if (cloud.appMode) appMode = cloud.appMode;
+            if (cloud.repProfile) currentRepProfile = cloud.repProfile;
+            if (cloud.adminPin) adminPin = cloud.adminPin;
+
+            // 4. Save to Local IndexedDB
+            await Promise.all([
+                idb.set('mfg_pro_pkr', db),
+                idb.set('customer_sales', customerSales),
+                idb.set('noman_history', salesHistory),
+                idb.set('factory_inventory_data', factoryInventoryData),
+                idb.set('factory_production_history', factoryProductionHistory),
+                idb.set('factory_default_formulas', factoryDefaultFormulas),
+                idb.set('factory_additional_costs', factoryAdditionalCosts),
+                idb.set('factory_cost_adjustment_factor', factoryCostAdjustmentFactor),
+                idb.set('factory_sale_prices', factorySalePrices),
+                idb.set('factory_unit_tracking', factoryUnitTracking),
+                idb.set('payment_entities', paymentEntities),
+                idb.set('payment_transactions', paymentTransactions),
+                idb.set('stock_returns', stockReturns),
+                idb.set('naswar_default_settings', defaultSettings),
+                idb.set('appMode', appMode),
+                idb.set('repProfile', currentRepProfile),
+                idb.set('adminPin', adminPin),
+                idb.set('last_synced', data.last_synced)
+            ]);
 
             if (!silent) showToast('Data restored from cloud!', 'success');
             
             // Refresh UI
-            refreshAllDisplays();
+            await refreshAllDisplays();
         }
 
     } catch (error) {
@@ -8087,7 +8272,7 @@ async function pullDataFromCloud(silent = false) {
 }
 
 // --- UPDATED: TRIGGER CLOUD ACTION (WITH AUTH CHECK) ---
-function triggerCloudAction(action) {
+async function triggerCloudAction(action) {
     // 1. Close the data menu first so it doesn't block the view
     closeDataMenu();
 
@@ -8109,14 +8294,14 @@ function triggerCloudAction(action) {
     if (action === 'backup') {
         // Optional: Add a confirmation for manual backup
         if(confirm("📤 Upload local data to Cloud?")) {
-            pushDataToCloud(false); // false = show success/error toasts
+            await pushDataToCloud(false); // false = show success/error toasts
         }
     }
     
     if (action === 'restore') {
         // Essential: Confirmation for restore to prevent accidental overwrites
         if(confirm("⚠️ RESTORE FROM CLOUD?\n\nThis will overwrite your current local data with the version saved in the cloud.\n\nContinue?")) {
-            pullDataFromCloud(false);
+            await pullDataFromCloud(false);
         }
     }
 }
@@ -8327,7 +8512,7 @@ function handleReturnQtyInput() {
 }
 
 // 3. FIXED: Save Transaction with Return Processing
-function saveTransaction() {
+async function saveTransaction() {
     const seller = document.getElementById('sellerSelect').value;
     const date = document.getElementById('sale-date').value;
     const sold = parseFloat(document.getElementById('totalSold').value) || 0;
@@ -8382,7 +8567,7 @@ function saveTransaction() {
 
     // === NEW: PROCESS RETURN AND ADD TO PRODUCTION ===
     if (ret > 0 && selectedStore) {
-        processReturnToProduction(selectedStore.value, ret, date, seller);
+        await processReturnToProduction(selectedStore.value, ret, date, seller);
     }
 
     const entry = {
@@ -8409,12 +8594,12 @@ function saveTransaction() {
         returnStore: selectedStore ? selectedStore.value : null
     };
 
-    const linkedIds = markSalesEntriesAsReceived(seller, sold);
+    const linkedIds = await markSalesEntriesAsReceived(seller, sold);
     entry.linkedSalesIds = linkedIds;
 
-    let history = JSON.parse(localStorage.getItem('noman_history')) || [];
+    let history; history = await idb.get('noman_history', []);
     history.push(entry);
-    localStorage.setItem('noman_history', JSON.stringify(history));
+    await idb.set('noman_history', history);
     
     // Clear form
     document.getElementById('totalSold').value = '';
@@ -8429,7 +8614,7 @@ function saveTransaction() {
     showToast(`Transaction saved! ${linkedIds.length} sales entries marked as received.${ret > 0 ? ` ${ret.toFixed(2)} kg returned to inventory.` : ''}`, 'success');
     
     // Refresh all displays
-    loadSalesData(currentCompMode);
+    await loadSalesData(currentCompMode);
     refreshCustomerSales();
     refreshUI(); // Refresh production tab to show updated inventory
     calculateNetCash();
@@ -8438,7 +8623,7 @@ function saveTransaction() {
 
 
 // 5. NEW FUNCTION: Mark sales entries as received (oldest first)
-function markSalesEntriesAsReceived(seller, quantityToMark) {
+async function markSalesEntriesAsReceived(seller, quantityToMark) {
     if (!seller || seller === 'COMBINED' || quantityToMark <= 0) return [];
     
     const linkedIds = [];
@@ -8475,7 +8660,7 @@ function markSalesEntriesAsReceived(seller, quantityToMark) {
     
     // Save updated sales data
     if (linkedIds.length > 0) {
-        localStorage.setItem('customer_sales', JSON.stringify(customerSales));
+        await idb.set('customer_sales', customerSales);
     }
     
     return linkedIds;
@@ -8566,7 +8751,7 @@ function markSalesEntriesAsReceived(seller, quantityToMark) {
         custPaymentChart.update();
     }
     
-    function updateCompositionChart() {
+    async function updateCompositionChart() {
         if (!salesCompChart) return;
         
         const data = salesCompChart.data.datasets[0].data;
@@ -8584,7 +8769,7 @@ function markSalesEntriesAsReceived(seller, quantityToMark) {
         } else {
             const seller = document.getElementById('sellerSelect').value;
             if (seller === 'COMBINED') {
-                const comp = calculateComparisonData();
+                const comp = await calculateComparisonData();
                 updateSalesCharts(comp);
             }
         }
@@ -8593,7 +8778,7 @@ function markSalesEntriesAsReceived(seller, quantityToMark) {
     }
 
     // --- INDIVIDUAL SALES REP PERFORMANCE CHARTS (UPDATED WITH ALL TIMES) ---
-    function setIndChartMode(mode) {
+    async function setIndChartMode(mode) {
         currentIndMode = mode;
         
         document.getElementById('ind-week-btn').className = `toggle-opt ${mode === 'week' ? 'active' : ''}`;
@@ -8601,21 +8786,21 @@ function markSalesEntriesAsReceived(seller, quantityToMark) {
         document.getElementById('ind-year-btn').className = `toggle-opt ${mode === 'year' ? 'active' : ''}`;
         document.getElementById('ind-all-btn').className = `toggle-opt ${mode === 'all' ? 'active' : ''}`;
         
-        updateIndChart();
+        await updateIndChart();
     }
     
-    function setIndChartMetric(metric) {
+    async function setIndChartMetric(metric) {
         currentIndMetric = metric;
-        updateIndChart();
+        await updateIndChart();
     }
     
-    function updateIndChart() {
+    async function updateIndChart() {
         const seller = document.getElementById('sellerSelect').value;
         if (seller === 'COMBINED') return;
         
         if(indPerformanceChart) indPerformanceChart.destroy();
         
-        const history = JSON.parse(localStorage.getItem('noman_history')) || [];
+        let history; history = await idb.get('noman_history', []);
         const sellerHistory = history.filter(h => h.seller === seller);
         const now = new Date(document.getElementById('sale-date').value);
         const selectedYear = now.getFullYear();
@@ -8990,7 +9175,7 @@ function refreshUI() {
                 ${item.paymentStatus === 'CREDIT' && !item.isReturn ? `<p><span>Payment:</span> <span class="cost-val" style="color:var(--credit-color);">Credit</span></p>` : ''}
                 ${item.formulaUnits && !item.isReturn ? `<p><span>Formula Units:</span> <span class="qty-val">${item.formulaUnits.toFixed(3)}</span></p>` : ''}
                 ${item.formulaCost && !item.isReturn ? `<p><span>Formula Cost:</span> <span class="cost-val">Rs ${item.formulaCost.toFixed(2)}</span></p>` : ''}
-                <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="deleteProdEntry(${item.id})">Delete</button>
+                <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="(async () => { await deleteProdEntry(${item.id}) })()">Delete</button>
             </div>
         `;
     });
@@ -9272,9 +9457,9 @@ function viewEntityTransactions(entityId) {
 }
 
 // --- UPDATED: REFRESH PAYMENT TAB FUNCTION ---
-function refreshPaymentTab() {
+async function refreshPaymentTab() {
     // First ensure all suppliers are properly loaded into entities
-    syncSuppliersToEntities();
+    await syncSuppliersToEntities();
     
     renderEntities();
     calculateNetCash();
@@ -9304,7 +9489,7 @@ function refreshPaymentTab() {
             <p><span>Description:</span> <span>${transaction.description}</span></p>
             <hr>
             <p><span>Amount:</span> <span class="${transaction.type === 'IN' ? 'profit-val' : 'cost-val'}">${Math.abs(transaction.amount).toFixed(2)}</span></p>
-            <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="deletePaymentTransaction(${transaction.id})">Delete</button>
+            <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="(async () => { await deletePaymentTransaction(${transaction.id}) })()">Delete</button>
         `;
         historyList.appendChild(card);
     });
@@ -9315,7 +9500,7 @@ function refreshPaymentTab() {
 }
 
 // --- NEW FUNCTION: SYNC SUPPLIERS TO ENTITIES ---
-function syncSuppliersToEntities() {
+async function syncSuppliersToEntities() {
     // Look through factory inventory for materials with suppliers
     factoryInventoryData.forEach(material => {
         if (material.supplierName && !paymentEntities.some(e => 
@@ -9336,20 +9521,20 @@ function syncSuppliersToEntities() {
         }
     });
     
-    localStorage.setItem('payment_entities', JSON.stringify(paymentEntities));
+    await idb.set('payment_entities', paymentEntities);
 }
     // --- Backup & Restore ---
-    function unifiedBackup() {
+    async function unifiedBackup() {
     if (currentUser) {
         if (confirm('📤 Backup to cloud?\n\nYes = Cloud backup\nNo = Download file')) {
-            pushDataToCloud();
+            await pushDataToCloud();
             return;
         }
     }
         const data = { 
             mfg: db, 
-            sales: JSON.parse(localStorage.getItem('noman_history')) || [],
-            customerSales: JSON.parse(localStorage.getItem('customer_sales')) || [],
+            sales: await idb.get('noman_history', []),
+            customerSales: await idb.get('customer_sales', []),
             factoryInventoryData: factoryInventoryData,
             factoryProductionHistory: factoryProductionHistory,
             factoryDefaultFormulas: factoryDefaultFormulas,
@@ -9359,7 +9544,7 @@ function syncSuppliersToEntities() {
             factoryUnitTracking: factoryUnitTracking,
             paymentEntities: paymentEntities,
             paymentTransactions: paymentTransactions,
-            settings: JSON.parse(localStorage.getItem('naswar_default_settings')) || defaultSettings
+            settings: await idb.get('naswar_default_settings', defaultSettings)
         };
         const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
     const a = document.createElement('a');
@@ -9374,65 +9559,56 @@ function syncSuppliersToEntities() {
     alert("Backup created successfully!");
 }
 
-    function unifiedRestore(event) {
+    async function unifiedRestore(event) {
         const file = event.target.files[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = (e) => {
+        reader.onload = async (e) => {
             try {
                 const data = JSON.parse(e.target.result);
                 if (data.mfg && data.sales) {
                     if (confirm("This will overwrite all current data. Continue?")) {
-                        localStorage.setItem('mfg_pro_pkr', JSON.stringify(data.mfg));
-                        localStorage.setItem('noman_history', JSON.stringify(data.sales));
-                        localStorage.setItem('customer_sales', JSON.stringify(data.customerSales || []));
+                        await idb.set('mfg_pro_pkr', data.mfg);
+                        await idb.set('noman_history', data.sales);
+                        await idb.set('customer_sales', data.customerSales || []);
                         
-                        if (data.factoryInventoryData) localStorage.setItem('factory_inventory_data', JSON.stringify(data.factoryInventoryData));
-                        if (data.factoryProductionHistory) localStorage.setItem('factory_production_history', JSON.stringify(data.factoryProductionHistory));
-                        if (data.factoryDefaultFormulas) localStorage.setItem('factory_default_formulas', JSON.stringify(data.factoryDefaultFormulas));
-                        if (data.factoryAdditionalCosts) localStorage.setItem('factory_additional_costs', JSON.stringify(data.factoryAdditionalCosts));
+                        if (data.factoryInventoryData) await idb.set('factory_inventory_data', data.factoryInventoryData);
+                        if (data.factoryProductionHistory) await idb.set('factory_production_history', data.factoryProductionHistory);
+                        if (data.factoryDefaultFormulas) await idb.set('factory_default_formulas', data.factoryDefaultFormulas);
+                        if (data.factoryAdditionalCosts) await idb.set('factory_additional_costs', data.factoryAdditionalCosts);
                         
                         if (data.factoryCostAdjustmentFactor) {
-                            localStorage.setItem('factory_cost_adjustment_factor', JSON.stringify(data.factoryCostAdjustmentFactor));
+                            await idb.set('factory_cost_adjustment_factor', data.factoryCostAdjustmentFactor);
                         } else {
-                            localStorage.setItem('factory_cost_adjustment_factor', JSON.stringify({ standard: 1, asaan: 1 }));
+                            await idb.set('factory_cost_adjustment_factor', { standard: 1, asaan: 1 });
                         }
                         
                         if (data.factorySalePrices) {
-                            localStorage.setItem('factory_sale_prices', JSON.stringify(data.factorySalePrices));
+                            await idb.set('factory_sale_prices', data.factorySalePrices);
                         } else {
-                            localStorage.setItem('factory_sale_prices', JSON.stringify({ standard: 0, asaan: 0 }));
+                            await idb.set('factory_sale_prices', { standard: 0, asaan: 0 });
                         }
 
                         if (data.settings) {
-                            localStorage.setItem('naswar_default_settings', JSON.stringify(data.settings));
+                            await idb.set('naswar_default_settings', data.settings);
                         }
                         
                         // NEW: Restore payment data
                         if (data.paymentEntities) {
-                            localStorage.setItem('payment_entities', JSON.stringify(data.paymentEntities));
+                            await idb.set('payment_entities', data.paymentEntities);
                             paymentEntities = data.paymentEntities;
                         }
                         
                         if (data.paymentTransactions) {
-                            localStorage.setItem('payment_transactions', JSON.stringify(data.paymentTransactions));
+                            await idb.set('payment_transactions', data.paymentTransactions);
                             paymentTransactions = data.paymentTransactions;
                         }
-                        
-                        db = JSON.parse(localStorage.getItem('mfg_pro_pkr')) || [];
-                        salesHistory = JSON.parse(localStorage.getItem('noman_history')) || [];
-                        customerSales = JSON.parse(localStorage.getItem('customer_sales')) || [];
-                        factoryInventoryData = JSON.parse(localStorage.getItem('factory_inventory_data')) || [];
-                        factoryProductionHistory = JSON.parse(localStorage.getItem('factory_production_history')) || [];
-                        factoryDefaultFormulas = JSON.parse(localStorage.getItem('factory_default_formulas')) || { standard: [], asaan: [] };
-                        factoryAdditionalCosts = JSON.parse(localStorage.getItem('factory_additional_costs')) || { standard: 0, asaan: 0 };
-                        factoryCostAdjustmentFactor = JSON.parse(localStorage.getItem('factory_cost_adjustment_factor'));
-                        factorySalePrices = JSON.parse(localStorage.getItem('factory_sale_prices'));
+                        await loadAllData();
 
                         syncFactoryProductionStats();
                         
                         alert("Data restored successfully!");
-                        refreshAllDisplays();
+                        await refreshAllDisplays();
                     }
                 } else { 
                     alert("Invalid backup file structure"); 
@@ -9469,7 +9645,7 @@ function initFactoryTab() {
     });
 }
     // --- UI Navigation ---
-    function showTab(tab) {
+    async function showTab(tab) {
     document.getElementById('tab-prod').className = tab === 'prod' ? '' : 'hidden';
     document.getElementById('tab-sales').className = tab === 'sales' ? '' : 'hidden';
     document.getElementById('tab-calc').className = tab === 'calc' ? '' : 'hidden';
@@ -9496,7 +9672,7 @@ function initFactoryTab() {
         refreshCustomerSales(); 
         updateCustomerCharts(); 
     }
-    if(tab === 'calc') loadSalesData(currentCompMode);
+    if(tab === 'calc') await loadSalesData(currentCompMode);
     if(tab === 'prod') refreshUI();
     if(tab === 'factory') initFactoryTab();
     if(tab === 'payments') refreshPaymentTab();
@@ -9746,7 +9922,7 @@ function getPreviousDayAvailableUnits(storeType, currentDate) {
 }
 
 // --- FACTORY TAB: DATE-BASED STATISTICS (UPDATED FOR CONSISTENCY) ---
-function updateFactoryUnitsAvailableStats() {
+async function updateFactoryUnitsAvailableStats() {
     // --- STANDARD STORE CALCULATIONS ---
     // Get data from PRODUCTION TAB (db) for consistency
     const stdProductionData = db.filter(item => {
@@ -9782,13 +9958,13 @@ function updateFactoryUnitsAvailableStats() {
     // Update DOM for Standard Store
     document.getElementById('factoryStdUnits').innerText = stdAvailableUnits.toFixed(2);
     document.getElementById('factoryStdUsedUnits').innerText = stdUsedUnits.toFixed(2);
-    document.getElementById('factoryStdUnitCost').innerText = formatCurrency(stdCostPerUnit);
-    document.getElementById('factoryStdTotalVal').innerText = formatCurrency(stdTotalCostValue);
+    document.getElementById('factoryStdUnitCost').innerText = await formatCurrency(stdCostPerUnit);
+    document.getElementById('factoryStdTotalVal').innerText = await formatCurrency(stdTotalCostValue);
     document.getElementById('factoryStdOutput').innerText = stdOutputQuantity.toFixed(3) + ' kg';
     document.getElementById('factoryStdRawUsed').innerText = stdRawMaterialsUsed.toFixed(3) + ' kg';
-    document.getElementById('factoryStdMatVal').innerText = formatCurrency(stdMaterialsValue);
-    document.getElementById('factoryStdProfit').innerText = formatCurrency(stdTotalProfit);
-    document.getElementById('factoryStdProfitUnit').innerText = formatCurrency(stdProfitPerKg) + '/kg';
+    document.getElementById('factoryStdMatVal').innerText = await formatCurrency(stdMaterialsValue);
+    document.getElementById('factoryStdProfit').innerText = await formatCurrency(stdTotalProfit);
+    document.getElementById('factoryStdProfitUnit').innerText = await formatCurrency(stdProfitPerKg) + '/kg';
 
     // --- ASAAN STORE CALCULATIONS ---
     // Get data from PRODUCTION TAB (db) for consistency
@@ -9822,17 +9998,17 @@ function updateFactoryUnitsAvailableStats() {
     // Update DOM for Asaan Store
     document.getElementById('factoryAsaanUnits').innerText = asaanAvailableUnits.toFixed(2);
     document.getElementById('factoryAsaanUsedUnits').innerText = asaanUsedUnits.toFixed(2);
-    document.getElementById('factoryAsaanUnitCost').innerText = formatCurrency(asaanCostPerUnit);
-    document.getElementById('factoryAsaanTotalVal').innerText = formatCurrency(asaanTotalCostValue);
+    document.getElementById('factoryAsaanUnitCost').innerText = await formatCurrency(asaanCostPerUnit);
+    document.getElementById('factoryAsaanTotalVal').innerText = await formatCurrency(asaanTotalCostValue);
     document.getElementById('factoryAsaanOutput').innerText = asaanOutputQuantity.toFixed(3) + ' kg';
     document.getElementById('factoryAsaanRawUsed').innerText = asaanRawMaterialsUsed.toFixed(3) + ' kg';
-    document.getElementById('factoryAsaanMatVal').innerText = formatCurrency(asaanMaterialsValue);
-    document.getElementById('factoryAsaanProfit').innerText = formatCurrency(asaanTotalProfit);
-    document.getElementById('factoryAsaanProfitUnit').innerText = formatCurrency(asaanProfitPerKg) + '/kg';
+    document.getElementById('factoryAsaanMatVal').innerText = await formatCurrency(asaanMaterialsValue);
+    document.getElementById('factoryAsaanProfit').innerText = await formatCurrency(asaanTotalProfit);
+    document.getElementById('factoryAsaanProfitUnit').innerText = await formatCurrency(asaanProfitPerKg) + '/kg';
 }
 
 // --- FACTORY SUMMARY CARD (UPDATED FOR CONSISTENCY) ---
-function updateFactorySummaryCard() {
+async function updateFactorySummaryCard() {
     const mode = currentFactorySummaryMode || 'all';
     const selectedDateVal = document.getElementById('factory-date').value || new Date().toISOString().split('T')[0];
     const selectedDate = new Date(selectedDateVal);
@@ -9901,13 +10077,13 @@ function updateFactorySummaryCard() {
     
     document.getElementById('factorySumUnits').innerText = totalAvailable.toFixed(2);
     document.getElementById('factorySumUsedUnits').innerText = totalConsumed.toFixed(2);
-    document.getElementById('factorySumUnitCost').innerText = formatCurrency(avgCostPerUnit);
-    document.getElementById('factorySumTotalCost').innerText = formatCurrency(totalCost);
+    document.getElementById('factorySumUnitCost').innerText = await formatCurrency(avgCostPerUnit);
+    document.getElementById('factorySumTotalCost').innerText = await formatCurrency(totalCost);
     document.getElementById('factorySumOutput').innerText = totalOutput.toFixed(3) + ' kg';
     document.getElementById('factorySumRawUsed').innerText = totalRawUsed.toFixed(3) + ' kg';
-    document.getElementById('factorySumMatVal').innerText = formatCurrency(totalMatValue);
-    document.getElementById('factorySumProfit').innerText = formatCurrency(totalProfit);
-    document.getElementById('factorySumProfitUnit').innerText = formatCurrency(avgProfitPerKg) + '/kg';
+    document.getElementById('factorySumMatVal').innerText = await formatCurrency(totalMatValue);
+    document.getElementById('factorySumProfit').innerText = await formatCurrency(totalProfit);
+    document.getElementById('factorySumProfitUnit').innerText = await formatCurrency(avgProfitPerKg) + '/kg';
 }
 
 // Helper function to get initial available units for a date range
@@ -10595,8 +10771,8 @@ function updateAllStoresOverview(mode = 'day') {
         let creditSection = '';
         if (paymentType === 'CREDIT' && !creditReceived) {
             creditSection = `
-            <div class="credit-checkbox-container" onclick="toggleCustomerCreditReceived(${item.id}, event)">
-                <input type="checkbox" class="credit-checkbox" onclick="toggleCustomerCreditReceived(${item.id}, event);">
+            <div class="credit-checkbox-container" onclick="(async () => { await toggleCustomerCreditReceived(${item.id}, event) })()">
+                <input type="checkbox" class="credit-checkbox" onclick="(async () => { await toggleCustomerCreditReceived(${item.id}, event); })()">
                 <label class="credit-checkbox-label">Mark as Received</label>
             </div>
             `;
@@ -10617,7 +10793,7 @@ function updateAllStoresOverview(mode = 'day') {
             <p><span>Total Value:</span> <span class="rev-val">Rs ${safeValue(item.totalValue).toFixed(2)}</span></p>
             <p><span>Net Profit:</span> <span class="profit-val">Rs ${safeValue(item.profit).toFixed(2)}</span></p>
             ${creditSection}
-            <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="deleteCustomerSale(${item.id})">Delete</button>
+            <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="(async () => { await deleteCustomerSale(${item.id}) })()">Delete</button>
         `;
         histContainer.appendChild(card);
     });
@@ -10627,7 +10803,7 @@ function updateAllStoresOverview(mode = 'day') {
 }
 
 
-    function toggleCustomerCreditReceived(id, event) {
+    async function toggleCustomerCreditReceived(id, event) {
         if (event) {
             event.preventDefault();
             event.stopPropagation();
@@ -10637,11 +10813,11 @@ function updateAllStoresOverview(mode = 'day') {
         
         if (saleIndex !== -1) {
             customerSales[saleIndex].creditReceived = !customerSales[saleIndex].creditReceived;
-            localStorage.setItem('customer_sales', JSON.stringify(customerSales));
+            await idb.set('customer_sales', customerSales);
             
             if (customerSales[saleIndex].creditReceived) {
                 customerSales[saleIndex].paymentType = 'CASH';
-                localStorage.setItem('customer_sales', JSON.stringify(customerSales));
+                await idb.set('customer_sales', customerSales);
             }
             
             refreshCustomerSales();
@@ -10649,17 +10825,17 @@ function updateAllStoresOverview(mode = 'day') {
         }
     }
 
-    function deleteCustomerSale(id) {
+    async function deleteCustomerSale(id) {
         if(confirm("Delete this sale transaction permanently?")) {
             customerSales = customerSales.filter(item => item.id !== id);
-            localStorage.setItem('customer_sales', JSON.stringify(customerSales));
+            await idb.set('customer_sales', customerSales);
             refreshCustomerSales();
             alert("Transaction deleted!");
         }
     }
 
     // --- CALCULATOR TAB FUNCTIONS (UPDATED WITH ALL TIMES) ---
-    function calculateComparisonData() {
+    async function calculateComparisonData() {
         const compMode = currentCompMode;
         const selectedDate = document.getElementById('sale-date').value;
         const selectedDateObj = new Date(selectedDate);
@@ -10667,7 +10843,7 @@ function updateAllStoresOverview(mode = 'day') {
         const selectedMonth = selectedDateObj.getMonth();
         const selectedDay = selectedDateObj.getDate();
         
-        const history = JSON.parse(localStorage.getItem('noman_history')) || [];
+        let history; history = await idb.get('noman_history', []);
         
         const comp = { 
             "NORAN SHAH": {prof:0, rev:0, sold:0, ret:0, cred:0, cash:0, coll:0, giv:0, cost:0}, 
@@ -10750,7 +10926,7 @@ function updateAllStoresOverview(mode = 'day') {
     if (isHistory) {
         html += `
         <div style="padding: 8px; border-radius: 6px; text-align: center; margin-top: 8px; font-size: 10px;" class="${data.statusClass}">${data.statusText}</div>
-        <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="deleteSalesEntry(${id})">Delete</button>`;
+        <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="(async () => { await deleteSalesEntry(${id}) })()">Delete</button>`;
     }
     html += `</div>`;
     return html;
@@ -10858,7 +11034,7 @@ function styleAutoFilledField(field) {
 
 
 // 3. Enhanced loadSalesData to include auto-fill
-function loadSalesData(compMode = 'all') {
+async function loadSalesData(compMode = 'all') {
     currentCompMode = compMode;
     
     ['week', 'month', 'year', 'all'].forEach(m => {
@@ -10883,7 +11059,7 @@ function loadSalesData(compMode = 'all') {
     document.getElementById('combinedSection').className = isCombined ? "" : "hidden";
     document.getElementById('individualChartSection').className = isCombined ? "hidden" : "";
 
-    let history = JSON.parse(localStorage.getItem('noman_history')) || [];
+    let history; history = await idb.get('noman_history', []);
     let displayList = isCombined ? history : history.filter(h => h.seller === seller);
     
     displayList.sort((a,b) => {
@@ -10954,7 +11130,7 @@ function loadSalesData(compMode = 'all') {
     document.getElementById('ltBalance').innerText = "Rs " + safeValue(ltCr - ltCl).toFixed(2);
 
     if(isCombined) {
-        const comp = calculateComparisonData();
+        const comp = await calculateComparisonData();
         updateSalesCharts(comp);
         const noranWin = comp["NORAN SHAH"].prof > comp["NOMAN SHAH"].prof;
         document.getElementById('thNoran').innerHTML = "NORAN " + (noranWin ? "🏆" : "");
@@ -10965,11 +11141,14 @@ function loadSalesData(compMode = 'all') {
             <tr><td>Total Cost</td><td style="color:var(--danger)">Rs ${safeValue(comp["NORAN SHAH"].cost).toFixed(2)}</td><td style="color:var(--danger)">Rs ${safeValue(comp["NOMAN SHAH"].cost).toFixed(2)}</td></tr>
             <tr><td>Gross Revenue (Value)</td><td class="rev-val">Rs ${safeValue(comp["NORAN SHAH"].rev).toFixed(2)}</td><td class="rev-val">Rs ${safeValue(comp["NOMAN SHAH"].rev).toFixed(2)}</td></tr>
             <tr class="winner-cell"><td>Net Profit (Value)</td><td>Rs ${safeValue(comp["NORAN SHAH"].prof).toFixed(2)}</td><td>Rs ${safeValue(comp["NOMAN SHAH"].prof).toFixed(2)}</td></tr>
+        `;
+
+        document.getElementById('comparisonBody').innerHTML += `
             <tr><td>Credit Issued</td><td>Rs ${safeValue(comp["NORAN SHAH"].giv).toFixed(2)}</td><td>Rs ${safeValue(comp["NOMAN SHAH"].giv).toFixed(2)}</td></tr>
             <tr><td>Credit Recovered</td><td style="color:var(--accent)">Rs ${safeValue(comp["NORAN SHAH"].coll).toFixed(2)}</td><td style="color:var(--accent)">Rs ${safeValue(comp["NOMAN SHAH"].coll).toFixed(2)}</td></tr>
         `;
     } else {
-        updateIndChart();
+        await updateIndChart();
     }
 }
 
@@ -11079,7 +11258,7 @@ function loadSalesData(compMode = 'all') {
     }
 
     // 4. NEW: Process Return to Production
-function processReturnToProduction(storeKey, quantity, date, seller) {
+async function processReturnToProduction(storeKey, quantity, date, seller) {
     const now = new Date();
     let hours = now.getHours();
     const minutes = now.getMinutes();
@@ -11123,7 +11302,7 @@ function processReturnToProduction(storeKey, quantity, date, seller) {
 
     // Add to production database
     db.push(returnEntry);
-    localStorage.setItem('mfg_pro_pkr', JSON.stringify(db));
+    await idb.set('mfg_pro_pkr', db);
     
     // Record in returns log
     const returnLogEntry = {
@@ -11137,14 +11316,14 @@ function processReturnToProduction(storeKey, quantity, date, seller) {
     };
     
     stockReturns.push(returnLogEntry);
-    localStorage.setItem('stock_returns', JSON.stringify(stockReturns));
+    await idb.set('stock_returns', stockReturns);
     
     console.log(`✅ Return processed: ${quantity} kg added to ${storeKey} inventory`);
 }
 
 // 5. UPDATED: Delete Sales Entry (Reverse Returns)
-function deleteSalesEntry(id) {
-    let history = JSON.parse(localStorage.getItem('noman_history')) || [];
+async function deleteSalesEntry(id) {
+    let history; history = await idb.get('noman_history', []);
     const entryToDelete = history.find(h => h.id === id);
 
     if (entryToDelete) {
@@ -11161,20 +11340,20 @@ function deleteSalesEntry(id) {
             
             // Revert linked sales
             if (entryToDelete.linkedSalesIds && entryToDelete.linkedSalesIds.length > 0) {
-                revertSpecificSalesEntries(entryToDelete.linkedSalesIds);
+                await revertSpecificSalesEntries(entryToDelete.linkedSalesIds);
             }
 
             // === NEW: REVERSE THE RETURN ===
             if (entryToDelete.returned > 0 && entryToDelete.returnStore) {
-                reverseReturnFromProduction(entryToDelete.returnStore, entryToDelete.returned, entryToDelete.date);
+                await reverseReturnFromProduction(entryToDelete.returnStore, entryToDelete.returned, entryToDelete.date);
             }
 
             // Delete the calculator entry
             const newHistory = history.filter(h => h.id !== id);
-            localStorage.setItem('noman_history', JSON.stringify(newHistory));
+            await idb.set('noman_history', newHistory);
 
             // Refresh all displays
-            loadSalesData(currentCompMode);
+            await loadSalesData(currentCompMode);
             refreshCustomerSales();
             refreshUI(); // Refresh production tab
             updateCustomerCharts();
@@ -11189,7 +11368,7 @@ function deleteSalesEntry(id) {
 }
 
 // 6. NEW: Reverse Return from Production
-function reverseReturnFromProduction(storeKey, quantity, date) {
+async function reverseReturnFromProduction(storeKey, quantity, date) {
     // Find and remove the return entry from production database
     const returnEntryIndex = db.findIndex(item => 
         item.store === storeKey && 
@@ -11200,7 +11379,7 @@ function reverseReturnFromProduction(storeKey, quantity, date) {
     
     if (returnEntryIndex !== -1) {
         db.splice(returnEntryIndex, 1);
-        localStorage.setItem('mfg_pro_pkr', JSON.stringify(db));
+        await idb.set('mfg_pro_pkr', db);
         console.log(`✅ Return reversed: ${quantity} kg removed from ${storeKey} inventory`);
     }
     
@@ -11213,12 +11392,12 @@ function reverseReturnFromProduction(storeKey, quantity, date) {
     
     if (returnLogIndex !== -1) {
         stockReturns.splice(returnLogIndex, 1);
-        localStorage.setItem('stock_returns', JSON.stringify(stockReturns));
+        await idb.set('stock_returns', stockReturns);
     }
 }
 
     // --- UTILITY FUNCTIONS ---
-    function formatCurrency(num) {
+    async function formatCurrency(num) {
         if (typeof num !== 'number') num = parseFloat(num) || 0;
         return 'PKR ' + num.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0});
     }
@@ -11228,10 +11407,10 @@ function reverseReturnFromProduction(storeKey, quantity, date) {
     }
 
     // --- REFRESH ALL DISPLAYS ---
-    function refreshAllDisplays() {
+    async function refreshAllDisplays() {
         refreshUI();
         refreshCustomerSales();
-        loadSalesData(currentCompMode);
+        await loadSalesData(currentCompMode);
         initFactoryTab();
         if (document.getElementById('tab-payments').className !== 'hidden') {
             refreshPaymentTab();
@@ -11242,18 +11421,29 @@ function reverseReturnFromProduction(storeKey, quantity, date) {
 // ==========================================
 
 document.addEventListener('DOMContentLoaded', async function() {
-    console.log("🚀 System Initializing...");
+    // 1. Strict Initialization: Ensure no UI rendering until loadAllData is complete
+    console.log("🚀 System Initializing (Strict IDB-Only Mode)...");
+    
+    try {
+        // Initialize IndexedDB and load all data first
+        await loadAllData();
+        console.log("✅ Data loaded successfully from IndexedDB.");
+    } catch (e) {
+        console.error("❌ Critical Initialization Error:", e);
+        alert("Failed to initialize database. Please refresh the page.");
+        return;
+    }
 
     // ----------------------------------------------------
-    // 1. CORE SETUP & SECURITY (Must run first)
+    // 2. CORE SETUP & SECURITY (Must run first)
     // ----------------------------------------------------
     
     // Apply Theme Preference
-    initTheme(); 
+    await initTheme(); 
 
     // Enforce Security Modes (Admin vs Rep)
     // We check this immediately to lock UI if necessary
-    enforceRepModeLock(); 
+    await enforceRepModeLock(); 
     preventAdminAccess();
 
     // Check Biometric Lock (Async)
@@ -11272,7 +11462,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     }, 100);
 
     // ----------------------------------------------------
-    // 2. UI INITIALIZATION (Inputs & Toggles)
+    // 3. UI INITIALIZATION (Inputs & Toggles)
     // ----------------------------------------------------
 
     // Set Default Dates for ALL Date Inputs to Today
@@ -11295,7 +11485,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     currentFactoryDate = today;
 
     // Initialize Biometric Button State in Menu
-    if (localStorage.getItem('bio_enabled') === 'true') {
+    if (await idb.get('bio_enabled') === 'true') {
         const bioBtn = document.getElementById('bio-toggle-btn');
         if (bioBtn) {
             bioBtn.innerText = "Disable Biometric Lock";
@@ -11358,8 +11548,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     updateAllTabsWithFactoryCosts();
 
     // Force a full UI Refresh
-    // This calls: refreshUI(), refreshCustomerSales(), loadSalesData(), refreshPaymentTab()
-    refreshAllDisplays();
+    // This calls: refreshUI(), refreshCustomerSales(), await loadSalesData(), refreshPaymentTab()
+    await refreshAllDisplays();
 
     // Rep Mode Specific Refresh (if active)
     if (appMode === 'rep') {
@@ -11380,10 +11570,10 @@ document.addEventListener('DOMContentLoaded', async function() {
 });
 
     // Ensure your deleteCustomerSale looks like this to keep dashboard sync:
-function deleteCustomerSale(id) {
+async function deleteCustomerSale(id) {
     if(confirm("Delete this sale transaction permanently?")) {
         customerSales = customerSales.filter(item => item.id !== id);
-        localStorage.setItem('customer_sales', JSON.stringify(customerSales));
+        await idb.set('customer_sales', customerSales);
         
         refreshCustomerSales(); // Refreshes the list
         calculateNetCash();     // Syncs the Economic Dashboard
@@ -11421,8 +11611,8 @@ function setOverviewMode(mode) {
 
     
 // --- FIXED: DELETE CALCULATOR ENTRY (Reverts Sales & Reverses Returns) ---
-function deleteSalesEntry(id) {
-    let history = JSON.parse(localStorage.getItem('noman_history')) || [];
+async function deleteSalesEntry(id) {
+    let history; history = await idb.get('noman_history', []);
     const entryToDelete = history.find(h => h.id === id);
 
     if (entryToDelete) {
@@ -11442,21 +11632,21 @@ function deleteSalesEntry(id) {
             
             // 1. REVERT LINKED SALES (Mark them as Pending Credit again)
             if (entryToDelete.linkedSalesIds && entryToDelete.linkedSalesIds.length > 0) {
-                revertSpecificSalesEntries(entryToDelete.linkedSalesIds);
+                await revertSpecificSalesEntries(entryToDelete.linkedSalesIds);
             }
 
             // 2. REVERSE THE RETURN (Remove from Production Tab)
             if (entryToDelete.returned > 0 && entryToDelete.returnStore) {
-                reverseReturnFromProduction(entryToDelete.returnStore, entryToDelete.returned, entryToDelete.date);
+                await reverseReturnFromProduction(entryToDelete.returnStore, entryToDelete.returned, entryToDelete.date);
             }
 
             // 3. DELETE THE CALCULATOR ENTRY
             const newHistory = history.filter(h => h.id !== id);
-            localStorage.setItem('noman_history', JSON.stringify(newHistory));
+            await idb.set('noman_history', newHistory);
 
             // 4. REFRESH ALL DATA
             refreshAllCalculations(); // Updates Net Cash, Cash Tracker, etc.
-            loadSalesData(currentCompMode); // Refreshes Calculator Tab
+            await loadSalesData(currentCompMode); // Refreshes Calculator Tab
             refreshCustomerSales(); // Refreshes Sales Tab
             refreshUI(); // Refreshes Production Tab (Removes the return card)
             updateAllStoresOverview(currentOverviewMode); // Updates Summary Cards
@@ -11469,7 +11659,7 @@ function deleteSalesEntry(id) {
 }
 
 // Helper 1: Revert specific sales entries by ID
-function revertSpecificSalesEntries(saleIds) {
+async function revertSpecificSalesEntries(saleIds) {
     if (!saleIds || saleIds.length === 0) return 0;
     
     let revertedCount = 0;
@@ -11493,7 +11683,10 @@ function revertSpecificSalesEntries(saleIds) {
     });
     
     if (revertedCount > 0) {
-        localStorage.setItem('customer_sales', JSON.stringify(customerSales));
+        await idb.set('customer_sales', customerSales);
+        notifyDataChange('all');
+
+    
         console.log(`↺ Reverted ${revertedCount} linked sales to pending credit.`);
     }
     
@@ -11501,7 +11694,7 @@ function revertSpecificSalesEntries(saleIds) {
 }
 
 // Helper 2: Reverse Return from Production Database
-function reverseReturnFromProduction(storeKey, quantity, date) {
+async function reverseReturnFromProduction(storeKey, quantity, date) {
     // 1. Remove from Production DB (The visual card)
     // We look for an entry that matches Store, Quantity, Date AND has isReturn flag
     const returnEntryIndex = db.findIndex(item => 
@@ -11513,7 +11706,7 @@ function reverseReturnFromProduction(storeKey, quantity, date) {
     
     if (returnEntryIndex !== -1) {
         db.splice(returnEntryIndex, 1);
-        localStorage.setItem('mfg_pro_pkr', JSON.stringify(db));
+        await idb.set('mfg_pro_pkr', db);
         console.log(`✅ Return reversed: Removed ${quantity} kg from ${storeKey} production DB`);
     } else {
         console.warn("Could not find matching return entry in Production DB to delete.");
@@ -11528,7 +11721,7 @@ function reverseReturnFromProduction(storeKey, quantity, date) {
     
     if (returnLogIndex !== -1) {
         stockReturns.splice(returnLogIndex, 1);
-        localStorage.setItem('stock_returns', JSON.stringify(stockReturns));
+        await idb.set('stock_returns', stockReturns);
         console.log(`✅ Return reversed: Removed from stock returns log`);
     }
 }
@@ -11691,9 +11884,9 @@ function filterEntityCards() {
 }
 
 // Replace the refreshEntityList() function call in refreshPaymentTab() with renderEntityCards()
-function refreshPaymentTab() {
+async function refreshPaymentTab() {
     // First ensure all suppliers are properly loaded into entities
-    syncSuppliersToEntities();
+    await syncSuppliersToEntities();
     
     renderEntities();
     calculateNetCash();
@@ -11728,7 +11921,7 @@ function refreshPaymentTab() {
             <p><span>Description:</span> <span>${transaction.description || 'No description'}</span></p>
             <hr>
             <p><span>Amount:</span> <span class="${transaction.type === 'IN' ? 'profit-val' : 'cost-val'}">Rs ${safeValue(transaction.amount).toFixed(2)}</span></p>
-            <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="deletePaymentTransaction(${transaction.id})">Delete</button>
+            <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="(async () => { await deletePaymentTransaction(${transaction.id}) })()">Delete</button>
         `;
         historyList.appendChild(card);
     });
@@ -11807,18 +12000,20 @@ function getMetricLabel(metric) {
     }
 }
 // UPDATED: deleteFactoryInventoryItem with supplier cleanup
-function deleteFactoryInventoryItem() {
+async function deleteFactoryInventoryItem() {
     if (editingFactoryInventoryId && confirm("Delete this inventory item permanently?\n\nThis will also unlink any supplier associations and reverse related transactions.")) {
         const material = factoryInventoryData.find(i => i.id === editingFactoryInventoryId);
         
         if (material && material.supplierId) {
             // Unlink supplier first (this reverses transactions)
-            unlinkSupplierFromMaterial(material);
+            await unlinkSupplierFromMaterial(material);
         }
         
         // Delete the material
         factoryInventoryData = factoryInventoryData.filter(item => item.id !== editingFactoryInventoryId);
-        localStorage.setItem('factory_inventory_data', JSON.stringify(factoryInventoryData));
+        await idb.set('factory_inventory_data', factoryInventoryData);
+        notifyDataChange('all');
+
         
         closeFactoryInventoryModal();
         renderFactoryInventory();
@@ -11833,7 +12028,7 @@ function safeValue(value) {
     return isNaN(value) || !value ? 0 : value;
 }
 
-function formatCurrency(value) {
+async function formatCurrency(value) {
     return new Intl.NumberFormat('en-PK', {
         style: 'currency',
         currency: 'PKR',
@@ -11841,25 +12036,28 @@ function formatCurrency(value) {
     }).format(value || 0).replace('PKR', 'PKR ');
 }
 // Add validation and error handling for payment data
-try {
-    paymentEntities = JSON.parse(localStorage.getItem('payment_entities')) || [];
-    paymentTransactions = JSON.parse(localStorage.getItem('payment_transactions')) || [];
-    
-    // Validate data structure
-    if (!Array.isArray(paymentEntities)) paymentEntities = [];
-    if (!Array.isArray(paymentTransactions)) paymentTransactions = [];
-    
-    // Clean invalid transactions
-    paymentTransactions = paymentTransactions.filter(t => 
-        t && t.id && t.entityId && (t.type === 'IN' || t.type === 'OUT') && typeof t.amount === 'number'
-    );
-    
-    console.log(`Loaded ${paymentEntities.length} entities and ${paymentTransactions.length} transactions`);
-} catch (e) {
-    console.error("Error loading payment data:", e);
-    paymentEntities = [];
-    paymentTransactions = [];
+async function initPaymentData() {
+    try {
+        paymentEntities = await idb.get('payment_entities', []);
+        paymentTransactions = await idb.get('payment_transactions', []);
+        
+        // Validate data structure
+        if (!Array.isArray(paymentEntities)) paymentEntities = [];
+        if (!Array.isArray(paymentTransactions)) paymentTransactions = [];
+        
+        // Clean invalid transactions
+        paymentTransactions = paymentTransactions.filter(t => 
+            t && t.id && t.entityId && (t.type === 'IN' || t.type === 'OUT') && typeof t.amount === 'number'
+        );
+        
+        console.log(`Loaded ${paymentEntities.length} entities and ${paymentTransactions.length} transactions`);
+    } catch (e) {
+        console.error("Error loading payment data:", e);
+        paymentEntities = [];
+        paymentTransactions = [];
+    }
 }
+initPaymentData();
 // Missing update functions
 
 
@@ -11938,7 +12136,7 @@ function selectCustomer(name) {
 
 
 // 3. Calculate and display specific customer stats (Credit & Qty)
-function calculateCustomerStatsForDisplay(name) {
+async function calculateCustomerStatsForDisplay(name) {
     if (!name) return;
 
     // Filter sales for this customer
@@ -11962,14 +12160,14 @@ function calculateCustomerStatsForDisplay(name) {
     });
 
     // Update UI Elements
-    document.getElementById('customer-current-credit').innerText = formatCurrency(totalCredit);
+    document.getElementById('customer-current-credit').innerText = await formatCurrency(totalCredit);
     document.getElementById('customer-total-quantity').innerText = totalQty.toFixed(2) + ' kg';
     
     // Show the info card
     document.getElementById('customer-info-display').classList.remove('hidden');
 }
 // 4. Render the Main Customers Table (The "Customers Card")
-function renderCustomersTable() {
+async function renderCustomersTable() {
     const tbody = document.getElementById('customers-table-body');
     const filterValue = document.getElementById('customer-filter').value.toLowerCase();
     
@@ -12038,14 +12236,14 @@ function renderCustomersTable() {
         });
     }
 
-    document.getElementById('customers-total-credit').innerText = formatCurrency(totalOutstanding);
+    document.getElementById('customers-total-credit').innerText = await formatCurrency(totalOutstanding);
     document.getElementById('customers-total-quantity').innerText = totalGlobalQty.toFixed(2) + ' kg';
 }
 // --- NEW CUSTOMER MANAGEMENT LOGIC ---
 
 let currentManagingCustomer = null;
 
-function openCustomerManagement(customerName) {
+async function openCustomerManagement(customerName) {
     currentManagingCustomer = customerName;
     document.getElementById('manageCustomerTitle').innerText = customerName;
     document.getElementById('bulkPaymentAmount').value = '';
@@ -12074,7 +12272,7 @@ function closeCustomerManagement() {
     }
 }
 
-function renderCustomerTransactions(name) {
+async function renderCustomerTransactions(name) {
     const list = document.getElementById('customerManagementHistoryList');
     list.innerHTML = '';
 
@@ -12086,7 +12284,7 @@ function renderCustomerTransactions(name) {
     transactions.forEach(t => {
         if(t.paymentType === 'CREDIT' && !t.creditReceived) currentDebt += t.totalValue;
     });
-    document.getElementById('manageCustomerStats').innerText = `Current Debt: ${formatCurrency(currentDebt)}`;
+    document.getElementById('manageCustomerStats').innerText = `Current Debt: ${await formatCurrency(currentDebt)}`;
 
     // Sort: Pending Credits First, then Newest Date
     transactions.sort((a,b) => {
@@ -12104,18 +12302,15 @@ function renderCustomerTransactions(name) {
         return;
     }
 
-    transactions.forEach(t => {
+    for (const t of transactions) {
         const isCredit = t.paymentType === 'CREDIT';
-        const isReceived = t.creditReceived === true;
-        const statusText = !isCredit ? 'CASH' : (isReceived ? 'CREDIT RECEIVED' : 'PENDING CREDIT');
-        const statusClass = !isCredit ? 'units-available-good' : (isReceived ? 'status-received' : 'status-pending');
-        const btnText = isReceived ? 'Mark Pending' : 'Mark Received';
-        
         const item = document.createElement('div');
         item.className = 'cust-history-item';
         
-        // Render logic for Toggle Button (only for credit transactions)
+        let statusClass = t.creditReceived ? 'paid' : 'pending';
+        let btnText = t.creditReceived ? 'PAID' : 'PENDING';
         let toggleBtnHtml = '';
+        
         if(isCredit) {
             toggleBtnHtml = `<button class="status-toggle-btn ${statusClass}" onclick="toggleSingleTransactionStatus(${t.id})">${btnText}</button>`;
         } else {
@@ -12126,7 +12321,7 @@ function renderCustomerTransactions(name) {
             <div class="cust-history-info">
                 <div style="font-weight:700; font-size:0.85rem; color:var(--text-main);">${t.date}</div>
                 <div style="font-size:0.75rem; color:var(--text-muted);">
-                    ${t.quantity.toFixed(2)} kg @ ${formatCurrency(t.totalValue)}
+                    ${t.quantity.toFixed(2)} kg @ ${await formatCurrency(t.totalValue)}
                 </div>
                 <div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">
                     ${getStoreLabel(t.supplyStore)}
@@ -12138,10 +12333,10 @@ function renderCustomerTransactions(name) {
             </div>
         `;
         list.appendChild(item);
-    });
+    }
 }
 
-function toggleSingleTransactionStatus(id) {
+async function toggleSingleTransactionStatus(id) {
     const index = customerSales.findIndex(s => s.id === id);
     if(index !== -1) {
         const sale = customerSales[index];
@@ -12150,22 +12345,26 @@ function toggleSingleTransactionStatus(id) {
         // If changing to received, logically update paymentType for cash flow calcs if needed
         // but keeping it as CREDIT type preserves history that it WAS a credit sale
         
-        localStorage.setItem('customer_sales', JSON.stringify(customerSales));
+        await idb.set('customer_sales', customerSales);
+        notifyDataChange('all');
+
         renderCustomerTransactions(currentManagingCustomer);
         refreshAllCalculations(); // Update net cash immediately
     }
 }
 
-function deleteTransactionFromOverlay(id) {
+async function deleteTransactionFromOverlay(id) {
     if(confirm("Permanently delete this record?")) {
         customerSales = customerSales.filter(s => s.id !== id);
-        localStorage.setItem('customer_sales', JSON.stringify(customerSales));
+        await idb.set('customer_sales', customerSales);
         renderCustomerTransactions(currentManagingCustomer);
         refreshAllCalculations();
+        notifyDataChange('all');
+
     }
 }
 
-function processBulkPayment() {
+async function processBulkPayment() {
     const amount = parseFloat(document.getElementById('bulkPaymentAmount').value);
     if(!amount || amount <= 0) {
         alert("Please enter a valid amount");
@@ -12197,11 +12396,12 @@ function processBulkPayment() {
     });
 
     if(updatedCount > 0) {
-        localStorage.setItem('customer_sales', JSON.stringify(customerSales));
-        
+        await idb.set('customer_sales', customerSales);
+        notifyDataChange('all');
+
         let msg = `Successfully cleared ${updatedCount} transaction(s).`;
         if(remaining > 0 && remaining < amount) {
-            msg += `\nRemaining unallocated cash: ${formatCurrency(remaining)}`;
+            msg += `\nRemaining unallocated cash: ${await formatCurrency(remaining)}`;
         } else if (remaining === amount) {
             msg = "Amount was not enough to clear the oldest transaction fully. No changes made.";
         }
@@ -12211,7 +12411,7 @@ function processBulkPayment() {
         renderCustomerTransactions(currentManagingCustomer);
         refreshAllCalculations();
     } else {
-        alert(`Amount (${formatCurrency(amount)}) is smaller than the oldest transaction (${formatCurrency(pending[0].totalValue)}). \n\nPlease enter an amount sufficient to clear at least one full transaction.`);
+        alert(`Amount (${await formatCurrency(amount)}) is smaller than the oldest transaction (${await formatCurrency(pending[0].totalValue)}). \n\nPlease enter an amount sufficient to clear at least one full transaction.`);
     }
 }
 
@@ -12249,9 +12449,9 @@ function refreshAllCalculations() {
 
 // Call this when any sales or production data changes
 // You can add this to your existing save functions:
-// - recordEntry()
-// - saveCustomerSale()
-// - saveTransaction()
+// - await recordEntry()
+// - await saveCustomerSale()
+// - await saveTransaction()
 // ================================================
 // LIQUID GLASSMORPHISM TOAST NOTIFICATION SYSTEM
 // ================================================
@@ -12565,7 +12765,7 @@ function filterCustomers() {
     }
 }
 
-function openDataMenu() {
+async function openDataMenu() {
     // Check if user is in rep mode
     if(appMode === 'rep') {
         showToast("Data menu is not available in Rep Mode", "warning");
@@ -12574,7 +12774,7 @@ function openDataMenu() {
     
     document.getElementById('dataMenuOverlay').style.display = 'flex';
     
-    const lastSync = localStorage.getItem('last_synced');
+    const lastSync = await idb.get('last_synced');
     const display = document.getElementById('lastSyncDisplay');
     if (display) {
         display.textContent = lastSync ? 
@@ -12587,26 +12787,26 @@ function closeDataMenu() {
     document.getElementById('dataMenuOverlay').style.display = 'none';
 }
 
-function triggerCloudBackup() {
+async function triggerCloudBackup() {
     closeDataMenu();
-    pushDataToCloud(); // Calls existing cloud backup logic
+    await pushDataToCloud(); // Calls existing cloud backup logic
 }
 
-function triggerCloudRestore() {
+async function triggerCloudRestore() {
     closeDataMenu();
     if(confirm("⚠️ Overwrite current data with Cloud data?")) {
-        pullDataFromCloud(); // Calls existing cloud restore logic
+        await pullDataFromCloud(); // Calls existing cloud restore logic
     }
 }
 
-function triggerLocalBackup() {
+async function triggerLocalBackup() {
     closeDataMenu();
     
     // Extracted logic from original unifiedBackup to force local download
     const data = { 
         mfg: db, 
-        sales: JSON.parse(localStorage.getItem('noman_history')) || [],
-        customerSales: JSON.parse(localStorage.getItem('customer_sales')) || [],
+        sales: await idb.get('noman_history', []),
+        customerSales: await idb.get('customer_sales', []),
         factoryInventoryData: factoryInventoryData,
         factoryProductionHistory: factoryProductionHistory,
         factoryDefaultFormulas: factoryDefaultFormulas,
@@ -12617,7 +12817,7 @@ function triggerLocalBackup() {
         paymentEntities: paymentEntities,
         paymentTransactions: paymentTransactions,
         stockReturns: stockReturns, 
-        settings: JSON.parse(localStorage.getItem('naswar_default_settings')) || defaultSettings
+        settings: await idb.get('naswar_default_settings', defaultSettings)
     };
     
     const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
@@ -12634,8 +12834,8 @@ function triggerLocalBackup() {
 }
 
 // Ensure compatibility if unifiedBackup is called elsewhere
-function unifiedBackup() {
-    openDataMenu(); 
+async function unifiedBackup() {
+    await openDataMenu(); 
 }
 
 // --- BIOMETRIC AUTHENTICATION MODULE ---
@@ -12655,7 +12855,7 @@ const BiometricAuth = {
         return Uint8Array.from(str, c => c.charCodeAt(0));
     },
 
-    // Convert ArrayBuffer to Base64 (to save in localStorage)
+    // Convert ArrayBuffer to Base64 (to save in IndexedDB)
     _bufToBase64: (buffer) => {
         const bytes = new Uint8Array(buffer);
         let binary = '';
@@ -12710,9 +12910,10 @@ const BiometricAuth = {
             
             // Save the Credential ID to recognize this user later
             const credId = BiometricAuth._bufToBase64(credential.rawId);
-            localStorage.setItem('bio_cred_id', credId);
-            localStorage.setItem('bio_enabled', 'true');
-            
+            await idb.set('bio_cred_id', credId);
+            await idb.set('bio_enabled', 'true');
+            notifyDataChange('all');
+
             return true;
         } catch (err) {
             console.error("Biometric Registration Failed:", err);
@@ -12723,7 +12924,7 @@ const BiometricAuth = {
     // AUTHENTICATE: Unlock using biometrics
     authenticate: async () => {
         try {
-            const savedCredId = localStorage.getItem('bio_cred_id');
+            const savedCredId = await idb.get('bio_cred_id');
             if (!savedCredId) throw new Error("No biometric set up found.");
 
             const challenge = new Uint8Array(32);
@@ -12764,10 +12965,10 @@ async function enableBiometricLock() {
     }
 }
 
-function disableBiometricLock() {
+async function disableBiometricLock() {
     if(confirm("Remove biometric lock?")) {
-        localStorage.removeItem('bio_enabled');
-        localStorage.removeItem('bio_cred_id');
+        await idb.remove('bio_enabled');
+        await idb.remove('bio_cred_id');
         showToast("Biometric Lock Removed", "info");
         document.getElementById('bio-toggle-btn').innerText = "Enable Biometric Lock 👆";
         document.getElementById('bio-toggle-btn').onclick = enableBiometricLock;
@@ -12776,7 +12977,7 @@ function disableBiometricLock() {
 
 // Function to run on app start
 async function checkBiometricLock() {
-    const isEnabled = localStorage.getItem('bio_enabled') === 'true';
+    const isEnabled = await idb.get('bio_enabled') === 'true';
     
     if (isEnabled) {
         // Create a lock screen overlay
@@ -12821,7 +13022,7 @@ async function checkBiometricLock() {
 let repTransactionMode = 'sale'; // 'sale' or 'collection'
 
 // --- 1. UI TOGGLES ---
-function setRepMode(mode) {
+async function setRepMode(mode) {
     repTransactionMode = mode;
     
     // Update Buttons
@@ -12841,7 +13042,7 @@ function setRepMode(mode) {
         // Reset preview
         const currentDebtText = document.getElementById('rep-customer-current-credit').innerText.replace('Rs ','').replace(/,/g,'');
         const currentDebt = parseFloat(currentDebtText) || 0;
-        document.getElementById('rep-total-value').innerText = "Rs " + formatCurrency(currentDebt).replace('PKR ','');
+        document.getElementById('rep-total-value').innerText = "Rs " + await formatCurrency(currentDebt).replace('PKR ','');
     }
 }
 
@@ -12938,7 +13139,7 @@ document.getElementById('rep-amount-collected').addEventListener('input', functi
 });
 
 // --- 4. SAVE TRANSACTION (HANDLES BOTH MODES) ---
-function saveRepTransaction() {
+async function saveRepTransaction() {
     const date = document.getElementById('rep-date').value;
     const name = document.getElementById('rep-cust-name').value.trim();
     if(!date || !name) { showToast("Date and Name required", "warning"); return; }
@@ -13005,7 +13206,8 @@ function saveRepTransaction() {
     }
 
     customerSales.push(transactionRecord);
-    localStorage.setItem('customer_sales', JSON.stringify(customerSales));
+    await idb.set('customer_sales', customerSales);
+notifyDataChange('all');
 
     // Reset UI
     document.getElementById('rep-quantity').value = '';
@@ -13070,7 +13272,7 @@ function renderRepCustomerTable() {
 }
 
 // --- 3. OPEN CUSTOMER MANAGEMENT FOR REP (SIMPLIFIED VERSION) ---
-function openRepCustomerManagement(customerName) {
+async function openRepCustomerManagement(customerName) {
     // Use the existing customer management overlay
     currentManagingCustomer = customerName;
     
@@ -13093,7 +13295,7 @@ function openRepCustomerManagement(customerName) {
     
     // Update overlay title and stats
     document.getElementById('manageCustomerTitle').innerText = customerName;
-    document.getElementById('manageCustomerStats').innerText = `Current Debt: ${formatCurrency(currentDebt)}`;
+    document.getElementById('manageCustomerStats').innerText = `Current Debt: ${await formatCurrency(currentDebt)}`;
     document.getElementById('bulkPaymentAmount').value = '';
     
     // Show the overlay
@@ -13102,7 +13304,7 @@ function openRepCustomerManagement(customerName) {
     // Render transactions (filtered for this rep)
     renderRepCustomerTransactions(customerName);
 }
-function renderRepCustomerTransactions(name) {
+async function renderRepCustomerTransactions(name) {
     const list = document.getElementById('customerManagementHistoryList');
     list.innerHTML = '';
 
@@ -13119,7 +13321,7 @@ function renderRepCustomerTransactions(name) {
         if(t.paymentType === 'COLLECTION') currentDebt -= t.totalValue;
     });
     
-    document.getElementById('manageCustomerStats').innerText = `Current Debt: ${formatCurrency(currentDebt)}`;
+    document.getElementById('manageCustomerStats').innerText = `Current Debt: ${await formatCurrency(currentDebt)}`;
 
     // Sort: Pending Credits First, then Newest Date
     transactions.sort((a,b) => {
@@ -13134,32 +13336,17 @@ function renderRepCustomerTransactions(name) {
         return;
     }
 
-    transactions.forEach(t => {
+
+    for (const t of transactions) {
         const isCredit = t.paymentType === 'CREDIT';
         const isCollection = t.paymentType === 'COLLECTION';
-        const isReceived = t.creditReceived === true;
-        
-        let statusText, statusClass, btnText;
-        
-        if(isCollection) {
-            statusText = 'COLLECTION';
-            statusClass = 'status-received';
-            btnText = '';
-        } else if(!isCredit) {
-            statusText = 'CASH';
-            statusClass = 'units-available-good';
-            btnText = '';
-        } else {
-            statusText = isReceived ? 'CREDIT RECEIVED' : 'PENDING CREDIT';
-            statusClass = isReceived ? 'status-received' : 'status-pending';
-            btnText = isReceived ? 'Mark Pending' : 'Mark Received';
-        }
-        
         const item = document.createElement('div');
         item.className = 'cust-history-item';
         
-        // Render logic for Toggle Button (only for credit transactions)
+        let statusClass = t.creditReceived ? 'paid' : 'pending';
+        let btnText = t.creditReceived ? 'PAID' : 'PENDING';
         let toggleBtnHtml = '';
+        
         if(isCredit) {
             toggleBtnHtml = `<button class="status-toggle-btn ${statusClass}" onclick="toggleSingleTransactionStatus(${t.id})">${btnText}</button>`;
         } else if(isCollection) {
@@ -13172,7 +13359,7 @@ function renderRepCustomerTransactions(name) {
             <div class="cust-history-info">
                 <div style="font-weight:700; font-size:0.85rem; color:var(--text-main);">${t.date}</div>
                 <div style="font-size:0.75rem; color:var(--text-muted);">
-                    ${isCollection ? `Collection: ${formatCurrency(t.totalValue)}` : `${t.quantity.toFixed(2)} kg @ ${formatCurrency(t.totalValue)}`}
+                    ${isCollection ? `Collection: ${await formatCurrency(t.totalValue)}` : `${t.quantity.toFixed(2)} kg @ ${await formatCurrency(t.totalValue)}`}
                 </div>
                 <div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">
                     ${getStoreLabel(t.supplyStore)}
@@ -13184,8 +13371,9 @@ function renderRepCustomerTransactions(name) {
             </div>
         `;
         list.appendChild(item);
-    });
+    }
 }
+
 function renderRepHistory() {
     const list = document.getElementById('repHistoryList');
     list.innerHTML = '';
@@ -13255,7 +13443,7 @@ function renderRepHistory() {
                     <div style="font-size: 0.7rem; color: var(--text-muted);">
                         ${item.time}
                     </div>
-                    <button class="btn btn-danger btn-sm" style="padding: 2px 8px; font-size: 0.7rem;" onclick="deleteRepTransaction(${item.id})">
+                    <button class="btn btn-danger btn-sm" style="padding: 2px 8px; font-size: 0.7rem;" onclick="(async () => { await deleteRepTransaction(${item.id}) })()">
                         Delete
                     </button>
                 </div>
@@ -13281,12 +13469,12 @@ function refreshRepUI() {
 // ==========================================
 
 // Global Settings
-let appMode = localStorage.getItem('appMode') || 'admin'; 
-let currentRepProfile = localStorage.getItem('repProfile') || 'NORAN SHAH';
-let adminPin = localStorage.getItem('adminPin') || '1234';
+let appMode = 'admin'; 
+let currentRepProfile = 'NORAN SHAH';
+let adminPin = '1234';
 
 // 1. ACTIVATE REP MODE (Called from Data Menu)
-function activateRepMode() {
+async function activateRepMode() {
     const newPinInput = document.getElementById('setting-admin-pin');
     const selectedRepInput = document.getElementById('setting-rep-select');
     
@@ -13309,10 +13497,11 @@ function activateRepMode() {
         currentRepProfile = selectedRep;
         appMode = 'rep';
         
-        localStorage.setItem('adminPin', adminPin);
-        localStorage.setItem('repProfile', currentRepProfile);
-        localStorage.setItem('appMode', appMode);
-        
+        await idb.set('adminPin', adminPin);
+        await idb.set('repProfile', currentRepProfile);
+        await idb.set('appMode', appMode);
+        notifyDataChange('all');
+
         lockToRepMode();
         
         // Close menu if function exists
@@ -13371,10 +13560,10 @@ function closeAdminPinModal() {
 }
 
 // 5. VERIFY PIN & UNLOCK
-function verifyAdminPin() {
+async function verifyAdminPin() {
     const input = document.getElementById('admin-pin-input').value;
     if (input === adminPin) {
-        unlockAdminMode();
+        await unlockAdminMode();
     } else {
         alert("Incorrect PIN");
         document.getElementById('admin-pin-input').value = '';
@@ -13387,14 +13576,14 @@ function verifyAdminPin() {
 // ==========================================
 
 // --- 1. CHECK MODE ON EVERY PAGE LOAD ---
-function enforceRepModeLock() {
-    const storedMode = localStorage.getItem('appMode');
+async function enforceRepModeLock() {
+    const storedMode = await idb.get('appMode');
     
     if (storedMode === 'rep') {
         // Force lock to rep mode
         appMode = 'rep';
-        currentRepProfile = localStorage.getItem('repProfile') || 'NORAN SHAH';
-        adminPin = localStorage.getItem('adminPin') || '1234';
+        currentRepProfile = await idb.get('repProfile') || 'NORAN SHAH';
+        adminPin = await idb.get('adminPin') || '1234';
         
         // Lock UI immediately
         lockToRepMode();
@@ -13437,10 +13626,11 @@ function preventAdminAccess() {
 }
 
 // --- 3. ENHANCED UNLOCK FUNCTION ---
-function unlockAdminMode() {
+async function unlockAdminMode() {
     appMode = 'admin';
-    localStorage.setItem('appMode', 'admin');
-    
+    await idb.set('appMode', 'admin');
+    notifyDataChange('all');
+
     // Restore navigation
     const nav = document.querySelector('.nav-tabs');
     if(nav) nav.style.display = 'flex';
@@ -13455,9 +13645,9 @@ function unlockAdminMode() {
 }
 
 // --- 4. INITIALIZE ON LOAD (ENHANCED) ---
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     // CRITICAL: Enforce mode lock first
-    enforceRepModeLock();
+    await enforceRepModeLock();
     
     // Then prevent access
     preventAdminAccess();
@@ -13475,14 +13665,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 
-function deleteRepTransaction(id) {
+async function deleteRepTransaction(id) {
     if (confirm("Are you sure you want to delete this transaction?")) {
         // 1. Filter out the transaction from the customerSales array
         customerSales = customerSales.filter(transaction => transaction.id !== id);
         
-        // 2. Persist the updated data to LocalStorage
-        localStorage.setItem('customer_sales', JSON.stringify(customerSales));
-        
+        // 2. Persist the updated data to IndexedDB
+        await idb.set('customer_sales', customerSales);
+        notifyDataChange('all');
+
         // 3. REFRESH UI: Update the specific Rep History List
         // FIX: The function to render rep history is renderRepHistory(), not renderTodayActivity
         if (typeof renderRepHistory === 'function') {
