@@ -8044,11 +8044,7 @@ async function deleteCustomerSale(id) {
 // 1. Initialize return storage
 let stockReturns = [];
 // ============================================
-// SUPABASE CLOUD SYNC - COMPLETE IMPLEMENTATION
-// ============================================
-
-// ============================================
-// SEAMLESS CLOUD SYNC MODULE (AUTO-SAVE)
+// SUPABASE REAL-TIME SYNC - OPTIMIZED
 // ============================================
 
 const SUPABASE_URL = 'https://znxhlwbmoqwoijkhglcb.supabase.co';
@@ -8056,101 +8052,87 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 let supabaseClient = null;
 let currentUser = null;
-let autoSaveTimer = null;
-const AUTO_SAVE_DELAY = 5000; // Auto-save 5 seconds after last change
+let realtimeChannel = null;
+let backupTimer = null;
 
-// Initialize Supabase
+// 1. Initialize Supabase & Realtime Listener
 function initSupabase() {
-    if (typeof window.supabase === 'undefined') {
-        console.error('❌ Supabase SDK not loaded.');
-        return;
-    }
-    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    setupAuthListener();
-    checkAuthState();
-}
+    if (typeof window.supabase === 'undefined') return;
 
-// Check Session & Auto-Restore on Load
-async function checkAuthState() {
-    if (!supabaseClient) return;
-    const { data: { user }, error } = await supabaseClient.auth.getUser();
-    
-    if (user) {
-        currentUser = user;
-        console.log(`✅ Logged in as ${user.email}`);
-        // Seamlessly pull data on startup
-        await pullDataFromCloud(true); // true = silent mode
-        addSignOutButton();
+    try {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        console.log('✅ Supabase Client Initialized');
+
+        setupAuthListener();
+        checkAuthState();
+
+        // --- REAL-TIME LISTENER ---
+        // This listens for changes made by OTHER users/devices
+        if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
+        
+        realtimeChannel = supabaseClient
+            .channel('public:user_data')
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_data' }, async (payload) => {
+                console.log('⚡ Cloud Update Detected:', payload);
+                
+                // When cloud data changes, check if it is newer than what we have
+                const cloudTime = new Date(payload.new.last_synced).getTime();
+                const localTime = new Date(await idb.get('last_synced') || 0).getTime();
+
+                // If cloud is newer (and the difference is > 2 seconds to avoid loop), pull it
+                if (cloudTime > (localTime + 2000)) {
+                    showToast('🔄 New data detected from cloud. Syncing...', 'info');
+                    await pullDataFromCloud(true); // Silent pull
+                }
+            })
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    console.log('📡 Connected to Real-time Sync');
+                }
+            });
+
+    } catch (e) {
+        console.error('Supabase Init Error:', e);
     }
 }
-
-// --- UPDATED LISTENER: Closes overlay on success ---
+// 3. Setup Auth Listener (Standard)
 function setupAuthListener() {
+    if (!supabaseClient) return;
     supabaseClient.auth.onAuthStateChange(async (event, session) => {
-        if (event === 'SIGNED_IN') {
-            currentUser = session?.user;
-            
-            // 1. Close the login screen immediately
-            hideAuthOverlay(); 
-            
-            // 2. Show success message
-            showToast(`Cloud Sync Active`, 'success');
-            
-            // 3. Sync data
-            await pullDataFromCloud(true); // Auto-pull on login
+        if (event === 'SIGNED_IN' && session) {
+            currentUser = session.user;
+            hideAuthOverlay();
             addSignOutButton();
-            
+            // IMMEDIATE SYNC ON LOGIN
+            await pullDataFromCloud(true); 
         } else if (event === 'SIGNED_OUT') {
             currentUser = null;
             removeSignOutButton();
-            // Optional: You can uncomment the line below if you want 
-            // the login screen to appear immediately upon logout:
-            // showAuthOverlay(); 
         }
     });
 }
 
-
-// --- CORE: TRIGGER AUTO-SAVE ---
-// Call this function whenever data changes (hooked into notifyDataChange)
-function triggerSeamlessBackup() {
-    if (!currentUser) return;
-
-    // Reset the timer on every change (debounce)
-    if (autoSaveTimer) clearTimeout(autoSaveTimer);
-
-    // Visual feedback (optional: could add a small "saving..." spinner in UI)
-    const syncBadge = document.getElementById('cloudMenuBtn');
-    if(syncBadge) syncBadge.innerText = '⏳'; 
-
-    autoSaveTimer = setTimeout(async () => {
-        await pushDataToCloud(true); // Silent auto-save
-        if(syncBadge) syncBadge.innerText = '☁️';
-    }, AUTO_SAVE_DELAY);
+// 4. Check Session (Standard)
+async function checkAuthState() {
+    if (!supabaseClient) return;
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session?.user) {
+        currentUser = session.user;
+        addSignOutButton();
+        // IMMEDIATE SYNC ON LOAD
+        await pullDataFromCloud(true);
+    }
 }
-
-// --- PUSH DATA (BACKUP) ---
-// --- UPDATED: PUSH DATA (BACKUP) ---
+// 4. Push Data to Cloud (Backup)
 async function pushDataToCloud(silent = false) {
-    // 1. Re-verify User
-    if (!currentUser) {
-        const { data } = await supabaseClient.auth.getUser();
-        currentUser = data.user;
-    }
-
-    if (!currentUser || !supabaseClient) {
-        console.error("❌ Backup Failed: User not logged in or Supabase not ready.");
-        if (!silent) showToast("You must be logged in to backup.", "error");
-        return;
-    }
+    if (!supabaseClient || !currentUser) return;
 
     try {
-        if (!silent) showToast('📤 Uploading to cloud...', 'info');
-        console.log('📤 Preparing backup...');
+        const now = new Date().toISOString();
         
-        // 2. Prepare Data (Get fresh data from IndexedDB/Globals)
-        const dataToSync = {
-            mfg_pro_pkr: db,
+        // Prepare the massive data object
+        const backupData = {
+            mfg_pro_pkr: db, // Use live global variables for speed
             customer_sales: customerSales,
             noman_history: salesHistory,
             factory_inventory_data: factoryInventoryData,
@@ -8166,122 +8148,86 @@ async function pushDataToCloud(silent = false) {
             naswar_default_settings: defaultSettings,
             appMode: appMode,
             repProfile: currentRepProfile,
-            adminPin: adminPin,
-            last_synced: new Date().toISOString()
+            adminPin: adminPin
         };
 
-        // 3. Send to Supabase
+        // Upload
         const { error } = await supabaseClient
             .from('user_data')
             .upsert({ 
                 user_id: currentUser.id, 
-                data: dataToSync,
-                last_synced: new Date().toISOString()
+                data: backupData,
+                last_synced: now 
             }, { onConflict: 'user_id' });
 
         if (error) throw error;
 
-        // 4. Success Handling
-        await idb.set('last_synced', new Date().toISOString());
-        if (!silent) showToast('Data backed up to cloud', 'success');
-        console.log('✅ Backup successful at', new Date().toLocaleTimeString());
+        // Update local timestamp to match cloud
+        await idb.set('last_synced', now);
+        
+        if (!silent) showToast('✅ Cloud Sync Complete', 'success');
+        console.log('✅ Data pushed to cloud');
 
     } catch (error) {
-        console.error('Cloud Backup Error:', error);
-        if (!silent) showToast('Backup failed: ' + error.message, 'error');
+        console.error('Backup Error:', error);
+        if (!silent) showToast('❌ Sync failed', 'error');
     }
 }
 
 
-// --- PULL DATA (RESTORE) ---
+// 5. Pull Data from Cloud (Restore)
 async function pullDataFromCloud(silent = false) {
-    if (!currentUser || !supabaseClient) return;
+    if (!supabaseClient || !currentUser) return;
 
     try {
-        if (!silent) console.log('📥 Checking for cloud updates...');
-
         const { data, error } = await supabaseClient
             .from('user_data')
             .select('data, last_synced')
             .eq('user_id', currentUser.id)
             .maybeSingle();
 
-        if (error && error.code !== 'PGRST116') throw error;
+        if (error) throw error;
+        if (!data) return;
 
-        // 1. New User / No Data
-        if (!data) {
-            if (!silent) showToast('No cloud data found. Starting fresh.', 'info');
-            // If we have local data, push it up immediately to initialize cloud
-            if (db.length > 0 || customerSales.length > 0) {
-                await pushDataToCloud(true);
-            }
-            return;
-        }
-
-        // 2. Compare Timestamps (Conflict Resolution)
-        const cloudTime = new Date(data.last_synced || 0).getTime();
+        // Smart Check: Is cloud actually newer?
         const localTime = new Date(await idb.get('last_synced') || 0).getTime();
+        const cloudTime = new Date(data.last_synced).getTime();
 
-        // If Cloud is OLDER than local, don't overwrite (unless forced manually)
-        if (cloudTime <= localTime && silent) {
-            console.log('⚡ Local data is up-to-date.');
+        // Buffer of 1 second to prevent self-update loops
+        if (cloudTime <= localTime + 1000) {
+            console.log('⚡ Local data is up to date.');
             return;
         }
 
-        // 3. Restore Data
         const cloud = data.data;
-        if (cloud) {
-            // Restore Global Variables & LocalStorage
-            db = cloud.mfg_pro_pkr || [];
-            customerSales = cloud.customer_sales || [];
-            salesHistory = cloud.noman_history || [];
-            factoryInventoryData = cloud.factory_inventory_data || [];
-            factoryProductionHistory = cloud.factory_production_history || [];
-            factoryDefaultFormulas = cloud.factory_default_formulas || { standard: [], asaan: [] };
-            factoryAdditionalCosts = cloud.factory_additional_costs || { standard: 0, asaan: 0 };
-            factoryCostAdjustmentFactor = cloud.factory_cost_adjustment_factor || { standard: 1, asaan: 1 };
-            factorySalePrices = cloud.factory_sale_prices || { standard: 0, asaan: 0 };
-            factoryUnitTracking = cloud.factory_unit_tracking || {};
-            paymentEntities = cloud.payment_entities || [];
-            paymentTransactions = cloud.payment_transactions || [];
-            stockReturns = cloud.stock_returns || [];
-            defaultSettings = cloud.naswar_default_settings || {};
-            
-            if (cloud.appMode) appMode = cloud.appMode;
-            if (cloud.repProfile) currentRepProfile = cloud.repProfile;
-            if (cloud.adminPin) adminPin = cloud.adminPin;
+        
+        // Critical: Update IDB
+        await idb.set('mfg_pro_pkr', cloud.mfg_pro_pkr || []);
+        await idb.set('customer_sales', cloud.customer_sales || []);
+        await idb.set('noman_history', cloud.noman_history || []); // Sales Rep History
+        await idb.set('factory_inventory_data', cloud.factory_inventory_data || []);
+        await idb.set('factory_production_history', cloud.factory_production_history || []);
+        await idb.set('factory_default_formulas', cloud.factory_default_formulas || { standard: [], asaan: [] });
+        await idb.set('factory_additional_costs', cloud.factory_additional_costs || { standard: 0, asaan: 0 });
+        await idb.set('factory_cost_adjustment_factor', cloud.factory_cost_adjustment_factor || { standard: 1, asaan: 1 });
+        await idb.set('factory_sale_prices', cloud.factory_sale_prices || { standard: 0, asaan: 0 });
+        await idb.set('factory_unit_tracking', cloud.factory_unit_tracking);
+        await idb.set('payment_entities', cloud.payment_entities || []);
+        await idb.set('payment_transactions', cloud.payment_transactions || []);
+        await idb.set('stock_returns', cloud.stock_returns || []);
+        await idb.set('naswar_default_settings', cloud.naswar_default_settings || {});
+        // Do NOT overwrite App Mode or PIN from cloud (keep device settings local)
+        
+        await idb.set('last_synced', data.last_synced);
 
-            // 4. Save to Local IndexedDB
-            await Promise.all([
-                idb.set('mfg_pro_pkr', db),
-                idb.set('customer_sales', customerSales),
-                idb.set('noman_history', salesHistory),
-                idb.set('factory_inventory_data', factoryInventoryData),
-                idb.set('factory_production_history', factoryProductionHistory),
-                idb.set('factory_default_formulas', factoryDefaultFormulas),
-                idb.set('factory_additional_costs', factoryAdditionalCosts),
-                idb.set('factory_cost_adjustment_factor', factoryCostAdjustmentFactor),
-                idb.set('factory_sale_prices', factorySalePrices),
-                idb.set('factory_unit_tracking', factoryUnitTracking),
-                idb.set('payment_entities', paymentEntities),
-                idb.set('payment_transactions', paymentTransactions),
-                idb.set('stock_returns', stockReturns),
-                idb.set('naswar_default_settings', defaultSettings),
-                idb.set('appMode', appMode),
-                idb.set('repProfile', currentRepProfile),
-                idb.set('adminPin', adminPin),
-                idb.set('last_synced', data.last_synced)
-            ]);
-
-            if (!silent) showToast('Data restored from cloud!', 'success');
-            
-            // Refresh UI
-            await refreshAllDisplays();
-        }
+        // Reload into memory and refresh UI
+        await loadAllData(); 
+        await refreshAllDisplays();
+        
+        if (!silent) showToast('📥 Data updated from cloud', 'info');
 
     } catch (error) {
-        console.error('Cloud Restore Error:', error);
-        if (!silent) showToast('Sync failed. Using local data.', 'error');
+        console.error('Restore Error:', error);
     }
 }
 
@@ -8323,7 +8269,23 @@ async function triggerCloudAction(action) {
         }
     }
 }
+// 2. Trigger Seamless Backup (Auto-Save)
+// This function is called automatically by notifyDataChange()
+function triggerSeamlessBackup() {
+    if (!currentUser) return;
 
+    // Debounce: Wait 5 seconds after the last keystroke/edit before uploading
+    // This prevents uploading 50 times while typing a name
+    const statusIndicator = document.getElementById('lastSyncDisplay');
+    if(statusIndicator) statusIndicator.textContent = "⏳ Unsaved changes...";
+
+    clearTimeout(backupTimer);
+    backupTimer = setTimeout(async () => {
+        if(statusIndicator) statusIndicator.textContent = "☁️ Syncing...";
+        await pushDataToCloud(true); // true = silent upload (no popup alert)
+        if(statusIndicator) statusIndicator.textContent = `✓ Synced: ${new Date().toLocaleTimeString()}`;
+    }, 5000); // 5 seconds delay
+}
 
 // ============================================
 // AUTHENTICATION UI
@@ -11452,6 +11414,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         return;
     }
 
+
     // ----------------------------------------------------
     // 2. CORE SETUP & SECURITY (Must run first)
     // ----------------------------------------------------
@@ -11468,16 +11431,35 @@ document.addEventListener('DOMContentLoaded', async function() {
     // If enabled, this triggers the lock overlay immediately
     await checkBiometricLock(); 
 
-    // Initialize Supabase Connectivity
+        // Initialize Supabase Connectivity
     // Small timeout ensures the external library script has parsed
     setTimeout(() => {
         if (typeof initSupabase === 'function') {
             console.log('☁️ Initializing Cloud Sync...');
             initSupabase();
         } else {
-            console.error("❌ Supabase client not loaded.");
+            console.error("❌ Supabase client not loaded. Check internet connection.");
         }
-    }, 100);
+    }, 500); // Increased timeout slightly to ensure script load
+
+// --- SYNC ON VISIBILITY CHANGE ---
+document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible') {
+        console.log("👀 Tab active - checking for cloud updates...");
+        await pullDataFromCloud(true);
+    }
+});
+
+// --- SYNC ON WINDOW CLOSE (Best Effort) ---
+window.addEventListener('beforeunload', () => {
+    // We cannot await here, but we can try to push if there are pending changes
+    if (backupTimer) {
+        // If a backup was pending (debounced), force it now
+        // Note: fetch/requests might be cancelled by browser on close, 
+        // but this is the best effort for 'close' events.
+        pushDataToCloud(true); 
+    }
+});
 
     // ----------------------------------------------------
     // 3. UI INITIALIZATION (Inputs & Toggles)
@@ -13579,12 +13561,27 @@ function closeAdminPinModal() {
 
 // 5. VERIFY PIN & UNLOCK
 async function verifyAdminPin() {
-    const input = document.getElementById('admin-pin-input').value;
-    if (input === adminPin) {
+    const inputEl = document.getElementById('admin-pin-input');
+    const input = inputEl.value;
+    
+    // 1. Fetch the latest PIN directly from DB to ensure we compare against the truth
+    const storedPin = await idb.get('adminPin', '1234'); 
+    
+    // Also check against global variable as fallback
+    const validPin = storedPin || adminPin || '1234';
+
+    if (input === validPin) {
+        // Success: Unlock
         await unlockAdminMode();
     } else {
-        alert("Incorrect PIN");
-        document.getElementById('admin-pin-input').value = '';
+        // Failure
+        showToast("❌ Incorrect PIN", "error");
+        inputEl.value = '';
+        inputEl.focus();
+        
+        // Anti-brute force delay
+        inputEl.disabled = true;
+        setTimeout(() => inputEl.disabled = false, 1000);
     }
 }
 
