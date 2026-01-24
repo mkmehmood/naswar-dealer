@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "io.github.mkmehmood.twa",
+        "sha256_cert_fingerprints": ["E6:AA:83:A5:81:2C:E7:15:BE:98:F5:39:3C:9F:30:83:07:1C:FA:16:67:F1:31:15:DF:64:6E:3C:1B:60:60:85"]
+      }
+    }]
