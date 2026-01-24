@@ -3206,13 +3206,7 @@ body.dark-mode .units-available-danger {
         <button class="tab-btn" onclick="showTab('factory')">FACTORY</button>
         <button class="tab-btn" onclick="showTab('payments')">PAYMENTS</button>
     </div>
-<div id="rep-header" class="hidden" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; background: var(--glass); padding: 15px; border-radius: 20px; border: 1px solid var(--glass-border);">
-    <div>
-        <h2 style="margin:0; color:var(--accent);"> <span id="current-rep-name-display">REP MODE</span></h2>
-        <span style="font-size: 0.7rem; color: var(--text-muted);">Restricted Access</span>
-    </div>
-    <button class="btn btn-danger" onclick="openAdminPinModal()"> Admin Access</button>
-</div>
+
 
 <div id="adminPinOverlay" class="factory-overlay">
     <div class="factory-overlay-card liquid-card" style="max-width: 300px; text-align: center;">
@@ -3225,6 +3219,13 @@ body.dark-mode .units-available-danger {
     </div>
 </div>
 <div id="tab-rep" class="hidden">
+    <div id="rep-header"  style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; background: var(--glass); padding: 15px; border-radius: 20px; border: 1px solid var(--glass-border);">
+    <div>
+        <h2 style="margin:0; color:var(--accent);"> <span id="current-rep-name-display">REP MODE</span></h2>
+        <span style="font-size: 0.7rem; color: var(--text-muted);">Restricted Access</span>
+    </div>
+    <button class="btn btn-danger" onclick="openAdminPinModal()"> Admin Access</button>
+</div>
     <div class="section liquid-card">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
             <h3 style="color:var(--accent); margin:0;">New Transaction</h3>
