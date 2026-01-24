@@ -1,17 +1,21 @@
 {
+  "name": "Naswar Dealer",
+  "short_name": "Naswar Dealer",
+  "description": "Your go-to app for Naswar",
+  "start_url": "/naswar-dealer/",
+  "display": "standalone",
+  "theme_color": "#007bff",
   "background_color": "#ffffff",
-  "dir": "ltr",
-  "display": "fullscreen",
-  "name": "Gull And Zubair",
-  "orientation": "any",
-  "scope": "https://mkmehmood.github.io/naswar-dealer/",
-  "short_name": "mkmehmood",
-  "start_url": "https://mkmehmood.github.io/naswar-dealer/",
-  "theme_color": "#ffffff",
-  "lang": "en",
-  "categories": [
-    "business",
-    "personalization",
-    "utilities"
+  "icons": [
+    {
+      "src": "https://github.com/mkmehmood/naswar-dealer/blob/11f34342e401968cf8f6100fd2818b6ec5b32fba/512.png?raw=true",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "https://github.com/mkmehmood/naswar-dealer/blob/11f34342e401968cf8f6100fd2818b6ec5b32fba/192.png?raw=true",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
   ]
 }
