@@ -8169,18 +8169,37 @@ let supabaseClient = null;
 let currentUser = null;
 let autoSaveTimer = null;
 let isSyncing = false; // FIX 1: Global lock for sync operations
-const AUTO_SAVE_DELAY = 5000; // Auto-save 5 seconds after last change
 
-// Initialize Supabase
+// --- INITIALIZATION ---
 function initSupabase() {
-    if (typeof window.supabase === 'undefined') {
-        console.error(' Supabase SDK not loaded.');
-        return;
+    if (typeof window.supabase === 'undefined') return;
+
+    try {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        // Listen for Auth Changes (including Token Refreshes)
+        supabaseClient.auth.onAuthStateChange(async (event, session) => {
+            console.log(`Auth Event: ${event}`);
+            
+            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+                currentUser = session?.user;
+                hideAuthOverlay();
+                // If signed in, do a quick pull to ensure we are up to date
+                if (event === 'SIGNED_IN') await pullDataFromCloud(true);
+            } else if (event === 'SIGNED_OUT') {
+                currentUser = null;
+                // Optional: Show login screen
+            }
+        });
+
+        // Check initial state
+        checkAuthState();
+
+    } catch (e) {
+        console.error('Supabase Init Error:', e);
     }
-    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    setupAuthListener();
-    checkAuthState();
 }
+
 
 // Check Session & Auto-Restore on Load
 async function checkAuthState() {
@@ -8225,56 +8244,68 @@ function setupAuthListener() {
     });
 }
 
+// --- UPDATED CLOUD CONFIGURATION ---
+const AUTO_SAVE_DELAY = 7200000; // 2 Hours (in milliseconds)
+let backupTimer = null; 
 
-// --- CORE: TRIGGER AUTO-SAVE ---
-// Call this function whenever data changes (hooked into notifyDataChange)
+// --- ROBUST AUTO-SAVE (SEAMLESS BACKUP) ---
 function triggerSeamlessBackup() {
-    // FIX 3: Check for session *before* starting the timer
-    if (!currentUser || !supabaseClient) return;
+    // 1. Basic Check
+    if (!supabaseClient) return;
 
-    // FIX 4: Clear any existing timer to debounce
-    if (autoSaveTimer) clearTimeout(autoSaveTimer);
+    // 2. Clear existing timer (Debounce)
+    if (backupTimer) clearTimeout(backupTimer);
 
-    // Visual feedback
-    const syncBadge = document.getElementById('cloudMenuBtn');
-    if(syncBadge) syncBadge.innerText = ''; 
-
-    autoSaveTimer = setTimeout(async () => {
-        // FIX 5: Check session again inside the timer, in case it expired during the delay
-        // This is crucial for handling session expiration during background sync
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) {
-            console.warn('Session expired during auto-save delay. Skipping push.');
-            if(syncBadge) syncBadge.innerText = '️';
+    // 3. Set new timer (2 hours)
+    backupTimer = setTimeout(async () => {
+        // Double-check auth right before sending
+        const { data } = await supabaseClient.auth.getSession();
+        
+        if (!data.session) {
+            console.log('❌ Auto-save skipped: No active session');
+            const statusIndicator = document.getElementById('lastSyncDisplay');
+            if(statusIndicator) statusIndicator.textContent = "⚠️ Not Synced (Offline)";
             return;
         }
+
+        // Perform silent upload
+        console.log("⏰ Triggering Scheduled Auto-Backup...");
+        await pushDataToCloud(true); 
         
-        await pushDataToCloud(true); // Silent auto-save
-        if(syncBadge) syncBadge.innerText = '';
-    }, AUTO_SAVE_DELAY);
+        // Update UI on success
+        const statusIndicator = document.getElementById('lastSyncDisplay');
+        if(statusIndicator) {
+            statusIndicator.style.color = 'var(--text-muted)';
+            statusIndicator.textContent = `✓ Synced: ${new Date().toLocaleTimeString()}`;
+        }
+    }, AUTO_SAVE_DELAY); 
 }
 
-// --- PUSH DATA (BACKUP) ---
-// --- PUSH DATA (BACKUP) ---
-// FIX 1: Add a global lock to prevent race conditions
+// --- ROBUST CLOUD PUSH (BACKUP) ---
 async function pushDataToCloud(silent = false) {
-    if (!currentUser || !supabaseClient) return;
+    if (!supabaseClient) return;
+
+    // 1. CRITICAL: Check & Refresh Session before upload
+    const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
     
-    // FIX 1: Check lock
-    if (isSyncing) {
-        console.warn('Sync already in progress. Skipping push.');
-        if (!silent) showToast('Sync in progress. Please wait.', 'info');
-        return;
+    if (sessionError || !session) {
+        console.warn('⚠️ Session expired or missing. Backup skipped.');
+        if (!silent) {
+            showToast('Session expired. Please sign in again.', 'warning');
+            showAuthOverlay(); // Force re-login
+        }
+        return; 
     }
-    isSyncing = true;
+
+    // Update global user ref to ensure it's current
+    currentUser = session.user;
 
     try {
-        if (!silent) console.log(' Uploading to cloud...');
+        const now = new Date().toISOString();
         
-        // Ensure we are pulling the most recent data from global variables
-        // which are synced exclusively with IndexedDB
-        const dataToSync = {
-            mfg_pro_pkr: db,
+        // 2. Prepare Data Object (Same as before)
+        const backupData = {
+            mfg_pro_pkr: db, 
             customer_sales: customerSales,
             noman_history: salesHistory,
             factory_inventory_data: factoryInventoryData,
@@ -8290,35 +8321,35 @@ async function pushDataToCloud(silent = false) {
             naswar_default_settings: defaultSettings,
             appMode: appMode,
             repProfile: currentRepProfile,
-            adminPin: adminPin,
-            // last_synced is set by the database trigger, but we include it for clarity
-            last_synced: new Date().toISOString() 
+            adminPin: adminPin
         };
 
-        // FIX 6: Use a single timestamp for atomic update and conflict resolution
-        const currentTimestamp = new Date().toISOString();
+        if (!silent) {
+            // Show small loading indicator for manual backups
+            const btn = document.querySelector('.btn-main'); 
+            if(btn) btn.textContent = '☁️ Uploading...';
+        }
 
+        // 3. Perform Upload
         const { error } = await supabaseClient
             .from('user_data')
             .upsert({ 
                 user_id: currentUser.id, 
-                data: dataToSync,
-                last_synced: currentTimestamp // Use the same timestamp for local and cloud
+                data: backupData,
+                last_synced: now 
             }, { onConflict: 'user_id' });
 
         if (error) throw error;
 
-        // FIX 6: Update local timestamp ONLY after successful cloud write
-        await idb.set('last_synced', currentTimestamp); 
-        if (!silent) showToast('Data backed up to cloud', 'success');
-        console.log(' Auto-save complete');
+        // 4. Success Handling
+        await idb.set('last_synced', now);
+        
+        if (!silent) showToast('✅ Cloud Sync Complete', 'success');
+        console.log(`✅ Data synced at ${new Date().toLocaleTimeString()}`);
 
     } catch (error) {
-        console.error('Cloud Backup Error:', error);
-        if (!silent) showToast('Backup failed. Will retry...', 'warning');
-    } finally {
-        // FIX 1: Release lock
-        isSyncing = false;
+        console.error('Backup Error:', error);
+        if (!silent) showToast(`❌ Sync failed: ${error.message}`, 'error');
     }
 }
 
@@ -8460,9 +8491,9 @@ async function pullDataFromCloud(silent = false) {
     }
 }
 
-// --- UPDATED: TRIGGER CLOUD ACTION (WITH AUTH CHECK) ---
+// --- UPDATED: TRIGGER CLOUD ACTION (FORCE OVERRIDE) ---
 async function triggerCloudAction(action) {
-    // 1. Close the data menu first so it doesn't block the view
+    // 1. Close the data menu
     closeDataMenu();
 
     // 2. Check if Supabase client is ready
@@ -8471,36 +8502,35 @@ async function triggerCloudAction(action) {
         return;
     }
 
-    // 3. CRITICAL: Check if user is logged in
-    // FIX 11: Check for isSyncing lock here to prevent button failure during sync
+    // 3. FORCE RESET LOCK: If user clicks manually, force the lock open
     if (isSyncing) {
-        showToast("A sync operation is already in progress. Please wait.", "warning");
+        console.warn("⚠️ Manual override: Resetting stuck sync lock.");
+        isSyncing = false; 
+    }
+
+    // 4. Check Auth
+    if (!currentUser) {
+        showToast("Please sign in to access Cloud functions.", "info");
+        showAuthOverlay();
         return;
     }
 
-    if (!currentUser) {
-        // If not logged in, force the login overlay to open
-        showToast("Please sign in to access Cloud functions.", "info");
-        showAuthOverlay();
-        return; // Stop here
-    }
-
-    // 4. If logged in, proceed with the requested action
+    // 5. Proceed with Action
     if (action === 'backup') {
-        // Optional: Add a confirmation for manual backup
-        if(confirm(" Upload local data to Cloud?")) {
-            await pushDataToCloud(false); // false = show success/error toasts
+        if(confirm("☁️ Upload local data to Cloud now?")) {
+            showToast("Starting Backup...", "info");
+            await pushDataToCloud(false); // false = show result toasts
         }
     }
     
     if (action === 'restore') {
-        // Essential: Confirmation for restore to prevent accidental overwrites
-        if(confirm("️ RESTORE FROM CLOUD?\n\nThis will overwrite your current local data with the version saved in the cloud.\n\nContinue?")) {
-            // FIX 12: Manual restore bypasses the timestamp check in pullDataFromCloud
-            await pullDataFromCloud(false);
+        if(confirm("⚠️ RESTORE FROM CLOUD?\n\nThis will overwrite local data with the cloud version.\n\nContinue?")) {
+            showToast("Starting Restore...", "info");
+            await pullDataFromCloud(false); // false = show result toasts
         }
     }
 }
+
 
 
 // ============================================
