@@ -10,7 +10,7 @@
     <title>GULL AND ZUBAIR NASWAR DEALERS</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/dist/umd/supabase.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700;800&amp;family=Great+Vibes&amp;family=Playfair+Display:wght@400;700&amp;display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;600;700;800&amp;family=Great+Vibes&amp;family=Playfair+Display:wght@400;700&amp;display=swap" rel="stylesheet">
     
     <style>
         /* --- FROSTED AZURE LIQUID GLASSMORPHISM THEME --- */
@@ -44,26 +44,37 @@
             --factory-std: #3b82f6;
             --factory-asn: #8b5cf6;
         }
-        /* Native-like smooth scrolling */
+        /* Native-like smooth scrolling & Performance */
 html {
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
 }
 
 body {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: 'Inter', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background: var(--bg-gradient);
     background-attachment: fixed;
     color: var(--text-main);
     margin: 0;
     padding: 20px;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     min-height: 100vh;
-    /* Prevent text selection and tap highlight */
+    /* Native feel: Prevent text selection and tap highlight */
     -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
     -webkit-user-select: none;
     user-select: none;
+    /* Layout Stability */
+    overflow-x: hidden;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+*, *::before, *::after {
+    box-sizing: inherit;
+    -webkit-font-smoothing: antialiased;
 }
 
 /* Enable text selection for input areas */
@@ -120,7 +131,10 @@ input, textarea, select, [contenteditable] {
             border-radius: 20px;
             position: relative;
             overflow: hidden;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            /* GPU Acceleration for smoother feel */
+            transform: translateZ(0);
+            will-change: transform, box-shadow;
+            transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
             box-shadow: var(--shadow);
         }
 
@@ -132,11 +146,17 @@ input, textarea, select, [contenteditable] {
             right: 0;
             height: 1px;
             background: linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.3), transparent);
+            pointer-events: none;
         }
 
         .liquid-card:hover {
-            transform: translateY(-4px);
-            box-shadow: var(--shadow), 0 15px 30px rgba(37, 99, 235, 0.15);
+            transform: translateY(-4px) translateZ(0);
+            box-shadow: var(--shadow), 0 12px 24px rgba(37, 99, 235, 0.15);
+        }
+
+        /* Active state for native feedback */
+        .liquid-card:active {
+            transform: translateY(-2px) scale(0.99) translateZ(0);
         }
 
         .shimmer-text {
@@ -148,22 +168,7 @@ input, textarea, select, [contenteditable] {
             animation: shimmer 3s ease-in-out infinite;
         }
 
-        body {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            background: var(--bg-gradient);
-            background-attachment: fixed;
-            color: var(--text-main);
-            margin: 0;
-            padding: 20px;
-            -webkit-font-smoothing: antialiased;
-            min-height: 100vh;
-        }
-
-        .container { 
-            max-width: 1200px; 
-            margin: auto;
-            position: relative;
-        }
+        /* Removed redundant body and container styles to prevent layout shifts */
 
         /* --- AESTHETIC SPLASH SCREEN --- */
         #splash-screen {
@@ -311,54 +316,99 @@ input, textarea, select, [contenteditable] {
             box-shadow: var(--shadow);
         }
 
-        /* STICKY TABS - Makes tabs stay at top when scrolling */
-.nav-tabs { 
-    display: flex; 
-    gap: 8px; 
-    justify-content: center; 
-    margin-bottom: 20px; 
-    flex-wrap: wrap;
-    
-    /* NEW: Makes tabs sticky */
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    background: linear-gradient(135deg, #f0f8ff 0%, #e6f0ff 50%, #ebf8ff 100%);
-    padding: 15px 0;
-    margin-top: -20px;
-    margin-left: -20px;
-    margin-right: -20px;
-    padding-left: 20px;
-    padding-right: 20px;
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
-}
         
+
+        
+        /* MODERN BOTTOM NAVIGATION */
+        .nav-tabs { 
+            display: flex; 
+            gap: 0; 
+            justify-content: space-around; 
+            margin: 0;
+            flex-wrap: nowrap;
+            overflow-x: hidden;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px 5px calc(10px + env(safe-area-inset-bottom));
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-top: 1px solid var(--glass-border);
+        }
+
         .tab-btn {
-            padding: 10px 24px; 
-            border: none; 
-            background: var(--input-bg); 
-            color: var(--text-muted); 
-            border-radius: 50px; 
-            cursor: pointer; 
+            flex: 1;
+            padding: 10px 5px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
             font-weight: 700;
-            font-size: 0.85rem;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            transition: all 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .tab-btn.active {
+            color: var(--accent);
+            background: transparent;
+        }
+
+        .tab-btn.active::after {
+            content: '';
+            width: 4px;
+            height: 4px;
+            background: var(--accent);
+            border-radius: 50%;
+            margin-top: 2px;
+        }
+
+        /* IMPROVED TOGGLES */
+        .toggle-group {
+            background: var(--input-bg);
+            padding: 4px;
+            border-radius: 12px;
+            display: flex;
+            gap: 4px;
             border: 1px solid var(--glass-border);
-            backdrop-filter: var(--backdrop-blur);
+            width: fit-content;
+        }
+
+        .toggle-opt { 
+            padding: 8px 16px; 
+            font-size: 11px; 
+            font-weight: 700; 
+            color: var(--text-muted); 
+            cursor: pointer; 
+            border-radius: 8px; 
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); 
+            white-space: nowrap;
+            text-align: center;
+            border: 1px solid transparent;
         }
         
-        .tab-btn.active { 
-            background: linear-gradient(135deg, var(--accent) 0%, #1d4ed8 100%); 
-            color: white; 
-            border-color: transparent; 
-            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
+        .toggle-opt.active { 
+            background: white; 
+            color: var(--accent);
+            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.15);
+            border-color: rgba(37, 99, 235, 0.1);
         }
 
-        .tab-btn:hover:not(.active) {
-            background: var(--card-hover);
-            transform: translateY(-2px);
+        /* Layout Fixes */
+        body {
+            padding-bottom: 100px !important;
         }
-
+    
         /* --- Sections & Cards --- */
         .section { 
             background: var(--glass); 
@@ -408,19 +458,22 @@ input, textarea, select, [contenteditable] {
         input, select { 
             background: var(--input-bg); 
             border: 1px solid var(--glass-border);
-            padding: 10px; 
-            border-radius: 10px; 
+            padding: 12px; 
+            border-radius: 12px; 
             color: var(--text-main); 
             outline: none;
             font-family: inherit; 
-            transition: 0.3s; 
-            font-weight: 400; /* Updated: Lighter font weight */
+            transition: border-color 0.2s, box-shadow 0.2s; 
+            font-weight: 500;
             backdrop-filter: var(--backdrop-blur);
+            -webkit-appearance: none; /* Native look on iOS */
+            font-size: 16px; /* Prevent auto-zoom on iOS */
         }
         
         input:focus, select:focus { 
             border-color: var(--accent); 
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+            background: white;
         }
 
         /* --- Search Bars --- */
@@ -438,64 +491,77 @@ input, textarea, select, [contenteditable] {
 
         .search-bar:focus {
             border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+            background: white;
         }
 
         .search-bar::placeholder {
             color: var(--text-muted);
         }
 
-        /* --- Buttons --- */
+        /* --- Native-Feel Buttons --- */
         .btn { 
-            padding: 10px 16px; 
+            padding: 12px 20px; 
             border: none; 
-            border-radius: 10px; 
+            border-radius: 14px; 
             cursor: pointer; 
-            font-weight: 700; 
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+            font-weight: 600; 
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); 
             position: relative;
             overflow: hidden;
-            font-size: 0.85rem;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            /* Prevent text selection */
+            user-select: none;
+            -webkit-user-select: none;
+            /* GPU acceleration */
+            transform: translateZ(0);
         }
         
-        .btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
-            transition: 0.5s;
-        }
-        
-        .btn:hover::before {
-            left: 100%;
+        .btn:active {
+            transform: scale(0.97) translateZ(0);
+            opacity: 0.9;
         }
         
         .btn-main { 
-            background: linear-gradient(135deg, var(--accent) 0%, #1d4ed8 100%); 
+            background: var(--accent); 
             color: white; 
             width: 100%; 
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
         }
         
         .btn-noman { 
-            background: linear-gradient(135deg, var(--accent-emerald) 0%, #047857 100%); 
+            background: var(--accent-emerald); 
             color: white; 
             width: 100%; 
             margin-top: 8px; 
+            box-shadow: 0 4px 12px rgba(5, 150, 105, 0.2);
         }
         
         .btn-danger { 
-            background: linear-gradient(135deg, var(--danger) 0%, #b91c1c 100%); 
+            background: var(--danger); 
             color: white; 
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.2);
         }
         
         .btn-sm { 
-            padding: 5px 10px; 
-            font-size: 0.75rem; 
+            padding: 8px 14px; 
+            font-size: 0.8rem; 
             width: auto; 
             margin: 0; 
+            border-radius: 10px;
+            font-weight: 500;
+        }
+        
+        /* Layout Stability: Prevent layout shift on scrollbar */
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            position: relative;
+            padding-bottom: 40px;
         }
         
         .btn-theme { 
@@ -1104,7 +1170,7 @@ input, textarea, select, [contenteditable] {
 
         /* Consistent font sizes */
         h1, h2, h3, h4 {
-            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-family: 'Inter', 'Plus Jakarta Sans', sans-serif;
         }
 
         h1 {
@@ -1393,6 +1459,9 @@ input, textarea, select, [contenteditable] {
             z-index: 1000;
             align-items: center;
             justify-content: center;
+            /* FIX: Ensure full-screen coverage and proper scrolling on mobile */
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
         .factory-overlay-card {
@@ -1401,21 +1470,23 @@ input, textarea, select, [contenteditable] {
             -webkit-backdrop-filter: var(--backdrop-blur);
             border: 1px solid var(--glass-border);
             border-radius: 20px;
-            padding: 25px;
-            width: 90%;
+            padding: 20px; /* Reduced padding for mobile */
+            width: 95%; /* Increased width for mobile */
             max-width: 650px;
-            max-height: 85vh;
+            max-height: 90vh; /* Increased height for mobile */
             overflow-y: auto;
             box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+            /* FIX: Allow card to scroll on mobile */
+            margin: 10px;
         }
 
         /* Factory Material Input Grid */
         .factory-material-grid {
             display: grid;
-            grid-template-columns: 2fr 1fr 1fr;
+            grid-template-columns: 1.5fr 1fr 1fr; /* Adjusted for mobile */
             gap: 5px;
             margin-bottom: 5px;
-            font-size: 0.7rem;
+            font-size: 0.65rem; /* Smaller font for mobile */
             font-weight: 800;
             color: var(--text-muted);
             text-transform: uppercase;
@@ -1482,9 +1553,18 @@ input, textarea, select, [contenteditable] {
         /* Factory Formula Grid */
         .factory-formula-grid {
             display: grid;
-            grid-template-columns: 2fr 1fr 1fr;
+            grid-template-columns: 1.5fr 1fr 1fr; /* Adjusted for mobile */
             gap: 5px;
             margin-bottom: 10px;
+        }
+        
+        /* Ensure inputs inside the grid don't overflow */
+        .factory-formula-grid select, 
+        .factory-formula-grid input {
+            width: 100%;
+            min-width: 0; /* Allow shrinking */
+            padding: 8px 4px; /* Tighter padding */
+            font-size: 0.8rem;
         }
 
         /* Cost Display Styles */
@@ -1561,7 +1641,7 @@ input, textarea, select, [contenteditable] {
         }
         
         .warning-message::before {
-            content: "⚠️";
+            content: "️";
             font-size: 1rem;
         }
         
@@ -2312,35 +2392,57 @@ body.dark-mode .entity-action-btn {
     }
 } /* <-- THIS CLOSING BRACKET WAS MISSING */
 
-/* --- DARK THEME (LIQUID NIGHT MODE) --- */
+/* --- DARK THEME (LIQUID NIGHT MODE) - Native Feel --- */
 body.dark-mode {
-    --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
-    --glass: rgba(30, 41, 59, 0.92);
-    --glass-border: rgba(96, 165, 250, 0.15);
-    --text-main: #f1f5f9;
+    --bg-gradient: linear-gradient(135deg, #020617 0%, #0f172a 100%);
+    --glass: rgba(15, 23, 42, 0.9);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --text-main: #f8fafc;
     --text-muted: #94a3b8;
-    --accent: #60a5fa;
-    --accent-emerald: #34d399;
-    --warning: #fbbf24;
-    --danger: #f87171;
-    --input-bg: rgba(30, 41, 59, 0.85);
-    --card-hover: rgba(51, 65, 85, 0.98);
-    --shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
-    --highlight-bg: rgba(96, 165, 250, 0.15);
-    --highlight-border: rgba(96, 165, 250, 0.3);
-    --store-a: #60a5fa;
-    --store-b: #a78bfa;
+    --accent: #3b82f6;
+    --accent-emerald: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --input-bg: rgba(2, 6, 23, 0.8);
+    --card-hover: rgba(30, 41, 59, 0.95);
+    --shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    --highlight-bg: rgba(59, 130, 246, 0.1);
+    --highlight-border: rgba(59, 130, 246, 0.2);
+    --store-a: #3b82f6;
+    --store-b: #8b5cf6;
     --store-c: #10b981;
-    --cash-color: #34d399;
-    --credit-color: #fbbf24;
-    --liquid-blue: rgba(96, 165, 250, 0.1);
-    --liquid-green: rgba(52, 211, 153, 0.1);
-    --noran-color: #60a5fa;
-    --noman-color: #34d399;
-    --supply-a: #60a5fa;
-    --supply-b: #a78bfa;
-    --factory-std: #60a5fa;
-    --factory-asn: #a78bfa;
+    --cash-color: #10b981;
+    --credit-color: #f59e0b;
+    --liquid-blue: rgba(59, 130, 246, 0.08);
+    --liquid-green: rgba(16, 185, 129, 0.08);
+    --noran-color: #3b82f6;
+    --noman-color: #10b981;
+    --supply-a: #3b82f6;
+    --supply-b: #8b5cf6;
+    --factory-std: #3b82f6;
+    --factory-asn: #8b5cf6;
+}
+
+body.dark-mode .liquid-card {
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.9) 100%);
+}
+
+body.dark-mode .nav-tabs {
+    background: var(--bg-gradient);
+}
+
+body.dark-mode .tab-btn {
+    background: var(--input-bg);
+    border-color: var(--glass-border);
+}
+
+body.dark-mode input, body.dark-mode select {
+    background: var(--input-bg);
+    border-color: var(--glass-border);
+}
+
+body.dark-mode input:focus {
+    background: #1e293b;
 }
 
 /* Dark mode specific adjustments */
@@ -2723,7 +2825,7 @@ body.dark-mode .units-available-danger {
     <div class="factory-overlay-card liquid-card">
         <div class="section-header">
             <h3 id="factorySettingsModalTitle">Factory Formulas</h3>
-            <button class="btn-theme" onclick="closeFactorySettings()">✕</button>
+            <button class="btn-theme" onclick="closeFactorySettings()"></button>
         </div>
         
         <div class="factory-store-selector">
@@ -2811,7 +2913,7 @@ body.dark-mode .units-available-danger {
     <div class="factory-overlay-card liquid-card">
         <div class="section-header">
             <h3 id="factoryInventoryModalTitle">Add Raw Material</h3>
-            <button class="btn-theme" onclick="closeFactoryInventoryModal()">✕</button>
+            <button class="btn-theme" onclick="closeFactoryInventoryModal()"></button>
         </div>
         
         <div class="grid-inputs">
@@ -2881,7 +2983,7 @@ body.dark-mode .units-available-danger {
                     <label style="display: flex; align-items: center; cursor: pointer;">
                         <input type="checkbox" id="factorySupplierAutoEntity" checked disabled style="width: 16px; height: 16px; margin-right: 10px; accent-color: var(--accent);">
                         <span style="font-size: 0.8rem; font-weight: 700; color: var(--accent-emerald);">
-                            ✓ Add to Quick Entity Selection
+                             Add to Quick Entity Selection
                         </span>
                     </label>
                     <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 5px; margin-left: 26px;">
@@ -2904,7 +3006,7 @@ body.dark-mode .units-available-danger {
     <div class="factory-overlay-card liquid-card">
         <div class="section-header">
             <h3 id="entityManagementModalTitle">Add Entity</h3>
-            <button class="btn-theme" onclick="closeEntityManagement()">✕</button>
+            <button class="btn-theme" onclick="closeEntityManagement()"></button>
         </div>
         
         <div class="grid-inputs">
@@ -2943,7 +3045,7 @@ body.dark-mode .units-available-danger {
     <div class="factory-overlay-card liquid-card" style="max-width: 800px;">
         <div class="section-header">
             <h3 id="entityTransactionsTitle">Entity Transactions</h3>
-            <button class="btn-theme" onclick="closeEntityTransactions()">✕</button>
+            <button class="btn-theme" onclick="closeEntityTransactions()"></button>
         </div>
         
         <!-- Summary Cards -->
@@ -2982,7 +3084,7 @@ body.dark-mode .units-available-danger {
                 <h3 id="manageCustomerTitle" style="margin:0; color:var(--text-main);">Customer Name</h3>
                 <span id="manageCustomerStats" style="font-size: 0.75rem; color:var(--text-muted);">Current Debt: Rs 0.00</span>
             </div>
-            <button class="btn-theme" onclick="closeCustomerManagement()">✕</button>
+            <button class="btn-theme" onclick="closeCustomerManagement()"></button>
         </div>
 
         <div class="debt-panel" style="margin-bottom: 20px; flex-shrink: 0;">
@@ -3011,12 +3113,12 @@ body.dark-mode .units-available-danger {
 <!-- AESTHETIC SPLASH SCREEN -->
 <div id="splash-screen">
     <!-- Flower Decorations -->
-    <div class="flower flower1">🌸</div>
-    <div class="flower flower2">🌺</div>
-    <div class="flower flower3">🌼</div>
-    <div class="flower flower4">🌻</div>
-    <div class="flower flower5">🌷</div>
-    <div class="flower flower6">🌹</div>
+    <div class="flower flower1"></div>
+    <div class="flower flower2"></div>
+    <div class="flower flower3"></div>
+    <div class="flower flower4"></div>
+    <div class="flower flower5"></div>
+    <div class="flower flower6"></div>
     
     <div class="splash-ornament ornament-top"></div>
     
@@ -3035,8 +3137,8 @@ body.dark-mode .units-available-danger {
     <span style="font-weight:800; font-size:0.85rem; color:var(--accent);" class="shimmer-text">MAHMOOD KHAN</span>
     
     <div style="display:flex; gap:8px; align-items: center;">
-        <button class="btn-theme" id="themeToggle" onclick="(async () => { await toggleDarkMode() })()" title="Toggle Dark Mode">🌕</button>
-        <button class="btn-theme" id="cloudMenuBtn" onclick="(async () => { await openDataMenu() })()" title="Data Management">🌥️</button>
+        <button class="btn-theme" id="themeToggle" onclick="(async () => { await toggleDarkMode() })()" title="Toggle Dark Mode"></button>
+        <button class="btn-theme" id="cloudMenuBtn" onclick="(async () => { await openDataMenu() })()" title="Data Management">️</button>
     </div>
 </div>
 
@@ -3046,11 +3148,11 @@ body.dark-mode .units-available-danger {
     <div class="factory-overlay-card liquid-card" style="max-width: 350px; text-align: center;">
         <div class="section-header">
             <h3 style="color:var(--text-main); margin:0;">Data Options</h3>
-            <button class="btn-theme" onclick="closeDataMenu()">✕</button>
+            <button class="btn-theme" onclick="closeDataMenu()"></button>
         </div>
         <hr style="width: 100%; border: 0; border-top: 1px solid var(--glass-border); margin: 5px 0;">
 <button class="btn" id="bio-toggle-btn" style="background: rgba(37, 99, 235, 0.1); color: var(--text-main); border: 1px solid var(--glass-border);" onclick="enableBiometricLock()">
-    Enable Biometric Lock 👆
+    Enable Biometric Lock 
 </button>
 <div style="background: rgba(245, 158, 11, 0.1); padding: 10px; border-radius: 10px; margin-bottom: 15px; border: 1px solid var(--warning);">
     <h4 style="margin: 0 0 10px 0; color: var(--warning); font-size: 0.8rem;">ADMIN CONTROLS</h4>
@@ -3065,28 +3167,28 @@ body.dark-mode .units-available-danger {
             <option value="NOMAN SHAH">NOMAN SHAH</option>
         </select>
     </div>
-    <button class="btn btn-danger" onclick="(async () => { await activateRepMode() })()">🔒 Switch to Rep Mode</button>
+    <button class="btn btn-danger" onclick="(async () => { await activateRepMode() })()"> Switch to Rep Mode</button>
 </div>
 <hr style="width: 100%; border: 0; border-top: 1px solid var(--glass-border); margin: 5px 0;">
 
         
         <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
                 <button class="btn btn-main" onclick="triggerCloudAction('backup')">
-        ☁️ Backup to Cloud
+         Backup to Cloud
     </button>
 </div>
 <div class="field">
     <button class="btn btn-noman" onclick="triggerCloudAction('restore')">
-        📥 Restore from Cloud
+         Restore from Cloud
     </button>
             
             <hr style="width: 100%; border: 0; border-top: 1px solid var(--glass-border); margin: 5px 0;">
             
             <button class="btn" style="background: rgba(37, 99, 235, 0.1); color: var(--text-main); border: 1px solid var(--glass-border);" onclick="(async () => { await triggerLocalBackup() })()">
-                💾 Backup to Phone
+                 Backup to Phone
             </button>
             <button class="btn" style="background: rgba(37, 99, 235, 0.1); color: var(--text-main); border: 1px solid var(--glass-border);" onclick="document.getElementById('restoreInput').click(); closeDataMenu();">
-                📂 Restore from Phone
+                 Restore from Phone
             </button>
         </div>
         
@@ -3106,10 +3208,10 @@ body.dark-mode .units-available-danger {
     </div>
 <div id="rep-header" class="hidden" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; background: var(--glass); padding: 15px; border-radius: 20px; border: 1px solid var(--glass-border);">
     <div>
-        <h2 style="margin:0; color:var(--accent);">👤 <span id="current-rep-name-display">REP MODE</span></h2>
+        <h2 style="margin:0; color:var(--accent);"> <span id="current-rep-name-display">REP MODE</span></h2>
         <span style="font-size: 0.7rem; color: var(--text-muted);">Restricted Access</span>
     </div>
-    <button class="btn btn-danger" onclick="openAdminPinModal()">🔓 Admin Access</button>
+    <button class="btn btn-danger" onclick="openAdminPinModal()"> Admin Access</button>
 </div>
 
 <div id="adminPinOverlay" class="factory-overlay">
@@ -3127,8 +3229,8 @@ body.dark-mode .units-available-danger {
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
             <h3 style="color:var(--accent); margin:0;">New Transaction</h3>
             <div style="background:var(--input-bg); padding:4px; border-radius:8px; border:1px solid var(--glass-border); display:flex;">
-                <button id="btn-mode-sale" class="toggle-opt active" onclick="setRepMode('sale')" style="padding:6px 12px; font-size:0.8rem;">📦 Sale</button>
-                <button id="btn-mode-coll" class="toggle-opt" onclick="setRepMode('collection')" style="padding:6px 12px; font-size:0.8rem;">💰Collection</button>
+                <button id="btn-mode-sale" class="toggle-opt active" onclick="setRepMode('sale')" style="padding:6px 12px; font-size:0.8rem;"> Sale</button>
+                <button id="btn-mode-coll" class="toggle-opt" onclick="setRepMode('collection')" style="padding:6px 12px; font-size:0.8rem;">Collection</button>
             </div>
         </div>
         
@@ -3700,7 +3802,7 @@ body.dark-mode .units-available-danger {
                   <div class="field"><label>Returned Qty</label><input type="number" id="returnedQuantity" oninput="handleReturnQtyInput()"></div>
 
 <div id="returnStoreSection" class="hidden" style="grid-column: 1 / -1; margin: 10px 0; padding: 12px; background: rgba(245, 158, 11, 0.1); border-radius: 10px; border: 1px solid var(--warning);">
-    <label style="color: var(--warning); font-weight: 800; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">↩ Return Stock To Physical Inventory:</label>
+    <label style="color: var(--warning); font-weight: 800; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;"> Return Stock To Physical Inventory:</label>
     <div class="payment-type-container" style="margin-top: 8px;">
         <div class="payment-option">
             <input type="radio" id="ret-store-a" name="return-store" value="STORE_A">
@@ -3860,7 +3962,7 @@ body.dark-mode .units-available-danger {
         <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
             <h1 style="color:var(--text-main); font-weight:800; margin:0;" class="shimmer-text">Factory</h1>
             <div style="display:flex; gap:10px;">
-                <button class="btn-theme" onclick="openFactorySettings()">🔬</button>
+                <button class="btn-theme" onclick="openFactorySettings()"></button>
             </div>
         </header>
 
@@ -3994,7 +4096,7 @@ body.dark-mode .units-available-danger {
         <div class="section liquid-card">
             <div class="section-header">
                 <h3 style="color:var(--text-main); margin:0;">Raw Material Inventory</h3>
-                <button class="btn-theme" style="font-size:0.8rem;" onclick="openFactoryInventoryModal()">🌍</button>
+                <button class="btn-theme" style="font-size:0.8rem;" onclick="openFactoryInventoryModal()"></button>
             </div>
             
             <div style="overflow-x: auto;">
@@ -4088,7 +4190,7 @@ body.dark-mode .units-available-danger {
     <div id="tab-payments" class="hidden">
         <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
             <h1 style="color:var(--text-main); font-weight:800; margin:0;" class="shimmer-text">Payments</h1>
-            <button class="btn-theme" onclick="openEntityManagement()">✨</button>
+            <button class="btn-theme" onclick="openEntityManagement()"></button>
         </header>
 
         <!-- NET CASH & ECONOMIC HEALTH DASHBOARD -->
@@ -4362,8 +4464,8 @@ body.dark-mode .units-available-danger {
     <div class="section-header">
         <h3 style="color:var(--text-main); margin:0;">Entities & Balances</h3>
         <div style="display:flex; gap:8px;">
-            <button class="btn-theme" onclick="refreshEntityBalances()" title="Refresh Balances">↻</button>
-            <button class="btn-theme" onclick="toggleEntityViewMode()" id="entityViewModeToggle" title="Toggle Compact View">☰</button>
+            <button class="btn-theme" onclick="refreshEntityBalances()" title="Refresh Balances"></button>
+            <button class="btn-theme" onclick="toggleEntityViewMode()" id="entityViewModeToggle" title="Toggle Compact View"></button>
         </div>
     </div>
     
@@ -4530,7 +4632,7 @@ body.dark-mode .units-available-danger {
         }
 
         if (migrationNeeded) {
-            console.log("⚠️ LocalStorage data detected. Initiating Purge Protocol...");
+            console.log("️ LocalStorage data detected. Initiating Purge Protocol...");
             for (const key of keysToMigrate) {
                 const lsValue = localStorage.getItem(key);
                 if (lsValue !== null) {
@@ -4548,7 +4650,7 @@ body.dark-mode .units-available-danger {
                 }
             }
             localStorage.clear();
-            console.log("✓ Data migrated and LocalStorage purged successfully.");
+            console.log(" Data migrated and LocalStorage purged successfully.");
         }
 
         // 2. Strict Initialization: Load data exclusively from IndexedDB
@@ -4600,7 +4702,7 @@ body.dark-mode .units-available-danger {
         currentRepProfile = idb_currentRepProfile;
         adminPin = idb_adminPin;
         
-        console.log("✓ Global variables populated from IndexedDB.");
+        console.log(" Global variables populated from IndexedDB.");
     }
     
     // --- DATA INITIALIZATION ---
@@ -4645,11 +4747,11 @@ async function toggleDarkMode() {
     body.classList.toggle('dark-mode');
      // Update the icon
     if (body.classList.contains('dark-mode')) {
-        themeToggle.textContent = '☀️';
+        themeToggle.textContent = '';
         themeToggle.title = "Switch to Light Mode";
         await idb.set('theme', 'dark');
     } else {
-        themeToggle.textContent = '🌕';
+        themeToggle.textContent = '';
         themeToggle.title = "Switch to Dark Mode";
         await idb.set('theme', 'light');
     }
@@ -4672,9 +4774,9 @@ async function initTheme() {
     
     if (savedTheme === 'dark') {
         document.body.classList.add('dark-mode');
-        if (themeToggle) themeToggle.textContent = '☀️';
+        if (themeToggle) themeToggle.textContent = '';
     } else {
-        if (themeToggle) themeToggle.textContent = '🌕';
+        if (themeToggle) themeToggle.textContent = '';
     }
 }
 
@@ -4901,7 +5003,7 @@ if (typeof originalShowTab === 'function') {
 document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
         startPeriodicSync();
-        console.log('✓ Non-blocking sync system active');
+        console.log(' Non-blocking sync system active');
     }, 1000);
 });
 
@@ -4975,7 +5077,15 @@ window.addEventListener('beforeunload', function() {
         { quote: "Consistency is the foundation of excellence.", author: "Business Principle" },
         { quote: "In the world of business, the people who are most successful are those who are doing what they love.", author: "Warren Buffett" },
         { quote: "Dream bigger. Work smarter. Achieve more.", author: "Liquid Glass" },
-        { quote: "Your dedication today shapes tomorrow's success.", author: "Entrepreneurial Spirit" }
+        { quote: "Your dedication today shapes tomorrow's success.", author: "Entrepreneurial Spirit" },
+        { quote: "The secret of getting ahead is getting started.", author: "Mark Twain" },
+        { quote: "It always seems impossible until it's done.", author: "Nelson Mandela" },
+        { quote: "Quality means doing it right when no one is looking.", author: "Henry Ford" },
+        { quote: "The best way to predict the future is to create it.", author: "Peter Drucker" },
+        { quote: "Focus on being productive instead of busy.", author: "Tim Ferriss" },
+        { quote: "Do not wait; the time will never be 'just right'.", author: "Napoleon Hill" },
+        { quote: "Everything you've ever wanted is on the other side of fear.", author: "George Addair" },
+        { quote: "Opportunities don't happen. You create them.", author: "Chris Grosser" }
     ];
 
     function initSplashScreen() {
@@ -6655,14 +6765,14 @@ async function unlinkSupplierConfirmation(material) {
         t.isPayable === true
     );
     
-    let confirmMsg = `⚠️ Unlink ${material.supplierName} from ${material.name}?\n\n`;
+    let confirmMsg = `️ Unlink ${material.supplierName} from ${material.name}?\n\n`;
     confirmMsg += `This will:\n`;
-    confirmMsg += `✓ Remove supplier association\n`;
-    confirmMsg += `✓ Reset payment status to 'pending'\n`;
+    confirmMsg += ` Remove supplier association\n`;
+    confirmMsg += ` Reset payment status to 'pending'\n`;
     
     if (linkedTransactions.length > 0) {
         const totalReversed = linkedTransactions.reduce((sum, t) => sum + t.amount, 0);
-        confirmMsg += `✓ Reverse ${linkedTransactions.length} payment transaction(s) totaling Rs ${totalReversed.toFixed(2)}\n`;
+        confirmMsg += ` Reverse ${linkedTransactions.length} payment transaction(s) totaling Rs ${totalReversed.toFixed(2)}\n`;
     }
     
     confirmMsg += `\nThe material will be ready to link with a different supplier.`;
@@ -6807,7 +6917,7 @@ async function unlinkSupplierFromMaterial(material) {
         linkedTransactions.forEach(transaction => {
             // Remove the transaction
             paymentTransactions = paymentTransactions.filter(t => t.id !== transaction.id);
-            console.log(`   ↩ Reversed payment transaction: ${transaction.description} - Rs ${transaction.amount}`);
+            console.log(`    Reversed payment transaction: ${transaction.description} - Rs ${transaction.amount}`);
         });
         
         await idb.set('payment_transactions', paymentTransactions);
@@ -6824,7 +6934,7 @@ async function unlinkSupplierFromMaterial(material) {
     delete material.totalPayable;
     delete material.paidDate;
     
-    console.log(`   ✓ Supplier link removed from material`);
+    console.log(`    Supplier link removed from material`);
     
     await idb.set('factory_inventory_data', factoryInventoryData);
     
@@ -6902,7 +7012,7 @@ async function renderFactoryInventory() {
             let supplierHtml = '';
             if (item.supplierName) {
                 const paymentStatus = item.paymentStatus === 'paid' ? 
-                    '<span style="color:var(--accent-emerald);">✓ PAID</span>' : 
+                    '<span style="color:var(--accent-emerald);"> PAID</span>' : 
                     '<span style="color:var(--warning);">PENDING</span>';
                 
                 supplierHtml = `
@@ -7107,7 +7217,7 @@ async function linkMaterialToSupplier(materialId, supplierId, totalCost) {
     await idb.set('factory_inventory_data', factoryInventoryData);
     notifyDataChange('all');
 
-    console.log(`🔗 Linked material ${material.name} to supplier ${supplier.name}`);
+    console.log(` Linked material ${material.name} to supplier ${supplier.name}`);
     
     refreshPaymentTab();
 }
@@ -7692,20 +7802,20 @@ async function saveCustomerSale() {
     
     // Check 1: Overall production validation
     if (totalAvailableInventory === 0) {
-        alert(`❌ Inventory Validation Failed!\n\nNo production recorded for ${date}.\nYou cannot sell what has not been produced.\n\nPlease check production records.`);
+        alert(` Inventory Validation Failed!\n\nNo production recorded for ${date}.\nYou cannot sell what has not been produced.\n\nPlease check production records.`);
         return;
     }
     
     // Check 2: Store-specific inventory validation
     if (storeSpecificProduction === 0 && storeReturns === 0) {
-        alert(`❌ Store Inventory Validation Failed!\n\nNo production or returns for ${getStoreLabel(store)} store on ${date}.\n\nAvailable stores with production:\n${getAvailableStoresForDate(date)}`);
+        alert(` Store Inventory Validation Failed!\n\nNo production or returns for ${getStoreLabel(store)} store on ${date}.\n\nAvailable stores with production:\n${getAvailableStoresForDate(date)}`);
         return;
     }
     
     // Check 3: Prevent negative inventory (store-specific)
     const remainingAfterSale = storeAvailableInventory - quantity;
     if (remainingAfterSale < 0) {
-        alert(`❌ Insufficient Stock!\n\nSelected date: ${date}\nStore: ${getStoreLabel(store)}\n\n📦 Production: ${storeSpecificProduction.toFixed(3)} kg\n↩️ Returns: ${storeReturns.toFixed(3)} kg\n━━━━━━━━━━━━━━━━━━━━━\n✓ Total Available: ${totalAvailableInventory.toFixed(3)} kg\n✗ Already Sold: ${storeSpecificSales.toFixed(3)} kg\n━━━━━━━━━━━━━━━━━━━━━\n🟢 Current Stock: ${storeAvailableInventory.toFixed(3)} kg\n🔴 Sale Quantity: ${quantity.toFixed(3)} kg\n⚠️ Shortage: ${Math.abs(remainingAfterSale).toFixed(3)} kg\n\nPlease reduce sale quantity or check production records.`);
+        alert(` Insufficient Stock!\n\nSelected date: ${date}\nStore: ${getStoreLabel(store)}\n\n Production: ${storeSpecificProduction.toFixed(3)} kg\n️ Returns: ${storeReturns.toFixed(3)} kg\n━━━━━━━━━━━━━━━━━━━━━\n Total Available: ${totalAvailableInventory.toFixed(3)} kg\n Already Sold: ${storeSpecificSales.toFixed(3)} kg\n━━━━━━━━━━━━━━━━━━━━━\n Current Stock: ${storeAvailableInventory.toFixed(3)} kg\n Sale Quantity: ${quantity.toFixed(3)} kg\n️ Shortage: ${Math.abs(remainingAfterSale).toFixed(3)} kg\n\nPlease reduce sale quantity or check production records.`);
         return;
     }
     
@@ -7735,7 +7845,7 @@ async function saveCustomerSale() {
     if (paymentType === 'CREDIT') {
         const creditWarningThreshold = 5000;
         if (existingCredit > creditWarningThreshold) {
-            if (!confirm(`⚠️ Credit Sale Warning!\n\nCustomer "${name}" already has outstanding credit: Rs ${existingCredit.toFixed(2)}\n\nNew credit: Rs ${totalValue.toFixed(2)}\nTotal will be: Rs ${(existingCredit + totalValue).toFixed(2)}\n\nProceed with sale?`)) {
+            if (!confirm(`️ Credit Sale Warning!\n\nCustomer "${name}" already has outstanding credit: Rs ${existingCredit.toFixed(2)}\n\nNew credit: Rs ${totalValue.toFixed(2)}\nTotal will be: Rs ${(existingCredit + totalValue).toFixed(2)}\n\nProceed with sale?`)) {
                 return;
             }
         }
@@ -7782,7 +7892,7 @@ async function saveCustomerSale() {
     refreshCustomerSales();
     refreshEntityList();
     
-    alert(`✅ Sale recorded successfully!\n\nDate: ${date}\nCustomer: ${name}\nQuantity: ${quantity.toFixed(3)} kg\nStore: ${getStoreLabel(store)}\nTotal Value: Rs ${totalValue.toFixed(2)}\nPayment: ${paymentType}\n\n📊 Inventory Status:\n━━━━━━━━━━━━━━━━━━━━━\n📦 Production: ${storeSpecificProduction.toFixed(3)} kg\n↩️ Returns: ${storeReturns.toFixed(3)} kg\n✓ Total Available: ${totalAvailableInventory.toFixed(3)} kg\n✗ Previous Sales: ${storeSpecificSales.toFixed(3)} kg\n🟢 Remaining Stock: ${remainingAfterSale.toFixed(3)} kg`);
+    alert(` Sale recorded successfully!\n\nDate: ${date}\nCustomer: ${name}\nQuantity: ${quantity.toFixed(3)} kg\nStore: ${getStoreLabel(store)}\nTotal Value: Rs ${totalValue.toFixed(2)}\nPayment: ${paymentType}\n\n Inventory Status:\n━━━━━━━━━━━━━━━━━━━━━\n Production: ${storeSpecificProduction.toFixed(3)} kg\n️ Returns: ${storeReturns.toFixed(3)} kg\n Total Available: ${totalAvailableInventory.toFixed(3)} kg\n Previous Sales: ${storeSpecificSales.toFixed(3)} kg\n Remaining Stock: ${remainingAfterSale.toFixed(3)} kg`);
 }
 
 // Helper function to get store label
@@ -7901,17 +8011,17 @@ function calculateCustomerSale() {
         const inventoryWarning = document.getElementById('inventory-warning') || createInventoryWarningElement();
         
         if (quantity > availableInventory) {
-            inventoryWarning.innerHTML = `⚠️ Warning: Only ${availableInventory.toFixed(3)} kg available.<br><small>Production: ${storeProduction.toFixed(2)} kg + Returns: ${storeReturns.toFixed(2)} kg = ${totalAvailable.toFixed(2)} kg total</small>`;
+            inventoryWarning.innerHTML = `️ Warning: Only ${availableInventory.toFixed(3)} kg available.<br><small>Production: ${storeProduction.toFixed(2)} kg + Returns: ${storeReturns.toFixed(2)} kg = ${totalAvailable.toFixed(2)} kg total</small>`;
             inventoryWarning.style.display = 'block';
             inventoryWarning.style.color = 'var(--danger)';
             inventoryWarning.style.background = 'rgba(220, 38, 38, 0.1)';
         } else if (availableInventory < (quantity * 1.5)) {
-            inventoryWarning.innerHTML = `ℹ️ Inventory: ${availableInventory.toFixed(3)} kg available (${(availableInventory - quantity).toFixed(3)} kg remaining)<br><small>Production: ${storeProduction.toFixed(2)} kg + Returns: ${storeReturns.toFixed(2)} kg</small>`;
+            inventoryWarning.innerHTML = `️ Inventory: ${availableInventory.toFixed(3)} kg available (${(availableInventory - quantity).toFixed(3)} kg remaining)<br><small>Production: ${storeProduction.toFixed(2)} kg + Returns: ${storeReturns.toFixed(2)} kg</small>`;
             inventoryWarning.style.display = 'block';
             inventoryWarning.style.color = 'var(--warning)';
             inventoryWarning.style.background = 'rgba(245, 158, 11, 0.1)';
         } else {
-            inventoryWarning.innerHTML = `✓ Inventory: ${availableInventory.toFixed(3)} kg available<br><small>Production: ${storeProduction.toFixed(2)} kg + Returns: ${storeReturns.toFixed(2)} kg = ${totalAvailable.toFixed(2)} kg total</small>`;
+            inventoryWarning.innerHTML = ` Inventory: ${availableInventory.toFixed(3)} kg available<br><small>Production: ${storeProduction.toFixed(2)} kg + Returns: ${storeReturns.toFixed(2)} kg = ${totalAvailable.toFixed(2)} kg total</small>`;
             inventoryWarning.style.display = 'block';
             inventoryWarning.style.color = 'var(--accent-emerald)';
             inventoryWarning.style.background = 'rgba(5, 150, 105, 0.1)';
@@ -8029,7 +8139,7 @@ async function deleteCustomerSale(id) {
     
     if(Math.abs(diff) < 0.01) {
         box.className = 'result-box discrepancy-ok';
-        document.getElementById('discrepancyStatus').innerText = "PERFECT MATCH ✓";
+        document.getElementById('discrepancyStatus').innerText = "PERFECT MATCH ";
     } else if(diff < -0.01) { 
         box.className = 'result-box discrepancy-alert';
         document.getElementById('discrepancyStatus').innerText = `SHORT: Rs ${Math.abs(diff).toFixed(2)}`;
@@ -8044,7 +8154,11 @@ async function deleteCustomerSale(id) {
 // 1. Initialize return storage
 let stockReturns = [];
 // ============================================
-// SUPABASE REAL-TIME SYNC - OPTIMIZED
+// SUPABASE CLOUD SYNC - COMPLETE IMPLEMENTATION
+// ============================================
+
+// ============================================
+// SEAMLESS CLOUD SYNC MODULE (AUTO-SAVE)
 // ============================================
 
 const SUPABASE_URL = 'https://znxhlwbmoqwoijkhglcb.supabase.co';
@@ -8052,87 +8166,114 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 let supabaseClient = null;
 let currentUser = null;
-let realtimeChannel = null;
-let backupTimer = null;
+let autoSaveTimer = null;
+let isSyncing = false; // FIX 1: Global lock for sync operations
+const AUTO_SAVE_DELAY = 5000; // Auto-save 5 seconds after last change
 
-// 1. Initialize Supabase & Realtime Listener
+// Initialize Supabase
 function initSupabase() {
-    if (typeof window.supabase === 'undefined') return;
+    if (typeof window.supabase === 'undefined') {
+        console.error(' Supabase SDK not loaded.');
+        return;
+    }
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    setupAuthListener();
+    checkAuthState();
+}
 
-    try {
-        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        console.log('✅ Supabase Client Initialized');
-
-        setupAuthListener();
-        checkAuthState();
-
-        // --- REAL-TIME LISTENER ---
-        // This listens for changes made by OTHER users/devices
-        if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
-        
-        realtimeChannel = supabaseClient
-            .channel('public:user_data')
-            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_data' }, async (payload) => {
-                console.log('⚡ Cloud Update Detected:', payload);
-                
-                // When cloud data changes, check if it is newer than what we have
-                const cloudTime = new Date(payload.new.last_synced).getTime();
-                const localTime = new Date(await idb.get('last_synced') || 0).getTime();
-
-                // If cloud is newer (and the difference is > 2 seconds to avoid loop), pull it
-                if (cloudTime > (localTime + 2000)) {
-                    showToast('🔄 New data detected from cloud. Syncing...', 'info');
-                    await pullDataFromCloud(true); // Silent pull
-                }
-            })
-            .subscribe((status) => {
-                if (status === 'SUBSCRIBED') {
-                    console.log('📡 Connected to Real-time Sync');
-                }
-            });
-
-    } catch (e) {
-        console.error('Supabase Init Error:', e);
+// Check Session & Auto-Restore on Load
+async function checkAuthState() {
+    if (!supabaseClient) return;
+    const { data: { user }, error } = await supabaseClient.auth.getUser();
+    
+    if (user) {
+        currentUser = user;
+        console.log(` Logged in as ${user.email}`);
+        // Seamlessly pull data on startup
+        await pullDataFromCloud(true); // true = silent mode
+        addSignOutButton();
     }
 }
-// 3. Setup Auth Listener (Standard)
+
+// --- UPDATED LISTENER: Closes overlay on success ---
 function setupAuthListener() {
-    if (!supabaseClient) return;
     supabaseClient.auth.onAuthStateChange(async (event, session) => {
-        if (event === 'SIGNED_IN' && session) {
-            currentUser = session.user;
-            hideAuthOverlay();
-            addSignOutButton();
-            // IMMEDIATE SYNC ON LOGIN
+        if (event === 'SIGNED_IN') {
+            currentUser = session?.user;
+            
+            // 1. Close the login screen immediately
+            hideAuthOverlay(); 
+            
+            // 2. Show success message
+            showToast(`Cloud Sync Active`, 'success');
+            
+            // 3. Sync data
+            // FIX 9: Auto-pull on login. The pullDataFromCloud logic now handles the conflict resolution (pulling or pushing).
             await pullDataFromCloud(true); 
+            addSignOutButton();
+            
         } else if (event === 'SIGNED_OUT') {
             currentUser = null;
             removeSignOutButton();
+            // FIX 10: Clear the auto-save timer on sign out
+            if (autoSaveTimer) clearTimeout(autoSaveTimer);
+            // Optional: You can uncomment the line below if you want 
+            // the login screen to appear immediately upon logout:
+            // showAuthOverlay(); 
         }
     });
 }
 
-// 4. Check Session (Standard)
-async function checkAuthState() {
-    if (!supabaseClient) return;
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    if (session?.user) {
-        currentUser = session.user;
-        addSignOutButton();
-        // IMMEDIATE SYNC ON LOAD
-        await pullDataFromCloud(true);
-    }
+
+// --- CORE: TRIGGER AUTO-SAVE ---
+// Call this function whenever data changes (hooked into notifyDataChange)
+function triggerSeamlessBackup() {
+    // FIX 3: Check for session *before* starting the timer
+    if (!currentUser || !supabaseClient) return;
+
+    // FIX 4: Clear any existing timer to debounce
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
+
+    // Visual feedback
+    const syncBadge = document.getElementById('cloudMenuBtn');
+    if(syncBadge) syncBadge.innerText = ''; 
+
+    autoSaveTimer = setTimeout(async () => {
+        // FIX 5: Check session again inside the timer, in case it expired during the delay
+        // This is crucial for handling session expiration during background sync
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+            console.warn('Session expired during auto-save delay. Skipping push.');
+            if(syncBadge) syncBadge.innerText = '️';
+            return;
+        }
+        
+        await pushDataToCloud(true); // Silent auto-save
+        if(syncBadge) syncBadge.innerText = '';
+    }, AUTO_SAVE_DELAY);
 }
-// 4. Push Data to Cloud (Backup)
+
+// --- PUSH DATA (BACKUP) ---
+// --- PUSH DATA (BACKUP) ---
+// FIX 1: Add a global lock to prevent race conditions
 async function pushDataToCloud(silent = false) {
-    if (!supabaseClient || !currentUser) return;
+    if (!currentUser || !supabaseClient) return;
+    
+    // FIX 1: Check lock
+    if (isSyncing) {
+        console.warn('Sync already in progress. Skipping push.');
+        if (!silent) showToast('Sync in progress. Please wait.', 'info');
+        return;
+    }
+    isSyncing = true;
 
     try {
-        const now = new Date().toISOString();
+        if (!silent) console.log(' Uploading to cloud...');
         
-        // Prepare the massive data object
-        const backupData = {
-            mfg_pro_pkr: db, // Use live global variables for speed
+        // Ensure we are pulling the most recent data from global variables
+        // which are synced exclusively with IndexedDB
+        const dataToSync = {
+            mfg_pro_pkr: db,
             customer_sales: customerSales,
             noman_history: salesHistory,
             factory_inventory_data: factoryInventoryData,
@@ -8148,144 +8289,218 @@ async function pushDataToCloud(silent = false) {
             naswar_default_settings: defaultSettings,
             appMode: appMode,
             repProfile: currentRepProfile,
-            adminPin: adminPin
+            adminPin: adminPin,
+            // last_synced is set by the database trigger, but we include it for clarity
+            last_synced: new Date().toISOString() 
         };
 
-        // Upload
+        // FIX 6: Use a single timestamp for atomic update and conflict resolution
+        const currentTimestamp = new Date().toISOString();
+
         const { error } = await supabaseClient
             .from('user_data')
             .upsert({ 
                 user_id: currentUser.id, 
-                data: backupData,
-                last_synced: now 
+                data: dataToSync,
+                last_synced: currentTimestamp // Use the same timestamp for local and cloud
             }, { onConflict: 'user_id' });
 
         if (error) throw error;
 
-        // Update local timestamp to match cloud
-        await idb.set('last_synced', now);
-        
-        if (!silent) showToast('✅ Cloud Sync Complete', 'success');
-        console.log('✅ Data pushed to cloud');
+        // FIX 6: Update local timestamp ONLY after successful cloud write
+        await idb.set('last_synced', currentTimestamp); 
+        if (!silent) showToast('Data backed up to cloud', 'success');
+        console.log(' Auto-save complete');
 
     } catch (error) {
-        console.error('Backup Error:', error);
-        if (!silent) showToast('❌ Sync failed', 'error');
+        console.error('Cloud Backup Error:', error);
+        if (!silent) showToast('Backup failed. Will retry...', 'warning');
+    } finally {
+        // FIX 1: Release lock
+        isSyncing = false;
     }
 }
 
-
-// 5. Pull Data from Cloud (Restore)
+// --- PULL DATA (RESTORE) ---
+// --- PULL DATA (RESTORE) ---
 async function pullDataFromCloud(silent = false) {
-    if (!supabaseClient || !currentUser) return;
+    if (!currentUser || !supabaseClient) return;
+
+    // FIX 1: Check lock
+    if (isSyncing) {
+        console.warn('Sync already in progress. Skipping pull.');
+        if (!silent) showToast('Sync in progress. Please wait.', 'info');
+        return;
+    }
+    isSyncing = true;
 
     try {
+        if (!silent) console.log(' Checking for cloud updates...');
+
         const { data, error } = await supabaseClient
             .from('user_data')
             .select('data, last_synced')
             .eq('user_id', currentUser.id)
             .maybeSingle();
 
-        if (error) throw error;
-        if (!data) return;
+        if (error && error.code !== 'PGRST116') throw error;
 
-        // Smart Check: Is cloud actually newer?
-        const localTime = new Date(await idb.get('last_synced') || 0).getTime();
-        const cloudTime = new Date(data.last_synced).getTime();
-
-        // Buffer of 1 second to prevent self-update loops
-        if (cloudTime <= localTime + 1000) {
-            console.log('⚡ Local data is up to date.');
+        // 1. New User / No Data
+        if (!data || !data.data) {
+            if (!silent) showToast('No cloud data found. Starting fresh.', 'info');
+            // If we have local data, push it up immediately to initialize cloud
+            // FIX 7: Only push if local data is non-empty, preventing accidental push of empty state
+            const localDataExists = db.length > 0 || customerSales.length > 0 || (await idb.get('last_synced'));
+            if (localDataExists) {
+                console.log('Local data found. Initializing cloud with local data.');
+                await pushDataToCloud(true);
+            }
             return;
         }
 
+        // 2. Compare Timestamps (Conflict Resolution)
+        const cloudTime = new Date(data.last_synced || 0).getTime();
+        const localTime = new Date(await idb.get('last_synced') || 0).getTime();
+
+        // FIX 2: If Cloud is OLDER than local, we MUST push local data to resolve the conflict.
+        // The silent check is removed to force a push if local is newer during auto-sync.
+        if (cloudTime < localTime) {
+            console.warn('Local data is newer than cloud. Pushing local data to resolve conflict.');
+            if (!silent) showToast('Local data is newer. Backing up now.', 'warning');
+            await pushDataToCloud(true); // Force a silent push
+            return;
+        }
+        
+        // If timestamps are equal, or cloud is newer, proceed with pull (unless silent and equal)
+        if (cloudTime === localTime && silent) {
+            console.log('⚡ Local data is up-to-date (timestamps match).');
+            return;
+        }
+
+        // 3. Restore Data
         const cloud = data.data;
         
-        // Critical: Update IDB
-        await idb.set('mfg_pro_pkr', cloud.mfg_pro_pkr || []);
-        await idb.set('customer_sales', cloud.customer_sales || []);
-        await idb.set('noman_history', cloud.noman_history || []); // Sales Rep History
-        await idb.set('factory_inventory_data', cloud.factory_inventory_data || []);
-        await idb.set('factory_production_history', cloud.factory_production_history || []);
-        await idb.set('factory_default_formulas', cloud.factory_default_formulas || { standard: [], asaan: [] });
-        await idb.set('factory_additional_costs', cloud.factory_additional_costs || { standard: 0, asaan: 0 });
-        await idb.set('factory_cost_adjustment_factor', cloud.factory_cost_adjustment_factor || { standard: 1, asaan: 1 });
-        await idb.set('factory_sale_prices', cloud.factory_sale_prices || { standard: 0, asaan: 0 });
-        await idb.set('factory_unit_tracking', cloud.factory_unit_tracking);
-        await idb.set('payment_entities', cloud.payment_entities || []);
-        await idb.set('payment_transactions', cloud.payment_transactions || []);
-        await idb.set('stock_returns', cloud.stock_returns || []);
-        await idb.set('naswar_default_settings', cloud.naswar_default_settings || {});
-        // Do NOT overwrite App Mode or PIN from cloud (keep device settings local)
-        
-        await idb.set('last_synced', data.last_synced);
+        // Restore Global Variables & LocalStorage
+        // FIX 8: Use a temporary object to hold the restored data to ensure atomic update of globals
+        const restoredData = {
+            db: cloud.mfg_pro_pkr || [],
+            customerSales: cloud.customer_sales || [],
+            salesHistory: cloud.noman_history || [],
+            factoryInventoryData: cloud.factory_inventory_data || [],
+            factoryProductionHistory: cloud.factory_production_history || [],
+            factoryDefaultFormulas: cloud.factory_default_formulas || { standard: [], asaan: [] },
+            factoryAdditionalCosts: cloud.factory_additional_costs || { standard: 0, asaan: 0 },
+            factoryCostAdjustmentFactor: cloud.factory_cost_adjustment_factor || { standard: 1, asaan: 1 },
+            factorySalePrices: cloud.factory_sale_prices || { standard: 0, asaan: 0 },
+            factoryUnitTracking: cloud.factory_unit_tracking || {},
+            paymentEntities: cloud.payment_entities || [],
+            paymentTransactions: cloud.payment_transactions || [],
+            stockReturns: cloud.stock_returns || [],
+            defaultSettings: cloud.naswar_default_settings || {},
+            appMode: cloud.appMode || appMode, // Preserve local if cloud is missing
+            repProfile: cloud.repProfile || currentRepProfile,
+            adminPin: cloud.adminPin || adminPin
+        };
 
-        // Reload into memory and refresh UI
-        await loadAllData(); 
-        await refreshAllDisplays();
+        // 4. Save to Local IndexedDB (Atomic Write)
+        const idbPromises = [
+            idb.set('mfg_pro_pkr', restoredData.db),
+            idb.set('customer_sales', restoredData.customerSales),
+            idb.set('noman_history', restoredData.salesHistory),
+            idb.set('factory_inventory_data', restoredData.factoryInventoryData),
+            idb.set('factory_production_history', restoredData.factoryProductionHistory),
+            idb.set('factory_default_formulas', restoredData.factoryDefaultFormulas),
+            idb.set('factory_additional_costs', restoredData.factoryAdditionalCosts),
+            idb.set('factory_cost_adjustment_factor', restoredData.factoryCostAdjustmentFactor),
+            idb.set('factory_sale_prices', restoredData.factorySalePrices),
+            idb.set('factory_unit_tracking', restoredData.factoryUnitTracking),
+            idb.set('payment_entities', restoredData.paymentEntities),
+            idb.set('payment_transactions', restoredData.paymentTransactions),
+            idb.set('stock_returns', restoredData.stockReturns),
+            idb.set('naswar_default_settings', restoredData.defaultSettings),
+            idb.set('appMode', restoredData.appMode),
+            idb.set('repProfile', restoredData.repProfile),
+            idb.set('adminPin', restoredData.adminPin),
+            idb.set('last_synced', data.last_synced)
+        ];
         
-        if (!silent) showToast('📥 Data updated from cloud', 'info');
+        await Promise.all(idbPromises);
+
+        // 5. Update Global Variables (After successful IDB write)
+        db = restoredData.db;
+        customerSales = restoredData.customerSales;
+        salesHistory = restoredData.salesHistory;
+        factoryInventoryData = restoredData.factoryInventoryData;
+        factoryProductionHistory = restoredData.factoryProductionHistory;
+        factoryDefaultFormulas = restoredData.factoryDefaultFormulas;
+        factoryAdditionalCosts = restoredData.factoryAdditionalCosts;
+        factoryCostAdjustmentFactor = restoredData.factoryCostAdjustmentFactor;
+        factorySalePrices = restoredData.factorySalePrices;
+        factoryUnitTracking = restoredData.factoryUnitTracking;
+        paymentEntities = restoredData.paymentEntities;
+        paymentTransactions = restoredData.paymentTransactions;
+        stockReturns = restoredData.stockReturns;
+        defaultSettings = restoredData.defaultSettings;
+        appMode = restoredData.appMode;
+        currentRepProfile = restoredData.repProfile;
+        adminPin = restoredData.adminPin;
+
+        if (!silent) showToast('Data restored from cloud!', 'success');
+        
+        // Refresh UI
+        await refreshAllDisplays();
 
     } catch (error) {
-        console.error('Restore Error:', error);
+        console.error('Cloud Restore Error:', error);
+        if (!silent) showToast('Sync failed. Using local data.', 'error');
+    } finally {
+        // FIX 1: Release lock
+        isSyncing = false;
     }
 }
 
 // --- UPDATED: TRIGGER CLOUD ACTION (WITH AUTH CHECK) ---
-// --- UPDATED: TRIGGER CLOUD ACTION (ROBUST AUTH CHECK) ---
 async function triggerCloudAction(action) {
-    // 1. Close the menu
+    // 1. Close the data menu first so it doesn't block the view
     closeDataMenu();
 
-    // 2. Check Supabase Client
+    // 2. Check if Supabase client is ready
     if (!supabaseClient) {
-        showToast("Cloud system not initialized.", "error");
+        showToast("Cloud system not initialized. Check internet connection.", "error");
         return;
     }
 
-    // 3. ROBUST AUTH CHECK: Get user directly from Supabase if variable is null
-    if (!currentUser) {
-        const { data } = await supabaseClient.auth.getUser();
-        currentUser = data.user;
+    // 3. CRITICAL: Check if user is logged in
+    // FIX 11: Check for isSyncing lock here to prevent button failure during sync
+    if (isSyncing) {
+        showToast("A sync operation is already in progress. Please wait.", "warning");
+        return;
     }
 
-    // 4. Still no user? Force Login.
     if (!currentUser) {
+        // If not logged in, force the login overlay to open
         showToast("Please sign in to access Cloud functions.", "info");
         showAuthOverlay();
-        return; 
+        return; // Stop here
     }
 
-    // 5. Proceed with Action
+    // 4. If logged in, proceed with the requested action
     if (action === 'backup') {
-        if(confirm("📤 Upload local data to Cloud?")) {
+        // Optional: Add a confirmation for manual backup
+        if(confirm(" Upload local data to Cloud?")) {
             await pushDataToCloud(false); // false = show success/error toasts
         }
     }
     
     if (action === 'restore') {
-        if(confirm("⚠️ RESTORE FROM CLOUD?\n\nThis will overwrite your current local data.\n\nContinue?")) {
+        // Essential: Confirmation for restore to prevent accidental overwrites
+        if(confirm("️ RESTORE FROM CLOUD?\n\nThis will overwrite your current local data with the version saved in the cloud.\n\nContinue?")) {
+            // FIX 12: Manual restore bypasses the timestamp check in pullDataFromCloud
             await pullDataFromCloud(false);
         }
     }
 }
-// 2. Trigger Seamless Backup (Auto-Save)
-// This function is called automatically by notifyDataChange()
-function triggerSeamlessBackup() {
-    if (!currentUser) return;
 
-    // Debounce: Wait 5 seconds after the last keystroke/edit before uploading
-    // This prevents uploading 50 times while typing a name
-    const statusIndicator = document.getElementById('lastSyncDisplay');
-    if(statusIndicator) statusIndicator.textContent = "⏳ Unsaved changes...";
-
-    clearTimeout(backupTimer);
-    backupTimer = setTimeout(async () => {
-        if(statusIndicator) statusIndicator.textContent = "☁️ Syncing...";
-        await pushDataToCloud(true); // true = silent upload (no popup alert)
-        if(statusIndicator) statusIndicator.textContent = `✓ Synced: ${new Date().toLocaleTimeString()}`;
-    }, 5000); // 5 seconds delay
-}
 
 // ============================================
 // AUTHENTICATION UI
@@ -8309,7 +8524,7 @@ function createAuthOverlay() {
     // Liquid Card styling to match main app cards
     overlay.innerHTML = `
         <div class="liquid-card" style="max-width: 400px; width: 90%; padding: 40px 30px; text-align: center; border: 1px solid var(--glass-border); box-shadow: 0 20px 50px rgba(37, 99, 235, 0.15);">
-            <div style="font-size: 3.5rem; margin-bottom: 10px;">🏞️</div>
+            <div style="font-size: 3.5rem; margin-bottom: 10px;">️</div>
             <h2 class="shimmer-text" style="font-family: 'sans-serif', cursive; font-size: 2.5rem; margin: 0 0 20px 0;">
                GULL AND ZUBAIR NASWAR DEALER'S
             </h2>
@@ -8378,12 +8593,12 @@ async function handleSignIn(e) {
     const messageDiv = document.getElementById('auth-message');
     
     if (!email || !password) {
-        messageDiv.textContent = '⚠️ Please enter both email and password';
+        messageDiv.textContent = '️ Please enter both email and password';
         messageDiv.style.color = 'var(--warning)';
         return;
     }
     
-    messageDiv.textContent = '🔄 Signing in...';
+    messageDiv.textContent = ' Signing in...';
     messageDiv.style.color = 'var(--accent)';
     
     try {
@@ -8394,12 +8609,12 @@ async function handleSignIn(e) {
         
         if (error) throw error;
         
-        messageDiv.textContent = '✓ Success! Loading your data...';
+        messageDiv.textContent = ' Success! Loading your data...';
         messageDiv.style.color = 'var(--accent-emerald)';
         
     } catch (error) {
         console.error('Sign in error:', error);
-        messageDiv.textContent = '❌ ' + (error.message || 'Sign in failed. Check your credentials.');
+        messageDiv.textContent = ' ' + (error.message || 'Sign in failed. Check your credentials.');
         messageDiv.style.color = 'var(--danger)';
     }
 }
@@ -8410,18 +8625,18 @@ async function handleSignUp() {
     const messageDiv = document.getElementById('auth-message');
     
     if (!email || !password) {
-        messageDiv.textContent = '⚠️ Please enter email and password';
+        messageDiv.textContent = '️ Please enter email and password';
         messageDiv.style.color = 'var(--danger)';
         return;
     }
     
     if (password.length < 6) {
-        messageDiv.textContent = '⚠️ Password must be at least 6 characters';
+        messageDiv.textContent = '️ Password must be at least 6 characters';
         messageDiv.style.color = 'var(--danger)';
         return;
     }
     
-    messageDiv.textContent = '🔄 Creating account...';
+    messageDiv.textContent = ' Creating account...';
     messageDiv.style.color = 'var(--accent)';
     
     try {
@@ -8432,12 +8647,12 @@ async function handleSignUp() {
         
         if (error) throw error;
         
-        messageDiv.textContent = '✓ Account created! Please check your email to confirm.';
+        messageDiv.textContent = ' Account created! Please check your email to confirm.';
         messageDiv.style.color = 'var(--accent-emerald)';
         
     } catch (error) {
         console.error('Sign up error:', error);
-        messageDiv.textContent = '❌ ' + (error.message || 'Sign up failed. Try a different email.');
+        messageDiv.textContent = ' ' + (error.message || 'Sign up failed. Try a different email.');
         messageDiv.style.color = 'var(--danger)';
     }
 }
@@ -8506,7 +8721,7 @@ async function saveTransaction() {
     if (ret > 0) {
         selectedStore = document.querySelector('input[name="return-store"]:checked');
         if (!selectedStore) {
-            alert("⚠️ Please select a store (ZUBAIR or MAHMOOD) for the returned stock!");
+            alert("️ Please select a store (ZUBAIR or MAHMOOD) for the returned stock!");
             return;
         }
     }
@@ -9129,7 +9344,7 @@ function refreshUI() {
         // === NEW: Return Badge ===
         let returnBadge = '';
         if (item.isReturn) {
-            returnBadge = `<span class="payment-badge" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); top: 35px; right: 12px;">↩ RETURN</span>`;
+            returnBadge = `<span class="payment-badge" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); top: 35px; right: 12px;"> RETURN</span>`;
         }
         
         // Payment badge for STORE_C
@@ -9272,7 +9487,7 @@ function renderEntityCards() {
         
         const phoneDisplay = entity.phone ? `
             <div class="entity-contact">
-                <span style="font-size:0.9rem;">📱</span>
+                <span style="font-size:0.9rem;"></span>
                 <span>${entity.phone}</span>
             </div>
         ` : '';
@@ -9356,7 +9571,7 @@ function getDynamicRole(balance) {
         // Zero Balance: Settled
         return {
             label: 'Settled',
-            icon: '✓',
+            icon: '',
             colorClass: 'entity-balance-neutral',
             badgeColor: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)', // Blue
             sign: ''
@@ -9506,7 +9721,7 @@ async function syncSuppliersToEntities() {
     // --- Backup & Restore ---
     async function unifiedBackup() {
     if (currentUser) {
-        if (confirm('📤 Backup to cloud?\n\nYes = Cloud backup\nNo = Download file')) {
+        if (confirm(' Backup to cloud?\n\nYes = Cloud backup\nNo = Download file')) {
             await pushDataToCloud();
             return;
         }
@@ -10743,7 +10958,7 @@ function updateAllStoresOverview(mode = 'day') {
 // Rep Indicator (New visual aid)
         let repBadge = '';
         if (item.salesRep && item.salesRep !== 'NONE') {
-            repBadge = `<span style="font-size:0.65rem; background:#e0e7ff; color:#3730a3; padding:2px 6px; border-radius:4px; margin-left:5px;">👤 ${item.salesRep.split(' ')[0]}</span>`;
+            repBadge = `<span style="font-size:0.65rem; background:#e0e7ff; color:#3730a3; padding:2px 6px; border-radius:4px; margin-left:5px;"> ${item.salesRep.split(' ')[0]}</span>`;
         }
         const card = document.createElement('div');
         card.className = `card liquid-card ${highlightClass}`;
@@ -10757,7 +10972,7 @@ function updateAllStoresOverview(mode = 'day') {
             </div>
             `;
         } else if (paymentType === 'CREDIT' && creditReceived) {
-            creditSection = `<div class="received-indicator">Credit Received ✓</div>`;
+            creditSection = `<div class="received-indicator">Credit Received </div>`;
         }
         
         const supplySection = `<div class="supply-tag ${supplyTagClass}">Supply: ${supplyTagText}</div>`;
@@ -11113,8 +11328,8 @@ async function loadSalesData(compMode = 'all') {
         const comp = await calculateComparisonData();
         updateSalesCharts(comp);
         const noranWin = comp["NORAN SHAH"].prof > comp["NOMAN SHAH"].prof;
-        document.getElementById('thNoran').innerHTML = "NORAN " + (noranWin ? "🏆" : "");
-        document.getElementById('thNoman').innerHTML = "NOMAN " + (!noranWin ? "🏆" : "");
+        document.getElementById('thNoran').innerHTML = "NORAN " + (noranWin ? "" : "");
+        document.getElementById('thNoman').innerHTML = "NOMAN " + (!noranWin ? "" : "");
         document.getElementById('comparisonBody').innerHTML = `
             <tr><td>Qty Sold</td><td>${safeValue(comp["NORAN SHAH"].sold).toFixed(2)}</td><td>${safeValue(comp["NOMAN SHAH"].sold).toFixed(2)}</td></tr>
             <tr><td>Returns</td><td>${safeValue(comp["NORAN SHAH"].ret).toFixed(2)}</td><td>${safeValue(comp["NOMAN SHAH"].ret).toFixed(2)}</td></tr>
@@ -11298,7 +11513,7 @@ async function processReturnToProduction(storeKey, quantity, date, seller) {
     stockReturns.push(returnLogEntry);
     await idb.set('stock_returns', stockReturns);
     
-    console.log(`✅ Return processed: ${quantity} kg added to ${storeKey} inventory`);
+    console.log(` Return processed: ${quantity} kg added to ${storeKey} inventory`);
 }
 
 // 5. UPDATED: Delete Sales Entry (Reverse Returns)
@@ -11313,7 +11528,7 @@ async function deleteSalesEntry(id) {
         
         // Add warning if there were returns
         if (entryToDelete.returned > 0 && entryToDelete.returnStore) {
-            confirmMsg += `\n\n⚠️ This will also REMOVE ${entryToDelete.returned} kg from ${getStoreLabel(entryToDelete.returnStore)} inventory.`;
+            confirmMsg += `\n\n️ This will also REMOVE ${entryToDelete.returned} kg from ${getStoreLabel(entryToDelete.returnStore)} inventory.`;
         }
         
         if (confirm(confirmMsg)) {
@@ -11360,7 +11575,7 @@ async function reverseReturnFromProduction(storeKey, quantity, date) {
     if (returnEntryIndex !== -1) {
         db.splice(returnEntryIndex, 1);
         await idb.set('mfg_pro_pkr', db);
-        console.log(`✅ Return reversed: ${quantity} kg removed from ${storeKey} inventory`);
+        console.log(` Return reversed: ${quantity} kg removed from ${storeKey} inventory`);
     }
     
     // Remove from returns log
@@ -11402,18 +11617,17 @@ async function reverseReturnFromProduction(storeKey, quantity, date) {
 
 document.addEventListener('DOMContentLoaded', async function() {
     // 1. Strict Initialization: Ensure no UI rendering until loadAllData is complete
-    console.log("🚀 System Initializing (Strict IDB-Only Mode)...");
+    console.log(" System Initializing (Strict IDB-Only Mode)...");
     
     try {
         // Initialize IndexedDB and load all data first
         await loadAllData();
-        console.log("✅ Data loaded successfully from IndexedDB.");
+        console.log(" Data loaded successfully from IndexedDB.");
     } catch (e) {
-        console.error("❌ Critical Initialization Error:", e);
+        console.error(" Critical Initialization Error:", e);
         alert("Failed to initialize database. Please refresh the page.");
         return;
     }
-
 
     // ----------------------------------------------------
     // 2. CORE SETUP & SECURITY (Must run first)
@@ -11431,35 +11645,16 @@ document.addEventListener('DOMContentLoaded', async function() {
     // If enabled, this triggers the lock overlay immediately
     await checkBiometricLock(); 
 
-        // Initialize Supabase Connectivity
+    // Initialize Supabase Connectivity
     // Small timeout ensures the external library script has parsed
     setTimeout(() => {
         if (typeof initSupabase === 'function') {
-            console.log('☁️ Initializing Cloud Sync...');
+            console.log(' Initializing Cloud Sync...');
             initSupabase();
         } else {
-            console.error("❌ Supabase client not loaded. Check internet connection.");
+            console.error(" Supabase client not loaded.");
         }
-    }, 500); // Increased timeout slightly to ensure script load
-
-// --- SYNC ON VISIBILITY CHANGE ---
-document.addEventListener('visibilitychange', async () => {
-    if (document.visibilityState === 'visible') {
-        console.log("👀 Tab active - checking for cloud updates...");
-        await pullDataFromCloud(true);
-    }
-});
-
-// --- SYNC ON WINDOW CLOSE (Best Effort) ---
-window.addEventListener('beforeunload', () => {
-    // We cannot await here, but we can try to push if there are pending changes
-    if (backupTimer) {
-        // If a backup was pending (debounced), force it now
-        // Note: fetch/requests might be cancelled by browser on close, 
-        // but this is the best effort for 'close' events.
-        pushDataToCloud(true); 
-    }
-});
+    }, 100);
 
     // ----------------------------------------------------
     // 3. UI INITIALIZATION (Inputs & Toggles)
@@ -11565,7 +11760,7 @@ window.addEventListener('beforeunload', () => {
     setTimeout(() => {
         const splash = document.getElementById('splash-screen');
         if (splash) splash.style.display = 'none';
-        console.log("✅ Initialization Complete");
+        console.log(" Initialization Complete");
     }, 1500);
 });
 
@@ -11620,12 +11815,12 @@ async function deleteSalesEntry(id) {
         let confirmMsg = `Permanently delete this record for ${entryToDelete.seller} on ${entryToDelete.date}?`;
         
         if (linkedCount > 0) {
-            confirmMsg += `\n\n⚠️ This will REVERT ${linkedCount} linked sales entries back to 'Pending Credit'.`;
+            confirmMsg += `\n\n️ This will REVERT ${linkedCount} linked sales entries back to 'Pending Credit'.`;
         }
         
         // Add warning if there were returns
         if (entryToDelete.returned > 0 && entryToDelete.returnStore) {
-            confirmMsg += `\n\n⚠️ This will also REMOVE ${entryToDelete.returned} kg from ${getStoreLabel(entryToDelete.returnStore)} inventory (reversing the return).`;
+            confirmMsg += `\n\n️ This will also REMOVE ${entryToDelete.returned} kg from ${getStoreLabel(entryToDelete.returnStore)} inventory (reversing the return).`;
         }
         
         if (confirm(confirmMsg)) {
@@ -11707,7 +11902,7 @@ async function reverseReturnFromProduction(storeKey, quantity, date) {
     if (returnEntryIndex !== -1) {
         db.splice(returnEntryIndex, 1);
         await idb.set('mfg_pro_pkr', db);
-        console.log(`✅ Return reversed: Removed ${quantity} kg from ${storeKey} production DB`);
+        console.log(` Return reversed: Removed ${quantity} kg from ${storeKey} production DB`);
     } else {
         console.warn("Could not find matching return entry in Production DB to delete.");
     }
@@ -11722,7 +11917,7 @@ async function reverseReturnFromProduction(storeKey, quantity, date) {
     if (returnLogIndex !== -1) {
         stockReturns.splice(returnLogIndex, 1);
         await idb.set('stock_returns', stockReturns);
-        console.log(`✅ Return reversed: Removed from stock returns log`);
+        console.log(` Return reversed: Removed from stock returns log`);
     }
 }
 
@@ -11743,12 +11938,12 @@ function toggleEntityViewMode() {
         entityViewMode = 'compact';
         entityGrid.classList.add('compact');
         toggleBtn.title = "Switch to Detailed View";
-        toggleBtn.textContent = '⛶';
+        toggleBtn.textContent = '';
     } else {
         entityViewMode = 'detailed';
         entityGrid.classList.remove('compact');
         toggleBtn.title = "Switch to Compact View";
-        toggleBtn.textContent = '☰';
+        toggleBtn.textContent = '';
     }
     
     renderEntityCards();
@@ -11821,7 +12016,7 @@ function getDynamicRole(balance) {
         // Zero Balance: Settled
         return {
             label: 'Settled',
-            icon: '✓',
+            icon: '',
             colorClass: 'entity-balance-neutral',
             badgeColor: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
             sign: ''
@@ -11853,7 +12048,7 @@ function getDynamicRole(balance) {
         // Zero Balance: Settled
         return {
             label: 'Settled',
-            icon: '✓',
+            icon: '',
             colorClass: 'entity-balance-neutral',
             badgeColor: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
             sign: ''
@@ -12329,7 +12524,7 @@ async function renderCustomerTransactions(name) {
             </div>
             <div class="cust-history-actions">
                 ${toggleBtnHtml}
-                <button class="btn btn-sm btn-danger" style="padding:4px 8px;" onclick="deleteTransactionFromOverlay(${t.id})">🗑️</button>
+                <button class="btn btn-sm btn-danger" style="padding:4px 8px;" onclick="deleteTransactionFromOverlay(${t.id})">️</button>
             </div>
         `;
         list.appendChild(item);
@@ -12632,17 +12827,17 @@ function showToast(message, type = 'info', duration = 3000) {
     toast.className = `liquid-toast toast-${type}`;
     
     const icons = {
-        success: '✓',
-        warning: '⚠',
-        error: '✗',
-        info: 'ℹ'
+        success: '',
+        warning: '',
+        error: '',
+        info: ''
     };
     
     toast.innerHTML = `
         <div class="toast-content">
             <div class="toast-icon ${type}">${icons[type] || icons.info}</div>
             <div class="toast-text">${message}</div>
-            <button class="toast-close" onclick="this.closest('.liquid-toast').remove()">✕</button>
+            <button class="toast-close" onclick="this.closest('.liquid-toast').remove()"></button>
         </div>
         <div class="toast-progress-bar"></div>
     `;
@@ -12787,17 +12982,18 @@ function closeDataMenu() {
     document.getElementById('dataMenuOverlay').style.display = 'none';
 }
 
-async function triggerCloudBackup() {
-    closeDataMenu();
-    await pushDataToCloud(); // Calls existing cloud backup logic
-}
+// FIX 13: Remove these functions as they are redundant and bypass the new triggerCloudAction logic
+// async function triggerCloudBackup() {
+//     closeDataMenu();
+//     await pushDataToCloud(); // Calls existing cloud backup logic
+// }
 
-async function triggerCloudRestore() {
-    closeDataMenu();
-    if(confirm("⚠️ Overwrite current data with Cloud data?")) {
-        await pullDataFromCloud(); // Calls existing cloud restore logic
-    }
-}
+// async function triggerCloudRestore() {
+//     closeDataMenu();
+//     if(confirm("️ Overwrite current data with Cloud data?")) {
+//         await pullDataFromCloud(); // Calls existing cloud restore logic
+//     }
+// }
 
 async function triggerLocalBackup() {
     closeDataMenu();
@@ -12955,7 +13151,7 @@ async function enableBiometricLock() {
     try {
         const success = await BiometricAuth.register("Manager");
         if(success) {
-            showToast("Biometric Lock Enabled! 🔒", "success");
+            showToast("Biometric Lock Enabled! ", "success");
             // Update UI to show it's enabled
             document.getElementById('bio-toggle-btn').innerText = "Disable Biometric Lock";
             document.getElementById('bio-toggle-btn').onclick = disableBiometricLock;
@@ -12970,7 +13166,7 @@ async function disableBiometricLock() {
         await idb.remove('bio_enabled');
         await idb.remove('bio_cred_id');
         showToast("Biometric Lock Removed", "info");
-        document.getElementById('bio-toggle-btn').innerText = "Enable Biometric Lock 👆";
+        document.getElementById('bio-toggle-btn').innerText = "Enable Biometric Lock ";
         document.getElementById('bio-toggle-btn').onclick = enableBiometricLock;
     }
 }
@@ -12989,7 +13185,7 @@ async function checkBiometricLock() {
             display: flex; flex-direction: column; align-items: center; justify-content: center;
         `;
         lockScreen.innerHTML = `
-            <div style="font-size: 4rem; margin-bottom: 20px;">🔒</div>
+            <div style="font-size: 4rem; margin-bottom: 20px;"></div>
             <h2 style="color: var(--text-main);">App Locked</h2>
             <button class="btn btn-main" style="margin-top: 20px; padding: 15px 30px;" onclick="triggerUnlock()">
                 Unlock with Biometrics
@@ -13350,7 +13546,7 @@ async function renderRepCustomerTransactions(name) {
         if(isCredit) {
             toggleBtnHtml = `<button class="status-toggle-btn ${statusClass}" onclick="toggleSingleTransactionStatus(${t.id})">${btnText}</button>`;
         } else if(isCollection) {
-            toggleBtnHtml = `<span class="status-toggle-btn" style="background:rgba(5, 150, 105, 0.1); color:var(--accent-emerald);">💰 COLLECTION</span>`;
+            toggleBtnHtml = `<span class="status-toggle-btn" style="background:rgba(5, 150, 105, 0.1); color:var(--accent-emerald);"> COLLECTION</span>`;
         } else {
             toggleBtnHtml = `<span class="status-toggle-btn" style="background:rgba(37, 99, 235, 0.1); color:var(--accent);">CASH SALE</span>`;
         }
@@ -13367,7 +13563,7 @@ async function renderRepCustomerTransactions(name) {
             </div>
             <div class="cust-history-actions">
                 ${toggleBtnHtml}
-                <button class="btn btn-sm btn-danger" style="padding:4px 8px;" onclick="deleteRepTransaction(${t.id})">🗑️</button>
+                <button class="btn btn-sm btn-danger" style="padding:4px 8px;" onclick="deleteRepTransaction(${t.id})">️</button>
             </div>
         `;
         list.appendChild(item);
@@ -13405,15 +13601,15 @@ function renderRepHistory() {
         let qtyAmount = '';
         
         if(item.paymentType === 'COLLECTION') {
-            typeIcon = '💰';
+            typeIcon = '';
             typeColor = 'var(--accent-emerald)';
             qtyAmount = `Collected: Rs ${item.totalValue.toFixed(2)}`;
         } else if (item.paymentType === 'CREDIT') {
-            typeIcon = '📝';
+            typeIcon = '';
             typeColor = 'var(--warning)';
             qtyAmount = `${item.quantity.toFixed(2)} kg - Rs ${item.totalValue.toFixed(2)}`;
         } else {
-            typeIcon = '💵';
+            typeIcon = '';
             typeColor = 'var(--accent)';
             qtyAmount = `${item.quantity.toFixed(2)} kg - Rs ${item.totalValue.toFixed(2)}`;
         }
@@ -13561,27 +13757,12 @@ function closeAdminPinModal() {
 
 // 5. VERIFY PIN & UNLOCK
 async function verifyAdminPin() {
-    const inputEl = document.getElementById('admin-pin-input');
-    const input = inputEl.value;
-    
-    // 1. Fetch the latest PIN directly from DB to ensure we compare against the truth
-    const storedPin = await idb.get('adminPin', '1234'); 
-    
-    // Also check against global variable as fallback
-    const validPin = storedPin || adminPin || '1234';
-
-    if (input === validPin) {
-        // Success: Unlock
+    const input = document.getElementById('admin-pin-input').value;
+    if (input === adminPin) {
         await unlockAdminMode();
     } else {
-        // Failure
-        showToast("❌ Incorrect PIN", "error");
-        inputEl.value = '';
-        inputEl.focus();
-        
-        // Anti-brute force delay
-        inputEl.disabled = true;
-        setTimeout(() => inputEl.disabled = false, 1000);
+        alert("Incorrect PIN");
+        document.getElementById('admin-pin-input').value = '';
     }
 }
 
@@ -13603,7 +13784,7 @@ async function enforceRepModeLock() {
         // Lock UI immediately
         lockToRepMode();
         
-        console.log('🔒 Rep Mode Enforced:', currentRepProfile);
+        console.log(' Rep Mode Enforced:', currentRepProfile);
     }
 }
 
@@ -13616,7 +13797,7 @@ function preventAdminAccess() {
             const adminTabs = ['prod', 'sales', 'calc', 'factory', 'payments'];
             
             if (adminTabs.includes(tab)) {
-                showToast("⚠️ Access Denied - Admin PIN Required", "warning");
+                showToast("️ Access Denied - Admin PIN Required", "warning");
                 openAdminPinModal();
                 return;
             }
