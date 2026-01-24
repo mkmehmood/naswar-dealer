@@ -1,0 +1,17 @@
+{
+  "background_color": "#ffffff",
+  "dir": "ltr",
+  "display": "fullscreen",
+  "name": "Gull And Zubair",
+  "orientation": "any",
+  "scope": "https://mkmehmood.github.io/naswar-dealer/",
+  "short_name": "mkmehmood",
+  "start_url": "https://mkmehmood.github.io/naswar-dealer/",
+  "theme_color": "#ffffff",
+  "lang": "en",
+  "categories": [
+    "business",
+    "personalization",
+    "utilities"
+  ]
+}
