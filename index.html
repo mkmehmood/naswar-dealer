@@ -24,6 +24,11 @@
             .catch(err => console.log('Service Worker Registration Failed', err));
         });
       }
+      const urlParams = new URLSearchParams(window.location.search);
+const action = urlParams.get('action');
+if(action === 'sales') showTab('sales');
+if(action === 'production') showTab('prod');
+if(action === 'calc') showTab('calc');
     </script>
 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;600;700;800&amp;family=Great+Vibes&amp;family=Playfair+Display:wght@400;700&amp;display=swap" rel="stylesheet">
