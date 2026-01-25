@@ -930,13 +930,13 @@ input, textarea, select, [contenteditable] {
         .payment-option {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 3px;
             cursor: pointer;
         }
 
         .payment-option input[type="radio"] {
-            width: 16px;
-            height: 16px;
+            width: 12px;
+            height: 12px;
             cursor: pointer;
             accent-color: var(--accent);
         }
@@ -956,8 +956,8 @@ input, textarea, select, [contenteditable] {
             gap: 6px;
             padding: 8px;
             background: rgba(5, 150, 105, 0.05);
-            border-radius: 6px;
-            margin-top: 8px;
+            border-radius: 3px;
+            margin-top: 5px;
             border: 1px solid rgba(5, 150, 105, 0.2);
             cursor: pointer;
             transition: all 0.2s;
@@ -975,8 +975,8 @@ input, textarea, select, [contenteditable] {
         }
 
         .credit-checkbox {
-            width: 18px;
-            height: 18px;
+            width: 12px;
+            height: 12px;
             cursor: pointer;
             accent-color: var(--accent);
         }
@@ -3255,10 +3255,20 @@ body.dark-mode .units-available-danger {
         
         <div class="grid-inputs">
             <div class="field"><label>Date</label><input type="date" id="rep-date"></div>
-            <div class="field">
-                <label>Customer Name</label>
-                <input type="text" id="rep-cust-name" placeholder="Search my customers..." 
-                       oninput="searchRepCustomers(this.value)" autocomplete="off">
+        <div class="field">
+    <label>Customer Name</label>
+    <input type="text" id="rep-cust-name" placeholder="Search my customers..." 
+           oninput="handleCustomerInput(this.value, 'rep')" autocomplete="off">
+    <div id="rep-customer-search-results" class="hidden" style="position: absolute; z-index: 1000; width: 100%; max-height: 200px; overflow-y: auto; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 10px; margin-top: 60px; box-shadow: var(--shadow);"></div>
+</div>
+
+<div id="rep-new-customer-phone-container" class="hidden" style="margin-top: 8px; animation: slideDown 0.3s ease;">
+    <div class="field">
+        <label style="color: var(--accent-emerald);">✨ New Customer Mobile</label>
+        <input type="tel" id="rep-new-cust-phone" placeholder="03XX-XXXXXXX" style="border-color: var(--accent-emerald);">
+    </div>
+
+
                 <div id="rep-customer-search-results" class="hidden" style="position: absolute; z-index: 1000; width: 100%; max-height: 200px; overflow-y: auto; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 10px; margin-top: 60px; box-shadow: var(--shadow);"></div>
             </div>
         </div>
@@ -3589,9 +3599,20 @@ body.dark-mode .units-available-danger {
 <div class="grid-inputs">
     <div class="field"><label>Date</label><input type="date" id="cust-date" onchange="refreshCustomerSales()"></div>
     <div class="field">
-        <label>Customer Name</label>
-        <input type="text" id="cust-name" list="customer-list" placeholder="Search or type new..." 
-       oninput="searchCustomers(this.value)">
+        <div class="field">
+    <label>Customer Name</label>
+    <input type="text" id="cust-name" list="customer-list" placeholder="Search or type new..." 
+           oninput="handleCustomerInput(this.value, 'admin')" autocomplete="off">
+    <div id="customer-search-results" class="hidden" style="position: absolute; z-index: 1000; width: 100%; max-height: 200px; overflow-y: auto; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 10px; margin-top: 5px; box-shadow: var(--shadow);"></div>
+</div>
+
+<div id="new-customer-phone-container" class="hidden" style="margin-top: 8px; animation: slideDown 0.3s ease;">
+    <div class="field">
+        <label style="color: var(--accent-emerald);">✨ New Customer Mobile</label>
+        <input type="tel" id="new-cust-phone" placeholder="03XX-XXXXXXX" style="border-color: var(--accent-emerald);">
+    </div>
+</div>
+
 
         <datalist id="customer-list"></datalist>
         <div id="customer-search-results" class="hidden" style="position: absolute; z-index: 1000; width: 100%; max-height: 200px; overflow-y: auto; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 10px; margin-top: 5px; box-shadow: var(--shadow);"></div>
@@ -7761,7 +7782,10 @@ async function saveCustomerSale() {
     const store = document.querySelector('input[name="supply-store"]:checked').value;
     const paymentType = document.querySelector('input[name="payment-type"]:checked').value;
     const salesRep = document.querySelector('input[name="sales-rep"]:checked').value;
-    
+     const phoneInput = document.getElementById('new-cust-phone');
+    const phoneNumber = (!document.getElementById('new-customer-phone-container').classList.contains('hidden')) 
+                        ? phoneInput.value.trim() 
+                        : '';
     // --- INVENTORY VALIDATION LOGIC ---
     if (!date) {
         alert("Please select a date.");
@@ -7879,12 +7903,13 @@ async function saveCustomerSale() {
     hours = hours ? hours : 12;
     const timeString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} ${ampm}`;
     
-      // Create sale record
+    // --- CREATE RECORD ---
     const saleRecord = {
         id: Date.now(),
         date: date,
         time: timeString,
         customerName: name,
+        customerPhone: phoneNumber, // Save Phone Number
         quantity: quantity,
         supplyStore: store,
         paymentType: paymentType,
@@ -7896,7 +7921,31 @@ async function saveCustomerSale() {
         timestamp: new Date(date).getTime(),
         // --- ISOLATION FLAG ---
         isRepModeEntry: false // Tag as Admin Mode
+        
     };
+    
+    // --- SAVE TO ENTITIES (If New) ---
+    // If a phone number was provided, create/update the entity in the Payments tab
+    if (phoneNumber) {
+        const existingEntity = paymentEntities.find(e => e.name.toLowerCase() === name.toLowerCase());
+        if (!existingEntity) {
+            paymentEntities.push({
+                id: Date.now(),
+                name: name,
+                type: 'payor', // Customers pay us
+                phone: phoneNumber,
+                wallet: '',
+                createdAt: Date.now(),
+                updatedAt: Date.now()
+            });
+            await idb.set('payment_entities', paymentEntities);
+        } else if (!existingEntity.phone) {
+            // Update existing entity with new phone if missing
+            existingEntity.phone = phoneNumber;
+            await idb.set('payment_entities', paymentEntities);
+        }
+    }
+
     
     customerSales.push(saleRecord);
     await idb.set('customer_sales', customerSales);
@@ -7907,6 +7956,9 @@ async function saveCustomerSale() {
     document.getElementById('payment-cash').checked = true;
     document.getElementById('supply-store-a').checked = true;
     
+        // Hide phone input
+    if(phoneInput) phoneInput.value = '';
+    document.getElementById('new-customer-phone-container').classList.add('hidden');
     // Update UI
     refreshCustomerSales();
     refreshEntityList();
@@ -12281,13 +12333,13 @@ function safeValue(value) {
     return isNaN(value) || !value ? 0 : value;
 }
 
-async function formatCurrency(value) {
-    return new Intl.NumberFormat('en-PK', {
-        style: 'currency',
-        currency: 'PKR',
-        minimumFractionDigits: 2
-    }).format(value || 0).replace('PKR', 'PKR ');
+// FIND THIS FUNCTION (usually at the bottom of your script) AND REPLACE IT
+function formatCurrency(value) {
+    // Removed 'async' keyword to return string immediately
+    if (typeof value !== 'number') value = parseFloat(value) || 0;
+    return 'PKR ' + value.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0});
 }
+
 // Add validation and error handling for payment data
 async function initPaymentData() {
     try {
@@ -12532,21 +12584,32 @@ async function renderCustomerTransactions(name) {
     // Filter sales for this customer
     const transactions = customerSales.filter(s => s.customerName === name);
     
+    // Find customer phone number
+    const transactionWithPhone = transactions.find(t => t.customerPhone) || 
+                                 paymentEntities.find(e => e.name === name);
+    
+    const phoneDisplay = transactionWithPhone && (transactionWithPhone.customerPhone || transactionWithPhone.phone)
+                         ? `<span style="font-size: 0.8rem; color: var(--accent); margin-left: 10px; font-weight: normal;">📞 ${transactionWithPhone.customerPhone || transactionWithPhone.phone}</span>` 
+                         : '';
+
+    // Update Header
+    const headerTitle = document.getElementById('manageCustomerTitle');
+    headerTitle.innerHTML = `${name} ${phoneDisplay}`;
+
     // Calculate Stats
     let currentDebt = 0;
     transactions.forEach(t => {
         if(t.paymentType === 'CREDIT' && !t.creditReceived) currentDebt += t.totalValue;
     });
-    document.getElementById('manageCustomerStats').innerText = `Current Debt: ${await formatCurrency(currentDebt)}`;
+    
+    // --- FIX: Remove await or ensure function is synchronous ---
+    document.getElementById('manageCustomerStats').innerText = `Current Debt: ${formatCurrency(currentDebt)}`;
 
     // Sort: Pending Credits First, then Newest Date
     transactions.sort((a,b) => {
-        // Priority to pending credits
         const aPending = (a.paymentType === 'CREDIT' && !a.creditReceived) ? 1 : 0;
         const bPending = (b.paymentType === 'CREDIT' && !b.creditReceived) ? 1 : 0;
         if (bPending !== aPending) return bPending - aPending;
-        
-        // Then by date
         return b.timestamp - a.timestamp;
     });
 
@@ -12574,7 +12637,7 @@ async function renderCustomerTransactions(name) {
             <div class="cust-history-info">
                 <div style="font-weight:700; font-size:0.85rem; color:var(--text-main);">${t.date}</div>
                 <div style="font-size:0.75rem; color:var(--text-muted);">
-                    ${t.quantity.toFixed(2)} kg @ ${await formatCurrency(t.totalValue)}
+                    ${t.quantity.toFixed(2)} kg @ ${formatCurrency(t.totalValue)}
                 </div>
                 <div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">
                     ${getStoreLabel(t.supplyStore)}
@@ -12582,12 +12645,13 @@ async function renderCustomerTransactions(name) {
             </div>
             <div class="cust-history-actions">
                 ${toggleBtnHtml}
-                <button class="btn btn-sm btn-danger" style="padding:4px 8px;" onclick="deleteTransactionFromOverlay(${t.id})">️</button>
+                <button class="btn btn-sm btn-danger" style="padding:4px 8px;" onclick="deleteTransactionFromOverlay(${t.id})">🗑️</button>
             </div>
         `;
         list.appendChild(item);
     }
 }
+
 
 async function toggleSingleTransactionStatus(id) {
     const index = customerSales.findIndex(s => s.id === id);
@@ -13229,11 +13293,13 @@ async function disableBiometricLock() {
     }
 }
 
-// Function to run on app start
+// Replace the existing checkBiometricLock function
 async function checkBiometricLock() {
-    const isEnabled = await idb.get('bio_enabled') === 'true';
+    // 1. Force read from IndexedDB to ensure we have the persistent value
+    const isEnabled = await idb.get('bio_enabled');
     
-    if (isEnabled) {
+    // 2. Strict check: string 'true' or boolean true
+    if (isEnabled === 'true' || isEnabled === true) {
         // Create a lock screen overlay
         const lockScreen = document.createElement('div');
         lockScreen.id = 'app-lock-screen';
@@ -13241,29 +13307,38 @@ async function checkBiometricLock() {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: var(--bg-gradient); z-index: 100000;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
+            backdrop-filter: blur(15px);
         `;
+        
         lockScreen.innerHTML = `
-            <div style="font-size: 4rem; margin-bottom: 20px;"></div>
-            <h2 style="color: var(--text-main);">App Locked</h2>
-            <button class="btn btn-main" style="margin-top: 20px; padding: 15px 30px;" onclick="triggerUnlock()">
-                Unlock with Biometrics
+            <div style="font-size: 3rem; margin-bottom: 20px;">🔒</div>
+            <h2 style="color: var(--text-main); margin-bottom: 10px;">Security Locked</h2>
+            <p style="color: var(--text-muted); font-size: 0.9rem;">Biometric authentication required</p>
+            <button class="btn btn-main" style="margin-top: 25px; padding: 12px 30px;" onclick="triggerUnlock()">
+                Unlock App
             </button>
         `;
         document.body.appendChild(lockScreen);
 
         // Define unlock function
         window.triggerUnlock = async () => {
-            const success = await BiometricAuth.authenticate();
-            if (success) {
-                document.getElementById('app-lock-screen').remove();
-                showToast("Unlocked", "success");
-            } else {
-                showToast("Authentication Failed", "error");
+            try {
+                const success = await BiometricAuth.authenticate();
+                if (success) {
+                    const screen = document.getElementById('app-lock-screen');
+                    if(screen) screen.remove();
+                    showToast("Unlocked Successfully", "success");
+                } else {
+                    showToast("Authentication Failed. Try again.", "error");
+                }
+            } catch (e) {
+                console.error(e);
+                showToast("Biometric Error: " + e.message, "error");
             }
         };
 
         // Try to unlock automatically immediately
-        window.triggerUnlock();
+        setTimeout(() => window.triggerUnlock(), 500);
     }
 }
 
@@ -13396,12 +13471,19 @@ document.getElementById('rep-amount-collected').addEventListener('input', functi
 async function saveRepTransaction() {
     const date = document.getElementById('rep-date').value;
     const name = document.getElementById('rep-cust-name').value.trim();
+    
+    // --- NEW: Phone Number Capture ---
+    const phoneInput = document.getElementById('rep-new-cust-phone');
+    const phoneNumber = (!document.getElementById('rep-new-customer-phone-container').classList.contains('hidden')) 
+                        ? phoneInput.value.trim() 
+                        : '';
+
     if(!date || !name) { showToast("Date and Name required", "warning"); return; }
 
     const now = new Date();
     const timeString = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
     
-    // Standard Pricing
+    // Standard Pricing for Reps
     const costPerKg = calculateSalesCostPerKg('standard');
     const salePrice = factorySalePrices.standard || 0;
 
@@ -13420,6 +13502,7 @@ async function saveRepTransaction() {
             date: date,
             time: timeString,
             customerName: name,
+            customerPhone: phoneNumber, // Save Phone
             quantity: qty,
             supplyStore: 'STORE_A', 
             paymentType: payType, 
@@ -13429,12 +13512,12 @@ async function saveRepTransaction() {
             profit: totalValue - (qty * costPerKg),
             creditReceived: (payType === 'CASH'), 
             timestamp: now.getTime(),
-            // --- ISOLATION FLAGS ---
-            isRepModeEntry: true, // Tag as Rep Mode
-            affectsInventory: false // Explicitly disable inventory deduction
+            isRepModeEntry: true, // Rep Mode Flag
+            affectsInventory: false
         };
 
     } else {
+        // COLLECTION MODE
         const amount = parseFloat(document.getElementById('rep-amount-collected').value) || 0;
         if(amount <= 0) { showToast("Enter Amount", "warning"); return; }
 
@@ -13443,6 +13526,7 @@ async function saveRepTransaction() {
             date: date,
             time: timeString,
             customerName: name,
+            customerPhone: phoneNumber, // Save Phone
             quantity: 0, 
             supplyStore: 'STORE_A',
             paymentType: 'COLLECTION', 
@@ -13453,26 +13537,49 @@ async function saveRepTransaction() {
             creditReceived: true,
             isCollection: true, 
             timestamp: now.getTime(),
-            // --- ISOLATION FLAGS ---
-            isRepModeEntry: true,
+            isRepModeEntry: true, // Rep Mode Flag
             affectsInventory: false
         };
     }
 
+    // --- SAVE TO ENTITIES (If New) ---
+    // Rep customers are also added to the main entity list so admin can see them
+    if (phoneNumber) {
+        const existingEntity = paymentEntities.find(e => e.name.toLowerCase() === name.toLowerCase());
+        if (!existingEntity) {
+            paymentEntities.push({
+                id: Date.now(),
+                name: name,
+                type: 'payor',
+                phone: phoneNumber,
+                wallet: '',
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+                isRepCustomer: true // Optional flag to distinguish
+            });
+            await idb.set('payment_entities', paymentEntities);
+        }
+    }
+
     customerSales.push(transactionRecord);
     await idb.set('customer_sales', customerSales);
-notifyDataChange('all');
+    notifyDataChange('all');
 
-    // Reset UI
+    // --- CLEANUP ---
     document.getElementById('rep-quantity').value = '';
     document.getElementById('rep-cust-name').value = '';
     document.getElementById('rep-amount-collected').value = '';
     document.getElementById('rep-customer-info-display').classList.add('hidden');
     document.getElementById('rep-total-value').innerText = 'Rs 0.00';
+    
+    // Hide phone input
+    if(phoneInput) phoneInput.value = '';
+    document.getElementById('rep-new-customer-phone-container').classList.add('hidden');
 
     refreshRepUI();
-    showToast("Transaction Saved (Rep Mode)", "success");
+    showToast("Transaction Saved Successfully", "success");
 }
+
 
 // --- 5. RENDER REP TABLES ---
 function renderRepCustomerTable() {
@@ -13568,6 +13675,18 @@ async function renderRepCustomerTransactions(name) {
         s.salesRep === currentRepProfile
     );
     
+    // Find customer phone number
+    const transactionWithPhone = transactions.find(t => t.customerPhone) || 
+                                 paymentEntities.find(e => e.name === name);
+    
+    const phoneDisplay = transactionWithPhone && (transactionWithPhone.customerPhone || transactionWithPhone.phone)
+                         ? `<span style="font-size: 0.8rem; color: var(--accent); margin-left: 10px; font-weight: normal;">📞 ${transactionWithPhone.customerPhone || transactionWithPhone.phone}</span>` 
+                         : '';
+
+    // Update Header
+    const headerTitle = document.getElementById('manageCustomerTitle');
+    headerTitle.innerHTML = `${name} ${phoneDisplay}`;
+    
     // Calculate Stats
     let currentDebt = 0;
     transactions.forEach(t => {
@@ -13575,7 +13694,8 @@ async function renderRepCustomerTransactions(name) {
         if(t.paymentType === 'COLLECTION') currentDebt -= t.totalValue;
     });
     
-    document.getElementById('manageCustomerStats').innerText = `Current Debt: ${await formatCurrency(currentDebt)}`;
+    // --- FIX: Remove await or ensure function is synchronous ---
+    document.getElementById('manageCustomerStats').innerText = `Current Debt: ${formatCurrency(currentDebt)}`;
 
     // Sort: Pending Credits First, then Newest Date
     transactions.sort((a,b) => {
@@ -13589,7 +13709,6 @@ async function renderRepCustomerTransactions(name) {
         list.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">No history found</div>';
         return;
     }
-
 
     for (const t of transactions) {
         const isCredit = t.paymentType === 'CREDIT';
@@ -13613,7 +13732,7 @@ async function renderRepCustomerTransactions(name) {
             <div class="cust-history-info">
                 <div style="font-weight:700; font-size:0.85rem; color:var(--text-main);">${t.date}</div>
                 <div style="font-size:0.75rem; color:var(--text-muted);">
-                    ${isCollection ? `Collection: ${await formatCurrency(t.totalValue)}` : `${t.quantity.toFixed(2)} kg @ ${await formatCurrency(t.totalValue)}`}
+                    ${isCollection ? `Collection: ${formatCurrency(t.totalValue)}` : `${t.quantity.toFixed(2)} kg @ ${formatCurrency(t.totalValue)}`}
                 </div>
                 <div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">
                     ${getStoreLabel(t.supplyStore)}
@@ -13621,12 +13740,16 @@ async function renderRepCustomerTransactions(name) {
             </div>
             <div class="cust-history-actions">
                 ${toggleBtnHtml}
-                <button class="btn btn-sm btn-danger" style="padding:4px 8px;" onclick="deleteRepTransaction(${t.id})">️</button>
+                <button class="btn btn-sm btn-danger" style="padding:4px 8px;" onclick="deleteRepTransaction(${t.id})">🗑️</button>
             </div>
         `;
         list.appendChild(item);
     }
 }
+
+// Alias for backward compatibility
+const refreshEntityList = renderEntityCards;
+
 
 function renderRepHistory() {
     const list = document.getElementById('repHistoryList');
@@ -13953,6 +14076,54 @@ async function deleteRepTransaction(id) {
     }
 }
 
+// --- NEW CUSTOMER DETECTION LOGIC ---
+
+// Unified handler for inputting names
+function handleCustomerInput(query, mode) {
+    const isRep = mode === 'rep';
+    const listId = isRep ? 'rep-customer-search-results' : 'customer-search-results';
+    const phoneContainerId = isRep ? 'rep-new-customer-phone-container' : 'new-customer-phone-container';
+    
+    // 1. Run the existing search logic to populate dropdown
+    if (isRep) {
+        searchRepCustomers(query); 
+    } else {
+        searchCustomers(query);
+    }
+
+    const resultsDiv = document.getElementById(listId);
+    const phoneContainer = document.getElementById(phoneContainerId);
+
+    // 2. Check if the typed name matches an existing customer exactly
+    // We get the list of existing names from our sales history/entities
+    const allSales = isRep ? 
+        customerSales.filter(s => s.isRepModeEntry === true && s.salesRep === currentRepProfile) : 
+        customerSales.filter(s => s.isRepModeEntry !== true);
+        
+    const existingNames = [...new Set(allSales.map(s => s.customerName.toLowerCase()))];
+    
+    // If query has length AND is NOT in the existing list -> Show Phone Input
+    if (query.length > 2 && !existingNames.includes(query.toLowerCase())) {
+        phoneContainer.classList.remove('hidden');
+    } else {
+        phoneContainer.classList.add('hidden');
+    }
+}
+
+// Update the selection function to hide phone field if existing customer selected
+const originalSelectCustomer = window.selectCustomer || selectCustomer;
+window.selectCustomer = function(name) {
+    originalSelectCustomer(name); // Call original logic
+    document.getElementById('new-customer-phone-container').classList.add('hidden');
+    document.getElementById('new-cust-phone').value = ''; // Clear value
+};
+
+const originalSelectRepCustomer = window.selectRepCustomer || selectRepCustomer;
+window.selectRepCustomer = function(name) {
+    originalSelectRepCustomer(name); // Call original logic
+    document.getElementById('rep-new-customer-phone-container').classList.add('hidden');
+    document.getElementById('rep-new-cust-phone').value = ''; // Clear value
+};
 
 
 
