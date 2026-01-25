@@ -8237,7 +8237,6 @@ let autoSaveTimer = null;
 let isSyncing = false;
 let dbWakeUpAttempted = false;
 let heartbeatInterval = null; // NEW: Keep database awake
-
 // --- INITIALIZATION ---
 function initSupabase() {
     if (typeof window.supabase === 'undefined') return;
@@ -8253,17 +8252,18 @@ function initSupabase() {
                 hideAuthOverlay();
                 
                 if (event === 'SIGNED_IN') {
-                    // Wake up database and pull data
-                    await wakeUpDatabaseAndSync();
-                    // Start heartbeat to keep DB active
+                    // Start heartbeat immediately to keep DB awake
                     startDatabaseHeartbeat();
-                    // Start auto-backup timer (30 minutes)
+                    // Schedule auto-backups
                     scheduleAutoBackup();
+                    
+                    // TRIGGER IMMEDIATE SYNC "UP TO SUCCESS"
+                    console.log('🚀 Connection established. Starting immediate sync...');
+                    await wakeUpDatabaseAndSync();
                 }
             } else if (event === 'SIGNED_OUT') {
                 currentUser = null;
                 dbWakeUpAttempted = false;
-                // Stop heartbeat and auto-backup
                 stopDatabaseHeartbeat();
                 clearAutoBackup();
             }
@@ -8319,8 +8319,8 @@ function stopDatabaseHeartbeat() {
     }
 }
 
-// --- NEW: AUTO-BACKUP SCHEDULER (30 MINUTES) ---
-const AUTO_BACKUP_INTERVAL = 1800000; // 30 minutes in milliseconds
+// --- NEW: AUTO-BACKUP SCHEDULER (10 MINUTES) ---
+const AUTO_BACKUP_INTERVAL = 600000; // Changed from 30 minutes to 10 minutes
 
 function scheduleAutoBackup() {
     // Clear any existing timer
@@ -8416,10 +8416,15 @@ async function checkAuthState() {
     if (user) {
         currentUser = user;
         console.log(`✓ Logged in as ${user.email}`);
-        await wakeUpDatabaseAndSync();
-        startDatabaseHeartbeat(); // Keep DB active
-        scheduleAutoBackup(); // Start auto-backup
+        
+        // Setup background tasks
+        startDatabaseHeartbeat();
+        scheduleAutoBackup();
         addSignOutButton();
+
+        // TRIGGER IMMEDIATE SYNC ON LOAD
+        console.log('🚀 Existing session found. Starting immediate sync...');
+        await wakeUpDatabaseAndSync();
     }
 }
 
@@ -8601,12 +8606,18 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
 
         if (error && error.code !== 'PGRST116') throw error;
 
+        // --- AUTO-SYNC LOGIC: IF CLOUD IS EMPTY ---
         if (!data || !data.data) {
-            if (!silent) showToast('No cloud data found. Starting fresh.', 'info');
-            const localDataExists = db.length > 0 || customerSales.length > 0 || (await idb.get('last_synced'));
+            console.log('☁️ Cloud empty. Checking for local data to sync up...');
+            const lastSyncedLocal = await idb.get('last_synced');
+            const localDataExists = db.length > 0 || customerSales.length > 0 || lastSyncedLocal;
+            
             if (localDataExists) {
-                console.log('Local data found. Initializing cloud with local data.');
-                await pushDataToCloud(true);
+                if (!silent) showToast('Initializing Cloud with local data...', 'info');
+                isSyncing = false; // Release lock so push can run
+                await pushDataToCloud(true); // Run backup to complete the sync cycle
+            } else {
+                if (!silent) showToast('No data found anywhere. Ready.', 'info');
             }
             return;
         }
@@ -8614,9 +8625,11 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
         const cloudTime = new Date(data.last_synced || 0).getTime();
         const localTime = new Date(await idb.get('last_synced') || 0).getTime();
 
+        // --- AUTO-SYNC LOGIC: IF LOCAL IS NEWER ---
         if (cloudTime < localTime) {
             console.warn('Local data is newer than cloud. Pushing local data to resolve conflict.');
-            if (!silent) showToast('Local data is newer. Backing up now.', 'warning');
+            if (!silent) showToast('Local data is newer. Syncing up...', 'warning');
+            isSyncing = false; // Release lock so push can run
             await pushDataToCloud(true);
             return;
         }
@@ -8626,6 +8639,7 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
             return;
         }
 
+        // --- RESTORE LOGIC ---
         const cloud = data.data;
         
         const restoredData = {
@@ -8671,6 +8685,7 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
         
         await Promise.all(idbPromises);
 
+        // Update global state
         db = restoredData.db;
         customerSales = restoredData.customerSales;
         salesHistory = restoredData.salesHistory;
@@ -8689,16 +8704,15 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
         currentRepProfile = restoredData.repProfile;
         adminPin = restoredData.adminPin;
 
-        if (!silent) showToast('✅ Data restored from cloud!', 'success');
+        if (!silent) showToast('✅ Data synchronized successfully!', 'success');
         
         await refreshAllDisplays();
 
     } catch (error) {
-        console.error('Cloud Restore Error:', error);
+        console.error('Cloud Sync Error:', error);
         
-        // Retry once
         if (retryCount === 0) {
-            console.log('Retrying restore...');
+            console.log('Retrying sync...');
             dbWakeUpAttempted = false;
             isSyncing = false;
             return pullDataFromCloud(silent, 1);
@@ -8709,6 +8723,7 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
         isSyncing = false;
     }
 }
+
 
 // --- TRIGGER CLOUD ACTION ---
 async function triggerCloudAction(action) {
