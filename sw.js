@@ -1,82 +1,73 @@
-const CACHE_NAME = 'naswar-dealer-v2';
+const CACHE_NAME = 'naswar-dealer-v3';
 const ASSETS_TO_CACHE = [
-  '/naswar-dealer/',
+  './',
   'index.html',
   'manifest.json',
   '192.png',
-  '512.png',
-  // External Libraries used in your HTML
-  'https://cdn.jsdelivr.net/npm/chart.js',
-  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/dist/umd/supabase.js',
-  // Fonts
-  'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;600;700;800&family=Great+Vibes&family=Playfair+Display:wght@400;700&display=swap'
+  '512.png'
 ];
 
-// Install Event
+// 1. Install & Offline Support
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('[Service Worker] Caching all: app shell and content');
-        return cache.addAll(ASSETS_TO_CACHE);
-      })
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS_TO_CACHE))
   );
   self.skipWaiting();
 });
 
-// Activate Event
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keyList) => {
-      return Promise.all(keyList.map((key) => {
-        if (key !== CACHE_NAME) {
-          console.log('[Service Worker] Removing old cache', key);
-          return caches.delete(key);
-        }
-      }));
-    })
+    caches.keys().then((keys) => Promise.all(
+      keys.map((key) => { if (key !== CACHE_NAME) return caches.delete(key); })
+    ))
   );
   self.clients.claim();
 });
 
-// Fetch Event
+// 2. Fetch Logic (Offline Support)
 self.addEventListener('fetch', (event) => {
-  // Strategy: Cache First, fall back to Network for assets
-  // Network Only for Supabase API calls
-  
-  const url = new URL(event.request.url);
-
-  // If it's a Supabase API call, go straight to network (don't cache data)
-  if (url.hostname.includes('supabase.co')) {
-    return; 
-  }
-
+  if (event.request.method !== 'GET') return;
   event.respondWith(
-    caches.match(event.request).then((response) => {
-      // Return cached response if found
-      if (response) {
-        return response;
-      }
-      
-      // Otherwise, request from network
-      return fetch(event.request).then((networkResponse) => {
-        // Check if we received a valid response
-        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-          return networkResponse;
-        }
-
-        // Clone the response
-        const responseToCache = networkResponse.clone();
-
-        caches.open(CACHE_NAME).then((cache) => {
-          // Cache new requests dynamically (excluding API calls handled above)
-          if (event.request.method === 'GET') {
-             cache.put(event.request, responseToCache);
-          }
+    caches.match(event.request).then((cached) => {
+      return cached || fetch(event.request).then((response) => {
+        return caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, response.clone());
+          return response;
         });
-
-        return networkResponse;
       });
-    })
+    }).catch(() => caches.match('index.html'))
   );
+});
+
+// 3. Background Sync (Logic for offline data submission)
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'sync-sales') {
+    console.log('[SW] Background Syncing Sales...');
+    // event.waitUntil(yourSyncFunction());
+  }
+});
+
+// 4. Periodic Sync (Updates content in background)
+self.addEventListener('periodicsync', (event) => {
+  if (event.tag === 'update-inventory') {
+    console.log('[SW] Periodic Syncing Inventory...');
+    // event.waitUntil(yourUpdateFunction());
+  }
+});
+
+// 5. Push Notifications
+self.addEventListener('push', (event) => {
+  const data = event.data ? event.data.text() : 'New Update from Naswar Dealer';
+  const options = {
+    body: data,
+    icon: '192.png',
+    badge: '192.png'
+  };
+  event.waitUntil(self.registration.showNotification('Naswar Dealer', options));
+});
+
+// Notification Click Logic
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(clients.openWindow('/naswar-dealer/'));
 });
