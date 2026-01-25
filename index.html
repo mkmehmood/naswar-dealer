@@ -8228,17 +8228,15 @@ let stockReturns = [];
 // SUPABASE CLOUD SYNC - COMPLETE IMPLEMENTATION
 // ============================================
 
-// ============================================
-// SEAMLESS CLOUD SYNC MODULE (AUTO-SAVE)
-// ============================================
-
 const SUPABASE_URL = 'https://znxhlwbmoqwoijkhglcb.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpueGhsd2Jtb3F3b2lqa2hnbGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg4OTA1MjIsImV4cCI6MjA4NDQ2NjUyMn0.4RuwqqM-uxGRzpCxtgHx572OdFICfZjMXYFOHRU3lrI';
 
 let supabaseClient = null;
 let currentUser = null;
 let autoSaveTimer = null;
-let isSyncing = false; // FIX 1: Global lock for sync operations
+let isSyncing = false;
+let dbWakeUpAttempted = false;
+let heartbeatInterval = null; // NEW: Keep database awake
 
 // --- INITIALIZATION ---
 function initSupabase() {
@@ -8247,22 +8245,30 @@ function initSupabase() {
     try {
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         
-        // Listen for Auth Changes (including Token Refreshes)
         supabaseClient.auth.onAuthStateChange(async (event, session) => {
             console.log(`Auth Event: ${event}`);
             
             if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
                 currentUser = session?.user;
                 hideAuthOverlay();
-                // If signed in, do a quick pull to ensure we are up to date
-                if (event === 'SIGNED_IN') await pullDataFromCloud(true);
+                
+                if (event === 'SIGNED_IN') {
+                    // Wake up database and pull data
+                    await wakeUpDatabaseAndSync();
+                    // Start heartbeat to keep DB active
+                    startDatabaseHeartbeat();
+                    // Start auto-backup timer (30 minutes)
+                    scheduleAutoBackup();
+                }
             } else if (event === 'SIGNED_OUT') {
                 currentUser = null;
-                // Optional: Show login screen
+                dbWakeUpAttempted = false;
+                // Stop heartbeat and auto-backup
+                stopDatabaseHeartbeat();
+                clearAutoBackup();
             }
         });
 
-        // Check initial state
         checkAuthState();
 
     } catch (e) {
@@ -8270,6 +8276,137 @@ function initSupabase() {
     }
 }
 
+// --- NEW: DATABASE HEARTBEAT (KEEP ALIVE) ---
+function startDatabaseHeartbeat() {
+    // Clear any existing heartbeat
+    stopDatabaseHeartbeat();
+    
+    console.log('💓 Starting database heartbeat (every 4 minutes)');
+    
+    // Ping database every 4 minutes to prevent sleep
+    // Free tier databases sleep after ~5 minutes of inactivity
+    heartbeatInterval = setInterval(async () => {
+        if (!supabaseClient || !currentUser) {
+            stopDatabaseHeartbeat();
+            return;
+        }
+        
+        try {
+            console.log('💓 Heartbeat ping...');
+            
+            // Simple lightweight query to keep connection alive
+            await supabaseClient
+                .from('user_data')
+                .select('user_id')
+                .eq('user_id', currentUser.id)
+                .limit(1);
+            
+            console.log('✓ Database active');
+            
+        } catch (error) {
+            console.warn('Heartbeat failed:', error.message);
+            // If heartbeat fails, database might be sleeping
+            dbWakeUpAttempted = false;
+        }
+    }, 240000); // 4 minutes (240,000ms)
+}
+
+function stopDatabaseHeartbeat() {
+    if (heartbeatInterval) {
+        console.log('💔 Stopping database heartbeat');
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
+    }
+}
+
+// --- NEW: AUTO-BACKUP SCHEDULER (30 MINUTES) ---
+const AUTO_BACKUP_INTERVAL = 1800000; // 30 minutes in milliseconds
+
+function scheduleAutoBackup() {
+    // Clear any existing timer
+    clearAutoBackup();
+    
+    console.log('⏰ Auto-backup scheduled (every 30 minutes)');
+    
+    autoSaveTimer = setInterval(async () => {
+        const { data } = await supabaseClient.auth.getSession();
+        
+        if (!data.session) {
+            console.log('❌ Auto-backup skipped: No active session');
+            const statusIndicator = document.getElementById('lastSyncDisplay');
+            if(statusIndicator) statusIndicator.textContent = "⚠️ Not Synced (Offline)";
+            clearAutoBackup();
+            return;
+        }
+
+        console.log("⏰ Executing scheduled auto-backup...");
+        await pushDataToCloud(true); // Silent backup
+        
+        const statusIndicator = document.getElementById('lastSyncDisplay');
+        if(statusIndicator) {
+            statusIndicator.style.color = 'var(--text-muted)';
+            statusIndicator.textContent = `✓ Auto-synced: ${new Date().toLocaleTimeString()}`;
+        }
+    }, AUTO_BACKUP_INTERVAL);
+}
+
+function clearAutoBackup() {
+    if (autoSaveTimer) {
+        console.log('⏰ Clearing auto-backup timer');
+        clearInterval(autoSaveTimer);
+        autoSaveTimer = null;
+    }
+}
+
+// --- WAKE UP DATABASE HELPER ---
+async function wakeUpDatabase() {
+    if (!supabaseClient || !currentUser) return false;
+    
+    try {
+        console.log('🔄 Waking up database...');
+        
+        // Simple SELECT query to wake up the database
+        const wakeUpPromise = supabaseClient
+            .from('user_data')
+            .select('user_id')
+            .eq('user_id', currentUser.id)
+            .limit(1);
+        
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error("Database wake-up timeout")), 45000)
+        );
+        
+        await Promise.race([wakeUpPromise, timeoutPromise]);
+        
+        console.log('✅ Database is awake');
+        dbWakeUpAttempted = true;
+        return true;
+    } catch (error) {
+        console.error('Database wake-up failed:', error);
+        return false;
+    }
+}
+
+// --- COMBINED WAKE + SYNC ---
+async function wakeUpDatabaseAndSync() {
+    showToast('Connecting to cloud...', 'info');
+    
+    const awake = await wakeUpDatabase();
+    
+    if (awake) {
+        await pullDataFromCloud(true);
+    } else {
+        showToast('Cloud connection slow. Retrying...', 'warning');
+        setTimeout(async () => {
+            const retryAwake = await wakeUpDatabase();
+            if (retryAwake) {
+                await pullDataFromCloud(true);
+            } else {
+                showToast('Using local data (cloud unreachable)', 'warning');
+            }
+        }, 5000);
+    }
+}
 
 // Check Session & Auto-Restore on Load
 async function checkAuthState() {
@@ -8278,105 +8415,72 @@ async function checkAuthState() {
     
     if (user) {
         currentUser = user;
-        console.log(` Logged in as ${user.email}`);
-        // Seamlessly pull data on startup
-        await pullDataFromCloud(true); // true = silent mode
+        console.log(`✓ Logged in as ${user.email}`);
+        await wakeUpDatabaseAndSync();
+        startDatabaseHeartbeat(); // Keep DB active
+        scheduleAutoBackup(); // Start auto-backup
         addSignOutButton();
     }
 }
 
-// --- UPDATED LISTENER: Closes overlay on success ---
 function setupAuthListener() {
     supabaseClient.auth.onAuthStateChange(async (event, session) => {
         if (event === 'SIGNED_IN') {
             currentUser = session?.user;
-            
-            // 1. Close the login screen immediately
             hideAuthOverlay(); 
-            
-            // 2. Show success message
             showToast(`Cloud Sync Active`, 'success');
             
-            // 3. Sync data
-            // FIX 9: Auto-pull on login. The pullDataFromCloud logic now handles the conflict resolution (pulling or pushing).
-            await pullDataFromCloud(true); 
+            await wakeUpDatabaseAndSync();
+            startDatabaseHeartbeat();
+            scheduleAutoBackup();
             addSignOutButton();
             
         } else if (event === 'SIGNED_OUT') {
             currentUser = null;
             removeSignOutButton();
-            // FIX 10: Clear the auto-save timer on sign out
-            if (autoSaveTimer) clearTimeout(autoSaveTimer);
-            // Optional: You can uncomment the line below if you want 
-            // the login screen to appear immediately upon logout:
-            // showAuthOverlay(); 
+            dbWakeUpAttempted = false;
+            stopDatabaseHeartbeat();
+            clearAutoBackup();
         }
     });
 }
 
-// --- UPDATED CLOUD CONFIGURATION ---
-const AUTO_SAVE_DELAY = 7200000; // 2 Hours (in milliseconds)
-let backupTimer = null; 
-
-// --- ROBUST AUTO-SAVE (SEAMLESS BACKUP) ---
-function triggerSeamlessBackup() {
-    // 1. Basic Check
-    if (!supabaseClient) return;
-
-    // 2. Clear existing timer (Debounce)
-    if (backupTimer) clearTimeout(backupTimer);
-
-    // 3. Set new timer (2 hours)
-    backupTimer = setTimeout(async () => {
-        // Double-check auth right before sending
-        const { data } = await supabaseClient.auth.getSession();
-        
-        if (!data.session) {
-            console.log('❌ Auto-save skipped: No active session');
-            const statusIndicator = document.getElementById('lastSyncDisplay');
-            if(statusIndicator) statusIndicator.textContent = "⚠️ Not Synced (Offline)";
-            return;
-        }
-
-        // Perform silent upload
-        console.log("⏰ Triggering Scheduled Auto-Backup...");
-        await pushDataToCloud(true); 
-        
-        // Update UI on success
-        const statusIndicator = document.getElementById('lastSyncDisplay');
-        if(statusIndicator) {
-            statusIndicator.style.color = 'var(--text-muted)';
-            statusIndicator.textContent = `✓ Synced: ${new Date().toLocaleTimeString()}`;
-        }
-    }, AUTO_SAVE_DELAY); 
-}
-
-// --- ROBUST CLOUD PUSH (BACKUP) ---
-// --- ROBUST CLOUD PUSH (BACKUP) WITH TIMEOUT FIX ---
-async function pushDataToCloud(silent = false) {
+// --- IMPROVED CLOUD PUSH WITH RETRY LOGIC ---
+async function pushDataToCloud(silent = false, retryCount = 0) {
     if (!supabaseClient) return;
 
     let btn = null;
     let originalText = '';
 
-    // 1. CRITICAL: Check & Refresh Session before upload
     const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
     
     if (sessionError || !session) {
         console.warn('⚠️ Session expired or missing. Backup skipped.');
         if (!silent) {
             showToast('Session expired. Please sign in again.', 'warning');
-            showAuthOverlay(); // Force re-login
+            showAuthOverlay();
         }
         return; 
     }
 
     currentUser = session.user;
 
+    // Wake up DB if this is first operation or a retry after failure
+    if (!dbWakeUpAttempted || retryCount > 0) {
+        if (!silent) showToast('Preparing cloud connection...', 'info');
+        const awake = await wakeUpDatabase();
+        if (!awake && retryCount === 0) {
+            console.log('Retrying backup after wake-up failure...');
+            return pushDataToCloud(silent, 1);
+        } else if (!awake) {
+            if (!silent) showToast('Cloud unreachable. Data saved locally.', 'warning');
+            return;
+        }
+    }
+
     try {
         const now = new Date().toISOString();
         
-        // 2. Prepare Data Object
         const backupData = {
             mfg_pro_pkr: db, 
             customer_sales: customerSales,
@@ -8397,9 +8501,7 @@ async function pushDataToCloud(silent = false) {
             adminPin: adminPin
         };
 
-        // 3. UI Feedback
         if (!silent) {
-            // Try to find the button inside the data menu if it exists
             const menuBtn = document.querySelector('#dataMenuOverlay .btn-main');
             if (menuBtn) {
                 btn = menuBtn;
@@ -8411,7 +8513,7 @@ async function pushDataToCloud(silent = false) {
             }
         }
 
-        // 4. Perform Upload with 15-Second Timeout
+        // Increased timeout to 30s for active database
         const uploadPromise = supabaseClient
             .from('user_data')
             .upsert({ 
@@ -8420,22 +8522,18 @@ async function pushDataToCloud(silent = false) {
                 last_synced: now 
             }, { onConflict: 'user_id' });
 
-        // Create a timeout promise that rejects after 15 seconds
         const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error("Network timeout (15s). Please try again.")), 15000)
+            setTimeout(() => reject(new Error("Upload timeout (30s)")), 30000)
         );
 
-        // Race the upload against the timeout
         const { error } = await Promise.race([uploadPromise, timeoutPromise]);
 
         if (error) throw error;
 
-        // 5. Success Handling
         await idb.set('last_synced', now);
         
         if (!silent) {
             showToast('✅ Cloud Sync Complete', 'success');
-            // Update the display immediately
             const display = document.getElementById('lastSyncDisplay');
             if (display) display.textContent = `Last Cloud Sync: ${new Date().toLocaleString()}`;
         }
@@ -8443,9 +8541,16 @@ async function pushDataToCloud(silent = false) {
 
     } catch (error) {
         console.error('Backup Error:', error);
+        
+        // Retry once if this was the first attempt
+        if (retryCount === 0) {
+            console.log('Retrying upload...');
+            dbWakeUpAttempted = false; // Force re-wake
+            return pushDataToCloud(silent, 1);
+        }
+        
         if (!silent) showToast(`❌ Sync failed: ${error.message}`, 'error');
     } finally {
-        // 6. CRITICAL: Reset Button State
         if (btn) {
             btn.innerText = originalText || 'Backup to Cloud';
             btn.disabled = false;
@@ -8453,12 +8558,10 @@ async function pushDataToCloud(silent = false) {
     }
 }
 
-// --- PULL DATA (RESTORE) ---
-// --- PULL DATA (RESTORE) ---
-async function pullDataFromCloud(silent = false) {
+// --- IMPROVED PULL DATA WITH RETRY ---
+async function pullDataFromCloud(silent = false, retryCount = 0) {
     if (!currentUser || !supabaseClient) return;
 
-    // FIX 1: Check lock
     if (isSyncing) {
         console.warn('Sync already in progress. Skipping pull.');
         if (!silent) showToast('Sync in progress. Please wait.', 'info');
@@ -8466,22 +8569,40 @@ async function pullDataFromCloud(silent = false) {
     }
     isSyncing = true;
 
-    try {
-        if (!silent) console.log(' Checking for cloud updates...');
+    // Wake up DB if needed
+    if (!dbWakeUpAttempted || retryCount > 0) {
+        const awake = await wakeUpDatabase();
+        if (!awake && retryCount === 0) {
+            isSyncing = false;
+            console.log('Retrying restore after wake-up failure...');
+            return pullDataFromCloud(silent, 1);
+        } else if (!awake) {
+            isSyncing = false;
+            if (!silent) showToast('Cloud unreachable. Using local data.', 'warning');
+            return;
+        }
+    }
 
-        const { data, error } = await supabaseClient
+    try {
+        if (!silent) console.log('📥 Checking for cloud updates...');
+
+        // Increased timeout for fetch
+        const fetchPromise = supabaseClient
             .from('user_data')
             .select('data, last_synced')
             .eq('user_id', currentUser.id)
             .maybeSingle();
 
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error("Fetch timeout (30s)")), 30000)
+        );
+
+        const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
+
         if (error && error.code !== 'PGRST116') throw error;
 
-        // 1. New User / No Data
         if (!data || !data.data) {
             if (!silent) showToast('No cloud data found. Starting fresh.', 'info');
-            // If we have local data, push it up immediately to initialize cloud
-            // FIX 7: Only push if local data is non-empty, preventing accidental push of empty state
             const localDataExists = db.length > 0 || customerSales.length > 0 || (await idb.get('last_synced'));
             if (localDataExists) {
                 console.log('Local data found. Initializing cloud with local data.');
@@ -8490,30 +8611,23 @@ async function pullDataFromCloud(silent = false) {
             return;
         }
 
-        // 2. Compare Timestamps (Conflict Resolution)
         const cloudTime = new Date(data.last_synced || 0).getTime();
         const localTime = new Date(await idb.get('last_synced') || 0).getTime();
 
-        // FIX 2: If Cloud is OLDER than local, we MUST push local data to resolve the conflict.
-        // The silent check is removed to force a push if local is newer during auto-sync.
         if (cloudTime < localTime) {
             console.warn('Local data is newer than cloud. Pushing local data to resolve conflict.');
             if (!silent) showToast('Local data is newer. Backing up now.', 'warning');
-            await pushDataToCloud(true); // Force a silent push
+            await pushDataToCloud(true);
             return;
         }
         
-        // If timestamps are equal, or cloud is newer, proceed with pull (unless silent and equal)
         if (cloudTime === localTime && silent) {
             console.log('⚡ Local data is up-to-date (timestamps match).');
             return;
         }
 
-        // 3. Restore Data
         const cloud = data.data;
         
-        // Restore Global Variables & LocalStorage
-        // FIX 8: Use a temporary object to hold the restored data to ensure atomic update of globals
         const restoredData = {
             db: cloud.mfg_pro_pkr || [],
             customerSales: cloud.customer_sales || [],
@@ -8529,12 +8643,11 @@ async function pullDataFromCloud(silent = false) {
             paymentTransactions: cloud.payment_transactions || [],
             stockReturns: cloud.stock_returns || [],
             defaultSettings: cloud.naswar_default_settings || {},
-            appMode: cloud.appMode || appMode, // Preserve local if cloud is missing
+            appMode: cloud.appMode || appMode,
             repProfile: cloud.repProfile || currentRepProfile,
             adminPin: cloud.adminPin || adminPin
         };
 
-        // 4. Save to Local IndexedDB (Atomic Write)
         const idbPromises = [
             idb.set('mfg_pro_pkr', restoredData.db),
             idb.set('customer_sales', restoredData.customerSales),
@@ -8558,7 +8671,6 @@ async function pullDataFromCloud(silent = false) {
         
         await Promise.all(idbPromises);
 
-        // 5. Update Global Variables (After successful IDB write)
         db = restoredData.db;
         customerSales = restoredData.customerSales;
         salesHistory = restoredData.salesHistory;
@@ -8577,18 +8689,64 @@ async function pullDataFromCloud(silent = false) {
         currentRepProfile = restoredData.repProfile;
         adminPin = restoredData.adminPin;
 
-        if (!silent) showToast('Data restored from cloud!', 'success');
+        if (!silent) showToast('✅ Data restored from cloud!', 'success');
         
-        // Refresh UI
         await refreshAllDisplays();
 
     } catch (error) {
         console.error('Cloud Restore Error:', error);
+        
+        // Retry once
+        if (retryCount === 0) {
+            console.log('Retrying restore...');
+            dbWakeUpAttempted = false;
+            isSyncing = false;
+            return pullDataFromCloud(silent, 1);
+        }
+        
         if (!silent) showToast('Sync failed. Using local data.', 'error');
     } finally {
-        // FIX 1: Release lock
         isSyncing = false;
     }
+}
+
+// --- TRIGGER CLOUD ACTION ---
+async function triggerCloudAction(action) {
+    if (!supabaseClient) {
+        showToast("Cloud system not initialized. Check internet connection.", "error");
+        return;
+    }
+
+    if (isSyncing) {
+        console.warn("⚠️ Manual override: Resetting stuck sync lock.");
+        isSyncing = false; 
+    }
+
+    if (!currentUser) {
+        closeDataMenu();
+        showToast("Please sign in to access Cloud functions.", "info");
+        showAuthOverlay();
+        return;
+    }
+
+    if (action === 'backup') {
+        await pushDataToCloud(false); 
+    }
+    
+    if (action === 'restore') {
+        if(confirm("⚠️ RESTORE FROM CLOUD?\n\nThis will overwrite local data with the cloud version.\n\nContinue?")) {
+            closeDataMenu();
+            showToast("Starting Restore...", "info");
+            await pullDataFromCloud(false); 
+        }
+    }
+}
+
+// --- DEPRECATED: OLD FUNCTIONS (KEPT FOR COMPATIBILITY) ---
+function triggerSeamlessBackup() {
+    // This function is now handled by scheduleAutoBackup()
+    // Kept for backwards compatibility - does nothing
+    console.log('⚠️ triggerSeamlessBackup() is deprecated. Using scheduleAutoBackup() instead.');
 }
 
 // --- UPDATED: TRIGGER CLOUD ACTION (FORCE OVERRIDE) ---
