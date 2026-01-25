@@ -1,7 +1,7 @@
 {
   "name": "Naswar Dealer",
   "short_name": "Gull And Zubair",
-  "start_url": "/naswar-dealer/",
+  "start_url": "/naswar-dealer",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#000000",
