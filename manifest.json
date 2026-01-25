@@ -7,11 +7,11 @@
   "scope": "/naswar-dealer/",
   "display": "standalone",
   "display_override": [
-    "window-controls-overlay",
     "standalone",
+    "window-controls-overlay",
     "minimal-ui"
   ],
-  "orientation": "any",
+  "orientation": "portrait",
   "background_color": "#f0f8ff",
   "theme_color": "#3b82f6",
   "categories": [
