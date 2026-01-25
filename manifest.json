@@ -1,12 +1,12 @@
 {
   "name": "Naswar Dealer",
-  "short_name": "NaswarDealer",
+  "short_name": "Gull And Zubair",
   "start_url": "/naswar-dealer/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#000000",
   "description": "Naswar Dealer App",
-  "orientation": "any",
+  "orientation": "landscape",
   "icons": [
     {
       "src": "192.png",
@@ -20,5 +20,15 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
+  ],
+  "dir": "auto",
+  "scope": "https://mkmehmood.github.io/",
+  "lang": "en",
+  "categories": [
+    "business",
+    "lifestyle",
+    "personalization",
+    "productivity",
+    "utilities"
   ]
 }
