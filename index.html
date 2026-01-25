@@ -8352,8 +8352,12 @@ function triggerSeamlessBackup() {
 }
 
 // --- ROBUST CLOUD PUSH (BACKUP) ---
+// --- ROBUST CLOUD PUSH (BACKUP) WITH TIMEOUT FIX ---
 async function pushDataToCloud(silent = false) {
     if (!supabaseClient) return;
+
+    let btn = null;
+    let originalText = '';
 
     // 1. CRITICAL: Check & Refresh Session before upload
     const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
@@ -8367,13 +8371,12 @@ async function pushDataToCloud(silent = false) {
         return; 
     }
 
-    // Update global user ref to ensure it's current
     currentUser = session.user;
 
     try {
         const now = new Date().toISOString();
         
-        // 2. Prepare Data Object (Same as before)
+        // 2. Prepare Data Object
         const backupData = {
             mfg_pro_pkr: db, 
             customer_sales: customerSales,
@@ -8394,14 +8397,22 @@ async function pushDataToCloud(silent = false) {
             adminPin: adminPin
         };
 
+        // 3. UI Feedback
         if (!silent) {
-            // Show small loading indicator for manual backups
-            const btn = document.querySelector('.btn-main'); 
-            if(btn) btn.textContent = '☁️ Uploading...';
+            // Try to find the button inside the data menu if it exists
+            const menuBtn = document.querySelector('#dataMenuOverlay .btn-main');
+            if (menuBtn) {
+                btn = menuBtn;
+                originalText = btn.innerText;
+                btn.textContent = '☁️ Uploading...';
+                btn.disabled = true;
+            } else {
+                showToast('☁️ Uploading to Cloud...', 'info');
+            }
         }
 
-        // 3. Perform Upload
-        const { error } = await supabaseClient
+        // 4. Perform Upload with 15-Second Timeout
+        const uploadPromise = supabaseClient
             .from('user_data')
             .upsert({ 
                 user_id: currentUser.id, 
@@ -8409,17 +8420,36 @@ async function pushDataToCloud(silent = false) {
                 last_synced: now 
             }, { onConflict: 'user_id' });
 
+        // Create a timeout promise that rejects after 15 seconds
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error("Network timeout (15s). Please try again.")), 15000)
+        );
+
+        // Race the upload against the timeout
+        const { error } = await Promise.race([uploadPromise, timeoutPromise]);
+
         if (error) throw error;
 
-        // 4. Success Handling
+        // 5. Success Handling
         await idb.set('last_synced', now);
         
-        if (!silent) showToast('✅ Cloud Sync Complete', 'success');
+        if (!silent) {
+            showToast('✅ Cloud Sync Complete', 'success');
+            // Update the display immediately
+            const display = document.getElementById('lastSyncDisplay');
+            if (display) display.textContent = `Last Cloud Sync: ${new Date().toLocaleString()}`;
+        }
         console.log(`✅ Data synced at ${new Date().toLocaleTimeString()}`);
 
     } catch (error) {
         console.error('Backup Error:', error);
         if (!silent) showToast(`❌ Sync failed: ${error.message}`, 'error');
+    } finally {
+        // 6. CRITICAL: Reset Button State
+        if (btn) {
+            btn.innerText = originalText || 'Backup to Cloud';
+            btn.disabled = false;
+        }
     }
 }
 
@@ -8562,41 +8592,40 @@ async function pullDataFromCloud(silent = false) {
 }
 
 // --- UPDATED: TRIGGER CLOUD ACTION (FORCE OVERRIDE) ---
+// --- UPDATED: TRIGGER CLOUD ACTION ---
 async function triggerCloudAction(action) {
-    // 1. Close the data menu
-    closeDataMenu();
-
-    // 2. Check if Supabase client is ready
+    // 1. Check if Supabase client is ready
     if (!supabaseClient) {
         showToast("Cloud system not initialized. Check internet connection.", "error");
         return;
     }
 
-    // 3. FORCE RESET LOCK: If user clicks manually, force the lock open
+    // 2. Force reset sync lock if stuck
     if (isSyncing) {
         console.warn("⚠️ Manual override: Resetting stuck sync lock.");
         isSyncing = false; 
     }
 
-    // 4. Check Auth
+    // 3. Check Auth
     if (!currentUser) {
+        closeDataMenu(); // Close menu to show login
         showToast("Please sign in to access Cloud functions.", "info");
         showAuthOverlay();
         return;
     }
 
-    // 5. Proceed with Action
+    // 4. Proceed with Action
     if (action === 'backup') {
-        if(confirm("☁️ Upload local data to Cloud now?")) {
-            showToast("Starting Backup...", "info");
-            await pushDataToCloud(false); // false = show result toasts
-        }
+        // Don't close menu immediately, let the button show "Uploading..."
+        await pushDataToCloud(false); 
+        // Menu can be closed manually by user or you can add closeDataMenu() here if preferred
     }
     
     if (action === 'restore') {
         if(confirm("⚠️ RESTORE FROM CLOUD?\n\nThis will overwrite local data with the cloud version.\n\nContinue?")) {
+            closeDataMenu(); // Close menu for restore to show toasts clearly
             showToast("Starting Restore...", "info");
-            await pullDataFromCloud(false); // false = show result toasts
+            await pullDataFromCloud(false); 
         }
     }
 }
