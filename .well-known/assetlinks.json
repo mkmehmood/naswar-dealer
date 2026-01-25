@@ -3,6 +3,6 @@
       "target": {
         "namespace": "android_app",
         "package_name": "io.github.mkmehmood.twa",
-        "sha256_cert_fingerprints": ["E6:AA:83:A5:81:2C:E7:15:BE:98:F5:39:3C:9F:30:83:07:1C:FA:16:67:F1:31:15:DF:64:6E:3C:1B:60:60:85"]
+        "sha256_cert_fingerprints": ["07:33:54:E6:61:41:35:92:6D:F1:D8:35:E3:BE:96:23:6F:13:75:1E:5F:9B:3F:A7:5B:6E:3C:8E:16:38:F4:A5"]
       }
     }]
