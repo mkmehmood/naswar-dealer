@@ -3320,10 +3320,17 @@ body.dark-mode .units-available-danger {
     </div>
 
     <div class="section liquid-card">
-        <div class="section-header">
-            <h3 style="color:var(--text-main); margin:0;">My Customer List</h3>
-            <input type="text" id="rep-filter" class="search-bar" placeholder="Filter list..." style="width: 150px; font-size: 0.7rem;" oninput="renderRepCustomerTable()">
-        </div>
+   <div class="section-header" style="position: relative;">
+    <h3 style="color:var(--text-main); margin:0;">My Customer List</h3>
+    
+    <div style="display: flex; gap: 8px; align-items: center;">
+        <input type="text" id="rep-filter" class="search-bar" placeholder="Filter list..." style="width: 120px; font-size: 0.7rem;" oninput="renderRepCustomerTable()">
+        <button class="btn-theme" onclick="exportCustomerData('rep')" title="Download CSV" style="color: var(--accent-emerald); border-color: var(--accent-emerald);">
+            ⬇
+        </button>
+    </div>
+</div>
+
         <div style="overflow-x: auto; max-height: 400px; overflow-y: auto;">
           <table class="comp-table" style="font-size: 0.75rem;">
     <thead>
@@ -3706,14 +3713,19 @@ body.dark-mode .units-available-danger {
         </div>
 <!-- CUSTOMERS CARD - Updated with Edit Button -->
 <div class="section liquid-card" id="customers-card">
-    <div class="section-header">
-        <h3 style="color:var(--text-main); margin:0;">CUSTOMERS</h3>
-        <div style="display: flex; gap: 8px; align-items: center;">
-            <input type="text" id="customer-filter" class="search-bar" placeholder="Filter customers..." 
-                   style="width: 150px; font-size: 0.7rem;" oninput="filterCustomers()">
-            <span id="customer-count" style="font-size: 0.7rem; color: var(--text-muted);">0 customers</span>
-        </div>
+   <div class="section-header">
+    <h3 style="color:var(--text-main); margin:0;">CUSTOMERS</h3>
+    <div style="display: flex; gap: 8px; align-items: center;">
+        <input type="text" id="customer-filter" class="search-bar" placeholder="Filter customers..." 
+               style="width: 150px; font-size: 0.7rem;" oninput="filterCustomers()">
+        <span id="customer-count" style="font-size: 0.7rem; color: var(--text-muted); display:none;">0 customers</span>
+        
+        <button class="btn-theme" onclick="exportCustomerData('admin')" title="Download Customer List" style="color: var(--accent); border-color: var(--accent); padding: 5px 10px;">
+            ⬇ 
+        </button>
     </div>
+</div>
+
     
     <!-- Customer List Table -->
     <div style="overflow-x: auto; max-height: 300px; overflow-y: auto; margin-top: 10px;">
@@ -8568,161 +8580,135 @@ async function pushDataToCloud(silent = false, retryCount = 0) {
     }
 }
 
+// --- SMART MERGE UTILITY ---
+// Merges two arrays based on ID, keeping the version with the latest timestamp
+function mergeDatasets(localData, cloudData) {
+    if (!Array.isArray(cloudData)) return localData;
+    if (!Array.isArray(localData)) return cloudData;
+
+    const mergedMap = new Map();
+
+    // 1. Load all local items first
+    localData.forEach(item => {
+        if (item && item.id) {
+            mergedMap.set(item.id, item);
+        }
+    });
+
+    // 2. Merge cloud items
+    cloudData.forEach(cloudItem => {
+        if (!cloudItem || !cloudItem.id) return;
+
+        const localItem = mergedMap.get(cloudItem.id);
+
+        if (!localItem) {
+            // New item from cloud -> Add it
+            mergedMap.set(cloudItem.id, cloudItem);
+        } else {
+            // Conflict: Item exists in both. Compare timestamps.
+            // Only overwrite local if cloud is NEWER
+            const cloudTime = cloudItem.timestamp || cloudItem.updatedAt || 0;
+            const localTime = localItem.timestamp || localItem.updatedAt || 0;
+
+            if (cloudTime > localTime) {
+                mergedMap.set(cloudItem.id, cloudItem);
+            }
+        }
+    });
+
+    return Array.from(mergedMap.values());
+}
+
 // --- IMPROVED PULL DATA WITH RETRY ---
+// --- UPDATED: PULL DATA (SMART MERGE RESTORE) ---
 async function pullDataFromCloud(silent = false, retryCount = 0) {
     if (!currentUser || !supabaseClient) return;
 
     if (isSyncing) {
-        console.warn('Sync already in progress. Skipping pull.');
-        if (!silent) showToast('Sync in progress. Please wait.', 'info');
+        if (!silent) showToast('Sync in progress...', 'info');
         return;
     }
     isSyncing = true;
 
-    // Wake up DB if needed
-    if (!dbWakeUpAttempted || retryCount > 0) {
-        const awake = await wakeUpDatabase();
-        if (!awake && retryCount === 0) {
-            isSyncing = false;
-            console.log('Retrying restore after wake-up failure...');
-            return pullDataFromCloud(silent, 1);
-        } else if (!awake) {
-            isSyncing = false;
-            if (!silent) showToast('Cloud unreachable. Using local data.', 'warning');
-            return;
-        }
-    }
-
     try {
-        if (!silent) console.log('📥 Checking for cloud updates...');
+        if (!silent) console.log('📥 Fetching cloud data...');
 
-        // Increased timeout for fetch
-        const fetchPromise = supabaseClient
+        const { data, error } = await supabaseClient
             .from('user_data')
             .select('data, last_synced')
             .eq('user_id', currentUser.id)
             .maybeSingle();
 
-        const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error("Fetch timeout (30s)")), 30000)
-        );
-
-        const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
-
         if (error && error.code !== 'PGRST116') throw error;
 
-        // --- AUTO-SYNC LOGIC: IF CLOUD IS EMPTY ---
+        // If cloud is empty, do nothing or initial push
         if (!data || !data.data) {
-            console.log('☁️ Cloud empty. Checking for local data to sync up...');
-            const lastSyncedLocal = await idb.get('last_synced');
-            const localDataExists = db.length > 0 || customerSales.length > 0 || lastSyncedLocal;
-            
-            if (localDataExists) {
-                if (!silent) showToast('Initializing Cloud with local data...', 'info');
-                isSyncing = false; // Release lock so push can run
-                await pushDataToCloud(true); // Run backup to complete the sync cycle
-            } else {
-                if (!silent) showToast('No data found anywhere. Ready.', 'info');
-            }
+            if (!silent) showToast('Cloud is empty. Local data is safe.', 'info');
+            isSyncing = false;
             return;
         }
 
-        const cloudTime = new Date(data.last_synced || 0).getTime();
-        const localTime = new Date(await idb.get('last_synced') || 0).getTime();
-
-        // --- AUTO-SYNC LOGIC: IF LOCAL IS NEWER ---
-        if (cloudTime < localTime) {
-            console.warn('Local data is newer than cloud. Pushing local data to resolve conflict.');
-            if (!silent) showToast('Local data is newer. Syncing up...', 'warning');
-            isSyncing = false; // Release lock so push can run
-            await pushDataToCloud(true);
-            return;
-        }
-        
-        if (cloudTime === localTime && silent) {
-            console.log('⚡ Local data is up-to-date (timestamps match).');
-            return;
-        }
-
-        // --- RESTORE LOGIC ---
         const cloud = data.data;
-        
-        const restoredData = {
-            db: cloud.mfg_pro_pkr || [],
-            customerSales: cloud.customer_sales || [],
-            salesHistory: cloud.noman_history || [],
-            factoryInventoryData: cloud.factory_inventory_data || [],
-            factoryProductionHistory: cloud.factory_production_history || [],
-            factoryDefaultFormulas: cloud.factory_default_formulas || { standard: [], asaan: [] },
-            factoryAdditionalCosts: cloud.factory_additional_costs || { standard: 0, asaan: 0 },
-            factoryCostAdjustmentFactor: cloud.factory_cost_adjustment_factor || { standard: 1, asaan: 1 },
-            factorySalePrices: cloud.factory_sale_prices || { standard: 0, asaan: 0 },
-            factoryUnitTracking: cloud.factory_unit_tracking || {},
-            paymentEntities: cloud.payment_entities || [],
-            paymentTransactions: cloud.payment_transactions || [],
-            stockReturns: cloud.stock_returns || [],
-            defaultSettings: cloud.naswar_default_settings || {},
-            appMode: cloud.appMode || appMode,
-            repProfile: cloud.repProfile || currentRepProfile,
-            adminPin: cloud.adminPin || adminPin
-        };
 
+        // --- PERFORM SMART MERGE ---
+        // Instead of replacing, we merge Cloud into Local
+        const mergedDB = mergeDatasets(db, cloud.mfg_pro_pkr);
+        const mergedCustomerSales = mergeDatasets(customerSales, cloud.customer_sales);
+        const mergedHistory = mergeDatasets(salesHistory, cloud.noman_history);
+        const mergedFactoryInv = mergeDatasets(factoryInventoryData, cloud.factory_inventory_data);
+        const mergedFactoryHist = mergeDatasets(factoryProductionHistory, cloud.factory_production_history);
+        const mergedPaymentEntities = mergeDatasets(paymentEntities, cloud.payment_entities);
+        const mergedPaymentTrans = mergeDatasets(paymentTransactions, cloud.payment_transactions);
+        const mergedStockReturns = mergeDatasets(stockReturns, cloud.stock_returns);
+
+        // Settings and simple objects take Cloud version if newer, otherwise keep local (simplified logic for settings)
+        const finalSettings = cloud.naswar_default_settings || defaultSettings;
+        const finalUnitTracking = cloud.factory_unit_tracking || factoryUnitTracking;
+
+        // --- SAVE MERGED DATA TO IDB ---
         const idbPromises = [
-            idb.set('mfg_pro_pkr', restoredData.db),
-            idb.set('customer_sales', restoredData.customerSales),
-            idb.set('noman_history', restoredData.salesHistory),
-            idb.set('factory_inventory_data', restoredData.factoryInventoryData),
-            idb.set('factory_production_history', restoredData.factoryProductionHistory),
-            idb.set('factory_default_formulas', restoredData.factoryDefaultFormulas),
-            idb.set('factory_additional_costs', restoredData.factoryAdditionalCosts),
-            idb.set('factory_cost_adjustment_factor', restoredData.factoryCostAdjustmentFactor),
-            idb.set('factory_sale_prices', restoredData.factorySalePrices),
-            idb.set('factory_unit_tracking', restoredData.factoryUnitTracking),
-            idb.set('payment_entities', restoredData.paymentEntities),
-            idb.set('payment_transactions', restoredData.paymentTransactions),
-            idb.set('stock_returns', restoredData.stockReturns),
-            idb.set('naswar_default_settings', restoredData.defaultSettings),
-            idb.set('appMode', restoredData.appMode),
-            idb.set('repProfile', restoredData.repProfile),
-            idb.set('adminPin', restoredData.adminPin),
-            idb.set('last_synced', data.last_synced)
+            idb.set('mfg_pro_pkr', mergedDB),
+            idb.set('customer_sales', mergedCustomerSales),
+            idb.set('noman_history', mergedHistory),
+            idb.set('factory_inventory_data', mergedFactoryInv),
+            idb.set('factory_production_history', mergedFactoryHist),
+            idb.set('factory_default_formulas', cloud.factory_default_formulas || factoryDefaultFormulas),
+            idb.set('factory_additional_costs', cloud.factory_additional_costs || factoryAdditionalCosts),
+            idb.set('factory_cost_adjustment_factor', cloud.factory_cost_adjustment_factor || factoryCostAdjustmentFactor),
+            idb.set('factory_sale_prices', cloud.factory_sale_prices || factorySalePrices),
+            idb.set('factory_unit_tracking', finalUnitTracking),
+            idb.set('payment_entities', mergedPaymentEntities),
+            idb.set('payment_transactions', mergedPaymentTrans),
+            idb.set('stock_returns', mergedStockReturns),
+            idb.set('naswar_default_settings', finalSettings),
+            idb.set('last_synced', new Date().toISOString())
         ];
-        
+
         await Promise.all(idbPromises);
 
-        // Update global state
-        db = restoredData.db;
-        customerSales = restoredData.customerSales;
-        salesHistory = restoredData.salesHistory;
-        factoryInventoryData = restoredData.factoryInventoryData;
-        factoryProductionHistory = restoredData.factoryProductionHistory;
-        factoryDefaultFormulas = restoredData.factoryDefaultFormulas;
-        factoryAdditionalCosts = restoredData.factoryAdditionalCosts;
-        factoryCostAdjustmentFactor = restoredData.factoryCostAdjustmentFactor;
-        factorySalePrices = restoredData.factorySalePrices;
-        factoryUnitTracking = restoredData.factoryUnitTracking;
-        paymentEntities = restoredData.paymentEntities;
-        paymentTransactions = restoredData.paymentTransactions;
-        stockReturns = restoredData.stockReturns;
-        defaultSettings = restoredData.defaultSettings;
-        appMode = restoredData.appMode;
-        currentRepProfile = restoredData.repProfile;
-        adminPin = restoredData.adminPin;
+        // --- UPDATE GLOBAL VARIABLES ---
+        db = mergedDB;
+        customerSales = mergedCustomerSales;
+        salesHistory = mergedHistory;
+        factoryInventoryData = mergedFactoryInv;
+        factoryProductionHistory = mergedFactoryHist;
+        // ... (Update simple variables directly)
+        factoryDefaultFormulas = cloud.factory_default_formulas || factoryDefaultFormulas;
+        factoryAdditionalCosts = cloud.factory_additional_costs || factoryAdditionalCosts;
+        factoryCostAdjustmentFactor = cloud.factory_cost_adjustment_factor || factoryCostAdjustmentFactor;
+        factorySalePrices = cloud.factory_sale_prices || factorySalePrices;
+        factoryUnitTracking = finalUnitTracking;
+        paymentEntities = mergedPaymentEntities;
+        paymentTransactions = mergedPaymentTrans;
+        stockReturns = mergedStockReturns;
+        defaultSettings = finalSettings;
 
-        if (!silent) showToast('✅ Data synchronized successfully!', 'success');
+        if (!silent) showToast('✅ Cloud Merge Complete! No data lost.', 'success');
         
         await refreshAllDisplays();
 
     } catch (error) {
         console.error('Cloud Sync Error:', error);
-        
-        if (retryCount === 0) {
-            console.log('Retrying sync...');
-            dbWakeUpAttempted = false;
-            isSyncing = false;
-            return pullDataFromCloud(silent, 1);
-        }
-        
         if (!silent) showToast('Sync failed. Using local data.', 'error');
     } finally {
         isSyncing = false;
@@ -9131,6 +9117,113 @@ async function saveTransaction() {
     refreshUI(); // Refresh production tab to show updated inventory
     calculateNetCash();
     calculateCashTracker();
+}
+
+// --- ROBUST CUSTOMER EXPORT FUNCTION ---
+function exportCustomerData(type) {
+    // 1. Define CSV Header
+    let csvContent = "data:text/csv;charset=utf-8,";
+    const fileName = type === 'rep' ? "My_Customer_List.csv" : "All_Customers_List.csv";
+    
+    csvContent += "Customer Name,Phone,Current Debt (Rs),Total Qty Sold (kg),Last Transaction\n";
+
+    // 2. Prepare Data Map
+    const customerMap = new Map();
+
+    // Helper to initialize customer object
+    const initCust = (name) => ({
+        name: name,
+        phone: "N/A",
+        debt: 0,
+        qty: 0,
+        lastDate: ""
+    });
+
+    // 3. SCAN SALES HISTORY (Primary Source of Truth)
+    customerSales.forEach(sale => {
+        // Filter based on Export Type
+        const isRepMode = (type === 'rep');
+        
+        // Skip if this sale doesn't match the requested mode
+        // If type is 'rep', we ONLY want rep entries for the current profile
+        // If type is 'admin', we ONLY want admin entries (isRepModeEntry !== true)
+        if (isRepMode) {
+            if (sale.isRepModeEntry !== true || sale.salesRep !== currentRepProfile) return;
+        } else {
+            if (sale.isRepModeEntry === true) return;
+        }
+
+        const name = sale.customerName;
+        if (!name) return;
+
+        // Get or Create Customer Record
+        if (!customerMap.has(name)) {
+            customerMap.set(name, initCust(name));
+        }
+        const cust = customerMap.get(name);
+
+        // Update Phone if found in transaction
+        if (sale.customerPhone) cust.phone = sale.customerPhone;
+
+        // Calculate Debt & Qty
+        cust.qty += (sale.quantity || 0);
+        
+        if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
+            cust.debt += (sale.totalValue || 0);
+        }
+        if (sale.paymentType === 'COLLECTION') {
+            cust.debt -= (sale.totalValue || 0);
+        }
+
+        // Track Last Activity Date
+        if (sale.date > cust.lastDate) cust.lastDate = sale.date;
+    });
+
+    // 4. SCAN ENTITIES (To fill in missing phones or customers with 0 sales but debt)
+    // Only do this for Admin export, as Reps might not have access to global entities
+    if (type === 'admin') {
+        paymentEntities.forEach(entity => {
+            if (entity.type === 'payor') { // Only Customers
+                if (!customerMap.has(entity.name)) {
+                    // Customer exists in entities but has no sales record (maybe manual entry)
+                    const newCust = initCust(entity.name);
+                    newCust.phone = entity.phone || "N/A";
+                    customerMap.set(entity.name, newCust);
+                } else {
+                    // Customer exists, just update phone if missing
+                    const existing = customerMap.get(entity.name);
+                    if (existing.phone === "N/A" && entity.phone) {
+                        existing.phone = entity.phone;
+                    }
+                }
+            }
+        });
+    }
+
+    // 5. GENERATE CSV ROWS
+    if (customerMap.size === 0) {
+        showToast("No customers found to export.", "warning");
+        return;
+    }
+
+    customerMap.forEach(cust => {
+        // Sanitize strings for CSV (escape quotes)
+        const safeName = cust.name.replace(/"/g, '""');
+        const safePhone = cust.phone.replace(/"/g, '""');
+        
+        csvContent += `"${safeName}","${safePhone}",${cust.debt.toFixed(2)},${cust.qty.toFixed(3)},"${cust.lastDate}"\n`;
+    });
+
+    // 6. TRIGGER DOWNLOAD
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    showToast(`Exported ${customerMap.size} customers successfully!`, "success");
 }
 
 
