@@ -3064,41 +3064,50 @@ body.dark-mode .units-available-danger {
     </div>
 </div>
 <!-- Entity Transactions Overlay -->
-<div id="entityTransactionsOverlay" class="factory-overlay">
-    <div class="factory-overlay-card liquid-card" style="max-width: 800px;">
+<div id="entityDetailsOverlay" class="factory-overlay">
+    <div class="factory-overlay-card liquid-card" style="max-width: 800px; max-height: 90vh; display: flex; flex-direction: column;">
         <div class="section-header">
-            <h3 id="entityTransactionsTitle">Entity Transactions</h3>
-            <button class="btn-theme" onclick="closeEntityTransactions()"></button>
+            <div>
+                <h3 id="manageEntityTitle" style="margin:0; color:var(--text-main);">Entity Name</h3>
+                <span id="manageEntityStats" style="font-size: 0.75rem; color:var(--text-muted);">Current Balance: Rs 0.00</span>
+            </div>
+            <button class="btn-theme" onclick="closeEntityDetailsOverlay()"></button>
         </div>
-        
-        <!-- Summary Cards -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px;">
-            <div class="result-box" style="background: rgba(5, 150, 105, 0.1); border-left: 4px solid var(--accent-emerald);">
-                <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 5px;">TOTAL IN</div>
-                <div style="font-size: 1.2rem; font-weight: 800; color: var(--accent-emerald);" id="entityTotalIn">Rs 0.00</div>
+
+        <div class="debt-panel" style="margin-bottom: 20px; flex-shrink: 0;">
+            <h4 style="margin: 0 0 10px 0; font-size: 0.85rem; color: var(--accent);">Quick Transaction</h4>
+            <div style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
+                <div class="field" style="flex: 1; min-width: 120px;">
+                    <label>Amount (Rs)</label>
+                    <input type="number" id="quickEntityAmount" placeholder="0.00" style="width: 100%;">
+                </div>
+                <div class="field" style="flex: 1.5; min-width: 150px;">
+                    <label>Type</label>
+                    <div class="toggle-group" style="width: 100%; display: flex;">
+                        <div class="toggle-opt active" id="quick-type-out" onclick="setQuickEntityType('OUT')" style="flex:1;">Payment OUT (Paid)</div>
+                        <div class="toggle-opt" id="quick-type-in" onclick="setQuickEntityType('IN')" style="flex:1;">Payment IN (Recvd)</div>
+                    </div>
+                </div>
+                <button class="btn btn-noman" style="width: auto; height: 42px; margin-bottom: 1px;" onclick="(async () => { await saveQuickEntityTransaction() })()">Save</button>
             </div>
-            <div class="result-box" style="background: rgba(220, 38, 38, 0.1); border-left: 4px solid var(--danger);">
-                <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 5px;">TOTAL OUT</div>
-                <div style="font-size: 1.2rem; font-weight: 800; color: var(--danger);" id="entityTotalOut">Rs 0.00</div>
-            </div>
-            <div class="result-box" style="background: rgba(37, 99, 235, 0.1); border-left: 4px solid var(--accent);">
-                <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 5px;">NET BALANCE</div>
-                <div style="font-size: 1.2rem; font-weight: 800; color: var(--accent);" id="entityNetBalance">Rs 0.00</div>
-            </div>
-            <div class="result-box" style="background: rgba(37, 99, 235, 0.05);">
-                <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 5px;">TRANSACTIONS</div>
-                <div style="font-size: 1.2rem; font-weight: 800; color: var(--text-main);" id="entityTotalTransactions">0</div>
+            <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 5px;">
+                * "Payment OUT" reduces what you owe. "Payment IN" reduces what they owe you.
             </div>
         </div>
-        
-        <!-- Transactions List -->
-        <div style="max-height: 400px; overflow-y: auto; margin-top: 15px;">
-            <div id="entityTransactionsList" style="display: flex; flex-direction: column; gap: 10px;">
-                <!-- Transactions will be populated here -->
+
+        <div style="margin-bottom: 10px; flex-shrink: 0;">
+            <input type="text" id="entity-trans-search" class="search-bar" placeholder="Search history..." oninput="filterEntityManagementHistory()">
+        </div>
+
+        <div style="flex: 1; overflow-y: auto; padding-right: 5px;" id="entityManagementHistoryList">
             </div>
+        
+        <div style="margin-top: 15px; pt: 10px; border-top: 1px solid var(--glass-border); text-align: right;">
+             <button class="btn btn-danger btn-sm" onclick="deleteCurrentEntity()">Delete Entity Permanently</button>
         </div>
     </div>
 </div>
+
 
 <div id="customerManagementOverlay" class="factory-overlay">
     <div class="factory-overlay-card liquid-card" style="max-width: 800px; max-height: 90vh; display: flex; flex-direction: column;">
@@ -4516,36 +4525,87 @@ body.dark-mode .units-available-danger {
             
             <button class="btn btn-main" onclick="(async () => { await savePaymentTransaction() })()">Save Transaction</button>
         </div>
+        <div id="entityManagementOverlay" class="factory-overlay">
+    <div class="factory-overlay-card liquid-card" style="max-width: 400px;">
+        <div class="section-header">
+            <h3 id="entityManagementModalTitle">Add New Entity</h3>
+            <button class="btn-theme" onclick="closeEntityManagement()"></button>
+        </div>
+        
+        <div class="grid-inputs">
+            <div class="field">
+                <label>Entity Name</label>
+                <input type="text" id="entityName" placeholder="Name (e.g. John Doe)">
+            </div>
+            <div class="field">
+                <label>Type</label>
+                <select id="entityType">
+                    <option value="payee">Payee (Supplier/Receiver)</option>
+                    <option value="payor">Payor (Customer/Payer)</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="grid-inputs">
+            <div class="field">
+                <label>Phone Number</label>
+                <input type="tel" id="entityPhone" placeholder="03XX-XXXXXXX">
+            </div>
+            <div class="field">
+                <label>Wallet/Note</label>
+                <input type="text" id="entityWallet" placeholder="Easypaisa/JazzCash etc.">
+            </div>
+        </div>
+        
+        <button class="btn btn-noman" onclick="(async () => { await saveEntity() })()" style="margin-top: 15px;">Save Entity</button>
+    </div>
+</div>
+
 <!-- ENTITY LIST CARD - REPLACED TABLE WITH CARD VIEW -->
-<div class="section liquid-card">
+<div class="section liquid-card" id="entities-card">
     <div class="section-header">
         <h3 style="color:var(--text-main); margin:0;">Entities & Balances</h3>
-        <div style="display:flex; gap:8px;">
-            <button class="btn-theme" onclick="refreshEntityBalances()" title="Refresh Balances"></button>
-            <button class="btn-theme" onclick="toggleEntityViewMode()" id="entityViewModeToggle" title="Toggle Compact View"></button>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="text" id="entity-list-filter" class="search-bar" placeholder="Filter entities..." 
+                   style="width: 140px; font-size: 0.7rem;" oninput="renderEntityTable()">
+            
+            <button class="btn-theme" onclick="exportEntityData()" title="Download CSV" style="color: var(--accent-emerald); border-color: var(--accent-emerald); padding: 5px 10px;">
+                ⬇
+            </button>
+            
+            <button class="btn-theme" onclick="openEntityManagement()" title="Add New Entity" style="color: var(--accent); border-color: var(--accent); padding: 5px 10px;">
+                + Add
+            </button>
         </div>
     </div>
-    
-    <!-- Search Bar for Entities -->
-    <input type="text" id="entity-list-search" class="search-bar" placeholder="Search entities by name..." oninput="filterEntityCards()" style="margin-bottom:15px;">
-    
-    <!-- Entity Cards Grid -->
-    <div class="entity-grid" id="entityCardsGrid">
-        <!-- Entity cards will be populated by JavaScript -->
+
+    <div style="overflow-x: auto; max-height: 400px; overflow-y: auto; margin-top: 10px;">
+        <table class="comp-table" style="font-size: 0.75rem;">
+            <thead>
+                <tr>
+                    <th style="text-align: left; font-weight: 800;">Entity Name</th>
+                    <th style="text-align: right; font-weight: 800;">Net Balance</th>
+                    <th style="text-align: right; font-weight: 800;">Contact</th>
+                    <th style="text-align: center; font-weight: 800;">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="entity-table-body">
+                </tbody>
+        </table>
     </div>
-    
-    <!-- Entity Summary -->
-    <div id="entityListFooter" style="display:none; margin-top:15px; padding-top:15px; border-top:1px solid var(--glass-border);">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <span style="font-size:0.8rem; color:var(--text-muted); font-weight: 400;">Total Balance:</span>
-            <span style="font-weight:800; color:var(--accent); font-size:1rem;" id="entityListTotalBalance">Rs 0.00</span>
+
+    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--glass-border);">
+        <div style="display: flex; justify-content: space-between; font-size: 0.7rem;">
+            <span style="color: var(--text-muted); font-weight: 400;">Total Receivables (Green):</span>
+            <span id="total-receivables" style="color: var(--accent-emerald); font-weight: 800;">Rs 0.00</span>
         </div>
-        <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:var(--text-muted); margin-top:5px;">
-            <span>Total Entities: <span id="entityCount">0</span></span>
-            <span>Active: <span id="activeEntityCount">0</span></span>
+        <div style="display: flex; justify-content: space-between; font-size: 0.7rem;">
+            <span style="color: var(--text-muted); font-weight: 400;">Total Payables (Red):</span>
+            <span id="total-payables" style="color: var(--danger); font-weight: 800;">Rs 0.00</span>
         </div>
     </div>
 </div>
+
         <!-- Summary Reports -->
         <div class="section-header">
             <h3>Payment Summary</h3>
@@ -4992,7 +5052,7 @@ function syncFactoryTab() {
 function syncPaymentsTab() {
     try {
         if (typeof refreshPaymentTab === 'function') refreshPaymentTab();
-        if (typeof renderEntityCards === 'function') renderEntityCards();
+        if (typeof renderEntityTable === 'function') renderEntityTable();
     } catch (error) {
         console.error('[PAYMENTS SYNC ERROR]', error);
     }
@@ -5384,110 +5444,206 @@ window.addEventListener('beforeunload', function() {
     }
 
     // --- PAYMENTS TAB: ENTITY MANAGEMENT ---
-    function openEntityManagement() {
-        document.getElementById('entityManagementOverlay').style.display = 'flex';
-        document.getElementById('entityManagementModalTitle').innerText = 'Add Entity';
-        document.getElementById('deleteEntityBtn').style.display = 'none';
-        clearEntityForm();
-        editingEntityId = null;
-    }
+    function openEntityDetailsOverlay(id) {
+    currentEntityId = id;
+    const entity = paymentEntities.find(e => e.id === id);
+    if (!entity) return;
+
+    // Reset Inputs
+    document.getElementById('quickEntityAmount').value = '';
+    setQuickEntityType('OUT');
+
+    document.getElementById('entityDetailsOverlay').style.display = 'flex';
+    renderEntityOverlayContent(entity);
+}
+
+function closeEntityDetailsOverlay() {
+    document.getElementById('entityDetailsOverlay').style.display = 'none';
+    currentEntityId = null;
+    refreshPaymentTab(); // Refresh main table on close
+}
+
+function setQuickEntityType(type) {
+    currentQuickType = type;
+    document.getElementById('quick-type-out').className = `toggle-opt ${type === 'OUT' ? 'active' : ''}`;
+    document.getElementById('quick-type-in').className = `toggle-opt ${type === 'IN' ? 'active' : ''}`;
+}
+
+async function renderEntityOverlayContent(entity) {
+    document.getElementById('manageEntityTitle').innerText = entity.name;
+
+    // Calculate current balance
+    const balances = calculateEntityBalances();
+    const balance = balances[entity.id] || 0;
     
-    function closeEntityManagement() {
-        document.getElementById('entityManagementOverlay').style.display = 'none';
+    const statsEl = document.getElementById('manageEntityStats');
+    if (balance > 0) {
+        statsEl.innerHTML = `<span style="color:var(--danger); font-weight:800;">Current Payable: Rs ${balance.toFixed(2)}</span>`;
+    } else if (balance < 0) {
+        statsEl.innerHTML = `<span style="color:var(--accent-emerald); font-weight:800;">Current Receivable: Rs ${Math.abs(balance).toFixed(2)}</span>`;
+    } else {
+        statsEl.innerHTML = `<span style="color:var(--accent); font-weight:800;">Balance Settled</span>`;
     }
+
+    // Render Transaction History List
+    const list = document.getElementById('entityManagementHistoryList');
+    list.innerHTML = '';
+
+    // Get transactions
+    const transactions = paymentTransactions.filter(t => t.entityId === entity.id);
     
-    function clearEntityForm() {
-        document.getElementById('entityName').value = '';
-        document.getElementById('entityType').value = 'payee';
-        document.getElementById('entityPhone').value = '';
-        document.getElementById('entityWallet').value = '';
+    // Sort: Newest first
+    transactions.sort((a,b) => b.timestamp - a.timestamp);
+
+    if (transactions.length === 0) {
+        list.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted);">No transaction history</div>`;
+        return;
     }
-    
-    async function saveEntity() {
-        const name = document.getElementById('entityName').value.trim();
-        const type = document.getElementById('entityType').value;
-        const phone = document.getElementById('entityPhone').value.trim();
-        const wallet = document.getElementById('entityWallet').value.trim();
+
+    transactions.forEach(t => {
+        const isOut = t.type === 'OUT';
+        const colorClass = isOut ? 'cost-val' : 'profit-val'; // Red for OUT, Green for IN
+        const badgeBg = isOut ? 'rgba(220, 38, 38, 0.1)' : 'rgba(5, 150, 105, 0.1)';
+        const badgeColor = isOut ? 'var(--danger)' : 'var(--accent-emerald)';
+        const label = isOut ? 'PAYMENT OUT' : 'PAYMENT IN';
+
+        const item = document.createElement('div');
+        item.className = 'cust-history-item'; // Reusing customer history style class
+        item.innerHTML = `
+            <div class="cust-history-info">
+                <div style="font-weight:700; font-size:0.85rem; color:var(--text-main);">${t.date}</div>
+                <div style="font-size:0.75rem; color:var(--text-muted);">${t.description || 'No description'}</div>
+            </div>
+            <div style="text-align:right; margin-right:10px;">
+                <span style="background:${badgeBg}; color:${badgeColor}; padding:2px 6px; border-radius:4px; font-size:0.65rem; font-weight:700;">${label}</span>
+                <div class="${colorClass}" style="font-size:0.9rem; margin-top:2px;">Rs ${t.amount.toFixed(2)}</div>
+            </div>
+            <button class="btn btn-sm btn-danger" style="padding:4px 8px;" onclick="deleteEntityTransaction(${t.id})">🗑️</button>
+        `;
+        list.appendChild(item);
+    });
+}
+
+function filterEntityManagementHistory() {
+    const term = document.getElementById('entity-trans-search').value.toLowerCase();
+    const items = document.querySelectorAll('#entityManagementHistoryList .cust-history-item');
+    items.forEach(item => {
+        const text = item.innerText.toLowerCase();
+        item.style.display = text.includes(term) ? 'flex' : 'none';
+    });
+}
+// Save Quick Transaction from Overlay
+async function saveQuickEntityTransaction() {
+    const amount = parseFloat(document.getElementById('quickEntityAmount').value);
+    if (!amount || amount <= 0) {
+        showToast("Please enter a valid amount", "warning");
+        return;
+    }
+
+    if (!currentEntityId) return;
+    const entity = paymentEntities.find(e => e.id === currentEntityId);
+
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0];
+    const timeString = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+    paymentTransactions.push({
+        id: Date.now(),
+        entityId: entity.id,
+        entityName: entity.name,
+        entityType: entity.type,
+        date: dateStr,
+        time: timeString,
+        amount: amount,
+        description: `Quick ${currentQuickType} from Manager`,
+        type: currentQuickType,
+        isPayable: false, // Default for manual entry
+        timestamp: now.getTime()
+    });
+
+    await idb.set('payment_transactions', paymentTransactions);
+    notifyDataChange('all');
+
+    // UI Feedback
+    document.getElementById('quickEntityAmount').value = '';
+    renderEntityOverlayContent(entity); // Refresh overlay list
+    calculateNetCash(); // Update global dashboard
+    showToast("Transaction saved successfully", "success");
+}
+
+// Delete Specific Transaction
+async function deleteEntityTransaction(id) {
+    if (confirm("Permanently delete this transaction?")) {
+        paymentTransactions = paymentTransactions.filter(t => t.id !== id);
+        await idb.set('payment_transactions', paymentTransactions);
+        notifyDataChange('all');
         
-        if (!name) {
-            alert("Please enter entity name");
-            return;
-        }
+        // Refresh Current View
+        const entity = paymentEntities.find(e => e.id === currentEntityId);
+        if(entity) renderEntityOverlayContent(entity);
         
-        if (editingEntityId) {
-            // Update existing entity
-            const index = paymentEntities.findIndex(e => e.id === editingEntityId);
-            if (index !== -1) {
-                paymentEntities[index] = {
-                    ...paymentEntities[index],
-                    name,
-                    type,
-                    phone,
-                    wallet,
-                    updatedAt: Date.now()
-                };
-            }
-        } else {
-            // Add new entity
-            paymentEntities.push({
-                id: Date.now(),
-                name,
-                type,
-                phone,
-                wallet,
-                createdAt: Date.now(),
-                updatedAt: Date.now()
-            });
-        }
+        calculateNetCash();
+        showToast("Transaction deleted", "success");
+    }
+}
+
+// Delete Entire Entity
+async function deleteCurrentEntity() {
+    if(!currentEntityId) return;
+    
+    // Check if it has transactions
+    const hasTrans = paymentTransactions.some(t => t.entityId === currentEntityId);
+    
+    let msg = "Permanently delete this entity?";
+    if(hasTrans) msg += "\n\n⚠️ WARNING: This will delete ALL associated transaction history and cannot be undone.";
+    
+    if(confirm(msg)) {
+        // Remove Entity
+        paymentEntities = paymentEntities.filter(e => e.id !== currentEntityId);
+        
+        // Remove Transactions
+        paymentTransactions = paymentTransactions.filter(t => t.entityId !== currentEntityId);
         
         await idb.set('payment_entities', paymentEntities);
-        closeEntityManagement();
-        refreshPaymentTab();
-        alert("Entity saved successfully!");
+        await idb.set('payment_transactions', paymentTransactions);
         notifyDataChange('all');
-
-    }
-    
-    async function deleteEntity() {
-        if (editingEntityId && confirm("Are you sure you want to delete this entity?")) {
-            paymentEntities = paymentEntities.filter(e => e.id !== editingEntityId);
-            await idb.set('payment_entities', paymentEntities);
-            notifyDataChange('all');
-
-            closeEntityManagement();
-            refreshPaymentTab();
-            alert("Entity deleted successfully!");
-        }
-    }
-    
-    function editEntity(id) {
-        const entity = paymentEntities.find(e => e.id === id);
-        if (entity) {
-            openEntityManagement();
-            document.getElementById('entityManagementModalTitle').innerText = 'Edit Entity';
-            document.getElementById('deleteEntityBtn').style.display = 'block';
-            
-            document.getElementById('entityName').value = entity.name;
-            document.getElementById('entityType').value = entity.type;
-            document.getElementById('entityPhone').value = entity.phone || '';
-            document.getElementById('entityWallet').value = entity.wallet || '';
-            editingEntityId = id;
-        }
-    }
-    
-    function selectEntity(id) {
-        selectedEntityId = id;
-        const entitySelect = document.getElementById('paymentEntity');
-        entitySelect.value = id;
         
-        // Update chip selection
-        document.querySelectorAll('.entity-chip').forEach(chip => {
-            chip.classList.remove('active');
-            if (chip.dataset.id == id) {
-                chip.classList.add('active');
-            }
-        });
+        closeEntityDetailsOverlay();
+        refreshPaymentTab();
+        showToast("Entity deleted successfully", "success");
     }
+}
+
+// Export CSV
+function exportEntityData() {
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Entity Name,Type,Phone,Net Balance (Rs),Status\n";
+
+    const balances = calculateEntityBalances();
+
+    paymentEntities.forEach(e => {
+        const bal = balances[e.id] || 0;
+        let status = "Settled";
+        if(bal > 0) status = "Payable (You Owe)";
+        if(bal < 0) status = "Receivable (Owes You)";
+        
+        // Escape commas
+        const safeName = e.name.replace(/,/g, " ");
+        
+        csvContent += `"${safeName}","${e.type}","${e.phone || ''}",${bal.toFixed(2)},"${status}"\n`;
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "Entities_List.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    showToast("Entity list exported", "success");
+}
+
     // --- CASH TRACKER FUNCTIONS ---
 let currentCashTrackerMode = 'day';
 
@@ -6459,14 +6615,15 @@ function updateFactoryInventoryDisplay() {
     // First ensure all suppliers are properly loaded into entities
     await syncSuppliersToEntities();
     
-    renderEntities();
+    renderEntityTable(); // <--- UPDATED THIS CALL
+    
     
     // 1. Update Economic Health Dashboard (ALL TIME - FIXED)
     calculateNetCash();
     
     // 2. Update Payment Summaries & History (Time Sensitive)
     calculatePaymentSummaries();
-    renderEntityCards();
+    renderEntityTable();
     
     // 3. Update Cash Tracker & Credits Card (Responsive to Toggles)
     calculateCashTracker();
@@ -9705,119 +9862,75 @@ function refreshUI() {
             }
         });
     }
-// UPDATED: Add supplier indicator in renderEntityCards
-function renderEntityCards() {
-    const entityGrid = document.getElementById('entityCardsGrid');
-    const entityFooter = document.getElementById('entityListFooter');
+// UPDATED: Add supplier indicator in renderEntityTable
+// Variable to track the active entity being managed
+let currentEntityId = null;
+let currentQuickType = 'OUT';
+
+async function renderEntityTable() {
+    const tbody = document.getElementById('entity-table-body');
+    const filter = document.getElementById('entity-list-filter').value.toLowerCase();
     
-    if (!entityGrid) return;
-    
-    entityGrid.innerHTML = '';
-    
-    if (paymentEntities.length === 0) {
-        entityGrid.innerHTML = `
-            <div class="no-entities-message">
-                <p>No entities found. Create your first entity to track payments.</p>
-                <button class="btn-theme" onclick="openEntityManagement()">+ Add First Entity</button>
-            </div>
-        `;
-        entityFooter.style.display = 'none';
-        return;
-    }
-    
-    const entityBalances = calculateEntityBalances();
-    let totalBalance = 0;
-    let activeCount = 0;
-    
+    // Safety check
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    // Calculate Balances
+    const balances = calculateEntityBalances();
+    let totalReceivables = 0;
+    let totalPayables = 0;
+
+    // Sort entities by balance magnitude (Highest debts/credits first)
     const sortedEntities = [...paymentEntities].sort((a, b) => {
-        const balanceA = entityBalances[a.id] || 0;
-        const balanceB = entityBalances[b.id] || 0;
-        return balanceB - balanceA;
+        const balA = Math.abs(balances[a.id] || 0);
+        const balB = Math.abs(balances[b.id] || 0);
+        return balB - balA;
     });
-    
-    sortedEntities.forEach(entity => {
-        const balance = entityBalances[entity.id] || 0;
-        
-        if (Math.abs(balance) > 0.01) activeCount++;
-        totalBalance += balance;
-        
-        let roleInfo = getDynamicRole(balance);
-        
-        // NEW: Check if this entity is a supplier with linked materials
-        const linkedMaterials = factoryInventoryData.filter(m => m.supplierId === entity.id);
-        const supplierBadge = entity.isSupplier && linkedMaterials.length > 0 ? 
-            `<div style="font-size:0.65rem; color:var(--accent); margin-top:3px;">
-                ${linkedMaterials.length} material(s) linked
-            </div>` : '';
-        
-        const card = document.createElement('div');
-        card.className = `entity-card-compact ${selectedEntityId === entity.id ? 'active' : ''}`;
-        card.dataset.id = entity.id;
-        
-        const roleBadgeHtml = `
-            <span class="entity-type-badge" style="background: ${roleInfo.badgeColor}; color: white;">
-                ${roleInfo.icon} ${roleInfo.label}
-            </span>
-        `;
-        
-        const phoneDisplay = entity.phone ? `
-            <div class="entity-contact">
-                <span style="font-size:0.9rem;"></span>
-                <span>${entity.phone}</span>
-            </div>
-        ` : '';
-        
-        const displayBalance = Math.abs(balance).toFixed(2);
-        
-        card.innerHTML = `
-            <div class="entity-header">
-                <h4 class="entity-name">${entity.name}</h4>
-                ${roleBadgeHtml}
-            </div>
-            
-            ${phoneDisplay}
-            ${supplierBadge}
-            
-            <div class="entity-balance">
-                <div class="entity-balance-label">${roleInfo.label} Amount</div>
-                <div class="entity-balance-value ${roleInfo.colorClass}">
-                    ${roleInfo.sign}Rs ${displayBalance}
-                </div>
-            </div>
-            
-            <div class="entity-actions">
-                <button class="entity-action-btn edit" onclick="event.stopPropagation(); editEntity(${entity.id})">
-                    Edit
-                </button>
-                <button class="entity-action-btn transactions" onclick="event.stopPropagation(); openEntityTransactions(${entity.id})">
-                    View
-                </button>
-            </div>
-        `;
-        
-        card.onclick = () => selectEntity(entity.id);
-        entityGrid.appendChild(card);
-    });
-    
-    // Update footer
-    if (entityFooter) {
-        entityFooter.style.display = 'block';
-        const totalEl = document.getElementById('entityListTotalBalance');
-        
-        if (totalBalance > 0) {
-            totalEl.style.color = 'var(--danger)';
-            totalEl.textContent = `+ Rs ${Math.abs(totalBalance).toFixed(2)}`;
-        } else if (totalBalance < 0) {
-            totalEl.style.color = 'var(--accent-emerald)';
-            totalEl.textContent = `- Rs ${Math.abs(totalBalance).toFixed(2)}`;
-        } else {
-            totalEl.style.color = 'var(--accent)';
-            totalEl.textContent = `Rs 0.00`;
-        }
-        
-        document.getElementById('entityCount').textContent = paymentEntities.length;
-        document.getElementById('activeEntityCount').textContent = activeCount;
+
+    if (sortedEntities.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:15px; color:var(--text-muted);">No entities found</td></tr>`;
     }
+
+    sortedEntities.forEach(entity => {
+        if (filter && !entity.name.toLowerCase().includes(filter)) return;
+
+        const balance = balances[entity.id] || 0;
+        
+        // Update Totals
+        if (balance > 0) totalPayables += balance; // Positive means we owe them (Liability)
+        else totalReceivables += Math.abs(balance); // Negative means they owe us (Asset)
+
+        // Determine Styles
+        let balanceHtml = '';
+        if (balance > 0.01) {
+            balanceHtml = `<span style="color:var(--danger); font-weight:800;">Payable: Rs ${balance.toFixed(0)}</span>`;
+        } else if (balance < -0.01) {
+            balanceHtml = `<span style="color:var(--accent-emerald); font-weight:800;">Receivable: Rs ${Math.abs(balance).toFixed(0)}</span>`;
+        } else {
+            balanceHtml = `<span style="color:var(--text-muted);">Settled</span>`;
+        }
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="text-align:left;">
+                <div style="font-weight:700;">${entity.name}</div>
+                <div style="font-size:0.65rem; color:var(--text-muted);">${entity.type.toUpperCase()}</div>
+            </td>
+            <td style="text-align:right;">${balanceHtml}</td>
+            <td style="text-align:right; font-size:0.75rem;">${entity.phone || '-'}</td>
+            <td style="text-align:center;">
+                <button class="btn-theme" style="padding:4px 10px; font-size:0.75rem;" 
+                    onclick="openEntityDetailsOverlay(${entity.id})">
+                    Manage
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    // Update Footer Totals
+    document.getElementById('total-receivables').innerText = `Rs ${totalReceivables.toFixed(2)}`;
+    document.getElementById('total-payables').innerText = `Rs ${totalPayables.toFixed(2)}`;
 }
 
 // NEW: Helper function to determine dynamic role
@@ -12271,7 +12384,7 @@ function toggleEntityViewMode() {
         toggleBtn.textContent = '';
     }
     
-    renderEntityCards();
+    renderEntityTable();
 }
 
 // ============================================
@@ -12402,8 +12515,105 @@ function filterEntityCards() {
         }
     });
 }
+// --- ENTITY CREATION LOGIC ---
 
-// Replace the refreshEntityList() function call in refreshPaymentTab() with renderEntityCards()
+// 1. Open the "Add Entity" Modal
+function openEntityManagement() {
+    // Reset the ID so we know we are creating a NEW entity
+    editingEntityId = null; 
+    
+    // Clear the form fields
+    document.getElementById('entityName').value = '';
+    document.getElementById('entityType').value = 'payee'; // Default
+    document.getElementById('entityPhone').value = '';
+    document.getElementById('entityWallet').value = '';
+    
+    // Set Title
+    document.getElementById('entityManagementModalTitle').innerText = 'Add New Entity';
+    
+    // Show Overlay
+    document.getElementById('entityManagementOverlay').style.display = 'flex';
+}
+
+// 2. Close the Modal
+function closeEntityManagement() {
+    document.getElementById('entityManagementOverlay').style.display = 'none';
+}
+
+// 3. Save the Entity (Create or Update)
+async function saveEntity() {
+    const name = document.getElementById('entityName').value.trim();
+    const type = document.getElementById('entityType').value;
+    const phone = document.getElementById('entityPhone').value.trim();
+    const wallet = document.getElementById('entityWallet').value.trim();
+    
+    if (!name) {
+        showToast("Please enter an entity name", "warning");
+        return;
+    }
+    
+    // Check for duplicates
+    const exists = paymentEntities.some(e => e.name.toLowerCase() === name.toLowerCase() && e.id !== editingEntityId);
+    if(exists) {
+        showToast("An entity with this name already exists", "warning");
+        return;
+    }
+    
+    if (editingEntityId) {
+        // UPDATE EXISTING
+        const index = paymentEntities.findIndex(e => e.id === editingEntityId);
+        if (index !== -1) {
+            paymentEntities[index] = {
+                ...paymentEntities[index],
+                name,
+                type,
+                phone,
+                wallet,
+                updatedAt: Date.now()
+            };
+            showToast("Entity updated successfully", "success");
+        }
+    } else {
+        // CREATE NEW
+        paymentEntities.push({
+            id: Date.now(),
+            name,
+            type,
+            phone,
+            wallet,
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+        });
+        showToast("New entity added", "success");
+    }
+    
+    // Persist to Database
+    await idb.set('payment_entities', paymentEntities);
+    notifyDataChange('all');
+    
+    // Close Modal and Refresh Table
+    closeEntityManagement();
+    renderEntityTable(); 
+    calculateNetCash();
+}
+
+// 4. Edit Function (Called from the "Manage" button inside the table if needed)
+// Note: The main management is done via the new Overlay, but this allows editing the Name/Phone
+function editEntityBasicInfo(id) {
+    const entity = paymentEntities.find(e => e.id === id);
+    if (entity) {
+        editingEntityId = id;
+        document.getElementById('entityName').value = entity.name;
+        document.getElementById('entityType').value = entity.type;
+        document.getElementById('entityPhone').value = entity.phone || '';
+        document.getElementById('entityWallet').value = entity.wallet || '';
+        
+        document.getElementById('entityManagementModalTitle').innerText = 'Edit Entity Info';
+        document.getElementById('entityManagementOverlay').style.display = 'flex';
+    }
+}
+
+// Replace the refreshEntityList() function call in refreshPaymentTab() with renderEntityTable()
 async function refreshPaymentTab() {
     // First ensure all suppliers are properly loaded into entities
     await syncSuppliersToEntities();
@@ -12411,7 +12621,7 @@ async function refreshPaymentTab() {
     renderEntities();
     calculateNetCash();
     calculatePaymentSummaries();
-    renderEntityCards(); // Changed from refreshEntityList()
+    renderEntityTable(); // Changed from refreshEntityList()
     calculateCashTracker();
     
     // Render transaction history
@@ -12483,7 +12693,7 @@ function selectEntity(id) {
 
 // Update the refreshEntityBalances function
 function refreshEntityBalances() {
-    renderEntityCards();
+    renderEntityTable();
     alert("Entity balances refreshed!");
 }
 
@@ -13963,7 +14173,7 @@ async function renderRepCustomerTransactions(name) {
 }
 
 // Alias for backward compatibility
-const refreshEntityList = renderEntityCards;
+const refreshEntityList = renderEntityTable;
 
 
 function renderRepHistory() {
