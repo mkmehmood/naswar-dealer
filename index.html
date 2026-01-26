@@ -8257,33 +8257,46 @@ function mergeDatasets(localArray, cloudArray) {
 
     const mergedMap = new Map();
 
-    // 1. Load Cloud Data first (Base)
+    // 1. Process Cloud Data
     cloudArray.forEach(item => {
         if (item && item.id) {
             mergedMap.set(item.id, item);
         }
     });
 
-    // 2. Merge Local Data (Update/Add)
+    // 2. Merge Local Data
     localArray.forEach(localItem => {
         if (!localItem || !localItem.id) return;
 
         const cloudItem = mergedMap.get(localItem.id);
 
         if (!cloudItem) {
-            // It's a new item created locally -> Add it
+            // New item locally? Add it.
             mergedMap.set(localItem.id, localItem);
         } else {
-            // Conflict: Item exists in both. Compare Timestamps.
-            // Priority: timestamp > updatedAt > date comparison > ID check
+            // CONFLICT RESOLUTION
+            
+            // A. Check for Data Integrity (Calculator Specific)
+            // If local item has data but cloud item has 0/null for critical fields, keep local
+            const isCalculatorEntry = localItem.totalSold !== undefined || localItem.revenue !== undefined;
+            if (isCalculatorEntry) {
+                const cloudCorrupt = (cloudItem.totalSold === undefined || cloudItem.revenue === undefined);
+                const localValid = (localItem.totalSold !== undefined);
+                
+                if (cloudCorrupt && localValid) {
+                    console.log(`Restoring valid local data for ID ${localItem.id} over corrupt cloud data.`);
+                    mergedMap.set(localItem.id, localItem);
+                    return;
+                }
+            }
+
+            // B. Standard Timestamp Comparison
             const localTime = localItem.timestamp || localItem.updatedAt || new Date(localItem.date).getTime() || 0;
             const cloudTime = cloudItem.timestamp || cloudItem.updatedAt || new Date(cloudItem.date).getTime() || 0;
 
             if (localTime >= cloudTime) {
-                // Local is newer (or same) -> Overwrite cloud version in map
                 mergedMap.set(localItem.id, localItem);
             }
-            // Else: Cloud is newer -> Keep cloud version (do nothing)
         }
     });
 
@@ -8851,51 +8864,38 @@ function handleReturnQtyInput() {
 
 // 3. FIXED: Save Transaction with Return Processing
 async function saveTransaction() {
+    // 1. Get DOM Elements & Values
     const seller = document.getElementById('sellerSelect').value;
     const date = document.getElementById('sale-date').value;
+    
+    // 2. Strict Number Parsing (Defaults to 0.00 if empty/invalid)
     const sold = parseFloat(document.getElementById('totalSold').value) || 0;
     const ret = parseFloat(document.getElementById('returnedQuantity').value) || 0;
     const cred = parseFloat(document.getElementById('creditSales').value) || 0;
     const prev = parseFloat(document.getElementById('prevCreditReceived').value) || 0;
     const rec = parseFloat(document.getElementById('receivedCash').value) || 0;
     
-    // Get selected return store if there are returns
+    // 3. Get Selected Store for Returns
     let selectedStore = null;
     if (ret > 0) {
         selectedStore = document.querySelector('input[name="return-store"]:checked');
         if (!selectedStore) {
-            alert("️ Please select a store (ZUBAIR or MAHMOOD) for the returned stock!");
+            alert("⚠️ Please select a store (ZUBAIR or MAHMOOD) for the returned stock!");
             return;
         }
     }
-    
 
-    
-    const costPerKg = calculateSalesCostPerKg('standard');
+    // 4. Pricing Logic
+    const costPerKg = calculateSalesCostPerKg('standard') || 0;
     const salePrice = factorySalePrices.standard || 0;
 
-    if(!date) {
-        alert("Please select a date");
-        return;
-    }
-    if(sold < 0 || ret < 0 || cred < 0) {
-        alert("Quantities cannot be negative");
-        return;
-    }
-    if(ret > sold) {
-        alert("Returned quantity cannot exceed total sold");
-        return;
-    }
-    if(cred > sold) {
-        alert("Credit quantity cannot exceed total sold");
-        return;
-    }
-    if(salePrice <= 0) {
-        alert("Please set a sale price in Factory Formulas first");
-        return;
-    }
+    // 5. Validations
+    if(!date) return alert("Please select a date");
+    if(salePrice <= 0) return alert("Please set a sale price in Factory Formulas first");
+    if(ret > sold) return alert("Returned quantity cannot exceed total sold");
 
-    const netSold = sold - ret;
+    // 6. Calculations (Safe Math)
+    const netSold = Math.max(0, sold - ret);
     const cashQty = Math.max(0, netSold - cred);
     const creditValue = cred * salePrice;
     const revenue = netSold * salePrice;
@@ -8903,60 +8903,85 @@ async function saveTransaction() {
     const profit = revenue - totalCost;
     const totalExpected = (cashQty * salePrice) + prev;
 
-    // === NEW: PROCESS RETURN AND ADD TO PRODUCTION ===
+    // 7. Status Text (Directly from logic, not DOM dependency)
+    const diff = rec - totalExpected;
+    let statusText = "PERFECT MATCH ✅";
+    let statusClass = "result-box discrepancy-ok";
+    
+    if (Math.abs(diff) > 0.01) {
+        if (diff < 0) {
+            statusText = `SHORT: Rs ${Math.abs(diff).toFixed(2)}`;
+            statusClass = "result-box discrepancy-alert";
+        } else {
+            statusText = `OVER: Rs ${diff.toFixed(2)}`;
+            statusClass = "result-box discrepancy-ok";
+        }
+    }
+
+    // 8. Process Return (Inventory Update)
     if (ret > 0 && selectedStore) {
         await processReturnToProduction(selectedStore.value, ret, date, seller);
     }
 
+    // 9. CONSTRUCT ROBUST DATA OBJECT
+    // We explicitly define every property to ensure NO data is missing
     const entry = {
-        id: Date.now(), 
-        seller, 
-        date, 
-        unitPrice: salePrice,
-        costPrice: costPerKg,
-        totalSold: sold, 
-        returned: ret, 
-        creditQty: cred,
-        cashQty: cashQty, 
-        creditValue: creditValue, 
-        prevColl: prev,
-        received: rec, 
-        profit: profit, 
-        revenue: revenue, 
-        totalCost: totalCost,
-        totalExpected: totalExpected,
-        statusText: document.getElementById('discrepancyStatus').innerText,
-        statusClass: document.getElementById('discrepancyBox').className,
+        id: Date.now(),
+        seller: seller,
+        date: date,
         timestamp: new Date(date).getTime(),
-        linkedSalesIds: [],
-        returnStore: selectedStore ? selectedStore.value : null
+        
+        // Financials
+        unitPrice: Number(salePrice.toFixed(2)),
+        costPrice: Number(costPerKg.toFixed(2)),
+        revenue: Number(revenue.toFixed(2)),
+        profit: Number(profit.toFixed(2)),
+        totalCost: Number(totalCost.toFixed(2)),
+        
+        // Quantities
+        totalSold: Number(sold.toFixed(3)),
+        returned: Number(ret.toFixed(3)),
+        returnStore: selectedStore ? selectedStore.value : null,
+        creditQty: Number(cred.toFixed(3)),
+        cashQty: Number(cashQty.toFixed(3)),
+        
+        // Cash Flow
+        creditValue: Number(creditValue.toFixed(2)),
+        prevColl: Number(prev.toFixed(2)),
+        totalExpected: Number(totalExpected.toFixed(2)),
+        received: Number(rec.toFixed(2)),
+        
+        // UI State
+        statusText: statusText,
+        statusClass: statusClass,
+        linkedSalesIds: []
     };
 
+    // 10. Link to Sales Entries (Admin Mode)
     const linkedIds = await markSalesEntriesAsReceived(seller, sold);
     entry.linkedSalesIds = linkedIds;
 
-    let history; history = await idb.get('noman_history', []);
+    // 11. Save to IndexedDB
+    let history = await idb.get('noman_history', []);
+    if (!Array.isArray(history)) history = [];
     history.push(entry);
     await idb.set('noman_history', history);
     
-    // Clear form
+    // Notify Sync System
+    notifyDataChange('calculator');
+
+    // 12. Cleanup UI
     document.getElementById('totalSold').value = '';
     document.getElementById('returnedQuantity').value = '';
     document.getElementById('creditSales').value = '';
     document.getElementById('prevCreditReceived').value = '';
     document.getElementById('receivedCash').value = '';
-    
-    // Hide return section
     document.getElementById('returnStoreSection').classList.add('hidden');
     
-    showToast(`Transaction saved! ${linkedIds.length} sales entries marked as received.${ret > 0 ? ` ${ret.toFixed(2)} kg returned to inventory.` : ''}`, 'success');
+    showToast(`Transaction saved! ${linkedIds.length} sales entries reconciled.`, 'success');
     
-    // Refresh all displays
-    await loadSalesData(currentCompMode);
-    refreshCustomerSales();
-    refreshUI(); // Refresh production tab to show updated inventory
-    calculateNetCash();
-    calculateCashTracker();
+    // 13. Refresh Everything
+    await refreshAllDisplays();
 }
 
 // --- ROBUST CUSTOMER EXPORT FUNCTION ---
@@ -11348,25 +11373,35 @@ function updateAllStoresOverview(mode = 'day') {
     }
 
    function createReportHTML(title, data, isHistory = false, id = null, sellerName = null, isHighlight = false) {
-    const balance = data.creditVal - data.collected;
+    // 1. Calculate safe values with fallbacks
+    const creditVal = safeValue(data.creditVal);
+    const collected = safeValue(data.collected);
+    const balance = creditVal - collected;
     
-    // Calculate Discrepancy (Received - Expected)
-    const discrepancy = (data.received || 0) - (data.expected || 0);
+    const received = safeValue(data.received);
+    const expected = safeValue(data.expected);
+    const discrepancy = received - expected;
     
-    // Determine colors for balance and discrepancy
-    const balClass = balance > 0 ? 'balance-pos' : 'balance-neg'; // Positive debt is bad (red), negative debt is good/surplus
+    // 2. Status Determination
+    const balClass = balance > 0 ? 'balance-pos' : 'balance-neg';
     
-    let discClass = 'qty-val'; // Default color
-    let discText = `Rs ${safeValue(discrepancy).toFixed(2)}`;
+    let discClass = 'qty-val'; 
+    let discText = `Rs ${Math.abs(discrepancy).toFixed(2)}`;
     
     if (Math.abs(discrepancy) < 0.01) {
-        discClass = 'units-available-good'; // Green if perfect match
+        discClass = 'units-available-good';
         discText = "Perfect Match";
     } else if (discrepancy < 0) {
-        discClass = 'cost-val'; // Red if short
+        discClass = 'cost-val';
+        discText = `SHORT: Rs ${Math.abs(discrepancy).toFixed(2)}`;
     } else {
-        discClass = 'profit-val'; // Green/Blue if over
+        discClass = 'profit-val';
+        discText = `OVER: Rs ${discrepancy.toFixed(2)}`;
     }
+
+    // 3. Status Text Fallback (Use calculated if stored text is missing)
+    const displayStatusText = data.statusText || discText;
+    const displayStatusClass = data.statusClass || (Math.abs(discrepancy) < 0.01 ? 'result-box discrepancy-ok' : 'result-box discrepancy-alert');
 
     const badge = sellerName ? `<span class="seller-badge ${sellerName === 'NORAN SHAH' ? 'noran-badge' : 'noman-badge'}">${sellerName.split(' ')[0]}</span>` : '';
     const highlightClass = isHighlight ? 'highlight-card' : '';
@@ -11379,24 +11414,23 @@ function updateAllStoresOverview(mode = 'day') {
     <hr>
     <p><span>Revenue:</span> <span class="rev-val">Rs ${safeValue(data.revenue).toFixed(2)}</span></p>
     <p><span>Profit:</span> <span class="profit-val">Rs ${safeValue(data.profit).toFixed(2)}</span></p>
-    <p><span>Credit Out:</span> <span class="cost-val">Rs ${safeValue(data.creditVal).toFixed(2)}</span></p>
-    <p><span>Credit In:</span> <span class="profit-val">Rs ${safeValue(data.collected).toFixed(2)}</span></p>
-    <p><span>Net Debt:</span> <span class="${balClass}">Rs ${safeValue(balance).toFixed(2)}</span></p>
+    <p><span>Credit Out:</span> <span class="cost-val">Rs ${creditVal.toFixed(2)}</span></p>
+    <p><span>Credit In:</span> <span class="profit-val">Rs ${collected.toFixed(2)}</span></p>
+    <p><span>Net Debt:</span> <span class="${balClass}">Rs ${balance.toFixed(2)}</span></p>
     <hr>
-    <p><span>Expected Cash:</span> <span class="qty-val" style="color:var(--text-main);">Rs ${safeValue(data.expected).toFixed(2)}</span></p>
-    <p><span>Received Cash:</span> <span class="qty-val" style="font-weight:800; color:var(--text-main);">Rs ${safeValue(data.received).toFixed(2)}</span></p>
+    <p><span>Expected Cash:</span> <span class="qty-val" style="color:var(--text-main);">Rs ${expected.toFixed(2)}</span></p>
+    <p><span>Received Cash:</span> <span class="qty-val" style="font-weight:800; color:var(--text-main);">Rs ${received.toFixed(2)}</span></p>
     <p><span>Discrepancy:</span> <span class="${discClass}">${discText}</span></p>
     `;
     
     if (isHistory) {
         html += `
-        <div style="padding: 8px; border-radius: 6px; text-align: center; margin-top: 8px; font-size: 10px;" class="${data.statusClass}">${data.statusText}</div>
+        <div style="padding: 8px; border-radius: 6px; text-align: center; margin-top: 8px; font-size: 10px;" class="${displayStatusClass}">${displayStatusText}</div>
         <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="(async () => { await deleteSalesEntry(${id}) })()">Delete</button>`;
     }
     html += `</div>`;
     return html;
 }
-
 
 
     // Find "function loadSalesData" and replace it with this:
@@ -11502,6 +11536,7 @@ function styleAutoFilledField(field) {
 async function loadSalesData(compMode = 'all') {
     currentCompMode = compMode;
     
+    // 1. Setup UI
     ['week', 'month', 'year', 'all'].forEach(m => {
         const btn = document.getElementById(`comp-${m}-btn`);
         if(btn) btn.className = `toggle-opt ${m === compMode ? 'active' : ''}`;
@@ -11510,10 +11545,8 @@ async function loadSalesData(compMode = 'all') {
     const seller = document.getElementById('sellerSelect').value;
     const searchDate = document.getElementById('sale-date').value;
     
-    // ===== NEW: Auto-fill logic =====
-    autoFillTotalSoldQuantity();
+    autoFillTotalSoldQuantity(); // Trigger auto-fill
     
-    const searchDateObj = new Date(searchDate);
     const isCombined = seller === "COMBINED";
     const label = isCombined ? "Combined" : seller;
     
@@ -11524,17 +11557,18 @@ async function loadSalesData(compMode = 'all') {
     document.getElementById('combinedSection').className = isCombined ? "" : "hidden";
     document.getElementById('individualChartSection').className = isCombined ? "hidden" : "";
 
-    let history; history = await idb.get('noman_history', []);
+    // 2. Fetch Data
+    let history = await idb.get('noman_history', []);
+    if (!Array.isArray(history)) history = [];
+
+    // 3. Filter & Sort
     let displayList = isCombined ? history : history.filter(h => h.seller === seller);
-    
     displayList.sort((a,b) => {
          if (a.date === searchDate && b.date !== searchDate) return -1;
          if (a.date !== searchDate && b.date === searchDate) return 1;
          return b.timestamp - a.timestamp;
     });
 
-    let ltCr = 0, ltCl = 0;
-    
     const ranges = {
         d: { sold:0, ret:0, cash:0, cred:0, creditVal:0, collected:0, profit:0, revenue:0, expected:0, received:0 },
         w: { sold:0, ret:0, cash:0, cred:0, creditVal:0, collected:0, profit:0, revenue:0, expected:0, received:0 },
@@ -11543,53 +11577,64 @@ async function loadSalesData(compMode = 'all') {
         a: { sold:0, ret:0, cash:0, cred:0, creditVal:0, collected:0, profit:0, revenue:0, expected:0, received:0 }
     };
     
+    // 4. Render History List
     const list = document.getElementById('historyList'); 
     list.innerHTML = '';
-    const now = new Date(searchDate);
-    const selectedYear = now.getFullYear();
-    const selectedMonth = now.getMonth();
-    const selectedDay = now.getDate();
-    const weekStart = new Date(now);
-    weekStart.setDate(selectedDay - 6);
-
+    
     displayList.forEach(h => {
          const isHighlight = h.date === searchDate;
          const dateTitle = isHighlight ? `${h.date} (Selected)` : h.date;
          
+         // Critical: Correct property mapping from DB Object (h) to Report Function
          list.innerHTML += createReportHTML(
              dateTitle, 
              { 
-                 sold: h.totalSold, ret: h.returned, cash: h.cashQty, cred: h.creditQty, 
-                 revenue: h.revenue, profit: h.profit, creditVal: h.creditValue, 
-                 collected: h.prevColl, expected: h.totalExpected, received: h.received, 
-                 statusClass: h.statusClass, statusText: h.statusText
+                 sold: h.totalSold, 
+                 ret: h.returned, 
+                 cash: h.cashQty, 
+                 cred: h.creditQty, 
+                 revenue: h.revenue, 
+                 profit: h.profit, 
+                 creditVal: h.creditValue, 
+                 collected: h.prevColl, 
+                 expected: h.totalExpected, 
+                 received: h.received, 
+                 statusClass: h.statusClass, 
+                 statusText: h.statusText
              }, 
              true, h.id, isCombined ? h.seller : null, isHighlight
          );
     });
 
+    // 5. Calculate Aggregates
+    const now = new Date(searchDate);
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - 6);
+    
+    let ltCr = 0, ltCl = 0; // Lifetime trackers
+
     const debtFilterList = isCombined ? history : history.filter(h => h.seller === seller);
+    
     debtFilterList.forEach(h => {
         const hDate = new Date(h.date);
-        const hYear = hDate.getFullYear();
-        const hMonth = hDate.getMonth();
-        ltCr += h.creditValue; 
-        ltCl += h.prevColl;
+        
+        ltCr += (h.creditValue || 0); 
+        ltCl += (h.prevColl || 0);
         
         if(h.date === searchDate) addToRange(ranges.d, h);
         if(hDate >= weekStart && hDate <= now) addToRange(ranges.w, h);
-        if(hYear === selectedYear && hMonth === selectedMonth) addToRange(ranges.m, h);
-        if(hYear === selectedYear) addToRange(ranges.y, h);
+        if(hDate.getMonth() === now.getMonth() && hDate.getFullYear() === now.getFullYear()) addToRange(ranges.m, h);
+        if(hDate.getFullYear() === now.getFullYear()) addToRange(ranges.y, h);
         addToRange(ranges.a, h);
     });
 
+    // 6. Update Summary Reports
     document.getElementById('dailyReport').innerHTML = createReportHTML("Daily View", ranges.d);
-    document.getElementById('weeklyReport').innerHTML = createReportHTML("Weekly View (Last 7 Days)", ranges.w);
-    document.getElementById('monthlyReport').innerHTML = createReportHTML("Monthly View (This Month)", ranges.m);
-    document.getElementById('yearlyReport').innerHTML = createReportHTML("Yearly View (This Year)", ranges.y);
+    document.getElementById('weeklyReport').innerHTML = createReportHTML("Weekly View", ranges.w);
+    document.getElementById('monthlyReport').innerHTML = createReportHTML("Monthly View", ranges.m);
+    document.getElementById('yearlyReport').innerHTML = createReportHTML("Yearly View", ranges.y);
     document.getElementById('allTimeReport').innerHTML = createReportHTML("All Time Summary", ranges.a);
     
-    document.getElementById('all-times-calculator-card').style.display = 'none';
     document.getElementById('ltCredit').innerText = "Rs " + safeValue(ltCr).toFixed(2);
     document.getElementById('ltCollected').innerText = "Rs " + safeValue(ltCl).toFixed(2);
     document.getElementById('ltBalance').innerText = "Rs " + safeValue(ltCr - ltCl).toFixed(2);
