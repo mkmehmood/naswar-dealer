@@ -8453,8 +8453,7 @@ async function pushDataToCloud(silent = false, retryCount = 0) {
         }
     }
 }
-
-// --- PULL FROM CLOUD (RESTORE) - FETCH-MERGE-SAVE ---
+// --- PULL FROM CLOUD (RESTORE) - WITH RECALCULATION FIX ---
 async function pullDataFromCloud(silent = false, retryCount = 0) {
     if (!currentUser || !supabaseClient) return;
 
@@ -8484,9 +8483,6 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
         const cloud = data.data;
 
         // STEP 1: SMART MERGE (Cloud -> Local)
-        // We merge cloud data into our local variables. 
-        // If Cloud has a newer version of a sale, it updates local.
-        // If Local has a newer unsynced sale, it keeps local.
         const mergedDB = mergeDatasets(db, cloud.mfg_pro_pkr);
         const mergedCustomerSales = mergeDatasets(customerSales, cloud.customer_sales);
         const mergedHistory = mergeDatasets(salesHistory, cloud.noman_history);
@@ -8496,10 +8492,9 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
         const mergedPaymentTrans = mergeDatasets(paymentTransactions, cloud.payment_transactions);
         const mergedStockReturns = mergeDatasets(stockReturns, cloud.stock_returns);
 
-        // For configuration objects, we usually accept the cloud version during a restore
-        // unless we want to implement deep object merging.
+        // Configuration Objects
         const finalSettings = cloud.naswar_default_settings || defaultSettings;
-        const finalUnitTracking = cloud.factory_unit_tracking || factoryUnitTracking;
+        // NOTE: We do NOT trust cloud.factory_unit_tracking directly. We will recalculate it.
 
         // STEP 2: SAVE MERGED DATA TO IDB
         const idbPromises = [
@@ -8512,7 +8507,7 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
             idb.set('factory_additional_costs', cloud.factory_additional_costs || factoryAdditionalCosts),
             idb.set('factory_cost_adjustment_factor', cloud.factory_cost_adjustment_factor || factoryCostAdjustmentFactor),
             idb.set('factory_sale_prices', cloud.factory_sale_prices || factorySalePrices),
-            idb.set('factory_unit_tracking', finalUnitTracking),
+            // We skip saving unit_tracking here, syncFactoryProductionStats will save the correct version
             idb.set('payment_entities', mergedPaymentEntities),
             idb.set('payment_transactions', mergedPaymentTrans),
             idb.set('stock_returns', mergedStockReturns),
@@ -8533,16 +8528,19 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
         factoryAdditionalCosts = cloud.factory_additional_costs || factoryAdditionalCosts;
         factoryCostAdjustmentFactor = cloud.factory_cost_adjustment_factor || factoryCostAdjustmentFactor;
         factorySalePrices = cloud.factory_sale_prices || factorySalePrices;
-        factoryUnitTracking = finalUnitTracking;
         
         paymentEntities = mergedPaymentEntities;
         paymentTransactions = mergedPaymentTrans;
         stockReturns = mergedStockReturns;
         defaultSettings = finalSettings;
 
+        // STEP 4: CRITICAL RECALCULATION
+        // This ensures "Available Units" is mathematically derived from the new History
+        await syncFactoryProductionStats(); 
+
         if (!silent) showToast('✅ Data Updated from Cloud', 'success');
         
-        // STEP 4: REFRESH UI
+        // STEP 5: REFRESH ALL UI
         await refreshAllDisplays();
 
     } catch (error) {
@@ -11892,16 +11890,26 @@ async function reverseReturnFromProduction(storeKey, quantity, date) {
         return isNaN(value) || !isFinite(value) ? 0 : value;
     }
 
-    // --- REFRESH ALL DISPLAYS ---
+    // --- REFRESH ALL DISPLAYS (STABILIZED) ---
     async function refreshAllDisplays() {
-        refreshUI();
-        refreshCustomerSales();
-        await loadSalesData(currentCompMode);
-        initFactoryTab();
-        if (document.getElementById('tab-payments').className !== 'hidden') {
+        // 1. Force Recalculation of Factory Units (Fixes fluctuation)
+        await syncFactoryProductionStats();
+        
+        // 2. Refresh all other tabs
+        refreshUI(); // Production Tab
+        refreshCustomerSales(); // Sales Tab
+        await loadSalesData(currentCompMode); // Calculator Tab
+        initFactoryTab(); // Factory Tab
+        
+        // 3. Refresh Payments if active
+        if (document.getElementById('tab-payments') && !document.getElementById('tab-payments').classList.contains('hidden')) {
             refreshPaymentTab();
         }
+        
+        // 4. Update Header Stats
+        calculateNetCash();
     }
+
 // ==========================================
 // CONSOLIDATED APP INITIALIZATION
 // ==========================================
