@@ -5506,7 +5506,12 @@ function setCashTrackerMode(mode) {
     
     calculateCashTracker();
 }
+// ============================================
+// CASH TRACKER & CREDIT TRACKER (TIME SENSITIVE)
+// ============================================
+
 function calculateCashTracker() {
+    // 1. Determine Date Range based on currentCashTrackerMode
     const selectedDate = document.getElementById('paymentDate').value || new Date().toISOString().split('T')[0];
     const selectedDateObj = new Date(selectedDate);
     const selectedYear = selectedDateObj.getFullYear();
@@ -5515,14 +5520,19 @@ function calculateCashTracker() {
     let startDate = new Date(selectedDate);
     let endDate = new Date(selectedDate);
     
+    // Start of day
+    startDate.setHours(0,0,0,0);
+    // End of day
+    endDate.setHours(23,59,59,999);
+    
     if (currentCashTrackerMode === 'week') {
         startDate.setDate(selectedDateObj.getDate() - 6);
     } else if (currentCashTrackerMode === 'month') {
         startDate = new Date(selectedYear, selectedMonth, 1);
-        endDate = new Date(selectedYear, selectedMonth + 1, 0);
+        endDate = new Date(selectedYear, selectedMonth + 1, 0, 23, 59, 59);
     } else if (currentCashTrackerMode === 'year') {
         startDate = new Date(selectedYear, 0, 1);
-        endDate = new Date(selectedYear, 11, 31);
+        endDate = new Date(selectedYear, 11, 31, 23, 59, 59);
     } else if (currentCashTrackerMode === 'all') {
         startDate = new Date('2000-01-01');
         endDate = new Date('2100-12-31');
@@ -5541,26 +5551,25 @@ function calculateCashTracker() {
         repSalesCash: 0,
         repSalesCredits: 0,
         calculatorCash: 0,
-        calculatorCredits: 0,   // Will store Total Issued Credit
-        calculatorRecovered: 0, // NEW: Will store Total Recovered Credit (prevColl)
+        calculatorCredits: 0,   
+        calculatorRecovered: 0, 
         paymentsIn: 0,
         paymentsOut: 0 
     };
     
-    // 1. Collect PRODUCTION data
+    // 1. Collect PRODUCTION data (Filtered by Date)
     db.forEach(item => {
         const itemDate = new Date(item.date);
         if (itemDate >= startDate && itemDate <= endDate) {
             rawData.totalProductionValue += item.totalSale || 0;
             rawData.totalProductionQuantity += item.net || 0;
-            
             if (item.store === 'STORE_C' && item.paymentStatus === 'CREDIT') {
                 rawData.productionCredits += item.totalSale || 0;
             }
         }
     });
     
-    // 2. Collect SALES data
+    // 2. Collect SALES data (Filtered by Date)
     customerSales.forEach(sale => {
         const saleDate = new Date(sale.date);
         if (saleDate >= startDate && saleDate <= endDate) {
@@ -5588,17 +5597,17 @@ function calculateCashTracker() {
         }
     });
 
-    // 3. Collect CALCULATOR data (rep collections)
+    // 3. Collect CALCULATOR data (Filtered by Date)
     salesHistory.forEach(item => {
         const itemDate = new Date(item.date);
         if (itemDate >= startDate && itemDate <= endDate) {
             rawData.calculatorCash += item.received || 0;
-            rawData.calculatorCredits += item.creditValue || 0; // Total Credit Issued
-            rawData.calculatorRecovered += item.prevColl || 0;  // Total Credit Recovered
+            rawData.calculatorCredits += item.creditValue || 0;
+            rawData.calculatorRecovered += item.prevColl || 0;
         }
     });
     
-    // 4. Collect PAYMENTS data
+    // 4. Collect PAYMENTS data (Filtered by Date)
     paymentTransactions.forEach(transaction => {
         const transDate = new Date(transaction.date);
         if (transDate >= startDate && transDate <= endDate) {
@@ -5612,54 +5621,37 @@ function calculateCashTracker() {
         }
     });
 
-    
     // ========== PHASE 2: Calculate NET values ==========
-    
-    // A. NET PRODUCTION VALUE
     const netProductionValue = Math.max(0, rawData.totalProductionValue - rawData.totalSalesValue);
-    
-    // B. NET SALES CASH
     const netSalesCash = rawData.salesCash - rawData.repSalesCash;
-    
-    // C. NET SALES CREDITS
     const netSalesCredits = rawData.salesCredits - rawData.repSalesCredits;
-
-    // D. NET CALCULATOR DEBT (The Fix: Issued - Recovered)
     const netCalculatorDebt = rawData.calculatorCredits - rawData.calculatorRecovered;
-
-    // E. NET PRODUCTION QUANTITY (Fixed ReferenceError)
     const netProductionQuantity = Math.max(0, rawData.totalProductionQuantity - rawData.totalSalesQuantity);
-    
-    // ========== PHASE 3: Calculate FINAL totals ==========
     
     const finalTotals = {
         productionValue: netProductionValue,
         productionQuantity: netProductionQuantity,
         productionCredits: rawData.productionCredits,
-        
         salesTabCash: netSalesCash,
         salesTabCredits: netSalesCredits,
-        
         calculatorCash: rawData.calculatorCash,
-        calculatorCredits: netCalculatorDebt, // Using the correct Net Debt value
-        
+        calculatorCredits: netCalculatorDebt,
         paymentsIn: rawData.paymentsIn,
         paymentsOut: rawData.paymentsOut
     };
     
-    // Calculate NET CASH
+    // Calculate NET CASH for the period
     const netCash = finalTotals.productionValue - finalTotals.productionCredits + 
                     finalTotals.salesTabCash + finalTotals.calculatorCash + 
                     finalTotals.paymentsIn - finalTotals.paymentsOut;
     
-    // Calculate TOTAL CREDITS
+    // Calculate TOTAL CREDITS for the period
     const totalCredits = finalTotals.salesTabCredits + 
                         finalTotals.calculatorCredits + 
                         finalTotals.productionCredits;
     
-    // ========== PHASE 4: Update UI ==========
+    // ========== PHASE 3: Update UI (Only Tracker & Credits Cards) ==========
     
-    // Update Cash Tracker Card
     const elCashProdValue = document.getElementById('cash-prod-value');
     if (elCashProdValue) elCashProdValue.textContent = `Rs ${safeValue(finalTotals.productionValue).toFixed(2)}`;
 
@@ -5679,7 +5671,14 @@ function calculateCashTracker() {
     if (elCashPayOut) elCashPayOut.textContent = `Rs ${safeValue(finalTotals.paymentsOut).toFixed(2)}`;
 
     const elCashNet = document.getElementById('cash-net-total');
-    if (elCashNet) elCashNet.textContent = `Rs ${safeValue(netCash).toFixed(2)}`;
+    if (elCashNet) {
+        elCashNet.textContent = `Rs ${safeValue(netCash).toFixed(2)}`;
+        if (netCash < 0) {
+            elCashNet.style.color = 'var(--danger)';
+        } else {
+            elCashNet.style.color = 'var(--accent-emerald)';
+        }
+    }
     
     // Update Credits Card
     const elCreditSales = document.getElementById('credit-sales-tab');
@@ -5696,25 +5695,8 @@ function calculateCashTracker() {
     const elCreditTotal = document.getElementById('credit-total');
     if (elCreditTotal) elCreditTotal.textContent = `Rs ${safeValue(totalCredits).toFixed(2)}`;
     
-    // Update color based on cash position
-    if (elCashNet) {
-        if (netCash < 0) {
-            elCashNet.className = 'cost-val';
-            elCashNet.style.color = 'var(--danger)';
-        } else {
-            elCashNet.className = 'profit-val';
-            elCashNet.style.color = 'var(--accent-emerald)';
-        }
-    }
-
-    // Update Economic Dashboard (if function exists)
-    if(typeof updateEconomicDashboardWithNetValues === 'function'){
-        updateEconomicDashboardWithNetValues(finalTotals, totalCredits);
-    }
-    
     return finalTotals;
 }
-
 
 
 
@@ -5985,17 +5967,16 @@ async function savePaymentTransaction() {
         });
     }
 // ============================================
-// UPDATED: ECONOMIC DASHBOARD WITH PRODUCTION CREDITS
+// ECONOMIC DASHBOARD - STRICTLY ALL-TIME DATA
 // ============================================
 
-// UPDATED: calculateNetCash function with production credits in receivables
 function calculateNetCash() {
-    // ========== PHASE 1: Gather ALL raw data ==========
+    // ========== PHASE 1: Gather ALL-TIME raw data ==========
     let rawData = {
         // Production data
         totalProductionValue: 0,
         totalProductionQuantity: 0,
-        productionCredits: 0, // NEW: Production tab credits
+        productionCredits: 0, 
         
         // Sales data (including reps)
         totalSalesValue: 0,
@@ -6003,13 +5984,13 @@ function calculateNetCash() {
         salesCash: 0,
         salesCredits: 0,
         
-        // Rep-specific sales (Noran/Noman)
+        // Rep-specific sales
         repSalesValue: 0,
         repSalesQuantity: 0,
         repSalesCash: 0,
         repSalesCredits: 0,
         
-        // Calculator data (rep collections & debt)
+        // Calculator data
         calculatorCash: 0,
         calculatorTotalIssued: 0,
         calculatorTotalRecovered: 0,
@@ -6019,20 +6000,22 @@ function calculateNetCash() {
         paymentsOut: 0
     };
     
-    // 1. Collect PRODUCTION data (ALL TIME)
+    // 1. Collect ALL PRODUCTION data (No Date Filter)
     db.forEach(item => {
         rawData.totalProductionValue += item.totalSale || 0;
         rawData.totalProductionQuantity += item.net || 0;
         
-        // NEW: Track production credits (STORE_C with CREDIT payment status)
+        // Track production credits
         if (item.store === 'STORE_C' && item.paymentStatus === 'CREDIT') {
             rawData.productionCredits += item.totalSale || 0;
         }
     });
-   // 2. Collect SALES data (ISOLATED)
+
+   // 2. Collect ALL SALES data (No Date Filter)
     customerSales.forEach(sale => {
         // --- ISOLATION: SKIP REP MODE ENTRIES ---
         if (sale.isRepModeEntry === true) return;
+        
         rawData.totalSalesValue += sale.totalValue || 0;
         rawData.totalSalesQuantity += sale.quantity || 0;
         
@@ -6056,36 +6039,24 @@ function calculateNetCash() {
         }
     });
     
-    // 3. Collect CALCULATOR data
+    // 3. Collect ALL CALCULATOR data (No Date Filter)
     salesHistory.forEach(item => {
         rawData.calculatorCash += item.received || 0;
         rawData.calculatorTotalIssued += item.creditValue || 0;
         rawData.calculatorTotalRecovered += item.prevColl || 0;
     });
     
-    // 4. Collect PAYMENTS data
-// IMPORTANT LOGIC:
-// - Payment OUT to suppliers: Handled by calculateEntityBalances()
-//   When isPayable=true, it reduces the supplier's positive balance (liability)
-//   This does NOT reduce our cash because we're paying off existing debt
-// - Payment OUT for expenses: This DOES reduce our cash (operating expense)
-//   When isPayable=false, it's actual cash leaving for new expenses
-
-paymentTransactions.forEach(trans => {
-    if (trans.type === 'IN') {
-        // Money IN: They paid me (increases cash)
-        rawData.paymentsIn += trans.amount;
-    } else if (trans.type === 'OUT') {
-        // Money OUT: I paid them
-        // ONLY count as cash expense if NOT settling a payable
-        if (!trans.isPayable) {
-            rawData.paymentsOut += trans.amount;
+    // 4. Collect ALL PAYMENTS data (No Date Filter)
+    paymentTransactions.forEach(trans => {
+        if (trans.type === 'IN') {
+            rawData.paymentsIn += trans.amount;
+        } else if (trans.type === 'OUT') {
+            // ONLY count as cash expense if NOT settling a payable
+            if (!trans.isPayable) {
+                rawData.paymentsOut += trans.amount;
+            }
         }
-        // If isPayable = true:
-        // - Supplier's balance decreases (liability reduced)
-        // - But our cash stays the same (we already counted the inventory cost)
-    }
-});
+    });
     
     // ========== PHASE 2: Calculate NET values ==========
     
@@ -6095,7 +6066,7 @@ paymentTransactions.forEach(trans => {
     // B. NET SALES CASH
     const netSalesCash = rawData.salesCash - rawData.repSalesCash;
     
-    // C. NET SALES CREDITS (Direct Customers)
+    // C. NET SALES CREDITS
     const netSalesCredits = rawData.salesCredits - rawData.repSalesCredits;
     
     // D. COMBINED MARKET DEBT TRACKER
@@ -6109,7 +6080,7 @@ paymentTransactions.forEach(trans => {
     
     // ========== PHASE 4: Calculate ACCOUNTS RECEIVABLE ==========
     let AccountsReceivable = {
-        productionCredits: rawData.productionCredits, // NEW: Production tab credits
+        productionCredits: rawData.productionCredits, 
         salesTabCredit: netSalesCredits,
         calculatorCredit: Math.max(0, combinedMarketDebt),
         total: 0
@@ -6162,7 +6133,6 @@ paymentTransactions.forEach(trans => {
     paymentTransactions.forEach(trans => {
         if (trans.type === 'OUT' && trans.isPayable) {
             CurrentLiabilities.accountsPayable.supplierPayables += trans.amount;
-            
             if (trans.materialId) {
                 countedMaterialIds.add(trans.materialId);
             }
@@ -6175,54 +6145,34 @@ paymentTransactions.forEach(trans => {
             if (material.paymentStatus === 'pending' && 
                 material.totalPayable && 
                 !countedMaterialIds.has(material.id)) {
-                
                 CurrentLiabilities.accountsPayable.supplierPayables += material.totalPayable;
                 countedMaterialIds.add(material.id);
             }
         });
     }
     
-    // B. OTHER PAYABLES
-    const nonSupplierEntities = paymentEntities.filter(e => 
-        e.type === 'payee' && !e.isSupplier
-    );
+    // B. OTHER PAYABLES (Using balances from Entity Calculation)
+    // Note: To ensure this is 100% all-time correct, we recalculate entity balances here on the fly
+    const balances = {};
+    paymentEntities.forEach(entity => { balances[entity.id] = 0; });
+    paymentTransactions.forEach(t => {
+        if(balances[t.entityId] !== undefined) {
+            if(t.type === 'OUT') balances[t.entityId] -= t.amount;
+            else if(t.type === 'IN') balances[t.entityId] += t.amount;
+        }
+    });
     
+    const nonSupplierEntities = paymentEntities.filter(e => e.type === 'payee' && !e.isSupplier);
     nonSupplierEntities.forEach(entity => {
-        const entityTransactions = paymentTransactions.filter(t => 
-            t.entityId === entity.id && !t.isPayable
-        );
-        
-        if (entityTransactions.length > 0) {
-            let totalOwed = 0;
-            
-            entityTransactions.forEach(transaction => {
-                if (transaction.type === 'OUT') {
-                    totalOwed += transaction.amount;
-                } else if (transaction.type === 'IN') {
-                    totalOwed -= transaction.amount;
-                }
-            });
-            
-            if (totalOwed > 0) {
-                const lastTrans = entityTransactions[entityTransactions.length - 1];
-                const desc = lastTrans ? (lastTrans.description || '').toLowerCase() : '';
-                
-                if (desc.includes('loan') || desc.includes('debt')) {
-                    CurrentLiabilities.accountsPayable.otherPayables.loans += totalOwed;
-                } else if (desc.includes('expense') || desc.includes('rent') || 
-                          desc.includes('salary') || desc.includes('utility')) {
-                    CurrentLiabilities.accountsPayable.otherPayables.operating += totalOwed;
-                } else {
-                    CurrentLiabilities.accountsPayable.otherPayables.miscellaneous += totalOwed;
-                }
-            }
+        const balance = balances[entity.id] || 0;
+        // If balance is positive, we owe them (Liability)
+        if (balance > 0.01) { 
+            CurrentLiabilities.accountsPayable.otherPayables.miscellaneous += balance;
         }
     });
     
     // Calculate Other Payables Total
     CurrentLiabilities.accountsPayable.otherPayables.total = 
-        CurrentLiabilities.accountsPayable.otherPayables.operating +
-        CurrentLiabilities.accountsPayable.otherPayables.loans +
         CurrentLiabilities.accountsPayable.otherPayables.miscellaneous;
     
     // Calculate TOTAL ACCOUNTS PAYABLE
@@ -6235,7 +6185,7 @@ paymentTransactions.forEach(trans => {
     
     // ========== PHASE 7: FINAL CALCULATIONS ==========
     const WORKING_CAPITAL = CURRENT_ASSETS - CurrentLiabilities.total;
-    const ENTERPRISE_VALUE = CURRENT_ASSETS - CurrentLiabilities.total;
+    const ENTERPRISE_VALUE = CURRENT_ASSETS - CurrentLiabilities.total; // Simplified for this context
     
     // ========== PHASE 8: FINANCIAL RATIOS ==========
     const liquidityRatios = {
@@ -6244,21 +6194,17 @@ paymentTransactions.forEach(trans => {
         cashRatio: CurrentLiabilities.total > 0 ? cashInHand / CurrentLiabilities.total : 0
     };
     
-    // ========== PHASE 9: CASH DETAILS BREAKDOWN ==========
-    const cashDetails = {
-        directSales: netSalesCash,
-        productionCash: netProductionValue - rawData.productionCredits,
-        repCollections: rawData.calculatorCash,
-        paymentsIn: rawData.paymentsIn,
-        paymentsOut: rawData.paymentsOut
-    };
-    
-    // ========== PHASE 10: RETURN INDICATORS OBJECT ==========
+    // ========== PHASE 9: RETURN INDICATORS OBJECT ==========
     const indicators = {
         cashInHand: cashInHand,
-        cashDetails: cashDetails,
+        cashDetails: {
+            directSales: netSalesCash,
+            productionCash: netProductionValue - rawData.productionCredits,
+            repCollections: rawData.calculatorCash,
+            paymentsIn: rawData.paymentsIn,
+            paymentsOut: rawData.paymentsOut
+        },
         operatingCashFlow: netSalesCash + (netProductionValue - rawData.productionCredits) + rawData.calculatorCash,
-        
         assets: {
             cash: cashInHand,
             rawMaterials: RawMaterialsValue,
@@ -6266,14 +6212,12 @@ paymentTransactions.forEach(trans => {
             accountsReceivable: AccountsReceivable.total,
             currentAssetsTotal: CURRENT_ASSETS
         },
-        
         receivables: {
-            productionCredits: AccountsReceivable.productionCredits, // NEW
+            productionCredits: AccountsReceivable.productionCredits,
             salesTab: AccountsReceivable.salesTabCredit,
             calculator: AccountsReceivable.calculatorCredit,
             total: AccountsReceivable.total
         },
-        
         liabilities: {
             accountsPayable: {
                 supplierPayables: CurrentLiabilities.accountsPayable.supplierPayables,
@@ -6282,7 +6226,6 @@ paymentTransactions.forEach(trans => {
             },
             total: CurrentLiabilities.total
         },
-        
         workingCapital: WORKING_CAPITAL,
         netWorkingCapital: WORKING_CAPITAL,
         totalEnterpriseValue: ENTERPRISE_VALUE,
@@ -6292,6 +6235,7 @@ paymentTransactions.forEach(trans => {
     updateEconomicDashboard(indicators);
     return indicators;
 }
+
 
 // ============================================
 // UPDATED: ECONOMIC DASHBOARD UI
@@ -6511,42 +6455,56 @@ function updateFactoryInventoryDisplay() {
     }
 
     // --- PAYMENTS TAB: REFRESH FUNCTION ---
-    function refreshPaymentTab() {
-        renderEntities();
-        calculateNetCash();
-        calculatePaymentSummaries();
+    async function refreshPaymentTab() {
+    // First ensure all suppliers are properly loaded into entities
+    await syncSuppliersToEntities();
+    
+    renderEntities();
+    
+    // 1. Update Economic Health Dashboard (ALL TIME - FIXED)
+    calculateNetCash();
+    
+    // 2. Update Payment Summaries & History (Time Sensitive)
+    calculatePaymentSummaries();
+    renderEntityCards();
+    
+    // 3. Update Cash Tracker & Credits Card (Responsive to Toggles)
+    calculateCashTracker();
+    
+    // Render transaction history
+    const historyList = document.getElementById('paymentHistoryList');
+    if (!historyList) return;
+    
+    historyList.innerHTML = '';
+    
+    const sortedTransactions = [...paymentTransactions].sort((a, b) => b.timestamp - a.timestamp);
+    
+    sortedTransactions.forEach(transaction => {
+        // ... existing card rendering logic ...
+        const entity = paymentEntities.find(e => e.id === transaction.entityId);
+        const badgeClass = transaction.type === 'IN' ? 'transaction-in' : 'transaction-out';
+        const badgeText = transaction.type === 'IN' ? 'IN' : 'OUT';
         
-        // Render transaction history
-        const historyList = document.getElementById('paymentHistoryList');
-        historyList.innerHTML = '';
-        
-        // Sort by date (newest first)
-        const sortedTransactions = [...paymentTransactions].sort((a, b) => b.timestamp - a.timestamp);
-        
-        sortedTransactions.forEach(transaction => {
-            const entity = paymentEntities.find(e => e.id === transaction.entityId);
-            const badgeClass = transaction.type === 'IN' ? 'transaction-in' : 'transaction-out';
-            const badgeText = transaction.type === 'IN' ? 'IN' : 'OUT';
-            
-            const card = document.createElement('div');
-            card.className = 'card liquid-card';
-            card.innerHTML = `
-                <span class="transaction-badge ${badgeClass}">${badgeText}</span>
-                <h4>${transaction.date} @ ${transaction.time}</h4>
-                <div class="customer-name">${entity ? entity.name : 'Unknown Entity'}</div>
-                <p><span>Type:</span> <span>${entity ? (entity.type === 'payee' ? 'Payee' : 'Payor') : 'Unknown'}</span></p>
-                <p><span>Description:</span> <span>${transaction.description}</span></p>
-                <hr>
-                <p><span>Amount:</span> <span class="${transaction.type === 'IN' ? 'profit-val' : 'cost-val'}">Rs ${safeValue(transaction.amount).toFixed(2)}</span></p>
-                <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="(async () => { await deletePaymentTransaction(${transaction.id}) })()">Delete</button>
-            `;
-            historyList.appendChild(card);
-        });
-        
-        if (sortedTransactions.length === 0) {
-            historyList.innerHTML = '<p style="text-align:center; color:var(--text-muted); width:100%; font-size:0.85rem;">No payment transactions found.</p>';
-        }
+        const card = document.createElement('div');
+        card.className = 'card liquid-card';
+        card.innerHTML = `
+            <span class="transaction-badge ${badgeClass}">${badgeText}</span>
+            <h4>${transaction.date} @ ${transaction.time || 'N/A'}</h4>
+            <div class="customer-name">${entity ? entity.name : 'Unknown Entity'}</div>
+            <p><span>Type:</span> <span>${entity ? (entity.type === 'payee' ? 'Payee' : 'Payor') : 'Unknown'}</span></p>
+            <p><span>Description:</span> <span>${transaction.description || 'No description'}</span></p>
+            <hr>
+            <p><span>Amount:</span> <span class="${transaction.type === 'IN' ? 'profit-val' : 'cost-val'}">Rs ${safeValue(transaction.amount).toFixed(2)}</span></p>
+            <button class="btn btn-danger" style="width:100%; font-size:9px; padding:4px; margin-top:8px;" onclick="(async () => { await deletePaymentTransaction(${transaction.id}) })()">Delete</button>
+        `;
+        historyList.appendChild(card);
+    });
+    
+    if (sortedTransactions.length === 0) {
+        historyList.innerHTML = '<p style="text-align:center; color:var(--text-muted); width:100%; font-size:0.85rem;">No payment transactions found.</p>';
     }
+}
+
 
     // --- FACTORY FORMULA FUNCTIONS (UPDATED) ---
     function openFactorySettings() {
@@ -10669,7 +10627,6 @@ function initFactoryTab() {
         
         refreshUI();
     }
-// --- FIXED: UPDATE ALL STORES OVERVIEW (Production Credits + Date Specific Returns) ---
 function updateAllStoresOverview(mode = 'day') {
     currentOverviewMode = mode;
     
@@ -10682,18 +10639,20 @@ function updateAllStoresOverview(mode = 'day') {
     const storeNames = ['ZUBAIR', 'MAHMOOD', 'ASAAN'];
     const storeColors = ['store-a', 'store-b', 'store-c'];
     
-    // Initialize Combined Totals
+    // FIX 1: Initialize Combined Totals with 'sold' and 'productionCredit'
     let totalCombined = {
         production: 0,
         returns: 0,
-        qty: 0,
+        sold: 0,          // Added: Track combined sales
+        qty: 0,           // Total In (Prod + Returns)
         value: 0,
         cost: 0,
         profit: 0,
         formulaUnits: 0,
-        formulaCost: 0
+        formulaCost: 0,
+        productionCredit: 0 // Added: Track combined credit (if applicable)
     };
-    
+
     const allStoresGrid = document.getElementById('all-stores-grid');
     allStoresGrid.innerHTML = '';
     
@@ -10707,15 +10666,16 @@ function updateAllStoresOverview(mode = 'day') {
         let storeData = {
             production: 0, 
             returns: 0,    
+            sold: 0,      // Added for local calculation
             value: 0,
             cost: 0,
             profit: 0,
             formulaUnits: 0,
             formulaCost: 0,
-            productionCredit: 0 // NEW: Track credits specifically from Production Tab
+            productionCredit: 0
         };
         
-        // 1. Calculate INVENTORY IN (Production + Returns) from DB
+        // 1. SCAN PRODUCTION DB (Inventory IN & Credit Logic)
         db.forEach(item => {
             const itemDate = new Date(item.date);
             const itemYear = itemDate.getFullYear();
@@ -10738,30 +10698,38 @@ function updateAllStoresOverview(mode = 'day') {
             if (includeItem && item.store === store) {
                 if (item.isReturn) {
                     storeData.returns += item.net;
+                    
+                    // FIX 2: SUBTRACT Credit on Returns for Store C
+                    // If goods are returned, the credit/debt associated with them should decrease
+                    if (store === 'STORE_C') {
+                        storeData.productionCredit -= (item.totalSale || 0);
+                    }
                 } else {
                     storeData.production += item.net;
                     storeData.formulaUnits += (item.formulaUnits || 0);
                     storeData.formulaCost += (item.formulaCost || 0);
                     
-                    // NEW: Calculate Credit specifically for Production Tab entries
+                    // ADD Credit on Production for Store C
                     if (store === 'STORE_C' && item.paymentStatus === 'CREDIT') {
                         storeData.productionCredit += (item.totalSale || 0);
                     }
                 }
                 
-                // Value/Cost/Profit aggregates
+                // Aggregates (Value/Cost/Profit)
+                // Note: For returns, these add to the "Inventory Value" available
                 storeData.value += item.totalSale;
                 storeData.cost += item.totalCost;
                 storeData.profit += item.profit;
             }
         });
 
-        // 2. Calculate SALES (Inventory OUT)
+        // 2. SCAN SALES DB (Inventory OUT)
         let soldQty = 0;
 
         customerSales.forEach(sale => {
-        // --- ISOLATION: IGNORE REP MODE SALES FOR INVENTORY ---
-        if (sale.isRepModeEntry === true) return;
+            // ISOLATION: Ignore Rep Mode sales for inventory
+            if (sale.isRepModeEntry === true) return;
+            
             const saleDate = new Date(sale.date);
             const saleYear = saleDate.getFullYear();
             const saleMonth = saleDate.getMonth();
@@ -10783,28 +10751,30 @@ function updateAllStoresOverview(mode = 'day') {
             }
         });
 
-        // 3. Calculate Remaining
+        storeData.sold = soldQty;
+
+        // 3. Calculate Remaining (Current Stock)
         const totalIn = storeData.production + storeData.returns;
         const remainingQty = totalIn - soldQty;
 
-        // 4. Update Combined Totals
+        // 4. Update Combined Totals (FIX 3: Accumulate Sold and Credit)
         totalCombined.production += storeData.production;
         totalCombined.returns += storeData.returns;
+        totalCombined.sold += storeData.sold; // Fixed: Now summing sold qty
         totalCombined.qty += totalIn;
         totalCombined.value += storeData.value;
         totalCombined.cost += storeData.cost;
         totalCombined.profit += storeData.profit;
         totalCombined.formulaUnits += storeData.formulaUnits;
         totalCombined.formulaCost += storeData.formulaCost;
+        totalCombined.productionCredit += storeData.productionCredit;
         
-        // 5. Build HTML
-        // NEW: Only show Production Credit for Asaan Store (STORE_C)
+        // 5. Build HTML for Individual Stores
         let extraInfoHtml = '';
         if (store === 'STORE_C') {
             extraInfoHtml = `<p><span>Production Credit:</span> <span style="color:var(--warning); font-weight:800;">Rs ${safeValue(storeData.productionCredit).toFixed(2)}</span></p>`;
         }
 
-        // Render Return Line ONLY if returns exist
         let returnsHtml = '';
         if (storeData.returns > 0) {
             returnsHtml = `<p><span>Returns Recvd:</span> <span style="color:#10b981; font-weight:800;">+${safeValue(storeData.returns).toFixed(2)} kg</span></p>`;
@@ -10838,19 +10808,27 @@ function updateAllStoresOverview(mode = 'day') {
         allStoresGrid.appendChild(card);
     });
     
-    // 6. Build Combined Card
+    // 6. Build Combined Card (FIXED: Now includes Sold and Remaining)
+    const combinedRemaining = totalCombined.qty - totalCombined.sold;
+    
     const combinedCard = document.createElement('div');
     combinedCard.className = `overview-card liquid-card highlight-card`;
     combinedCard.innerHTML = `
         <h4 style="color: var(--accent);">Total Combined</h4>
         <p><span>Fresh Production:</span> <span class="qty-val">${safeValue(totalCombined.production).toFixed(3)} kg</span></p>
         ${totalCombined.returns > 0 ? `<p><span>Total Returns:</span> <span style="color:#10b981; font-weight:800;">+${safeValue(totalCombined.returns).toFixed(3)} kg</span></p>` : ''}
+        <p><span>Total Sold:</span> <span class="cost-val">${safeValue(totalCombined.sold).toFixed(3)} kg</span></p>
         
+        <div style="border-top:1px dashed var(--glass-border); margin:4px 0; padding-top:4px;">
+             <p><span>Total Remaining:</span> <span class="profit-val" style="font-size:1.1rem;">${safeValue(combinedRemaining).toFixed(3)} kg</span></p>
+        </div>
+
         <p><span>Total Formula Units:</span> <span class="qty-val">${safeValue(totalCombined.formulaUnits).toFixed(2)}</span></p>
         <p><span>Total Formula Cost:</span> <span class="cost-val">Rs ${safeValue(totalCombined.formulaCost).toFixed(2)}</span></p>
         <hr style="margin:8px 0;">
         
         <p><span>Total Value:</span> <span class="rev-val">Rs ${safeValue(totalCombined.value).toFixed(2)}</span></p>
+        ${totalCombined.productionCredit > 0 ? `<p><span>Total Credit:</span> <span style="color:var(--warning); font-weight:800;">Rs ${safeValue(totalCombined.productionCredit).toFixed(2)}</span></p>` : ''}
         <p><span>Total Cost:</span> <span class="cost-val">Rs ${safeValue(totalCombined.cost).toFixed(2)}</span></p>
         <p><span>Net Profit:</span> <span class="profit-val">Rs ${safeValue(totalCombined.profit).toFixed(2)}</span></p>
     `;
