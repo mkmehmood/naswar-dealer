@@ -8453,7 +8453,7 @@ async function pushDataToCloud(silent = false, retryCount = 0) {
         }
     }
 }
-// --- PULL FROM CLOUD (RESTORE) - WITH RECALCULATION FIX ---
+// --- PULL FROM CLOUD (RESTORE) - FIXED FOR AVAILABILITY FLUCTUATION ---
 async function pullDataFromCloud(silent = false, retryCount = 0) {
     if (!currentUser || !supabaseClient) return;
 
@@ -8482,7 +8482,7 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
 
         const cloud = data.data;
 
-        // STEP 1: SMART MERGE (Cloud -> Local)
+        // 1. SMART MERGE DATA
         const mergedDB = mergeDatasets(db, cloud.mfg_pro_pkr);
         const mergedCustomerSales = mergeDatasets(customerSales, cloud.customer_sales);
         const mergedHistory = mergeDatasets(salesHistory, cloud.noman_history);
@@ -8492,32 +8492,10 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
         const mergedPaymentTrans = mergeDatasets(paymentTransactions, cloud.payment_transactions);
         const mergedStockReturns = mergeDatasets(stockReturns, cloud.stock_returns);
 
-        // Configuration Objects
         const finalSettings = cloud.naswar_default_settings || defaultSettings;
-        // NOTE: We do NOT trust cloud.factory_unit_tracking directly. We will recalculate it.
 
-        // STEP 2: SAVE MERGED DATA TO IDB
-        const idbPromises = [
-            idb.set('mfg_pro_pkr', mergedDB),
-            idb.set('customer_sales', mergedCustomerSales),
-            idb.set('noman_history', mergedHistory),
-            idb.set('factory_inventory_data', mergedFactoryInv),
-            idb.set('factory_production_history', mergedFactoryHist),
-            idb.set('factory_default_formulas', cloud.factory_default_formulas || factoryDefaultFormulas),
-            idb.set('factory_additional_costs', cloud.factory_additional_costs || factoryAdditionalCosts),
-            idb.set('factory_cost_adjustment_factor', cloud.factory_cost_adjustment_factor || factoryCostAdjustmentFactor),
-            idb.set('factory_sale_prices', cloud.factory_sale_prices || factorySalePrices),
-            // We skip saving unit_tracking here, syncFactoryProductionStats will save the correct version
-            idb.set('payment_entities', mergedPaymentEntities),
-            idb.set('payment_transactions', mergedPaymentTrans),
-            idb.set('stock_returns', mergedStockReturns),
-            idb.set('naswar_default_settings', finalSettings),
-            idb.set('last_synced', new Date().toISOString())
-        ];
-
-        await Promise.all(idbPromises);
-
-        // STEP 3: UPDATE GLOBAL VARIABLES
+        // 2. CRITICAL: UPDATE GLOBAL VARIABLES IMMEDIATELY (IN MEMORY)
+        // This ensures the math functions see the new data instantly
         db = mergedDB;
         customerSales = mergedCustomerSales;
         salesHistory = mergedHistory;
@@ -8534,13 +8512,38 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
         stockReturns = mergedStockReturns;
         defaultSettings = finalSettings;
 
-        // STEP 4: CRITICAL RECALCULATION
-        // This ensures "Available Units" is mathematically derived from the new History
-        await syncFactoryProductionStats(); 
+        // 3. FORCE RECALCULATION OF AVAILABLE UNITS (IN MEMORY)
+        // We do this BEFORE saving to IDB to ensure UI updates instantly
+        await updateFormulaInventory(); 
 
-        if (!silent) showToast('✅ Data Updated from Cloud', 'success');
+        // 4. SAVE TO DATABASE (BACKGROUND)
+        const idbPromises = [
+            idb.set('mfg_pro_pkr', mergedDB),
+            idb.set('customer_sales', mergedCustomerSales),
+            idb.set('noman_history', mergedHistory),
+            idb.set('factory_inventory_data', mergedFactoryInv),
+            idb.set('factory_production_history', mergedFactoryHist),
+            idb.set('factory_default_formulas', factoryDefaultFormulas),
+            idb.set('factory_additional_costs', factoryAdditionalCosts),
+            idb.set('factory_cost_adjustment_factor', factoryCostAdjustmentFactor),
+            idb.set('factory_sale_prices', factorySalePrices),
+            idb.set('factory_unit_tracking', factoryUnitTracking), // Save the recalculated tracking
+            idb.set('payment_entities', mergedPaymentEntities),
+            idb.set('payment_transactions', mergedPaymentTrans),
+            idb.set('stock_returns', mergedStockReturns),
+            idb.set('naswar_default_settings', finalSettings),
+            idb.set('last_synced', new Date().toISOString())
+        ];
+
+        await Promise.all(idbPromises);
+
+        if (!silent) showToast('✅ Data Updated', 'success');
         
-        // STEP 5: REFRESH ALL UI
+        // 5. REFRESH UI ELEMENTS
+        // Explicitly update the specific indicator causing the issue
+        updateUnitsAvailableIndicator(); 
+        
+        // Then refresh everything else
         await refreshAllDisplays();
 
     } catch (error) {
