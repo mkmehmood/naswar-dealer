@@ -14433,13 +14433,31 @@ async function saveCustomerDetails() {
 }
 // --- ADVANCED GOOGLE MAPS LOCATION FUNCTION ---
 // --- STABLE GOOGLE MAPS LOCATION FUNCTION ---
+// --- ROBUST LOCATION FUNCTION WITH FREE FALLBACK ---
+
+// Helper function to use free OpenStreetMap data if Google fails
+async function resolveAddressWithNominatim(lat, lng) {
+    try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`, {
+            headers: {
+                'User-Agent': 'NaswarDealersApp/1.0' // Required by Nominatim usage policy
+            }
+        });
+        const data = await response.json();
+        return data.display_name || null;
+    } catch (e) {
+        console.error("Nominatim error:", e);
+        return null;
+    }
+}
+
 async function fetchDeviceLocation() {
     const statusDiv = document.getElementById('location-status');
     const addressInput = document.getElementById('edit-cust-address');
     const btn = document.querySelector('button[onclick="fetchDeviceLocation()"]');
     
     if (!navigator.geolocation) {
-        statusDiv.textContent = "Geolocation not supported.";
+        statusDiv.textContent = "Geolocation not supported by this browser.";
         return;
     }
 
@@ -14459,47 +14477,66 @@ async function fetchDeviceLocation() {
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
         
-        // Save coordinates immediately in case geocoding fails
+        // Save coordinates immediately as a backup
         addressInput.value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
         statusDiv.textContent = "GPS Found. Resolving Address...";
 
-        // 3. Advanced Geocoding Logic
+        // 3. Try Google Maps First
         if (typeof google !== 'undefined' && google.maps) {
             const geocoder = new google.maps.Geocoder();
             const latlng = { lat: parseFloat(lat), lng: parseFloat(lng) };
 
-            geocoder.geocode({ location: latlng }, (results, status) => {
+            geocoder.geocode({ location: latlng }, async (results, status) => {
                 if (status === "OK" && results[0]) {
-                    // Success: Set the formatted address
+                    // Success with Google
                     addressInput.value = results[0].formatted_address;
                     statusDiv.innerHTML = "✅ Address Resolved via Google";
                     statusDiv.style.color = "var(--accent-emerald)";
+                    if(btn) btn.disabled = false;
                 } else {
-                    // Geocoder failed or no results
-                    statusDiv.textContent = "GPS Fixed (No Address Found)";
-                    statusDiv.style.color = "var(--warning)";
+                    // Google Failed -> Switch to OpenStreetMap
+                    console.warn("Google Geocoding failed, trying OSM fallback...");
+                    statusDiv.textContent = "Google API blocked. Trying fallback...";
+                    
+                    const osmAddress = await resolveAddressWithNominatim(lat, lng);
+                    if (osmAddress) {
+                        addressInput.value = osmAddress;
+                        statusDiv.innerHTML = "✅ Address Resolved via OSM";
+                        statusDiv.style.color = "var(--accent-emerald)";
+                    } else {
+                        statusDiv.textContent = "Address not found (Coords saved)";
+                        statusDiv.style.color = "var(--warning)";
+                    }
+                    if(btn) btn.disabled = false;
                 }
-                if(btn) btn.disabled = false;
             });
         } else {
-            // Google API not yet ready
-            statusDiv.textContent = "API Loading... Coordinates Saved.";
-            statusDiv.style.color = "var(--warning)";
+            // Google API Not Loaded -> Use OpenStreetMap Immediately
+            statusDiv.textContent = "Resolving address...";
+            
+            const osmAddress = await resolveAddressWithNominatim(lat, lng);
+            if (osmAddress) {
+                addressInput.value = osmAddress;
+                statusDiv.innerHTML = "✅ Address Resolved via OSM";
+                statusDiv.style.color = "var(--accent-emerald)";
+            } else {
+                statusDiv.textContent = "API Error. Coordinates Saved.";
+                statusDiv.style.color = "var(--warning)";
+            }
             if(btn) btn.disabled = false;
         }
 
     }, (error) => {
-        // 4. Handle GPS Errors (Permission/Signal)
+        // 4. Handle GPS Errors
         let errorMsg = "Location Error: " + error.message;
-        if (error.code === 1) errorMsg = "⚠️ Please enable GPS permissions.";
+        if (error.code === 1) errorMsg = "⚠️ Please allow Location Permission.";
+        if (error.code === 3) errorMsg = "⚠️ GPS signal timed out.";
         
         statusDiv.textContent = errorMsg;
         statusDiv.style.color = "var(--danger)";
         if(btn) btn.disabled = false;
     }, options);
 }
-
-
 
 // Alias for backward compatibility
 const refreshEntityList = renderEntityTable;
