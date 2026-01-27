@@ -7970,19 +7970,37 @@ async function linkMaterialToSupplier(materialId, supplierId, totalCost) {
     }
 
     async function deleteProdEntry(id) {
-        const entryToDelete = db.find(item => item.id === id);
-        
-        if(confirm("Delete this production record permanently?")) {
-        await registerDeletion(id);
-            db = db.filter(item => item.id !== id);
-            await idb.set('mfg_pro_pkr', db);
-            
-            syncFactoryProductionStats();
-            
-            refreshUI();
-            alert("Record deleted successfully! Inventory adjusted automatically.");
+    const entryToDelete = db.find(item => item.id === id);
+    if (!entryToDelete) return;
+
+    // Custom message based on whether it's a Return or Actual Production
+    const isReturn = entryToDelete.isReturn === true;
+    const confirmMsg = isReturn 
+        ? "Remove this Return record? (This will decrease your available stock)" 
+        : "Delete this production record permanently? (Inventory will be adjusted)";
+
+    if (confirm(confirmMsg)) {
+        // Register deletion for your backup/tombstone system
+        if (typeof registerDeletion === 'function') await registerDeletion(id);
+
+        // Remove from database
+        db = db.filter(item => item.id !== id);
+        await idb.set('mfg_pro_pkr', db);
+
+        // Sync and Refresh
+        notifyDataChange('all');
+        syncFactoryProductionStats();
+        await refreshAllDisplays();
+
+        // Show a specific toast/alert for returns
+        if (isReturn) {
+            alert("Return record removed. Stock circulation reversed.");
+        } else {
+            alert("Production record deleted. Inventory adjusted automatically.");
         }
     }
+}
+
     
   // --- UPDATED: Sales Tab Inventory Validation ---
 // Replace the entire saveCustomerSale function with this updated version:
@@ -10326,69 +10344,89 @@ async function syncSuppliersToEntities() {
     
     alert("Backup created successfully!");
 }
-
-    async function unifiedRestore(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            try {
-                const data = JSON.parse(e.target.result);
-                if (data.mfg && data.sales) {
-                    if (confirm("This will overwrite all current data. Continue?")) {
-                        await idb.set('mfg_pro_pkr', data.mfg);
-                        await idb.set('noman_history', data.sales);
-                        await idb.set('customer_sales', data.customerSales || []);
-                        
-                        if (data.factoryInventoryData) await idb.set('factory_inventory_data', data.factoryInventoryData);
-                        if (data.factoryProductionHistory) await idb.set('factory_production_history', data.factoryProductionHistory);
-                        if (data.factoryDefaultFormulas) await idb.set('factory_default_formulas', data.factoryDefaultFormulas);
-                        if (data.factoryAdditionalCosts) await idb.set('factory_additional_costs', data.factoryAdditionalCosts);
-                        
-                        if (data.factoryCostAdjustmentFactor) {
-                            await idb.set('factory_cost_adjustment_factor', data.factoryCostAdjustmentFactor);
-                        } else {
-                            await idb.set('factory_cost_adjustment_factor', { standard: 1, asaan: 1 });
-                        }
-                        
-                        if (data.factorySalePrices) {
-                            await idb.set('factory_sale_prices', data.factorySalePrices);
-                        } else {
-                            await idb.set('factory_sale_prices', { standard: 0, asaan: 0 });
-                        }
-
-                        if (data.settings) {
-                            await idb.set('naswar_default_settings', data.settings);
-                        }
-                        
-                        // NEW: Restore payment data
-                        if (data.paymentEntities) {
-                            await idb.set('payment_entities', data.paymentEntities);
-                            paymentEntities = data.paymentEntities;
-                        }
-                        
-                        if (data.paymentTransactions) {
-                            await idb.set('payment_transactions', data.paymentTransactions);
-                            paymentTransactions = data.paymentTransactions;
-                        }
-                        await loadAllData();
-
-                        syncFactoryProductionStats();
-                        
-                        alert("Data restored successfully!");
-                        await refreshAllDisplays();
+async function unifiedRestore(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            
+            if (data.mfg && data.sales) {
+                if (confirm("This will merge the backup file with your current data.\n\nDeleted items will remain deleted.")) {
+                    
+                    // 1. FIRST: Update the Graveyard (Tombstones)
+                    // If the backup file knows about deleted items, add them to our list
+                    if (data.deleted_records && Array.isArray(data.deleted_records)) {
+                        data.deleted_records.forEach(id => deletedRecordIds.add(id));
+                        await idb.set('deleted_records', Array.from(deletedRecordIds));
+                        console.log(`[RESTORE] Merged deletion records. Total tombstoned: ${deletedRecordIds.size}`);
                     }
-                } else { 
-                    alert("Invalid backup file structure"); 
+
+                    // 2. HELPER: The Gatekeeper Function
+                    // Returns TRUE only if the item's ID is NOT in the graveyard
+                    const isAlive = (item) => {
+                        if (!item || !item.id) return false;
+                        if (deletedRecordIds.has(item.id)) {
+                            console.log(`[LOCAL RESTORE BLOCKED] Item ${item.id} is deleted. Skipping.`);
+                            return false;
+                        }
+                        return true;
+                    };
+
+                    // 3. FILTER & SAVE DATA
+                    // We filter every array from the file against the tombstone list
+                    
+                    const cleanMfg = (data.mfg || []).filter(isAlive);
+                    await idb.set('mfg_pro_pkr', cleanMfg);
+
+                    const cleanSales = (data.sales || []).filter(isAlive);
+                    await idb.set('noman_history', cleanSales);
+
+                    const cleanCustSales = (data.customerSales || []).filter(isAlive);
+                    await idb.set('customer_sales', cleanCustSales);
+                    
+                    // Factory Data
+                    const cleanFactoryInv = (data.factoryInventoryData || []).filter(isAlive);
+                    await idb.set('factory_inventory_data', cleanFactoryInv);
+
+                    const cleanFactoryHist = (data.factoryProductionHistory || []).filter(isAlive);
+                    await idb.set('factory_production_history', cleanFactoryHist);
+
+                    // Payments Data
+                    // Note: Entities are rarely "deleted" in the same way, but transactions definitely are
+                    const cleanPaymentTrans = (data.paymentTransactions || []).filter(isAlive);
+                    await idb.set('payment_transactions', cleanPaymentTrans);
+                    
+                    if (data.paymentEntities) await idb.set('payment_entities', data.paymentEntities);
+
+                    // Settings & Config (These usually don't have IDs to check)
+                    if (data.factoryDefaultFormulas) await idb.set('factory_default_formulas', data.factoryDefaultFormulas);
+                    if (data.factoryAdditionalCosts) await idb.set('factory_additional_costs', data.factoryAdditionalCosts);
+                    if (data.factoryCostAdjustmentFactor) await idb.set('factory_cost_adjustment_factor', data.factoryCostAdjustmentFactor);
+                    if (data.factorySalePrices) await idb.set('factory_sale_prices', data.factorySalePrices);
+                    if (data.settings) await idb.set('naswar_default_settings', data.settings);
+                    
+                    // 4. RELOAD EVERYTHING
+                    await loadAllData();
+                    syncFactoryProductionStats();
+                    await refreshAllDisplays();
+                    
+                    alert(`Restore Complete!\nBlocked ${((data.mfg?.length || 0) - cleanMfg.length)} deleted items from reappearing.`);
                 }
-            } catch (err) { 
-                alert("Error reading file: " + err.message); 
-                console.error(err);
+            } else { 
+                alert("Invalid backup file structure"); 
             }
-        };
-        reader.readAsText(file);
-        event.target.value = '';
-    }
+        } catch (err) { 
+            alert("Error reading file: " + err.message); 
+            console.error(err);
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+}
+
 // --- FACTORY TAB INITIALIZATION FUNCTION ---
 function initFactoryTab() {
     const factoryDateInput = document.getElementById('factory-date');
@@ -13709,7 +13747,6 @@ function closeDataMenu() {
 async function triggerLocalBackup() {
     closeDataMenu();
     
-    // Extracted logic from original unifiedBackup to force local download
     const data = { 
         mfg: db, 
         sales: await idb.get('noman_history', []),
@@ -13724,7 +13761,10 @@ async function triggerLocalBackup() {
         paymentEntities: paymentEntities,
         paymentTransactions: paymentTransactions,
         stockReturns: stockReturns, 
-        settings: await idb.get('naswar_default_settings', defaultSettings)
+        settings: await idb.get('naswar_default_settings', defaultSettings),
+        
+        // CRITICAL: Save the Graveyard to the file!
+        deleted_records: Array.from(deletedRecordIds) 
     };
     
     const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
@@ -13737,8 +13777,9 @@ async function triggerLocalBackup() {
     a.click();
     document.body.removeChild(a);
     
-    showToast("Backup file downloaded!", "success");
+    showToast("Backup file with Deletion History downloaded!", "success");
 }
+
 
 // Ensure compatibility if unifiedBackup is called elsewhere
 async function unifiedBackup() {
