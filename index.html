@@ -14438,97 +14438,65 @@ async function fetchDeviceLocation() {
     const addressInput = document.getElementById('edit-cust-address');
     const btn = document.querySelector('button[onclick="fetchDeviceLocation()"]');
     
-    // 1. Check for Geolocation Support
     if (!navigator.geolocation) {
-        statusDiv.textContent = "Geolocation is not supported by this device.";
-        statusDiv.style.color = "var(--danger)";
+        statusDiv.textContent = "Geolocation not supported.";
         return;
     }
 
-    // 2. UI Feedback: Start Loading
-    if(btn) btn.disabled = true; 
-    statusDiv.innerHTML = '<span class="update-indicator"></span> Locating via Satellite...';
+    // 1. UI Setup
+    if(btn) btn.disabled = true;
+    statusDiv.innerHTML = '<span class="update-indicator"></span> Getting Precise Location...';
     statusDiv.style.color = "var(--accent)";
-    addressInput.placeholder = "Acquiring GPS...";
 
-    // 3. Configuration for High Accuracy (Mobile Optimized)
-    const gpsOptions = {
-        enableHighAccuracy: true, // Forces GPS over WiFi/Cell towers
-        timeout: 15000,           // 15 seconds max wait
-        maximumAge: 0             // No cached positions
+    // 2. High-Accuracy GPS Options
+    const options = {
+        enableHighAccuracy: true,
+        timeout: 10000, // 10 seconds
+        maximumAge: 0
     };
 
     navigator.geolocation.getCurrentPosition(async (position) => {
-        // --- SUCCESS: GPS SIGNAL ACQUIRED ---
         const lat = position.coords.latitude;
-        const lon = position.coords.longitude;
-        const accuracy = position.coords.accuracy;
-
-        // Immediate Fallback: Save Coordinates first
-        const coordsText = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
-        addressInput.value = coordsText; 
+        const lng = position.coords.longitude;
         
-        statusDiv.textContent = `GPS Fix: ±${Math.round(accuracy)}m. Decoding address...`;
-        statusDiv.style.color = "var(--accent)";
+        // Save coordinates immediately in case geocoding fails
+        addressInput.value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+        statusDiv.textContent = "GPS Found. Resolving Address...";
 
-        // 4. Use Google Maps Geocoder API
-        // Check if API is fully loaded
-        if (typeof google !== 'undefined' && google.maps && google.maps.Geocoder) {
+        // 3. Advanced Geocoding Logic
+        if (typeof google !== 'undefined' && google.maps) {
             const geocoder = new google.maps.Geocoder();
-            const latlng = { lat: parseFloat(lat), lng: parseFloat(lon) };
+            const latlng = { lat: parseFloat(lat), lng: parseFloat(lng) };
 
             geocoder.geocode({ location: latlng }, (results, status) => {
-                if (status === "OK") {
-                    if (results[0]) {
-                        // Google Maps returns the most specific address first
-                        const bestAddress = results[0].formatted_address;
-                        
-                        // Smart formatting: Remove country if it makes it too long for mobile
-                        const shortAddress = bestAddress.replace(', Pakistan', '');
-                        
-                        addressInput.value = shortAddress;
-                        
-                        statusDiv.innerHTML = `📍 Address Verified via Google Maps`;
-                        statusDiv.style.color = "var(--accent-emerald)";
-                        
-                        if(typeof showToast === 'function') showToast("Location updated successfully", "success");
-                    } else {
-                        statusDiv.textContent = "GPS accurate, but no specific address found.";
-                    }
+                if (status === "OK" && results[0]) {
+                    // Success: Set the formatted address
+                    addressInput.value = results[0].formatted_address;
+                    statusDiv.innerHTML = "✅ Address Resolved via Google";
+                    statusDiv.style.color = "var(--accent-emerald)";
                 } else {
-                    console.error("Google Geocoder failed: " + status);
-                    statusDiv.textContent = "Address lookup failed. Coordinates saved.";
+                    // Geocoder failed or no results
+                    statusDiv.textContent = "GPS Fixed (No Address Found)";
                     statusDiv.style.color = "var(--warning)";
-                    
-                    // Specific error messaging
-                    if (status === 'REQUEST_DENIED') {
-                        if(typeof showToast === 'function') showToast("Map API Key Rejected. Check Google Cloud Console.", "error");
-                    } else if (status === 'OVER_QUERY_LIMIT') {
-                        if(typeof showToast === 'function') showToast("Map API Quota Exceeded.", "warning");
-                    }
                 }
                 if(btn) btn.disabled = false;
             });
         } else {
-            console.warn("Google Maps API not ready yet.");
-            statusDiv.textContent = "Maps API loading... Coordinates saved.";
+            // Google API not yet ready
+            statusDiv.textContent = "API Loading... Coordinates Saved.";
+            statusDiv.style.color = "var(--warning)";
             if(btn) btn.disabled = false;
         }
 
     }, (error) => {
-        // --- ERROR HANDLING ---
-        let msg = "Location error.";
-        switch(error.code) {
-            case error.PERMISSION_DENIED: msg = "⚠️ Permission denied. Enable Location Services."; break;
-            case error.POSITION_UNAVAILABLE: msg = "⚠️ Signal unavailable. Ensure GPS is On."; break;
-            case error.TIMEOUT: msg = "⚠️ GPS Request timed out. Move outdoors."; break;
-        }
-        statusDiv.textContent = msg;
+        // 4. Handle GPS Errors (Permission/Signal)
+        let errorMsg = "Location Error: " + error.message;
+        if (error.code === 1) errorMsg = "⚠️ Please enable GPS permissions.";
+        
+        statusDiv.textContent = errorMsg;
         statusDiv.style.color = "var(--danger)";
-        if(typeof showToast === 'function') showToast(msg, "error");
         if(btn) btn.disabled = false;
-        addressInput.placeholder = "Enter Address manually";
-    }, gpsOptions);
+    }, options);
 }
 
 
