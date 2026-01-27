@@ -3197,7 +3197,8 @@ body.dark-mode .units-available-danger {
 <button class="btn" id="bio-toggle-btn" style="background: rgba(37, 99, 235, 0.1); color: var(--text-main); border: 1px solid var(--glass-border);" onclick="enableBiometricLock()">
     Enable Biometric Lock 
 </button>
-<div style="background: rgba(245, 158, 11, 0.1); padding: 10px; border-radius: 10px; margin-bottom: 15px; border: 1px solid var(--warning);">
+
+<div id="admin-controls-section" style="background: rgba(245, 158, 11, 0.1); padding: 10px; border-radius: 10px; margin-bottom: 15px; border: 1px solid var(--warning);">
     <h4 style="margin: 0 0 10px 0; color: var(--warning); font-size: 0.8rem;">ADMIN CONTROLS</h4>
     <div class="field" style="margin-bottom: 10px;">
         <label>Set Admin PIN</label>
@@ -3212,6 +3213,7 @@ body.dark-mode .units-available-danger {
     </div>
     <button class="btn btn-danger" onclick="(async () => { await activateRepMode() })()"> Switch to Rep Mode</button>
 </div>
+
 <hr style="width: 100%; border: 0; border-top: 1px solid var(--glass-border); margin: 5px 0;">
 
         
@@ -13559,14 +13561,26 @@ function filterCustomers() {
 }
 
 async function openDataMenu() {
-    // Check if user is in rep mode
-    if(appMode === 'rep') {
-        showToast("Data menu is not available in Rep Mode", "warning");
-        return;
+    // 1. Remove the blocking check for Rep Mode
+    // previously: if(appMode === 'rep') { return; }
+
+    // 2. Control Visibility of Admin Section
+    const adminSection = document.getElementById('admin-controls-section');
+    
+    if (adminSection) {
+        if (appMode === 'rep') {
+            // Hide Admin Controls if in Rep Mode
+            adminSection.style.display = 'none';
+        } else {
+            // Show Admin Controls if in Admin Mode
+            adminSection.style.display = 'block';
+        }
     }
     
+    // 3. Show the Menu Overlay
     document.getElementById('dataMenuOverlay').style.display = 'flex';
     
+    // 4. Update Sync Status Display
     const lastSync = await idb.get('last_synced');
     const display = document.getElementById('lastSyncDisplay');
     if (display) {
