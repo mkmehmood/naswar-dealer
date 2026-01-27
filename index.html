@@ -8613,7 +8613,7 @@ async function pushDataToCloud(silent = false, retryCount = 0) {
         }
     }
 }
-// --- PULL FROM CLOUD (RESTORE) - UPDATED TO RESTORE REP MODE UI ---
+// --- PULL FROM CLOUD (RESTORE) - UPDATED: PRESERVES LOCAL CONFIG ---
 async function pullDataFromCloud(silent = false, retryCount = 0) {
     if (!currentUser || !supabaseClient) return;
 
@@ -8642,7 +8642,7 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
 
         const cloud = data.data;
 
-        // 1. SMART MERGE DATA
+        // 1. SMART MERGE DATA (Transactions Only)
         const mergedDB = mergeDatasets(db, cloud.mfg_pro_pkr);
         const mergedCustomerSales = mergeDatasets(customerSales, cloud.customer_sales);
         const mergedHistory = mergeDatasets(salesHistory, cloud.noman_history);
@@ -8652,35 +8652,38 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
         const mergedPaymentTrans = mergeDatasets(paymentTransactions, cloud.payment_transactions);
         const mergedStockReturns = mergeDatasets(stockReturns, cloud.stock_returns);
 
+        // Settings (Formulas/Prices) - You generally want these to sync, 
+        // but if you want *Settings* to be local-only too, you can comment these out.
+        // For now, we update formulas but NOT the App Mode.
         const finalSettings = cloud.naswar_default_settings || defaultSettings;
-
-        // 2. CRITICAL: UPDATE GLOBAL VARIABLES IMMEDIATELY
-        db = mergedDB;
-        customerSales = mergedCustomerSales; // This contains the Rep Data
-        salesHistory = mergedHistory;
-        factoryInventoryData = mergedFactoryInv;
-        factoryProductionHistory = mergedFactoryHist;
-        
         factoryDefaultFormulas = cloud.factory_default_formulas || factoryDefaultFormulas;
         factoryAdditionalCosts = cloud.factory_additional_costs || factoryAdditionalCosts;
         factoryCostAdjustmentFactor = cloud.factory_cost_adjustment_factor || factoryCostAdjustmentFactor;
         factorySalePrices = cloud.factory_sale_prices || factorySalePrices;
-        
+
+        // 2. CRITICAL: UPDATE GLOBAL DATA VARIABLES
+        db = mergedDB;
+        customerSales = mergedCustomerSales;
+        salesHistory = mergedHistory;
+        factoryInventoryData = mergedFactoryInv;
+        factoryProductionHistory = mergedFactoryHist;
         paymentEntities = mergedPaymentEntities;
         paymentTransactions = mergedPaymentTrans;
         stockReturns = mergedStockReturns;
         defaultSettings = finalSettings;
 
-        // 3. RESTORE APP STATE (Rep Mode / Admin Mode)
-        // We only overwrite local state if cloud has valid data for it
-        if (cloud.appMode) appMode = cloud.appMode;
-        if (cloud.repProfile) currentRepProfile = cloud.repProfile;
-        if (cloud.adminPin) adminPin = cloud.adminPin;
+        // 3. PRESERVE LOCAL APP STATE
+        // We explicitly IGNORE the cloud's appMode, repProfile, and adminPin.
+        // This ensures the device stays in whatever mode it was in before the sync.
+        console.log("[RESTORE] Preserving Local Configuration (Mode: " + appMode + ")");
+        
+        // (The variables appMode, currentRepProfile, and adminPin remain unchanged)
 
         // 4. FORCE RECALCULATION
         await updateFormulaInventory(); 
 
         // 5. SAVE TO DATABASE (BACKGROUND)
+        // We save the MERGED data but the LOCAL config settings
         const idbPromises = [
             idb.set('mfg_pro_pkr', mergedDB),
             idb.set('customer_sales', mergedCustomerSales),
@@ -8697,7 +8700,9 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
             idb.set('stock_returns', mergedStockReturns),
             idb.set('naswar_default_settings', finalSettings),
             idb.set('last_synced', new Date().toISOString()),
-            // Save State
+            
+            // CRITICAL: We save the CURRENT LOCAL values back to DB to ensure
+            // the device remembers its own state, ignoring the cloud's state.
             idb.set('appMode', appMode),
             idb.set('repProfile', currentRepProfile),
             idb.set('adminPin', adminPin)
@@ -8705,21 +8710,21 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
 
         await Promise.all(idbPromises);
 
-        if (!silent) showToast('✅ Data & Rep Mode Updated', 'success');
+        if (!silent) showToast('✅ Data Updated ', 'success');
         
         // 6. REFRESH UI ELEMENTS
         updateUnitsAvailableIndicator();
         await refreshAllDisplays();
 
-        // 7. CRITICAL: APPLY REP MODE UI IF NEEDED
-        // If the restored data says we are in Rep Mode, force the UI to switch
+        // 7. RE-ENFORCE LOCAL MODE UI
+        // If the device IS locally in Rep Mode, make sure the UI reflects that
+        // (in case the refresh unlocked tabs momentarily).
         if (appMode === 'rep') {
             if (typeof lockToRepMode === 'function') {
                 lockToRepMode();
-                console.log("[RESTORE] UI locked to Rep Mode based on cloud data.");
             }
             if (typeof refreshRepUI === 'function') {
-                refreshRepUI(); // Refreshes the Rep-specific tables
+                refreshRepUI();
             }
         }
 
@@ -8730,6 +8735,7 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
         isSyncing = false;
     }
 }
+
 // ============================================
 // SEAMLESS BACKGROUND BACKUP (DEBOUNCER)
 // ============================================
