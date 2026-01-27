@@ -22,15 +22,17 @@
             .catch(err => console.log('Service Worker Registration Failed', err));
         });
       }
+      
       const urlParams = new URLSearchParams(window.location.search);
       const action = urlParams.get('action');
       if(action === 'sales') showTab('sales');
       if(action === 'production') showTab('prod');
       if(action === 'calc') showTab('calc');
 
-      // Google Maps Initialization Callback
+      // REQUIRED: Google Maps Callback function
+      // This prevents "initMap is not a function" errors
       function initMap() {
-          console.log("Google Maps API initialized.");
+          console.log("Google Maps API loaded successfully.");
       }
     </script>
 
@@ -38,6 +40,7 @@
 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;600;700;800&amp;family=Great+Vibes&amp;family=Playfair+Display:wght@400;700&amp;display=swap" rel="stylesheet">
 </head>
+
 
 
     
@@ -14429,6 +14432,7 @@ async function saveCustomerDetails() {
     showToast("Customer details updated successfully", "success");
 }
 // --- ADVANCED GOOGLE MAPS LOCATION FUNCTION ---
+// --- STABLE GOOGLE MAPS LOCATION FUNCTION ---
 async function fetchDeviceLocation() {
     const statusDiv = document.getElementById('location-status');
     const addressInput = document.getElementById('edit-cust-address');
@@ -14468,6 +14472,7 @@ async function fetchDeviceLocation() {
         statusDiv.style.color = "var(--accent)";
 
         // 4. Use Google Maps Geocoder API
+        // Check if API is fully loaded
         if (typeof google !== 'undefined' && google.maps && google.maps.Geocoder) {
             const geocoder = new google.maps.Geocoder();
             const latlng = { lat: parseFloat(lat), lng: parseFloat(lon) };
@@ -14478,7 +14483,7 @@ async function fetchDeviceLocation() {
                         // Google Maps returns the most specific address first
                         const bestAddress = results[0].formatted_address;
                         
-                        // Smart formatting: Remove country if it makes it too long
+                        // Smart formatting: Remove country if it makes it too long for mobile
                         const shortAddress = bestAddress.replace(', Pakistan', '');
                         
                         addressInput.value = shortAddress;
@@ -14491,15 +14496,22 @@ async function fetchDeviceLocation() {
                         statusDiv.textContent = "GPS accurate, but no specific address found.";
                     }
                 } else {
-                    console.error("Geocoder failed: " + status);
+                    console.error("Google Geocoder failed: " + status);
                     statusDiv.textContent = "Address lookup failed. Coordinates saved.";
                     statusDiv.style.color = "var(--warning)";
+                    
+                    // Specific error messaging
+                    if (status === 'REQUEST_DENIED') {
+                        if(typeof showToast === 'function') showToast("Map API Key Rejected. Check Google Cloud Console.", "error");
+                    } else if (status === 'OVER_QUERY_LIMIT') {
+                        if(typeof showToast === 'function') showToast("Map API Quota Exceeded.", "warning");
+                    }
                 }
                 if(btn) btn.disabled = false;
             });
         } else {
-            console.warn("Google Maps API not loaded");
-            statusDiv.textContent = "Google Maps unavailable. Coordinates saved.";
+            console.warn("Google Maps API not ready yet.");
+            statusDiv.textContent = "Maps API loading... Coordinates saved.";
             if(btn) btn.disabled = false;
         }
 
