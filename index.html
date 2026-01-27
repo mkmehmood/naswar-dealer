@@ -3152,6 +3152,41 @@ body.dark-mode .units-available-danger {
             </div>
     </div>
 </div>
+<div id="customerEditOverlay" class="factory-overlay" style="z-index: 10002;">
+    <div class="factory-overlay-card liquid-card" style="max-width: 350px;">
+        <div class="section-header">
+            <h3 style="color:var(--text-main); margin:0;">Edit Customer Details</h3>
+            <button class="btn-theme" onclick="closeCustomerEditModal()">✕</button>
+        </div>
+        
+        <div class="grid-inputs" style="margin-bottom: 20px;">
+            <div class="field">
+                <label>Customer Name</label>
+                <input type="text" id="edit-cust-name" readonly style="background: rgba(0,0,0,0.05); color: var(--text-muted); font-weight: 700;">
+            </div>
+            
+            <div class="field">
+                <label>Phone Number</label>
+                <input type="tel" id="edit-cust-phone" placeholder="03XX-XXXXXXX">
+            </div>
+            
+            <div class="field">
+                <label>Address / Location</label>
+                <div style="display: flex; gap: 5px;">
+                    <input type="text" id="edit-cust-address" placeholder="Area, Shop #, etc." style="flex: 1;">
+                    <button class="btn-theme" onclick="fetchDeviceLocation()" title="Auto-Fetch Location" style="border: 1px solid var(--accent); color: var(--accent); padding: 0 10px;">
+                        📍
+                    </button>
+                </div>
+                <div id="location-status" style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px; font-style: italic;"></div>
+            </div>
+        </div>
+        
+        <div style="display:flex; gap:10px;">
+            <button class="btn btn-main" onclick="(async () => { await saveCustomerDetails() })()">Update Details</button>
+        </div>
+    </div>
+</div>
 
 <!-- AESTHETIC SPLASH SCREEN -->
 <div id="splash-screen">
@@ -8419,81 +8454,103 @@ function initSupabase() {
     }
 }
 
-// --- ROBUST SMART MERGE ALGORITHM (PROTECTS ALL TABS) ---
+// ============================================
+// ROBUST SMART MERGE ALGORITHM (DATA INTEGRITY PROTECTION)
+// ============================================
 function mergeDatasets(localArray, cloudArray) {
-    // Ensure inputs are arrays to prevent crashes
+    // 1. Safety Checks: Ensure inputs are valid arrays
     if (!Array.isArray(localArray)) localArray = [];
     if (!Array.isArray(cloudArray)) cloudArray = [];
 
     const mergedMap = new Map();
 
-    // 1. Load Cloud Data First (Baseline)
+    // 2. PHASE 1: Establish Cloud Baseline
+    // We start by trusting the cloud as the 'historical' record.
     cloudArray.forEach(item => {
         if (item && item.id) {
             mergedMap.set(item.id, item);
         }
     });
 
-    // 2. Merge Local Data Over Cloud Data (With Integrity Checks)
+    // 3. PHASE 2: Local Integration & Integrity Audits
     localArray.forEach(localItem => {
         if (!localItem || !localItem.id) return;
 
         const cloudItem = mergedMap.get(localItem.id);
 
+        // CASE A: NEW RECORD
+        // If it exists locally but not in cloud, it's a new entry. Save it.
         if (!cloudItem) {
-            // CASE A: New item exists locally but not in cloud -> Keep Local
             mergedMap.set(localItem.id, localItem);
-        } else {
-            // CASE B: Conflict Resolution - Decide who wins
+            return;
+        }
 
-            // --- PROTECTION 1: SALES REP TAB (The specific fix you asked for) ---
-            // If local knows it's a Rep Entry, but cloud doesn't, Local Wins.
-            if (localItem.isRepModeEntry === true && !cloudItem.isRepModeEntry) {
+        // CASE B: CONFLICT RESOLUTION (Existing Record)
+        // We compare the quality of Local vs Cloud to decide who wins.
+
+        // --- PROTECTION 1: DATA CORRUPTION RECOVERY (Calculator Tab) ---
+        // If Local has valid numbers but Cloud has corrupted/null values, Local overrides.
+        // This prevents a syncing error from wiping out your calculated math.
+        const isFinancialRecord = (localItem.totalSold !== undefined || localItem.revenue !== undefined);
+        if (isFinancialRecord) {
+            const localHasData = (localItem.totalSold > 0 || localItem.revenue > 0);
+            const cloudIsCorrupt = (cloudItem.totalSold === undefined || cloudItem.totalSold === null || cloudItem.revenue === null);
+            
+            if (localHasData && cloudIsCorrupt) {
+                console.log(`[MERGE PROTECTION] Restoring corrupted financial record: ${localItem.id}`);
                 mergedMap.set(localItem.id, localItem);
                 return;
             }
+        }
 
-            // --- PROTECTION 2: PRODUCTION TAB (Returns & Formula Links) ---
-            // If local marks this as a "Return" or has "Formula Units", but cloud misses that flag, Local Wins.
-            if ((localItem.isReturn === true && !cloudItem.isReturn) || 
-                (localItem.formulaUnits > 0 && !cloudItem.formulaUnits)) {
-                mergedMap.set(localItem.id, localItem);
-                return;
-            }
+        // --- PROTECTION 2: REP MODE INTEGRITY (Sales Tab) ---
+        // If Local knows this is a "Rep Mode" entry but Cloud missed the flag, Local wins.
+        // This stops Admin data from accidentally overwriting Rep restrictions.
+        if (localItem.isRepModeEntry === true && !cloudItem.isRepModeEntry) {
+            mergedMap.set(localItem.id, localItem);
+            return;
+        }
 
-            // --- PROTECTION 3: CALCULATOR TAB (Data Integrity) ---
-            // If local has valid sales numbers but cloud has 'undefined' or 'null' (corruption), Local Wins.
-            // This prevents a "blank" cloud entry from wiping your calculated work.
-            const isCalculatorEntry = (localItem.totalSold !== undefined || localItem.revenue !== undefined);
-            if (isCalculatorEntry) {
-                const localHasData = (localItem.totalSold > 0 || localItem.revenue > 0);
-                const cloudIsCorrupt = (cloudItem.totalSold === undefined || cloudItem.totalSold === null);
-                
-                if (localHasData && cloudIsCorrupt) {
-                    mergedMap.set(localItem.id, localItem);
-                    return;
-                }
-            }
+        // --- PROTECTION 3: PRODUCTION LOGIC (Returns & Formulas) ---
+        // If Local marks this as a "Return" or has "Formula Units" linked, but Cloud doesn't, Local wins.
+        // This ensures inventory calculations don't break.
+        if (localItem.isReturn === true && !cloudItem.isReturn) {
+            mergedMap.set(localItem.id, localItem);
+            return;
+        }
+        if ((localItem.formulaUnits > 0 && !cloudItem.formulaUnits) || 
+            (localItem.formulaCost > 0 && !cloudItem.formulaCost)) {
+            mergedMap.set(localItem.id, localItem);
+            return;
+        }
 
-            // --- PROTECTION 4: FACTORY TAB (Supplier Links) ---
-            // If local has a linked supplier ID but cloud is missing it, Local Wins.
-            if (localItem.supplierId && !cloudItem.supplierId) {
-                mergedMap.set(localItem.id, localItem);
-                return;
-            }
+        // --- PROTECTION 4: FACTORY SUPPLIER LINKS (Factory Tab) ---
+        // If Local has a specific Supplier ID linked to a material, preserve it.
+        if (localItem.supplierId && !cloudItem.supplierId) {
+            mergedMap.set(localItem.id, localItem);
+            return;
+        }
 
-            // --- STANDARD CHECK: TIMESTAMP COMPARISON ---
-            // If none of the special protections apply, the newer edit wins.
-            // We use 0 as a fallback so valid dates always beat "null" or missing dates.
-            const localTime = localItem.timestamp || new Date(localItem.date).getTime() || 0;
-            const cloudTime = cloudItem.timestamp || new Date(cloudItem.date).getTime() || 0;
+        // --- PROTECTION 5: PAYMENT STATUS (Payments Tab) ---
+        // If Local says a transaction is "Paid" (or has a specific type) that differs from cloud defaults.
+        if (localItem.paymentStatus === 'paid' && cloudItem.paymentStatus !== 'paid') {
+            mergedMap.set(localItem.id, localItem);
+            return;
+        }
 
-            if (localTime >= cloudTime) {
-                mergedMap.set(localItem.id, localItem);
-            }
+        // --- STANDARD CHECK: TIME AUTHORITY ---
+        // If no specific data integrity issues are found, we trust the most recent edit.
+        // We normalize dates to timestamps to ensure accurate comparison.
+        const localTime = localItem.timestamp || new Date(localItem.date).getTime() || 0;
+        const cloudTime = cloudItem.timestamp || new Date(cloudItem.date).getTime() || 0;
+
+        // If Local is newer (or equal), update the Cloud version.
+        if (localTime >= cloudTime) {
+            mergedMap.set(localItem.id, localItem);
         }
     });
 
+    // Return the clean, merged list
     return Array.from(mergedMap.values());
 }
 
@@ -13089,17 +13146,27 @@ async function renderCustomerTransactions(name) {
     // Filter sales for this customer
     const transactions = customerSales.filter(s => s.customerName === name);
     
-    // Find customer phone number
-    const transactionWithPhone = transactions.find(t => t.customerPhone) || 
-                                 paymentEntities.find(e => e.name === name);
+    // Find entity data
+    const entity = paymentEntities.find(e => e.name.toLowerCase() === name.toLowerCase() && e.type === 'payor');
     
-    const phoneDisplay = transactionWithPhone && (transactionWithPhone.customerPhone || transactionWithPhone.phone)
-                         ? `<span style="font-size: 0.8rem; color: var(--accent); margin-left: 10px; font-weight: normal;">📞 ${transactionWithPhone.customerPhone || transactionWithPhone.phone}</span>` 
-                         : '';
+    // Determine Phone & Address to display
+    const phone = entity?.phone || transactions.find(t => t.customerPhone)?.customerPhone || '';
+    const address = entity?.address || ''; // New field
 
-    // Update Header
+    // Update Header with Edit Button
     const headerTitle = document.getElementById('manageCustomerTitle');
-    headerTitle.innerHTML = `${name} ${phoneDisplay}`;
+    headerTitle.innerHTML = `
+        <div style="display:flex; align-items:center; gap:8px;">
+            <span>${name}</span>
+            <button class="btn-theme" style="padding:2px 6px; font-size:0.8rem; border:1px solid var(--accent); color:var(--accent); border-radius:50%;" 
+                onclick="openCustomerEditModal('${name.replace(/'/g, "\\'")}')" title="Edit Contact Info">
+                ✎
+            </button>
+        </div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: normal; margin-top:4px;">
+            ${phone ? `📞 ${phone}` : 'No Phone'} ${address ? `| 📍 ${address}` : ''}
+        </div>
+    `;
 
     // Calculate Stats
     let currentDebt = 0;
@@ -13107,7 +13174,6 @@ async function renderCustomerTransactions(name) {
         if(t.paymentType === 'CREDIT' && !t.creditReceived) currentDebt += t.totalValue;
     });
     
-    // --- FIX: Remove await or ensure function is synchronous ---
     document.getElementById('manageCustomerStats').innerText = `Current Debt: ${formatCurrency(currentDebt)}`;
 
     // Sort: Pending Credits First, then Newest Date
@@ -13156,6 +13222,7 @@ async function renderCustomerTransactions(name) {
         list.appendChild(item);
     }
 }
+
 
 
 async function toggleSingleTransactionStatus(id) {
@@ -14095,6 +14162,8 @@ async function saveRepTransaction() {
 
     refreshRepUI();
     showToast("Transaction Saved Successfully", "success");
+    // TRIGGER CLOUD BACKUP
+    notifyDataChange('sales');
 }
 
 
@@ -14192,17 +14261,27 @@ async function renderRepCustomerTransactions(name) {
         s.salesRep === currentRepProfile
     );
     
-    // Find customer phone number
-    const transactionWithPhone = transactions.find(t => t.customerPhone) || 
-                                 paymentEntities.find(e => e.name === name);
+    // Find entity data
+    const entity = paymentEntities.find(e => e.name.toLowerCase() === name.toLowerCase());
     
-    const phoneDisplay = transactionWithPhone && (transactionWithPhone.customerPhone || transactionWithPhone.phone)
-                         ? `<span style="font-size: 0.8rem; color: var(--accent); margin-left: 10px; font-weight: normal;">📞 ${transactionWithPhone.customerPhone || transactionWithPhone.phone}</span>` 
-                         : '';
+    // Determine Phone & Address
+    const phone = entity?.phone || transactions.find(t => t.customerPhone)?.customerPhone || '';
+    const address = entity?.address || '';
 
-    // Update Header
+    // Update Header with Edit Button
     const headerTitle = document.getElementById('manageCustomerTitle');
-    headerTitle.innerHTML = `${name} ${phoneDisplay}`;
+    headerTitle.innerHTML = `
+        <div style="display:flex; align-items:center; gap:8px;">
+            <span>${name}</span>
+            <button class="btn-theme" style="padding:2px 6px; font-size:0.8rem; border:1px solid var(--accent); color:var(--accent); border-radius:50%;" 
+                onclick="openCustomerEditModal('${name.replace(/'/g, "\\'")}')" title="Edit Contact Info">
+                ✎
+            </button>
+        </div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: normal; margin-top:4px;">
+            ${phone ? `📞 ${phone}` : 'No Phone'} ${address ? `| 📍 ${address}` : ''}
+        </div>
+    `;
     
     // Calculate Stats
     let currentDebt = 0;
@@ -14211,7 +14290,6 @@ async function renderRepCustomerTransactions(name) {
         if(t.paymentType === 'COLLECTION') currentDebt -= t.totalValue;
     });
     
-    // --- FIX: Remove await or ensure function is synchronous ---
     document.getElementById('manageCustomerStats').innerText = `Current Debt: ${formatCurrency(currentDebt)}`;
 
     // Sort: Pending Credits First, then Newest Date
@@ -14262,6 +14340,144 @@ async function renderRepCustomerTransactions(name) {
         `;
         list.appendChild(item);
     }
+}
+// --- NEW CUSTOMER DETAILS EDIT LOGIC ---
+
+function openCustomerEditModal(customerName) {
+    document.getElementById('edit-cust-name').value = customerName;
+    
+    // Find existing entity data
+    const entity = paymentEntities.find(e => e.name.toLowerCase() === customerName.toLowerCase());
+    
+    // Find phone from sales records if not in entity
+    const saleRecord = customerSales.find(s => s.customerName === customerName && s.customerPhone);
+    
+    // Populate Fields
+    document.getElementById('edit-cust-phone').value = entity?.phone || saleRecord?.customerPhone || '';
+    document.getElementById('edit-cust-address').value = entity?.address || '';
+    
+    document.getElementById('customerEditOverlay').style.display = 'flex';
+}
+
+function closeCustomerEditModal() {
+    document.getElementById('customerEditOverlay').style.display = 'none';
+}
+
+async function saveCustomerDetails() {
+    const name = document.getElementById('edit-cust-name').value;
+    const phone = document.getElementById('edit-cust-phone').value.trim();
+    const address = document.getElementById('edit-cust-address').value.trim();
+    
+    if (!name) return;
+
+    // 1. Find or Create Entity
+    let entity = paymentEntities.find(e => e.name.toLowerCase() === name.toLowerCase());
+    
+    if (entity) {
+        // Update existing
+        entity.phone = phone;
+        entity.address = address; // Add address field
+        entity.updatedAt = Date.now();
+    } else {
+        // Create new 'Payor' entity if it doesn't exist
+        entity = {
+            id: Date.now(),
+            name: name,
+            type: 'payor',
+            phone: phone,
+            address: address,
+            wallet: '',
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+        };
+        paymentEntities.push(entity);
+    }
+    
+    // 2. Save Entity Data
+    await idb.set('payment_entities', paymentEntities);
+    
+    // 3. Update Sales Records (Optional: Update flat phone data in sales history for consistency)
+    let salesUpdated = false;
+    customerSales.forEach(sale => {
+        if(sale.customerName === name && sale.customerPhone !== phone) {
+            sale.customerPhone = phone;
+            salesUpdated = true;
+        }
+    });
+    
+    if(salesUpdated) {
+        await idb.set('customer_sales', customerSales);
+    }
+    
+    // 4. Sync & Refresh
+    notifyDataChange('entities');
+    closeCustomerEditModal();
+    
+    // Refresh the background transaction view to show new details immediately
+    if (appMode === 'rep') {
+        renderRepCustomerTransactions(name);
+    } else {
+        renderCustomerTransactions(name);
+    }
+    
+    showToast("Customer details updated successfully", "success");
+}
+// --- AUTO-LOCATION FUNCTION ---
+async function fetchDeviceLocation() {
+    const statusDiv = document.getElementById('location-status');
+    const addressInput = document.getElementById('edit-cust-address');
+    
+    if (!navigator.geolocation) {
+        statusDiv.textContent = "Geolocation is not supported by this browser.";
+        return;
+    }
+
+    statusDiv.textContent = "Fetching GPS coordinates...";
+    statusDiv.style.color = "var(--accent)";
+
+    navigator.geolocation.getCurrentPosition(async (position) => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+        
+        statusDiv.textContent = "Found coordinates. Getting address...";
+        
+        try {
+            // Use OpenStreetMap Nominatim API for free reverse geocoding
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+            const data = await response.json();
+            
+            if (data && data.display_name) {
+                // Construct a readable address (Area, City)
+                // You can adjust 'address' properties to be more specific if needed
+                const addr = data.address;
+                const readable = [
+                    addr.road || '',
+                    addr.suburb || addr.neighbourhood || '',
+                    addr.city || addr.town || addr.village || ''
+                ].filter(Boolean).join(', ');
+
+                addressInput.value = readable;
+                statusDiv.textContent = "Location updated successfully.";
+                statusDiv.style.color = "var(--accent-emerald)";
+            } else {
+                throw new Error("Address not found");
+            }
+        } catch (error) {
+            console.error("Geocoding error:", error);
+            addressInput.value = `${lat.toFixed(5)}, ${lon.toFixed(5)}`; // Fallback to coords
+            statusDiv.textContent = "Could not fetch address name. Used coordinates.";
+            statusDiv.style.color = "var(--warning)";
+        }
+    }, (error) => {
+        let msg = "Location error.";
+        switch(error.code) {
+            case error.PERMISSION_DENIED: msg = "User denied the request for Geolocation."; break;
+            case error.POSITION_UNAVAILABLE: msg = "Location information is unavailable."; break;
+            case error.TIMEOUT: msg = "The request to get user location timed out."; break;
+        }
+        statusDiv.textContent = msg;
+        statusDiv.style.color = "var(--danger)";
+    });
 }
 
 // Alias for backward compatibility
