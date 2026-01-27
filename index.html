@@ -3316,7 +3316,8 @@ body.dark-mode .units-available-danger {
         </div>
         
         <div class="grid-inputs">
-            <div class="field"><label>Date</label><input type="date" id="rep-date"></div>
+       <div class="field"><label>Date</label><input type="date" id="rep-date" onchange="renderRepHistory()"></div>
+
         <div class="field">
     <label>Customer Name</label>
     <input type="text" id="rep-cust-name" placeholder="Search my customers..." 
@@ -3326,7 +3327,7 @@ body.dark-mode .units-available-danger {
 
 <div id="rep-new-customer-phone-container" class="hidden" style="margin-top: 8px; animation: slideDown 0.3s ease;">
     <div class="field">
-        <label style="color: var(--accent-emerald);">✨ New Customer Mobile</label>
+        <label style="color: var(--accent-emerald);">Mobile number</label>
         <input type="tel" id="rep-new-cust-phone" placeholder="03XX-XXXXXXX" style="border-color: var(--accent-emerald);">
     </div>
 
@@ -3677,7 +3678,7 @@ body.dark-mode .units-available-danger {
 
 <div id="new-customer-phone-container" class="hidden" style="margin-top: 8px; animation: slideDown 0.3s ease;">
     <div class="field">
-        <label style="color: var(--accent-emerald);">✨ New Customer Mobile</label>
+        <label style="color: var(--accent-emerald);">Mobile number</label>
         <input type="tel" id="new-cust-phone" placeholder="03XX-XXXXXXX" style="border-color: var(--accent-emerald);">
     </div>
 </div>
@@ -4777,99 +4778,117 @@ body.dark-mode .units-available-danger {
         }
     };
 
-    // Global data loading function with Strict Purge Protocol
-    async function loadAllData() {
-        // 1. Purge Protocol: One-time migration from LocalStorage to IndexedDB
-        const keysToMigrate = [
-            'mfg_pro_pkr', 'noman_history', 'customer_sales', 'factory_inventory_data',
-            'factory_production_history', 'factory_default_formulas', 'factory_additional_costs',
-            'factory_sale_prices', 'factory_cost_adjustment_factor', 'factory_unit_tracking',
-            'payment_entities', 'payment_transactions', 'stock_returns', 'naswar_default_settings',
-            'appMode', 'repProfile', 'adminPin', 'theme', 'bio_enabled', 'bio_cred_id', 'last_synced'
-        ];
+ // Global data loading function with Strict Purge Protocol
+async function loadAllData() {
+    // 1. Purge Protocol: One-time migration from LocalStorage to IndexedDB
+    const keysToMigrate = [
+        'mfg_pro_pkr', 'noman_history', 'customer_sales', 'factory_inventory_data',
+        'factory_production_history', 'factory_default_formulas', 'factory_additional_costs',
+        'factory_sale_prices', 'factory_cost_adjustment_factor', 'factory_unit_tracking',
+        'payment_entities', 'payment_transactions', 'stock_returns', 'naswar_default_settings',
+        'appMode', 'repProfile', 'adminPin', 'theme', 'bio_enabled', 'bio_cred_id', 'last_synced',
+        'deleted_records' // Added to migration list
+    ];
 
-        let migrationNeeded = false;
-        for (const key of keysToMigrate) {
-            if (localStorage.getItem(key) !== null) {
-                migrationNeeded = true;
-                break;
-            }
+    let migrationNeeded = false;
+    for (const key of keysToMigrate) {
+        if (localStorage.getItem(key) !== null) {
+            migrationNeeded = true;
+            break;
         }
+    }
 
-        if (migrationNeeded) {
-            console.log("️ LocalStorage data detected. Initiating Purge Protocol...");
-            for (const key of keysToMigrate) {
-                const lsValue = localStorage.getItem(key);
-                if (lsValue !== null) {
+    if (migrationNeeded) {
+        console.log("️ LocalStorage data detected. Initiating Purge Protocol...");
+        for (const key of keysToMigrate) {
+            const lsValue = localStorage.getItem(key);
+            if (lsValue !== null) {
+                try {
+                    let parsedValue;
                     try {
-                        let parsedValue;
-                        try {
-                            parsedValue = JSON.parse(lsValue);
-                        } catch (e) {
-                            parsedValue = lsValue;
-                        }
-                        await idb.set(key, parsedValue);
+                        parsedValue = JSON.parse(lsValue);
                     } catch (e) {
-                        console.error(`Migration failed for key ${key}:`, e);
+                        parsedValue = lsValue;
                     }
+                    await idb.set(key, parsedValue);
+                } catch (e) {
+                    console.error(`Migration failed for key ${key}:`, e);
                 }
             }
-            localStorage.clear();
-            console.log(" Data migrated and LocalStorage purged successfully.");
         }
-
-        // 2. Strict Initialization: Load data exclusively from IndexedDB
-        const [
-            idb_db, idb_salesHistory, idb_customerSales, idb_factoryInventoryData,
-            idb_factoryProductionHistory, idb_factoryDefaultFormulas, idb_factoryAdditionalCosts,
-            idb_factorySalePrices, idb_factoryCostAdjustmentFactor, idb_factoryUnitTracking,
-            idb_paymentEntities, idb_paymentTransactions, idb_stockReturns, idb_defaultSettings,
-            idb_appMode, idb_currentRepProfile, idb_adminPin
-        ] = await Promise.all([
-            idb.get('mfg_pro_pkr', []),
-            idb.get('noman_history', []),
-            idb.get('customer_sales', []),
-            idb.get('factory_inventory_data', []),
-            idb.get('factory_production_history', []),
-            idb.get('factory_default_formulas', { standard: [], asaan: [] }),
-            idb.get('factory_additional_costs', { standard: 0, asaan: 0 }),
-            idb.get('factory_sale_prices', { standard: 0, asaan: 0 }),
-            idb.get('factory_cost_adjustment_factor', { standard: 1, asaan: 1 }),
-            idb.get('factory_unit_tracking', {
-                standard: { produced: 0, consumed: 0, available: 0, unitCostHistory: [] },
-                asaan: { produced: 0, consumed: 0, available: 0, unitCostHistory: [] }
-            }),
-            idb.get('payment_entities', []),
-            idb.get('payment_transactions', []),
-            idb.get('stock_returns', []),
-            idb.get('naswar_default_settings', {}),
-            idb.get('appMode', 'admin'),
-            idb.get('repProfile', 'NORAN SHAH'),
-            idb.get('adminPin', '1234')
-        ]);
-
-        // Populate global variables
-        db = idb_db;
-        salesHistory = idb_salesHistory;
-        customerSales = idb_customerSales;
-        factoryInventoryData = idb_factoryInventoryData;
-        factoryProductionHistory = idb_factoryProductionHistory;
-        factoryDefaultFormulas = idb_factoryDefaultFormulas;
-        factoryAdditionalCosts = idb_factoryAdditionalCosts;
-        factorySalePrices = idb_factorySalePrices;
-        factoryCostAdjustmentFactor = idb_factoryCostAdjustmentFactor;
-        factoryUnitTracking = idb_factoryUnitTracking;
-        paymentEntities = idb_paymentEntities;
-        paymentTransactions = idb_paymentTransactions;
-        stockReturns = idb_stockReturns;
-        defaultSettings = idb_defaultSettings;
-        appMode = idb_appMode;
-        currentRepProfile = idb_currentRepProfile;
-        adminPin = idb_adminPin;
-        
-        console.log(" Global variables populated from IndexedDB.");
+        localStorage.clear();
+        console.log(" Data migrated and LocalStorage purged successfully.");
     }
+
+    // 2. Strict Initialization: Load data exclusively from IndexedDB
+    const [
+        idb_db, 
+        idb_salesHistory, 
+        idb_customerSales, 
+        idb_factoryInventoryData,
+        idb_factoryProductionHistory, 
+        idb_factoryDefaultFormulas, 
+        idb_factoryAdditionalCosts,
+        idb_factorySalePrices, 
+        idb_factoryCostAdjustmentFactor, 
+        idb_factoryUnitTracking,
+        idb_paymentEntities, 
+        idb_paymentTransactions, 
+        idb_stockReturns, 
+        idb_defaultSettings,
+        idb_appMode, 
+        idb_currentRepProfile, 
+        idb_adminPin,
+        idb_deletedRecords // <--- NEW: Retrieve deleted records list
+    ] = await Promise.all([
+        idb.get('mfg_pro_pkr', []),
+        idb.get('noman_history', []),
+        idb.get('customer_sales', []),
+        idb.get('factory_inventory_data', []),
+        idb.get('factory_production_history', []),
+        idb.get('factory_default_formulas', { standard: [], asaan: [] }),
+        idb.get('factory_additional_costs', { standard: 0, asaan: 0 }),
+        idb.get('factory_sale_prices', { standard: 0, asaan: 0 }),
+        idb.get('factory_cost_adjustment_factor', { standard: 1, asaan: 1 }),
+        idb.get('factory_unit_tracking', {
+            standard: { produced: 0, consumed: 0, available: 0, unitCostHistory: [] },
+            asaan: { produced: 0, consumed: 0, available: 0, unitCostHistory: [] }
+        }),
+        idb.get('payment_entities', []),
+        idb.get('payment_transactions', []),
+        idb.get('stock_returns', []),
+        idb.get('naswar_default_settings', {}),
+        idb.get('appMode', 'admin'),
+        idb.get('repProfile', 'NORAN SHAH'),
+        idb.get('adminPin', '1234'),
+        idb.get('deleted_records', []) // <--- NEW: Add to database fetch
+    ]);
+
+    // Populate global variables
+    db = idb_db;
+    salesHistory = idb_salesHistory;
+    customerSales = idb_customerSales;
+    factoryInventoryData = idb_factoryInventoryData;
+    factoryProductionHistory = idb_factoryProductionHistory;
+    factoryDefaultFormulas = idb_factoryDefaultFormulas;
+    factoryAdditionalCosts = idb_factoryAdditionalCosts;
+    factorySalePrices = idb_factorySalePrices;
+    factoryCostAdjustmentFactor = idb_factoryCostAdjustmentFactor;
+    factoryUnitTracking = idb_factoryUnitTracking;
+    paymentEntities = idb_paymentEntities;
+    paymentTransactions = idb_paymentTransactions;
+    stockReturns = idb_stockReturns;
+    defaultSettings = idb_defaultSettings;
+    appMode = idb_appMode;
+    currentRepProfile = idb_currentRepProfile;
+    adminPin = idb_adminPin;
     
+    // NEW: Initialize global deletion registry
+    deletedRecordIds = new Set(idb_deletedRecords || []);
+    
+    console.log(` Global variables populated. Loaded ${deletedRecordIds.size} tombstoned deletion records.`);
+}
+
     // --- DATA INITIALIZATION ---
     let db = [];
     let salesHistory = [];
@@ -5491,6 +5510,15 @@ window.addEventListener('beforeunload', function() {
         
         updateUnitsAvailableIndicator();
     }
+    // --- DELETION REGISTRY HELPER ---
+async function registerDeletion(id) {
+    if (!id) return;
+    deletedRecordIds.add(id);
+    // Save as array because IndexedDB/JSON can't store Sets directly
+    await idb.set('deleted_records', Array.from(deletedRecordIds));
+    console.log(`[TOMBSTONE] Registered deletion for ID: ${id}`);
+}
+
 
     // --- PAYMENTS TAB: ENTITY MANAGEMENT ---
     function openEntityDetailsOverlay(id) {
@@ -5644,7 +5672,7 @@ async function deleteCurrentEntity() {
     const hasTrans = paymentTransactions.some(t => t.entityId === currentEntityId);
     
     let msg = "Permanently delete this entity?";
-    if(hasTrans) msg += "\n\n⚠️ WARNING: This will delete ALL associated transaction history and cannot be undone.";
+    if(hasTrans) msg += "\n\nWARNING: This will delete ALL associated transaction history and cannot be undone.";
     
     if(confirm(msg)) {
         // Remove Entity
@@ -6148,6 +6176,7 @@ async function savePaymentTransaction() {
     
     async function deletePaymentTransaction(id) {
         if (confirm("Are you sure you want to delete this payment transaction?")) {
+        await registerDeletion(id); 
             paymentTransactions = paymentTransactions.filter(t => t.id !== id);
             await idb.set('payment_transactions', paymentTransactions);
             notifyDataChange('all');
@@ -7669,6 +7698,7 @@ async function linkMaterialToSupplier(materialId, supplierId, totalCost) {
         const entry = factoryProductionHistory[entryIndex];
 
         if (confirm(`Delete production of ${entry.units} units? \nThis will RESTORE raw materials to inventory.`)) {
+                await registerDeletion(id);
             
             // 1. Attempt to Restore Raw Materials
             const formula = factoryDefaultFormulas[entry.store];
@@ -7943,6 +7973,7 @@ async function linkMaterialToSupplier(materialId, supplierId, totalCost) {
         const entryToDelete = db.find(item => item.id === id);
         
         if(confirm("Delete this production record permanently?")) {
+        await registerDeletion(id);
             db = db.filter(item => item.id !== id);
             await idb.set('mfg_pro_pkr', db);
             
@@ -8349,6 +8380,7 @@ function createInventoryWarningElement() {
 // --- REPLACE YOUR EXISTING deleteCustomerSale FUNCTION WITH THIS ---
 async function deleteCustomerSale(id) {
     if(confirm("Delete this sale transaction permanently?")) {
+     await registerDeletion(id);
         customerSales = customerSales.filter(item => item.id !== id);
         await idb.set('customer_sales', customerSales);
         
@@ -8436,7 +8468,7 @@ function initSupabase() {
                 if (event === 'SIGNED_IN') {
                     startDatabaseHeartbeat();
                     scheduleAutoBackup();
-                    console.log('🚀 Connection established. Starting sync...');
+                    console.log(' Connection established. Starting sync...');
                     await wakeUpDatabaseAndSync();
                 }
             } else if (event === 'SIGNED_OUT') {
@@ -8455,27 +8487,33 @@ function initSupabase() {
 }
 
 // ============================================
-// ROBUST SMART MERGE ALGORITHM (DATA INTEGRITY PROTECTION)
+// ROBUST SMART MERGE (WITH DELETION PROTECTION)
 // ============================================
 function mergeDatasets(localArray, cloudArray) {
-    // 1. Safety Checks: Ensure inputs are valid arrays
     if (!Array.isArray(localArray)) localArray = [];
     if (!Array.isArray(cloudArray)) cloudArray = [];
 
     const mergedMap = new Map();
 
-    // 2. PHASE 1: Establish Cloud Baseline
-    // We start by trusting the cloud as the 'historical' record.
+    // 1. Process CLOUD data first
     cloudArray.forEach(item => {
         if (item && item.id) {
+            // CRITICAL CHECK: Has this ID been deleted locally?
+            if (deletedRecordIds.has(item.id)) {
+                console.log(`[RESTORE BLOCKED] Item ${item.id} was deleted locally. Ignoring cloud copy.`);
+                return; // Skip this item
+            }
             mergedMap.set(item.id, item);
         }
     });
 
-    // 3. PHASE 2: Local Integration & Integrity Audits
+    // 2. Process LOCAL data (Local edits override cloud)
     localArray.forEach(localItem => {
         if (!localItem || !localItem.id) return;
-
+        
+        // Note: We don't need to check deletedRecordIds for localArray 
+        // because if it's in localArray, it hasn't been deleted yet.
+        
         const cloudItem = mergedMap.get(localItem.id);
 
         // CASE A: NEW RECORD
@@ -8622,6 +8660,7 @@ async function pushDataToCloud(silent = false, retryCount = 0) {
         finalData.naswar_default_settings = defaultSettings;
         
         // Critical: Save Admin/Rep Mode State
+        finalData.deleted_records = Array.from(deletedRecordIds);
         finalData.appMode = appMode;
         finalData.repProfile = currentRepProfile;
         finalData.adminPin = adminPin;
@@ -8648,11 +8687,11 @@ async function pushDataToCloud(silent = false, retryCount = 0) {
         await idb.set('last_synced', now);
         
         if (!silent) {
-            showToast('✅ Cloud Sync Complete', 'success');
+            showToast('Cloud Sync Complete', 'success');
             const display = document.getElementById('lastSyncDisplay');
             if (display) display.textContent = `Last Cloud Sync: ${new Date().toLocaleString()}`;
         }
-        console.log(`✅ Data Smart-Synced at ${new Date().toLocaleTimeString()}`);
+        console.log(` Data Smart-Synced at ${new Date().toLocaleTimeString()}`);
 
     } catch (error) {
         console.error('Backup Error:', error);
@@ -8661,7 +8700,7 @@ async function pushDataToCloud(silent = false, retryCount = 0) {
             isSyncing = false;
             return pushDataToCloud(silent, 1);
         }
-        if (!silent) showToast(`❌ Sync failed: ${error.message}`, 'error');
+        if (!silent) showToast(`Sync failed: ${error.message}`, 'error');
     } finally {
         isSyncing = false;
         if (btn) {
@@ -8681,7 +8720,7 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
     isSyncing = true;
 
     try {
-        if (!silent) showToast('📥 Fetching cloud data...', 'info');
+        if (!silent) showToast(' Fetching cloud data...', 'info');
 
         const { data, error } = await supabaseClient
             .from('user_data')
@@ -8699,8 +8738,17 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
 
         const cloud = data.data;
 
-        // 1. SMART MERGE DATA (Transactions Only)
-        const mergedDB = mergeDatasets(db, cloud.mfg_pro_pkr);
+// 1. FIRST: Merge Deletion Records
+// We combine local deletions with cloud deletions so we have a master list of "dead" items
+if (cloud.deleted_records && Array.isArray(cloud.deleted_records)) {
+    cloud.deleted_records.forEach(id => deletedRecordIds.add(id));
+    
+    // Save merged deletions immediately
+    await idb.set('deleted_records', Array.from(deletedRecordIds));
+}
+
+// 2. THEN: Smart Merge Data (Now using the updated deletedRecordIds)
+const mergedDB = mergeDatasets(db, cloud.mfg_pro_pkr);
         const mergedCustomerSales = mergeDatasets(customerSales, cloud.customer_sales);
         const mergedHistory = mergeDatasets(salesHistory, cloud.noman_history);
         const mergedFactoryInv = mergeDatasets(factoryInventoryData, cloud.factory_inventory_data);
@@ -8767,7 +8815,7 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
 
         await Promise.all(idbPromises);
 
-        if (!silent) showToast('✅ Data Updated ', 'success');
+        if (!silent) showToast(' Data Updated ', 'success');
         
         // 6. REFRESH UI ELEMENTS
         updateUnitsAvailableIndicator();
@@ -8853,7 +8901,7 @@ function scheduleAutoBackup() {
             clearAutoBackup();
             return;
         }
-        console.log("⏰ Auto-syncing...");
+        console.log("Auto-syncing...");
         await pushDataToCloud(true); // Silent backup
     }, AUTO_BACKUP_INTERVAL);
 }
@@ -8901,7 +8949,7 @@ async function triggerCloudAction(action) {
     }
 
     if (isSyncing) {
-        console.warn("⚠️ Resetting stuck sync.");
+        console.warn(" Resetting stuck sync.");
         isSyncing = false; 
     }
 
@@ -8918,7 +8966,7 @@ async function triggerCloudAction(action) {
     }
     
     if (action === 'restore') {
-        if(confirm("⚠️ UPDATE FROM CLOUD?\n\nThis will merge cloud data into your device.\nAny newer local changes will be kept.\n\nContinue?")) {
+        if(confirm("UPDATE FROM CLOUD?\n\nThis will merge cloud data into your device.\nAny newer local changes will be kept.\n\nContinue?")) {
             closeDataMenu();
             showToast("Starting Update...", "info");
             await pullDataFromCloud(false); 
@@ -8960,7 +9008,7 @@ function createAuthOverlay() {
     // Liquid Card styling to match main app cards
     overlay.innerHTML = `
         <div class="liquid-card" style="max-width: 400px; width: 90%; padding: 40px 30px; text-align: center; border: 1px solid var(--glass-border); box-shadow: 0 20px 50px rgba(37, 99, 235, 0.15);">
-            <div style="font-size: 3.5rem; margin-bottom: 10px;">🔐</div>
+            <div style="font-size: 3.5rem; margin-bottom: 10px;"></div>
             <h2 class="shimmer-text" style="font-family: 'sans-serif', cursive; font-size: 2.5rem; margin: 0 0 20px 0;">
                GULL AND ZUBAIR NASWAR DEALER'S
             </h2>
@@ -9174,7 +9222,7 @@ async function saveTransaction() {
     if (ret > 0) {
         selectedStore = document.querySelector('input[name="return-store"]:checked');
         if (!selectedStore) {
-            alert("⚠️ Please select a store (ZUBAIR or MAHMOOD) for the returned stock!");
+            alert(" Please select a store (ZUBAIR or MAHMOOD) for the returned stock!");
             return;
         }
     }
@@ -9199,7 +9247,7 @@ async function saveTransaction() {
 
     // 7. Status Text (Directly from logic, not DOM dependency)
     const diff = rec - totalExpected;
-    let statusText = "PERFECT MATCH ✅";
+    let statusText = "PERFECT MATCH ";
     let statusClass = "result-box discrepancy-ok";
     
     if (Math.abs(diff) > 0.01) {
@@ -12081,51 +12129,7 @@ async function processReturnToProduction(storeKey, quantity, date, seller) {
     console.log(` Return processed: ${quantity} kg added to ${storeKey} inventory`);
 }
 
-// 5. UPDATED: Delete Sales Entry (Reverse Returns)
-async function deleteSalesEntry(id) {
-    let history; history = await idb.get('noman_history', []);
-    const entryToDelete = history.find(h => h.id === id);
 
-    if (entryToDelete) {
-        const linkedCount = entryToDelete.linkedSalesIds ? entryToDelete.linkedSalesIds.length : 0;
-        
-        let confirmMsg = `Permanently delete this record for ${entryToDelete.seller} on ${entryToDelete.date}?\n\nThis will REVERT ${linkedCount} linked sales entries back to 'Pending Credit'.`;
-        
-        // Add warning if there were returns
-        if (entryToDelete.returned > 0 && entryToDelete.returnStore) {
-            confirmMsg += `\n\n️ This will also REMOVE ${entryToDelete.returned} kg from ${getStoreLabel(entryToDelete.returnStore)} inventory.`;
-        }
-        
-        if (confirm(confirmMsg)) {
-            
-            // Revert linked sales
-            if (entryToDelete.linkedSalesIds && entryToDelete.linkedSalesIds.length > 0) {
-                await revertSpecificSalesEntries(entryToDelete.linkedSalesIds);
-            }
-
-            // === NEW: REVERSE THE RETURN ===
-            if (entryToDelete.returned > 0 && entryToDelete.returnStore) {
-                await reverseReturnFromProduction(entryToDelete.returnStore, entryToDelete.returned, entryToDelete.date);
-            }
-
-            // Delete the calculator entry
-            const newHistory = history.filter(h => h.id !== id);
-            await idb.set('noman_history', newHistory);
-
-            // Refresh all displays
-            await loadSalesData(currentCompMode);
-            refreshCustomerSales();
-            refreshUI(); // Refresh production tab
-            updateCustomerCharts();
-            calculateNetCash();
-            calculateCashTracker();
-
-            showToast(`Record deleted! ${linkedCount} sales entries reverted to pending.${entryToDelete.returned > 0 ? ` Return reversed.` : ''}`, 'success');
-        }
-    } else {
-        alert("Error: Record not found.");
-    }
-}
 
 // 6. NEW: Reverse Return from Production
 async function reverseReturnFromProduction(storeKey, quantity, date) {
@@ -12399,6 +12403,7 @@ async function deleteSalesEntry(id) {
         }
         
         if (confirm(confirmMsg)) {
+                await registerDeletion(id);
             
             // 1. REVERT LINKED SALES (Mark them as Pending Credit again)
             if (entryToDelete.linkedSalesIds && entryToDelete.linkedSalesIds.length > 0) {
@@ -13895,7 +13900,7 @@ async function checkBiometricLock() {
         `;
         
         lockScreen.innerHTML = `
-            <div style="font-size: 3rem; margin-bottom: 20px;">🔒</div>
+            <div style="font-size: 3rem; margin-bottom: 20px;">🐾</div>
             <h2 style="color: var(--text-main); margin-bottom: 10px;">Security Locked</h2>
             <p style="color: var(--text-muted); font-size: 0.9rem;">Biometric authentication required</p>
             <button class="btn btn-main" style="margin-top: 25px; padding: 12px 30px;" onclick="triggerUnlock()">
@@ -14552,9 +14557,9 @@ async function fetchDeviceLocation() {
     }, (error) => {
         let msg = "Location error.";
         switch(error.code) {
-            case error.PERMISSION_DENIED: msg = "⚠️ Permission denied. Check Phone Settings."; break;
-            case error.POSITION_UNAVAILABLE: msg = "⚠️ Weak GPS signal. Go outside."; break;
-            case error.TIMEOUT: msg = "⚠️ GPS timeout. Try again."; break;
+            case error.PERMISSION_DENIED: msg = " Permission denied. Check Phone Settings."; break;
+            case error.POSITION_UNAVAILABLE: msg = " Weak GPS signal. Go outside."; break;
+            case error.TIMEOUT: msg = " GPS timeout. Try again."; break;
         }
         statusDiv.textContent = msg;
         statusDiv.style.color = "var(--danger)";
@@ -14569,36 +14574,45 @@ const refreshEntityList = renderEntityTable;
 
 function renderRepHistory() {
     const list = document.getElementById('repHistoryList');
+    if (!list) return;
     list.innerHTML = '';
     
-    const today = new Date().toISOString().split('T')[0];
-    const todayData = customerSales
+    // CHANGED: Get date from the input field instead of system "today"
+    const dateInput = document.getElementById('rep-date');
+    const selectedDate = dateInput && dateInput.value ? dateInput.value : new Date().toISOString().split('T')[0];
+    
+    // Dynamic Header Text
+    const isToday = selectedDate === new Date().toISOString().split('T')[0];
+    const headerText = isToday ? "Today's Activity" : `Activity for ${selectedDate}`;
+
+    // Filter data by the SELECTED date
+    const activityData = customerSales
         .filter(s => 
             s.isRepModeEntry === true && // Strict check for Rep Mode
             s.salesRep === currentRepProfile && 
-            s.date === today
+            s.date === selectedDate // Match the date picker
         )
         .sort((a,b) => b.timestamp - a.timestamp);
 
-    if(todayData.length === 0) {
-        list.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted);">No activity today</div>`;
+    if(activityData.length === 0) {
+        list.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text-muted);">No activity found for ${selectedDate}</div>`;
         return;
     }
 
     // Create compact list view
     let tableHTML = `
         <div class="section liquid-card" style="padding: 15px;">
-            <h4 style="margin: 0 0 15px 0; color: var(--accent); font-size: 0.9rem;">Today's Activity</h4>
+            <h4 style="margin: 0 0 15px 0; color: var(--accent); font-size: 0.9rem;">${headerText}</h4>
             <div style="max-height: 400px; overflow-y: auto;">
     `;
 
-    todayData.forEach(item => {
+    activityData.forEach(item => {
         let typeIcon = '';
         let typeColor = '';
         let qtyAmount = '';
         
         if(item.paymentType === 'COLLECTION') {
-            typeIcon = '';
+            typeIcon = ''; // Added icon for visual clarity
             typeColor = 'var(--accent-emerald)';
             qtyAmount = `Collected: Rs ${item.totalValue.toFixed(2)}`;
         } else if (item.paymentType === 'CREDIT') {
@@ -14860,6 +14874,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
 async function deleteRepTransaction(id) {
     if (confirm("Are you sure you want to delete this transaction?")) {
+     await registerDeletion(id);
         // 1. Filter out the transaction from the customerSales array
         customerSales = customerSales.filter(transaction => transaction.id !== id);
         
