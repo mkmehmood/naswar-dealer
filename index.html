@@ -14424,143 +14424,62 @@ async function saveCustomerDetails() {
 }
 // --- ADVANCED AUTO-LOCATION FUNCTION (FIXED) ---
 // --- PRECISION AUTO-LOCATION (Optimized for Bannu/Pakistan) ---
+// --- AUTO-LOCATION FUNCTION ---
 async function fetchDeviceLocation() {
     const statusDiv = document.getElementById('location-status');
     const addressInput = document.getElementById('edit-cust-address');
-    const btn = document.querySelector('button[onclick="fetchDeviceLocation()"]');
     
-    // 1. Check Support
     if (!navigator.geolocation) {
-        statusDiv.textContent = "GPS not supported on this device.";
-        statusDiv.style.color = "var(--danger)";
+        statusDiv.textContent = "Geolocation is not supported by this browser.";
         return;
     }
 
-    // 2. UI Loading State
-    if(btn) btn.disabled = true;
-    statusDiv.innerHTML = '<span class="update-indicator"></span> Pinpointing satellite location...';
+    statusDiv.textContent = "Fetching GPS coordinates...";
     statusDiv.style.color = "var(--accent)";
-    addressInput.placeholder = "Fetching location...";
-
-    // 3. High Accuracy GPS Settings
-    const gpsOptions = {
-        enableHighAccuracy: true,
-        timeout: 20000, // 20 seconds to get a lock
-        maximumAge: 0   // Force new reading
-    };
 
     navigator.geolocation.getCurrentPosition(async (position) => {
         const lat = position.coords.latitude;
         const lon = position.coords.longitude;
-        const accuracy = position.coords.accuracy;
-
-        // Immediate Fallback: Save Coordinates + Google Maps Link
-        // (This ensures that even if the name fails, the location is saved precisely)
-        const googleMapsLink = `https://www.google.com/maps?q=${lat},${lon}`;
-        const coordsText = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
         
-        statusDiv.textContent = `GPS Accuracy: ±${Math.round(accuracy)}m. Decoding name...`;
-
+        statusDiv.textContent = "Found coordinates. Getting address...";
+        
         try {
-            // 4. Call API with 'extratags' to find local names
-            const controller = new AbortController();
-            const apiTimeout = setTimeout(() => controller.abort(), 10000);
-
-            const response = await fetch(
-                `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&extratags=1&namedetails=1`,
-                { headers: { 'User-Agent': 'NaswarApp/1.0' }, signal: controller.signal }
-            );
-            
-            clearTimeout(apiTimeout);
-
-            if (!response.ok) throw new Error("Map API Error");
-
+            // Use OpenStreetMap Nominatim API for free reverse geocoding
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
             const data = await response.json();
             
-            if (data && data.address) {
+            if (data && data.display_name) {
+                // Construct a readable address (Area, City)
+                // You can adjust 'address' properties to be more specific if needed
                 const addr = data.address;
-                
-                // --- CUSTOM PARSING FOR BANNU AREAS ---
-                // We prioritize specific landmarks over generic district names
-                
-                // 1. Specific Place Name (Mosque, Shop, School, etc.)
-                const placeName = addr.amenity || addr.shop || addr.building || addr.tourism || addr.historic || addr.leisure || addr.office || '';
-                
-                // 2. Local Area / Neighborhood (Suburb, Hamlet, Village)
-                // In Bannu, 'hamlet' or 'village' often holds the area name like "Sikander Khel"
-                const localArea = addr.neighbourhood || addr.suburb || addr.hamlet || addr.village || addr.quarter || '';
-                
-                // 3. Road / Street (Often missing, but good if present)
-                const road = addr.road || addr.pedestrian || addr.street || '';
-                
-                // 4. City / Town
-                const city = addr.town || addr.city || addr.county || 'Bannu';
+                const readable = [
+                    addr.road || '',
+                    addr.suburb || addr.neighbourhood || '',
+                    addr.city || addr.town || addr.village || ''
+                ].filter(Boolean).join(', ');
 
-                // --- BUILD THE STRING ---
-                let finalAddress = "";
-
-                if (placeName) {
-                    // Result: "Jamia Masjid, ..."
-                    finalAddress += placeName + ", ";
-                }
-                
-                if (road) {
-                    // Result: "Main Bazaar Road, ..."
-                    finalAddress += road + ", ";
-                } else if (!placeName) {
-                    // If no road AND no place name, generic marker
-                    finalAddress += "Near ";
-                }
-
-                if (localArea) {
-                    // Result: "... Sikander Khel, ..."
-                    finalAddress += localArea + ", ";
-                }
-
-                finalAddress += city;
-
-                // CLEANUP: If parsing failed and we only got "Bannu", fallback to formatted API name
-                // or keep the coordinates if the name is too vague.
-                if (finalAddress.trim() === "Bannu" || finalAddress.trim() === "Near Bannu") {
-                     // Try to use the full display name but remove the country/postcode to keep it short
-                     const parts = data.display_name.split(', ');
-                     // Take the first 3 parts (usually Spot, Road, Area)
-                     finalAddress = parts.slice(0, 3).join(', ');
-                }
-
-                // Append Coordinates to ensure precision for delivery
-                addressInput.value = `${finalAddress} (${coordsText})`;
-                
-                statusDiv.textContent = `📍 Location Found: ${localArea || placeName || city}`;
+                addressInput.value = readable;
+                statusDiv.textContent = "Location updated successfully.";
                 statusDiv.style.color = "var(--accent-emerald)";
-                
-                if(typeof showToast === 'function') showToast("Address updated successfully", "success");
-
             } else {
                 throw new Error("Address not found");
             }
         } catch (error) {
             console.error("Geocoding error:", error);
-            // FAILSAFE: If Internet fails or Map API fails, stick with Coordinates
-            // This allows the user to copy-paste the numbers into Google Maps later
-            addressInput.value = `GPS: ${coordsText}`;
-            statusDiv.textContent = "Address lookup failed. Saved GPS Coordinates.";
+            addressInput.value = `${lat.toFixed(5)}, ${lon.toFixed(5)}`; // Fallback to coords
+            statusDiv.textContent = "Could not fetch address name. Used coordinates.";
             statusDiv.style.color = "var(--warning)";
-        } finally {
-            if(btn) btn.disabled = false;
         }
-
     }, (error) => {
         let msg = "Location error.";
         switch(error.code) {
-            case error.PERMISSION_DENIED: msg = "⚠️ Permission denied. Check Phone Settings."; break;
-            case error.POSITION_UNAVAILABLE: msg = "⚠️ Weak GPS signal. Go outside."; break;
-            case error.TIMEOUT: msg = "⚠️ GPS timeout. Try again."; break;
+            case error.PERMISSION_DENIED: msg = "User denied the request for Geolocation."; break;
+            case error.POSITION_UNAVAILABLE: msg = "Location information is unavailable."; break;
+            case error.TIMEOUT: msg = "The request to get user location timed out."; break;
         }
         statusDiv.textContent = msg;
         statusDiv.style.color = "var(--danger)";
-        if(btn) btn.disabled = false;
-    }, gpsOptions);
+    });
 }
 
 
