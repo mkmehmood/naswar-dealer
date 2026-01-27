@@ -14422,8 +14422,7 @@ async function saveCustomerDetails() {
     
     showToast("Customer details updated successfully", "success");
 }
-// --- AUTO-LOCATION FUNCTION ---
-// --- ADVANCED AUTO-LOCATION FUNCTION ---
+// --- ADVANCED AUTO-LOCATION FUNCTION (FIXED) ---
 async function fetchDeviceLocation() {
     const statusDiv = document.getElementById('location-status');
     const addressInput = document.getElementById('edit-cust-address');
@@ -14437,63 +14436,81 @@ async function fetchDeviceLocation() {
     }
 
     // 2. UI Feedback: Start Loading
-    if(btn) btn.disabled = true; // Prevent double clicks
+    if(btn) btn.disabled = true; 
     statusDiv.innerHTML = '<span class="update-indicator"></span> Acquiring satellite fix...';
     statusDiv.style.color = "var(--accent)";
     addressInput.placeholder = "Locating...";
 
     // 3. Configuration for High Accuracy
     const gpsOptions = {
-        enableHighAccuracy: true, // Forces GPS (Critical for mobile)
-        timeout: 10000,           // Wait max 10 seconds for satellite fix
-        maximumAge: 0             // Do not use cached positions
+        enableHighAccuracy: true,
+        timeout: 15000,           // Increased timeout for better fix
+        maximumAge: 0             
     };
 
     navigator.geolocation.getCurrentPosition(async (position) => {
         // --- SUCCESS: GPS SIGNAL ACQUIRED ---
         const lat = position.coords.latitude;
         const lon = position.coords.longitude;
-        const accuracy = position.coords.accuracy; // Accuracy in meters
+        const accuracy = position.coords.accuracy;
 
-        // Immediate Fallback: Save Coordinates first (in case API fails)
+        // Immediate Fallback: Save Coordinates
         const coordsText = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
         addressInput.value = coordsText; 
         
-        statusDiv.textContent = `Fix acquired (±${Math.round(accuracy)}m). Fetching address...`;
+        statusDiv.textContent = `GPS Fix: ±${Math.round(accuracy)}m. Decoding address...`;
         statusDiv.style.color = "var(--accent)";
 
         try {
-            // 4. Reverse Geocoding (Convert Coords to Text)
-            // AbortController adds a timeout to the API call so it doesn't hang
+            // 4. Reverse Geocoding (Nominatim API)
             const controller = new AbortController();
-            const apiTimeout = setTimeout(() => controller.abort(), 5000); // 5 second API timeout
+            const apiTimeout = setTimeout(() => controller.abort(), 8000); // 8 second timeout
 
+            // UPDATED API CALL: Added 'jsonv2' and 'accept-language'
             const response = await fetch(
-                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`,
-                { signal: controller.signal }
+                `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&accept-language=en`,
+                { 
+                    headers: { 'User-Agent': 'NaswarDealersApp/1.0' }, // Identify app to prevent blocking
+                    signal: controller.signal 
+                }
             );
             
-            clearTimeout(apiTimeout); // Clear timeout if successful
+            clearTimeout(apiTimeout);
 
             if (!response.ok) throw new Error("API Error");
 
             const data = await response.json();
             
             if (data && data.address) {
-                // 5. Smart Address Formatting
-                // Prioritize specific location details over generic ones
+                // 5. SMART ADDRESS FORMATTING
                 const addr = data.address;
+                
+                // Prioritize specific building/shop names
+                const specificName = addr.shop || addr.amenity || addr.building || addr.house_number || '';
+                
                 const parts = [
-                    addr.road || addr.pedestrian || '',
+                    specificName,
+                    addr.road || addr.pedestrian || addr.street || '',
                     addr.suburb || addr.neighbourhood || addr.village || addr.hamlet || '',
                     addr.city || addr.town || addr.county || ''
                 ].filter(Boolean); // Remove empty strings
 
-                // Update input with readable address
-                const readableAddress = parts.length > 0 ? parts.join(', ') : data.display_name;
+                // Create clean string
+                let readableAddress = parts.join(', ');
+                
+                // Fallback: If parts are too short, use full display name but shorten it
+                if (readableAddress.length < 5) {
+                    readableAddress = data.display_name.split(',').slice(0, 4).join(',');
+                }
+
+                // If we found a building number/name, prefix it nicely
+                if (specificName && !isNaN(specificName)) {
+                    readableAddress = "No. " + readableAddress;
+                }
+
                 addressInput.value = readableAddress;
                 
-                statusDiv.textContent = `📍 Address updated via GPS`;
+                statusDiv.textContent = `📍 Address found via Satellite`;
                 statusDiv.style.color = "var(--accent-emerald)";
                 
                 if(typeof showToast === 'function') showToast("Location updated successfully", "success");
@@ -14502,10 +14519,9 @@ async function fetchDeviceLocation() {
             }
         } catch (error) {
             console.error("Geocoding error:", error);
-            // If API fails, we leave the coordinates in the input (Better than nothing!)
+            // Leave coordinates if address lookup fails
             statusDiv.textContent = "Address lookup failed. Saved GPS Coordinates.";
             statusDiv.style.color = "var(--warning)";
-            if(typeof showToast === 'function') showToast("Network error. Saved GPS coordinates instead.", "warning");
         } finally {
             if(btn) btn.disabled = false;
         }
@@ -14514,9 +14530,9 @@ async function fetchDeviceLocation() {
         // --- ERROR HANDLING ---
         let msg = "Location error.";
         switch(error.code) {
-            case error.PERMISSION_DENIED: msg = "⚠️ Permission denied. Please enable Location Services."; break;
-            case error.POSITION_UNAVAILABLE: msg = "⚠️ Signal unavailable. Ensure GPS is On."; break;
-            case error.TIMEOUT: msg = "⚠️ GPS Request timed out. Try moving outside."; break;
+            case error.PERMISSION_DENIED: msg = "⚠️ Denied. Enable Location in Settings."; break;
+            case error.POSITION_UNAVAILABLE: msg = "⚠️ No Signal. Go outside."; break;
+            case error.TIMEOUT: msg = "⚠️ GPS Timed out."; break;
         }
         statusDiv.textContent = msg;
         statusDiv.style.color = "var(--danger)";
