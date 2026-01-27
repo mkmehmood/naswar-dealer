@@ -4928,6 +4928,7 @@ const syncState = {
     pendingUpdates: new Set()
 };
 
+
 // Central data change notifier (non-blocking)
 function notifyDataChange(dataType) {
     syncState.lastUpdate[dataType] = Date.now();
@@ -8416,23 +8417,26 @@ function initSupabase() {
     }
 }
 
-// --- SMART MERGE ALGORITHM ---
-// This function takes two arrays (A and B), combines them, 
-// and ensures that for any duplicate ID, only the newest entry survives.
+// ============================================
+// SUPABASE CLOUD SYNC - FIXED FOR SALES REP DATA
+// ============================================
+
+// --- SMART MERGE ALGORITHM (Enhanced) ---
+// Ensures Rep Data (which might share IDs or timestamps) isn't discarded
 function mergeDatasets(localArray, cloudArray) {
     if (!Array.isArray(localArray)) localArray = [];
     if (!Array.isArray(cloudArray)) cloudArray = [];
 
     const mergedMap = new Map();
 
-    // 1. Process Cloud Data
+    // 1. Process Cloud Data First
     cloudArray.forEach(item => {
         if (item && item.id) {
             mergedMap.set(item.id, item);
         }
     });
 
-    // 2. Merge Local Data
+    // 2. Merge Local Data Over Cloud Data
     localArray.forEach(localItem => {
         if (!localItem || !localItem.id) return;
 
@@ -8444,21 +8448,20 @@ function mergeDatasets(localArray, cloudArray) {
         } else {
             // CONFLICT RESOLUTION
             
-            // A. Check for Data Integrity (Calculator Specific)
-            // If local item has data but cloud item has 0/null for critical fields, keep local
-            const isCalculatorEntry = localItem.totalSold !== undefined || localItem.revenue !== undefined;
-            if (isCalculatorEntry) {
-                const cloudCorrupt = (cloudItem.totalSold === undefined || cloudItem.revenue === undefined);
-                const localValid = (localItem.totalSold !== undefined);
-                
-                if (cloudCorrupt && localValid) {
-                    console.log(`Restoring valid local data for ID ${localItem.id} over corrupt cloud data.`);
+            // Special Check for Calculator/Rep Data Integrity
+            // If local item has valid data but cloud item is corrupted/empty, force keep local
+            const isCriticalData = localItem.totalSold !== undefined || localItem.revenue !== undefined || localItem.isRepModeEntry === true;
+            
+            if (isCriticalData) {
+                const cloudCorrupt = (cloudItem.totalSold === undefined && cloudItem.revenue === undefined && !cloudItem.isRepModeEntry);
+                if (cloudCorrupt) {
+                    console.log(`[SYNC] Restoring valid local data for ID ${localItem.id} over corrupt cloud data.`);
                     mergedMap.set(localItem.id, localItem);
                     return;
                 }
             }
 
-            // B. Standard Timestamp Comparison
+            // Standard Timestamp Comparison (Newer wins)
             const localTime = localItem.timestamp || localItem.updatedAt || new Date(localItem.date).getTime() || 0;
             const cloudTime = cloudItem.timestamp || cloudItem.updatedAt || new Date(cloudItem.date).getTime() || 0;
 
@@ -8474,7 +8477,7 @@ function mergeDatasets(localArray, cloudArray) {
 // --- PUSH TO CLOUD (BACKUP) - READ-MODIFY-WRITE ---
 async function pushDataToCloud(silent = false, retryCount = 0) {
     if (!supabaseClient) return;
-    if (isSyncing) return; // Prevent overlapping syncs
+    if (isSyncing) return; 
     isSyncing = true;
 
     let btn = null;
@@ -8495,7 +8498,6 @@ async function pushDataToCloud(silent = false, retryCount = 0) {
 
     try {
         if (!silent) {
-            // Update UI Button
             const menuBtn = document.querySelector('#dataMenuOverlay .btn-main');
             if (menuBtn) {
                 btn = menuBtn;
@@ -8507,7 +8509,7 @@ async function pushDataToCloud(silent = false, retryCount = 0) {
             }
         }
 
-        // STEP 1: FETCH Current Cloud Data (To avoid overwriting others)
+        // STEP 1: FETCH Current Cloud Data
         const { data: cloudResult, error: fetchError } = await supabaseClient
             .from('user_data')
             .select('data')
@@ -8519,18 +8521,19 @@ async function pushDataToCloud(silent = false, retryCount = 0) {
         let finalData = {};
         const cloudData = cloudResult?.data || {};
 
-        // STEP 2: MERGE Local Data INTO Cloud Data
-        // We take what is in the cloud, update it with our newer local changes, 
-        // and add our new local entries.
+        // STEP 2: MERGE ARRAYS (Critical for Sales Rep History)
+        // customer_sales holds BOTH Admin Sales and Rep Sales
         finalData.mfg_pro_pkr = mergeDatasets(db, cloudData.mfg_pro_pkr);
-        finalData.customer_sales = mergeDatasets(customerSales, cloudData.customer_sales);
+        finalData.customer_sales = mergeDatasets(customerSales, cloudData.customer_sales); 
         finalData.noman_history = mergeDatasets(salesHistory, cloudData.noman_history);
         finalData.factory_inventory_data = mergeDatasets(factoryInventoryData, cloudData.factory_inventory_data);
         finalData.factory_production_history = mergeDatasets(factoryProductionHistory, cloudData.factory_production_history);
-        
-        // Settings/Tracking: Prefer Local if modified recently, otherwise Object merge
-        // For simplicity in this structure, we overwrite specific objects with Local 
-        // because "Settings" are usually device-specific or explicitly changed.
+        finalData.payment_entities = mergeDatasets(paymentEntities, cloudData.payment_entities);
+        finalData.payment_transactions = mergeDatasets(paymentTransactions, cloudData.payment_transactions);
+        finalData.stock_returns = mergeDatasets(stockReturns, cloudData.stock_returns);
+
+        // STEP 3: SAVE SETTINGS & REP STATE
+        // We prioritize local settings for these state variables to ensure the device's current mode is saved
         finalData.factory_default_formulas = factoryDefaultFormulas;
         finalData.factory_additional_costs = factoryAdditionalCosts;
         finalData.factory_cost_adjustment_factor = factoryCostAdjustmentFactor;
@@ -8538,17 +8541,12 @@ async function pushDataToCloud(silent = false, retryCount = 0) {
         finalData.factory_unit_tracking = factoryUnitTracking;
         finalData.naswar_default_settings = defaultSettings;
         
-        // Payment Data Merge
-        finalData.payment_entities = mergeDatasets(paymentEntities, cloudData.payment_entities);
-        finalData.payment_transactions = mergeDatasets(paymentTransactions, cloudData.payment_transactions);
-        finalData.stock_returns = mergeDatasets(stockReturns, cloudData.stock_returns);
-        
-        // Admin Profile Data
+        // Critical: Save Admin/Rep Mode State
         finalData.appMode = appMode;
         finalData.repProfile = currentRepProfile;
         finalData.adminPin = adminPin;
 
-        // STEP 3: UPLOAD the Merged Data
+        // STEP 4: UPLOAD
         const now = new Date().toISOString();
         
         const uploadPromise = supabaseClient
@@ -8592,7 +8590,7 @@ async function pushDataToCloud(silent = false, retryCount = 0) {
         }
     }
 }
-// --- PULL FROM CLOUD (RESTORE) - FIXED FOR AVAILABILITY FLUCTUATION ---
+// --- PULL FROM CLOUD (RESTORE) - UPDATED TO RESTORE REP MODE UI ---
 async function pullDataFromCloud(silent = false, retryCount = 0) {
     if (!currentUser || !supabaseClient) return;
 
@@ -8633,10 +8631,9 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
 
         const finalSettings = cloud.naswar_default_settings || defaultSettings;
 
-        // 2. CRITICAL: UPDATE GLOBAL VARIABLES IMMEDIATELY (IN MEMORY)
-        // This ensures the math functions see the new data instantly
+        // 2. CRITICAL: UPDATE GLOBAL VARIABLES IMMEDIATELY
         db = mergedDB;
-        customerSales = mergedCustomerSales;
+        customerSales = mergedCustomerSales; // This contains the Rep Data
         salesHistory = mergedHistory;
         factoryInventoryData = mergedFactoryInv;
         factoryProductionHistory = mergedFactoryHist;
@@ -8651,11 +8648,16 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
         stockReturns = mergedStockReturns;
         defaultSettings = finalSettings;
 
-        // 3. FORCE RECALCULATION OF AVAILABLE UNITS (IN MEMORY)
-        // We do this BEFORE saving to IDB to ensure UI updates instantly
+        // 3. RESTORE APP STATE (Rep Mode / Admin Mode)
+        // We only overwrite local state if cloud has valid data for it
+        if (cloud.appMode) appMode = cloud.appMode;
+        if (cloud.repProfile) currentRepProfile = cloud.repProfile;
+        if (cloud.adminPin) adminPin = cloud.adminPin;
+
+        // 4. FORCE RECALCULATION
         await updateFormulaInventory(); 
 
-        // 4. SAVE TO DATABASE (BACKGROUND)
+        // 5. SAVE TO DATABASE (BACKGROUND)
         const idbPromises = [
             idb.set('mfg_pro_pkr', mergedDB),
             idb.set('customer_sales', mergedCustomerSales),
@@ -8666,24 +8668,37 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
             idb.set('factory_additional_costs', factoryAdditionalCosts),
             idb.set('factory_cost_adjustment_factor', factoryCostAdjustmentFactor),
             idb.set('factory_sale_prices', factorySalePrices),
-            idb.set('factory_unit_tracking', factoryUnitTracking), // Save the recalculated tracking
+            idb.set('factory_unit_tracking', factoryUnitTracking),
             idb.set('payment_entities', mergedPaymentEntities),
             idb.set('payment_transactions', mergedPaymentTrans),
             idb.set('stock_returns', mergedStockReturns),
             idb.set('naswar_default_settings', finalSettings),
-            idb.set('last_synced', new Date().toISOString())
+            idb.set('last_synced', new Date().toISOString()),
+            // Save State
+            idb.set('appMode', appMode),
+            idb.set('repProfile', currentRepProfile),
+            idb.set('adminPin', adminPin)
         ];
 
         await Promise.all(idbPromises);
 
-        if (!silent) showToast('✅ Data Updated', 'success');
+        if (!silent) showToast('✅ Data & Rep Mode Updated', 'success');
         
-        // 5. REFRESH UI ELEMENTS
-        // Explicitly update the specific indicator causing the issue
-        updateUnitsAvailableIndicator(); 
-        
-        // Then refresh everything else
+        // 6. REFRESH UI ELEMENTS
+        updateUnitsAvailableIndicator();
         await refreshAllDisplays();
+
+        // 7. CRITICAL: APPLY REP MODE UI IF NEEDED
+        // If the restored data says we are in Rep Mode, force the UI to switch
+        if (appMode === 'rep') {
+            if (typeof lockToRepMode === 'function') {
+                lockToRepMode();
+                console.log("[RESTORE] UI locked to Rep Mode based on cloud data.");
+            }
+            if (typeof refreshRepUI === 'function') {
+                refreshRepUI(); // Refreshes the Rep-specific tables
+            }
+        }
 
     } catch (error) {
         console.error('Cloud Restore Error:', error);
@@ -8691,6 +8706,31 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
     } finally {
         isSyncing = false;
     }
+}
+// ============================================
+// SEAMLESS BACKGROUND BACKUP (DEBOUNCER)
+// ============================================
+
+let seamlessBackupTimer = null;
+const SEAMLESS_DELAY_MS = 5000; // Wait 5 seconds after last change
+
+function triggerSeamlessBackup() {
+    // 1. Clear any pending backup since a new change just happened
+    if (seamlessBackupTimer) {
+        clearTimeout(seamlessBackupTimer);
+    }
+
+    // 2. Set a new timer
+    seamlessBackupTimer = setTimeout(async () => {
+        // Only run if we are logged in
+        if (currentUser && supabaseClient) {
+            console.log("☁️ Seamless backup triggering...");
+            
+            // Call the main push function in SILENT mode (true)
+            // This ensures no toast notifications disturb the user
+            await pushDataToCloud(true); 
+        }
+    }, SEAMLESS_DELAY_MS);
 }
 
 // --- DATABASE HEARTBEAT (KEEP ALIVE) ---
