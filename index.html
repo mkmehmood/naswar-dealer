@@ -8419,53 +8419,74 @@ function initSupabase() {
     }
 }
 
-// ============================================
-// SUPABASE CLOUD SYNC - FIXED FOR SALES REP DATA
-// ============================================
-
-// --- SMART MERGE ALGORITHM (Enhanced) ---
-// Ensures Rep Data (which might share IDs or timestamps) isn't discarded
+// --- ROBUST SMART MERGE ALGORITHM (PROTECTS ALL TABS) ---
 function mergeDatasets(localArray, cloudArray) {
+    // Ensure inputs are arrays to prevent crashes
     if (!Array.isArray(localArray)) localArray = [];
     if (!Array.isArray(cloudArray)) cloudArray = [];
 
     const mergedMap = new Map();
 
-    // 1. Process Cloud Data First
+    // 1. Load Cloud Data First (Baseline)
     cloudArray.forEach(item => {
         if (item && item.id) {
             mergedMap.set(item.id, item);
         }
     });
 
-    // 2. Merge Local Data Over Cloud Data
+    // 2. Merge Local Data Over Cloud Data (With Integrity Checks)
     localArray.forEach(localItem => {
         if (!localItem || !localItem.id) return;
 
         const cloudItem = mergedMap.get(localItem.id);
 
         if (!cloudItem) {
-            // New item locally? Add it.
+            // CASE A: New item exists locally but not in cloud -> Keep Local
             mergedMap.set(localItem.id, localItem);
         } else {
-            // CONFLICT RESOLUTION
-            
-            // Special Check for Calculator/Rep Data Integrity
-            // If local item has valid data but cloud item is corrupted/empty, force keep local
-            const isCriticalData = localItem.totalSold !== undefined || localItem.revenue !== undefined || localItem.isRepModeEntry === true;
-            
-            if (isCriticalData) {
-                const cloudCorrupt = (cloudItem.totalSold === undefined && cloudItem.revenue === undefined && !cloudItem.isRepModeEntry);
-                if (cloudCorrupt) {
-                    console.log(`[SYNC] Restoring valid local data for ID ${localItem.id} over corrupt cloud data.`);
+            // CASE B: Conflict Resolution - Decide who wins
+
+            // --- PROTECTION 1: SALES REP TAB (The specific fix you asked for) ---
+            // If local knows it's a Rep Entry, but cloud doesn't, Local Wins.
+            if (localItem.isRepModeEntry === true && !cloudItem.isRepModeEntry) {
+                mergedMap.set(localItem.id, localItem);
+                return;
+            }
+
+            // --- PROTECTION 2: PRODUCTION TAB (Returns & Formula Links) ---
+            // If local marks this as a "Return" or has "Formula Units", but cloud misses that flag, Local Wins.
+            if ((localItem.isReturn === true && !cloudItem.isReturn) || 
+                (localItem.formulaUnits > 0 && !cloudItem.formulaUnits)) {
+                mergedMap.set(localItem.id, localItem);
+                return;
+            }
+
+            // --- PROTECTION 3: CALCULATOR TAB (Data Integrity) ---
+            // If local has valid sales numbers but cloud has 'undefined' or 'null' (corruption), Local Wins.
+            // This prevents a "blank" cloud entry from wiping your calculated work.
+            const isCalculatorEntry = (localItem.totalSold !== undefined || localItem.revenue !== undefined);
+            if (isCalculatorEntry) {
+                const localHasData = (localItem.totalSold > 0 || localItem.revenue > 0);
+                const cloudIsCorrupt = (cloudItem.totalSold === undefined || cloudItem.totalSold === null);
+                
+                if (localHasData && cloudIsCorrupt) {
                     mergedMap.set(localItem.id, localItem);
                     return;
                 }
             }
 
-            // Standard Timestamp Comparison (Newer wins)
-            const localTime = localItem.timestamp || localItem.updatedAt || new Date(localItem.date).getTime() || 0;
-            const cloudTime = cloudItem.timestamp || cloudItem.updatedAt || new Date(cloudItem.date).getTime() || 0;
+            // --- PROTECTION 4: FACTORY TAB (Supplier Links) ---
+            // If local has a linked supplier ID but cloud is missing it, Local Wins.
+            if (localItem.supplierId && !cloudItem.supplierId) {
+                mergedMap.set(localItem.id, localItem);
+                return;
+            }
+
+            // --- STANDARD CHECK: TIMESTAMP COMPARISON ---
+            // If none of the special protections apply, the newer edit wins.
+            // We use 0 as a fallback so valid dates always beat "null" or missing dates.
+            const localTime = localItem.timestamp || new Date(localItem.date).getTime() || 0;
+            const cloudTime = cloudItem.timestamp || new Date(cloudItem.date).getTime() || 0;
 
             if (localTime >= cloudTime) {
                 mergedMap.set(localItem.id, localItem);
