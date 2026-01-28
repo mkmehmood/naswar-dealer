@@ -2166,6 +2166,48 @@ input, textarea, select, [contenteditable] {
     text-transform: uppercase;
     backdrop-filter: var(--backdrop-blur);
 }
+/* --- SIGNAL INDICATOR STYLES --- */
+#connection-indicator {
+    position: fixed;
+    bottom: 15px;       /* Fixed to bottom */
+    left: 15px;         /* Fixed to left side */
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    z-index: 10002;     /* On top of everything */
+    background-color: var(--danger); /* Default Red */
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    pointer-events: auto;
+}
+
+#connection-indicator:hover {
+    transform: scale(1.2);
+}
+
+/* Status States */
+.signal-online {
+    background-color: #10b981 !important; /* Green */
+    box-shadow: 0 0 8px #10b981, 0 0 15px rgba(16, 185, 129, 0.4) !important;
+}
+
+.signal-connecting {
+    background-color: #f59e0b !important; /* Orange */
+    animation: pulse-signal 1s infinite;
+}
+
+.signal-offline {
+    background-color: #ef4444 !important; /* Red */
+    opacity: 0.7;
+}
+
+@keyframes pulse-signal {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(0.8); opacity: 0.7; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
     /* Add to your existing CSS */
     #cash-net-total {
         font-size: 1.4rem !important;
@@ -2182,7 +2224,38 @@ input, textarea, select, [contenteditable] {
         border-radius: 8px;
         background: rgba(245, 158, 11, 0.05);
     }
-    
+    #connection-indicator {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    z-index: 9999;
+    border: 2px solid white;
+    box-shadow: 0 0 5px rgba(0,0,0,0.3);
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    background-color: #ef4444; /* Default Red */
+}
+
+/* Green State */
+.sig-online {
+    background-color: #10b981 !important;
+    box-shadow: 0 0 10px #10b981 !important;
+}
+
+/* Orange/Pulse State */
+.sig-connecting {
+    background-color: #f59e0b !important;
+    animation: sig-pulse 1s infinite;
+}
+
+@keyframes sig-pulse {
+    0% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+    100% { opacity: 1; transform: scale(1); }
+}
+
     /* Responsive adjustments for the new cards */
     @media (max-width: 768px) {
         .report-grid[style*="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr))"] {
@@ -4731,6 +4804,7 @@ body.dark-mode .units-available-danger {
         <div id="paymentHistoryList" class="report-grid"></div>
     </div>
 </div>
+<div id="connection-indicator" title="Checking Connection..."></div>
 
 
 <script>
@@ -5252,6 +5326,8 @@ document.addEventListener('DOMContentLoaded', function() {
 window.addEventListener('beforeunload', function() {
     stopPeriodicSync();
 });
+window.addEventListener('online',  subscribeToRealtime);
+window.addEventListener('offline', () => updateSignalUI('offline'));
 
 
     // NEW: Payment entities and transactions
@@ -8512,53 +8588,172 @@ async function deleteCustomerSale(id) {
 // 1. Initialize return storage
 let stockReturns = [];
 // ============================================
-// SUPABASE CLOUD SYNC - SMART MERGE IMPLEMENTATION
+// SUPABASE CLOUD SYNC & SIGNAL SYSTEM
 // ============================================
 
 const SUPABASE_URL = 'https://znxhlwbmoqwoijkhglcb.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpueGhsd2Jtb3F3b2lqa2hnbGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg4OTA1MjIsImV4cCI6MjA4NDQ2NjUyMn0.4RuwqqM-uxGRzpCxtgHx572OdFICfZjMXYFOHRU3lrI';
 
+// --- GLOBAL VARIABLES (Declared ONCE) ---
 let supabaseClient = null;
 let currentUser = null;
-let autoSaveTimer = null;
 let isSyncing = false;
+let realtimeChannel = null;       // <--- Fixed: Declared only here
+let socketReconnectTimer = null;
+let pendingSocketUpdate = false;
+let socketDebounceTimer = null;
 let dbWakeUpAttempted = false;
 let heartbeatInterval = null;
+let autoSaveTimer = null;
+
+// --- SIGNAL INDICATOR UPDATE ---
+function updateSignal(status) {
+    const dot = document.getElementById('connection-indicator');
+    if (!dot) return;
+
+    dot.className = ''; // Reset
+    if (status === 'online') {
+        dot.classList.add('signal-online');
+        dot.title = "Live Connection Active";
+    } else if (status === 'connecting') {
+        dot.classList.add('signal-connecting');
+        dot.title = "Connecting...";
+    } else {
+        dot.classList.add('signal-offline');
+        dot.title = "Offline / Socket Disconnected";
+    }
+}
+
+// --- ROBUST REALTIME SUBSCRIPTION ---
+function updateSignalUI(status) {
+    const dot = document.getElementById('connection-indicator');
+    if (!dot) return;
+    
+    dot.className = ''; // Clear classes
+    if (status === 'online') {
+        dot.classList.add('sig-online');
+    } else if (status === 'connecting') {
+        dot.classList.add('sig-connecting');
+    } else {
+        // Red is the default
+    }
+}
+
+async function subscribeToRealtime() {
+    if (!supabaseClient || !currentUser) return;
+
+    updateSignalUI('connecting');
+
+    if (realtimeChannel) {
+        await supabaseClient.removeChannel(realtimeChannel);
+    }
+
+    realtimeChannel = supabaseClient
+        .channel('public:user_data')
+        .on(
+            'postgres_changes',
+            {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'user_data',
+                filter: `user_id=eq.${currentUser.id}`
+            },
+            async (payload) => {
+                // Check if update is from another device
+                const cloudTime = new Date(payload.new.last_synced).getTime();
+                const localTimeStr = await idb.get('last_synced');
+                const localTime = localTimeStr ? new Date(localTimeStr).getTime() : 0;
+
+                if (cloudTime > (localTime + 1000)) {
+                    // Debounce to prevent multiple quick refreshes
+                    if (socketDebounceTimer) clearTimeout(socketDebounceTimer);
+                    socketDebounceTimer = setTimeout(() => {
+                        pullDataFromCloud(true); // Silent sync
+                    }, 1000);
+                }
+            }
+        )
+        .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+                updateSignalUI('online'); // Turn Green
+                console.log("Socket: Connected");
+            } else {
+                updateSignalUI('offline'); // Turn Red
+                console.log("Socket: Disconnected/Error");
+            }
+        });
+}
+
+
+// --- HELPER: PULL EXECUTION ---
+async function executeSmartPull() {
+    await pullDataFromCloud(true);
+    if (pendingSocketUpdate) {
+        pendingSocketUpdate = false;
+        setTimeout(executeSmartPull, 1000);
+    } else {
+        showToast('Data synced via Live Socket', 'success');
+    }
+}
+
+// --- HELPER: RECONNECT LOGIC ---
+function scheduleSocketReconnect() {
+    if (socketReconnectTimer) clearTimeout(socketReconnectTimer);
+    socketReconnectTimer = setTimeout(() => {
+        console.log('🔌 Reconnecting...');
+        subscribeToRealtime();
+    }, 5000);
+}
 
 // --- INITIALIZATION ---
 function initSupabase() {
     if (typeof window.supabase === 'undefined') return;
-
     try {
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         
         supabaseClient.auth.onAuthStateChange(async (event, session) => {
-            console.log(`Auth Event: ${event}`);
-            
             if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
                 currentUser = session?.user;
                 hideAuthOverlay();
-                
                 if (event === 'SIGNED_IN') {
                     startDatabaseHeartbeat();
-                    scheduleAutoBackup();
-                    console.log(' Connection established. Starting sync...');
                     await wakeUpDatabaseAndSync();
+                    await subscribeToRealtime();
                 }
             } else if (event === 'SIGNED_OUT') {
                 currentUser = null;
-                dbWakeUpAttempted = false;
-                stopDatabaseHeartbeat();
-                clearAutoBackup();
+                if (realtimeChannel) await supabaseClient.removeChannel(realtimeChannel);
+                realtimeChannel = null;
+                updateSignal('offline');
             }
         });
-
+        
         checkAuthState();
+
+        // Network Status Listeners
+        window.addEventListener('online', () => {
+            console.log('🌐 Online detected');
+            if (currentUser) subscribeToRealtime();
+        });
+        window.addEventListener('offline', () => {
+            console.log('🌐 Offline detected');
+            updateSignal('offline');
+        });
+        
+        // Tab Visibility Listener
+        document.addEventListener('visibilitychange', async () => {
+            if (document.visibilityState === 'visible' && currentUser) {
+                const state = realtimeChannel?.state;
+                if (state !== 'joined') await subscribeToRealtime();
+            }
+        });
 
     } catch (e) {
         console.error('Supabase Init Error:', e);
     }
 }
+
+
 
 // ============================================
 // ROBUST SMART MERGE (WITH DELETION PROTECTION)
@@ -8740,9 +8935,13 @@ async function pushDataToCloud(silent = false, retryCount = 0) {
         finalData.repProfile = currentRepProfile;
         finalData.adminPin = adminPin;
 
-        // STEP 4: UPLOAD
+                // STEP 4: UPLOAD
         const now = new Date().toISOString();
         
+        // CRITICAL: Update local storage timestamp BEFORE upload completes
+        // This ensures when the socket event comes back (echo), we know we sent it.
+        await idb.set('last_synced', now); 
+
         const uploadPromise = supabaseClient
             .from('user_data')
             .upsert({ 
@@ -8750,6 +8949,7 @@ async function pushDataToCloud(silent = false, retryCount = 0) {
                 data: finalData,
                 last_synced: now 
             }, { onConflict: 'user_id' });
+
 
         const timeoutPromise = new Promise((_, reject) => 
             setTimeout(() => reject(new Error("Upload timeout")), 30000)
