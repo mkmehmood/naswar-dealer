@@ -5053,6 +5053,10 @@ async function loadAllData() {
             unitCostHistory: []
         }
     };
+    function generateUUID(prefix = 'txn') {
+        return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+
     // --- DARK MODE TOGGLE ---
 async function toggleDarkMode() {
     const body = document.body;
@@ -5491,7 +5495,8 @@ window.addEventListener('offline', () => updateSignalUI('offline'));
         const timeString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} ${ampm}`;
 
         db.push({
-            id: Date.now(), 
+            id: generateUUID('prod'), 
+            timestamp: Date.now(),
             date: inputDate,
             time: timeString,
             store: store,
@@ -5556,7 +5561,7 @@ window.addEventListener('offline', () => updateSignalUI('offline'));
         const sortedDb = [...filteredData].sort((a,b) => {
             if (a.date === selectedDate && b.date !== selectedDate) return -1;
             if (a.date !== selectedDate && b.date === selectedDate) return 1;
-            return new Date(b.date) - new Date(a.date) || b.id - a.id;
+            return new Date(b.date) - new Date(a.date) || b.timestamp - a.timestamp;
         });
 
         let htmlBuffer = '';
@@ -6271,7 +6276,8 @@ async function savePaymentTransaction() {
     // - IN transaction: balance += amount (INCREASES their balance, creates receivable)
     
     paymentTransactions.push({
-        id: Date.now(),
+        id: generateUUID('pay'),
+        timestamp: Date.now(),
         entityId: entityId,
         entityName: entity.name,
         entityType: entity.type,
@@ -7187,7 +7193,7 @@ async function saveFactoryInventoryItem() {
     if(!name) return showToast("Name required", 'warning');
 
     const totalValue = qty * cost;
-    const materialId = editingFactoryInventoryId || Date.now();
+    const materialId = editingFactoryInventoryId || generateUUID('mat');
     let existingMaterial = null;
 
     // Handle editing existing material
@@ -7692,7 +7698,7 @@ async function linkMaterialToSupplier(materialId, supplierId, totalCost) {
         }
 
         factoryProductionHistory.unshift({
-            id: Date.now(),
+            id: generateUUID('fact_prod'),
             date: new Date().toISOString().split('T')[0],
             time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
             store: currentFactoryEntryStore,
@@ -8267,7 +8273,8 @@ async function saveCustomerSale() {
     
     // --- CREATE RECORD ---
     const saleRecord = {
-        id: Date.now(),
+        id: generateUUID('sale'),
+        timestamp: Date.now(),
         date: date,
         time: timeString,
         customerName: name,
@@ -8292,7 +8299,7 @@ async function saveCustomerSale() {
         const existingEntity = paymentEntities.find(e => e.name.toLowerCase() === name.toLowerCase());
         if (!existingEntity) {
             paymentEntities.push({
-                id: Date.now(),
+                id: generateUUID('ent'),
                 name: name,
                 type: 'payor', // Customers pay us
                 phone: phoneNumber,
@@ -9546,7 +9553,7 @@ async function saveTransaction() {
     // 9. CONSTRUCT ROBUST DATA OBJECT
     // We explicitly define every property to ensure NO data is missing
     const entry = {
-        id: Date.now(),
+        id: generateUUID('calc'),
         seller: seller,
         date: date,
         timestamp: new Date(date).getTime(),
@@ -10200,7 +10207,7 @@ function refreshUI() {
     const sortedDb = [...filteredData].sort((a,b) => {
         if (a.date === selectedDate && b.date !== selectedDate) return -1;
         if (a.date !== selectedDate && b.date === selectedDate) return 1;
-        return new Date(b.date) - new Date(a.date) || b.id - a.id;
+        return new Date(b.date) - new Date(a.date) || b.timestamp - a.timestamp;
     });
 
     let htmlBuffer = '';
@@ -13093,7 +13100,7 @@ async function saveEntity() {
     } else {
         // CREATE NEW
         paymentEntities.push({
-            id: Date.now(),
+            id: generateUUID('ent'),
             name,
             type,
             phone,
@@ -14474,7 +14481,7 @@ async function saveRepTransaction() {
         const totalValue = qty * salePrice;
         
         transactionRecord = {
-            id: Date.now(),
+            id: generateUUID('rep_sale'),
             date: date,
             time: timeString,
             customerName: name,
@@ -14488,7 +14495,7 @@ async function saveRepTransaction() {
             totalValue: totalValue,
             profit: totalValue - (qty * costPerKg),
             creditReceived: (payType === 'CASH'), 
-            timestamp: now.getTime(),
+            timestamp: Date.now(),
             isRepModeEntry: true, // Rep Mode Flag
             affectsInventory: false
         };
@@ -14499,7 +14506,7 @@ async function saveRepTransaction() {
         if(amount <= 0) { showToast("Enter Amount", "warning"); return; }
 
         transactionRecord = {
-            id: Date.now(),
+            id: generateUUID('rep_coll'),
             date: date,
             time: timeString,
             customerName: name,
@@ -14514,7 +14521,7 @@ async function saveRepTransaction() {
             profit: amount, 
             creditReceived: true,
             isCollection: true, 
-            timestamp: now.getTime(),
+            timestamp: Date.now(),
             isRepModeEntry: true, // Rep Mode Flag
             affectsInventory: false
         };
@@ -14627,7 +14634,7 @@ function adminSwitchRepProfile(newProfile) {
         const existingEntity = paymentEntities.find(e => e.name.toLowerCase() === name.toLowerCase());
         if (!existingEntity) {
             paymentEntities.push({
-                id: Date.now(),
+                id: generateUUID('ent'),
                 name: name,
                 type: 'payor',
                 phone: phoneNumber,
