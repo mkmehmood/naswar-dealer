@@ -74,7 +74,7 @@ html {
     overscroll-behavior-y: contain;
 }
 
-body {
+        body {
     font-family: 'Inter', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background: var(--bg-gradient);
     background-attachment: fixed;
@@ -93,6 +93,8 @@ body {
     overflow-x: hidden;
     width: 100%;
     box-sizing: border-box;
+    /* Global Font Size Reduction for Compact Look */
+    font-size: 13px;
 }
 
 *, *::before, *::after {
@@ -158,6 +160,10 @@ input, textarea, select, [contenteditable] {
             transform: translateZ(0);
             will-change: transform, box-shadow;
             transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            transform: translateZ(0);
+            -webkit-transform: translateZ(0);
             box-shadow: var(--shadow);
         }
 
@@ -841,20 +847,21 @@ input, textarea, select, [contenteditable] {
             display: flex; 
             background: var(--input-bg); 
             border-radius: 8px; 
-            padding: 3px; 
-            gap: 3px; 
+            padding: 2px; 
+            gap: 2px; 
             border: 1px solid var(--glass-border); 
             flex-wrap: wrap; 
             backdrop-filter: var(--backdrop-blur);
+            width: fit-content;
         }
         
         .toggle-opt { 
-            padding: 4px 8px; 
-            font-size: 10px; 
+            padding: 3px 6px; 
+            font-size: 9px; 
             font-weight: 700; 
             color: var(--text-muted); 
             cursor: pointer; 
-            border-radius: 6px; 
+            border-radius: 5px; 
             transition: 0.2s; 
             white-space: nowrap;
         }
@@ -4825,6 +4832,7 @@ async function loadAllData() {
         idb_db, 
         idb_salesHistory, 
         idb_customerSales, 
+        idb_repSales,
         idb_factoryInventoryData,
         idb_factoryProductionHistory, 
         idb_factoryDefaultFormulas, 
@@ -4844,6 +4852,7 @@ async function loadAllData() {
         idb.get('mfg_pro_pkr', []),
         idb.get('noman_history', []),
         idb.get('customer_sales', []),
+        idb.get('rep_sales', []),
         idb.get('factory_inventory_data', []),
         idb.get('factory_production_history', []),
         idb.get('factory_default_formulas', { standard: [], asaan: [] }),
@@ -4868,6 +4877,7 @@ async function loadAllData() {
     db = idb_db;
     salesHistory = idb_salesHistory;
     customerSales = idb_customerSales;
+    repSales = idb_repSales;
     factoryInventoryData = idb_factoryInventoryData;
     factoryProductionHistory = idb_factoryProductionHistory;
     factoryDefaultFormulas = idb_factoryDefaultFormulas;
@@ -4893,6 +4903,30 @@ async function loadAllData() {
     let db = [];
     let salesHistory = [];
     let customerSales = [];
+    let repSales = []; // Isolated Rep Data Structure
+
+    // --- MIGRATION LOGIC: customerSales to repSales ---
+    async function migrateRepData() {
+        const hasMigrated = await idb.get('rep_data_migrated', false);
+        if (hasMigrated) return;
+
+        console.log("Starting Rep Data Migration...");
+        const repEntries = customerSales.filter(s => s.isRepModeEntry === true);
+        
+        if (repEntries.length > 0) {
+            // Merge with existing repSales just in case
+            repSales = [...new Set([...repSales, ...repEntries])];
+            await idb.set('rep_sales', repSales);
+            
+            // Remove from customerSales
+            customerSales = customerSales.filter(s => s.isRepModeEntry !== true);
+            await idb.set('customer_sales', customerSales);
+            
+            console.log(`Migrated ${repEntries.length} entries to repSales.`);
+        }
+        
+        await idb.set('rep_data_migrated', true);
+    }
     
     // Factory data
     let factoryInventoryData = [];
@@ -8661,6 +8695,7 @@ async function pushDataToCloud(silent = false, retryCount = 0) {
         // customer_sales holds BOTH Admin Sales and Rep Sales
         finalData.mfg_pro_pkr = mergeDatasets(db, cloudData.mfg_pro_pkr);
         finalData.customer_sales = mergeDatasets(customerSales, cloudData.customer_sales); 
+        finalData.rep_sales = mergeDatasets(repSales, cloudData.rep_sales); 
         finalData.noman_history = mergeDatasets(salesHistory, cloudData.noman_history);
         finalData.factory_inventory_data = mergeDatasets(factoryInventoryData, cloudData.factory_inventory_data);
         finalData.factory_production_history = mergeDatasets(factoryProductionHistory, cloudData.factory_production_history);
@@ -8768,6 +8803,7 @@ if (cloud.deleted_records && Array.isArray(cloud.deleted_records)) {
 // 2. THEN: Smart Merge Data (Now using the updated deletedRecordIds)
 const mergedDB = mergeDatasets(db, cloud.mfg_pro_pkr);
         const mergedCustomerSales = mergeDatasets(customerSales, cloud.customer_sales);
+        const mergedRepSales = mergeDatasets(repSales, cloud.rep_sales);
         const mergedHistory = mergeDatasets(salesHistory, cloud.noman_history);
         const mergedFactoryInv = mergeDatasets(factoryInventoryData, cloud.factory_inventory_data);
         const mergedFactoryHist = mergeDatasets(factoryProductionHistory, cloud.factory_production_history);
@@ -8787,6 +8823,7 @@ const mergedDB = mergeDatasets(db, cloud.mfg_pro_pkr);
         // 2. CRITICAL: UPDATE GLOBAL DATA VARIABLES
         db = mergedDB;
         customerSales = mergedCustomerSales;
+        repSales = mergedRepSales;
         salesHistory = mergedHistory;
         factoryInventoryData = mergedFactoryInv;
         factoryProductionHistory = mergedFactoryHist;
@@ -8810,6 +8847,7 @@ const mergedDB = mergeDatasets(db, cloud.mfg_pro_pkr);
         const idbPromises = [
             idb.set('mfg_pro_pkr', mergedDB),
             idb.set('customer_sales', mergedCustomerSales),
+            idb.set('rep_sales', mergedRepSales),
             idb.set('noman_history', mergedHistory),
             idb.set('factory_inventory_data', mergedFactoryInv),
             idb.set('factory_production_history', mergedFactoryHist),
@@ -10386,6 +10424,9 @@ async function unifiedRestore(event) {
 
                     const cleanCustSales = (data.customerSales || []).filter(isAlive);
                     await idb.set('customer_sales', cleanCustSales);
+
+                    const cleanRepSales = (data.repSales || []).filter(isAlive);
+                    await idb.set('rep_sales', cleanRepSales);
                     
                     // Factory Data
                     const cleanFactoryInv = (data.factoryInventoryData || []).filter(isAlive);
@@ -11793,6 +11834,8 @@ function calculateTotalSoldForRepresentative(seller) {
 }
 
 
+// --- ENHANCED CALCULATOR TAB: AUTOMATIC CREDIT TRACKING ---
+
 // 2. Auto-Fill Calculator Fields with ISOLATED Data
 function autoFillTotalSoldQuantity() {
     const seller = document.getElementById('sellerSelect').value;
@@ -11811,7 +11854,8 @@ function autoFillTotalSoldQuantity() {
     }
     
     // --- FIELD 1: TOTAL SOLD (Read-Only) ---
-    // SOURCE: Sales Tab (Admin) ONLY
+    // SOURCE: customerSales (Admin Data)
+    // REASON: This represents stock given BY Admin TO Rep. It stays in customerSales.
     const totalSold = calculateTotalSoldForRepresentative(seller);
     
     totalSoldField.value = totalSold.toFixed(3);
@@ -11822,15 +11866,15 @@ function autoFillTotalSoldQuantity() {
     totalSoldField.style.border = '1px solid var(--accent)';
     
     // --- FIELDS 2 & 3: CREDIT SALES & RECOVERED ---
-    // SOURCE: Sales Rep Tab (Hidden) ONLY
+    // SOURCE: repSales (Rep Data) <<--- CHANGED THIS SOURCE
+    // REASON: This represents activity done BY the Rep. It is now in repSales.
     let creditSalesKg = 0;
     let recoveredCash = 0;
     
-    customerSales.forEach(sale => {
-        // Filter: Must be this Rep, this Date, AND created in Rep Mode
-        if (sale.salesRep === seller && 
-            sale.date === date && 
-            sale.isRepModeEntry === true) { // ISOLATION: Fetch only Rep entries
+    // Iterate through the new repSales array
+    repSales.forEach(sale => {
+        // Filter: Must be this Rep AND this Date
+        if (sale.salesRep === seller && sale.date === date) {
             
             // 2. Credit Sales Qty (Rep sold on credit)
             if (sale.paymentType === 'CREDIT') {
@@ -12226,6 +12270,12 @@ async function reverseReturnFromProduction(storeKey, quantity, date) {
         
         // 4. Update Header Stats
         calculateNetCash();
+
+        // 5. Refresh Rep Tab if active
+        if (appMode === 'rep') {
+            renderRepHistory();
+            renderRepCustomerTable();
+        }
     }
 
 // ==========================================
@@ -12239,6 +12289,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     try {
         // Initialize IndexedDB and load all data first
         await loadAllData();
+        await migrateRepData(); // Run migration after loading
         console.log(" Data loaded successfully from IndexedDB.");
     } catch (e) {
         console.error(" Critical Initialization Error:", e);
@@ -13751,6 +13802,7 @@ async function triggerLocalBackup() {
         mfg: db, 
         sales: await idb.get('noman_history', []),
         customerSales: await idb.get('customer_sales', []),
+        repSales: await idb.get('rep_sales', []),
         factoryInventoryData: factoryInventoryData,
         factoryProductionHistory: factoryProductionHistory,
         factoryDefaultFormulas: factoryDefaultFormulas,
@@ -14011,8 +14063,7 @@ function searchRepCustomers(query) {
     if (!query || query.length < 1) { resultsDiv.classList.add('hidden'); return; }
 
     // ISOLATION: Only show customers for THIS Rep created in Rep Mode
-    const myCustomers = customerSales.filter(s => 
-        s.isRepModeEntry === true && // Must be a Rep Entry
+    const myCustomers = repSales.filter(s => 
         s.salesRep === currentRepProfile
     );
     
@@ -14057,7 +14108,7 @@ function calculateRepCustomerStats(name) {
     }
     
     // Calculate total debt for this specific customer
-    const history = customerSales.filter(s => 
+    const history = repSales.filter(s => 
         s.customerName.toLowerCase() === name.toLowerCase() &&
         s.salesRep === currentRepProfile
     );
@@ -14191,8 +14242,8 @@ async function saveRepTransaction() {
         }
     }
 
-    customerSales.push(transactionRecord);
-    await idb.set('customer_sales', customerSales);
+    repSales.push(transactionRecord);
+    await idb.set('rep_sales', repSales);
     notifyDataChange('all');
 
     // --- CLEANUP ---
@@ -14220,8 +14271,7 @@ function renderRepCustomerTable() {
     tbody.innerHTML = '';
 
     // ISOLATION: Filter strictly for Rep Mode entries
-    const myData = customerSales.filter(s => 
-        s.isRepModeEntry === true &&
+    const myData = repSales.filter(s => 
         s.salesRep === currentRepProfile 
     );
     
@@ -14270,7 +14320,7 @@ async function openRepCustomerManagement(customerName) {
     currentManagingCustomer = customerName;
     
     // Filter transactions for this specific customer and rep
-    const customerTransactions = customerSales.filter(s => 
+    const customerTransactions = repSales.filter(s => 
         s.customerName === customerName && 
         s.salesRep === currentRepProfile
     );
@@ -14302,7 +14352,7 @@ async function renderRepCustomerTransactions(name) {
     list.innerHTML = '';
 
     // Filter sales for this customer AND this rep
-    const transactions = customerSales.filter(s => 
+    const transactions = repSales.filter(s => 
         s.customerName === name && 
         s.salesRep === currentRepProfile
     );
@@ -14396,7 +14446,7 @@ function openCustomerEditModal(customerName) {
     const entity = paymentEntities.find(e => e.name.toLowerCase() === customerName.toLowerCase());
     
     // Find phone from sales records if not in entity
-    const saleRecord = customerSales.find(s => s.customerName === customerName && s.customerPhone);
+    const saleRecord = repSales.find(s => s.customerName === customerName && s.customerPhone);
     
     // Populate Fields
     document.getElementById('edit-cust-phone').value = entity?.phone || saleRecord?.customerPhone || '';
@@ -14444,7 +14494,7 @@ async function saveCustomerDetails() {
     
     // 3. Update Sales Records (Optional: Update flat phone data in sales history for consistency)
     let salesUpdated = false;
-    customerSales.forEach(sale => {
+    repSales.forEach(sale => {
         if(sale.customerName === name && sale.customerPhone !== phone) {
             sale.customerPhone = phone;
             salesUpdated = true;
@@ -14452,7 +14502,7 @@ async function saveCustomerDetails() {
     });
     
     if(salesUpdated) {
-        await idb.set('customer_sales', customerSales);
+        await idb.set('rep_sales', repSales);
     }
     
     // 4. Sync & Refresh
@@ -14627,9 +14677,8 @@ function renderRepHistory() {
     const headerText = isToday ? "Today's Activity" : `Activity for ${selectedDate}`;
 
     // Filter data by the SELECTED date
-    const activityData = customerSales
+    const activityData = repSales
         .filter(s => 
-            s.isRepModeEntry === true && // Strict check for Rep Mode
             s.salesRep === currentRepProfile && 
             s.date === selectedDate // Match the date picker
         )
@@ -14913,15 +14962,14 @@ document.addEventListener('DOMContentLoaded', async function() {
 
 
 
-async function deleteRepTransaction(id) {
-    if (confirm("Are you sure you want to delete this transaction?")) {
-     await registerDeletion(id);
-        // 1. Filter out the transaction from the customerSales array
-        customerSales = customerSales.filter(transaction => transaction.id !== id);
+
+    async function deleteRepTransaction(id) {
+    if (confirm("Delete this transaction permanently?")) {
+        // 1. Filter out the transaction from the repSales array
+        repSales = repSales.filter(transaction => transaction.id !== id);
         
-        // 2. Persist the updated data to IndexedDB
-        await idb.set('customer_sales', customerSales);
-        notifyDataChange('all');
+        // 2. Save the updated array back to IndexedDB
+        await idb.set('rep_sales', repSales);      notifyDataChange('all');
 
         // 3. REFRESH UI: Update the specific Rep History List
         // FIX: The function to render rep history is renderRepHistory(), not renderTodayActivity
@@ -14969,7 +15017,7 @@ function handleCustomerInput(query, mode) {
     // 2. Check if the typed name matches an existing customer exactly
     // We get the list of existing names from our sales history/entities
     const allSales = isRep ? 
-        customerSales.filter(s => s.isRepModeEntry === true && s.salesRep === currentRepProfile) : 
+        repSales.filter(s => s.salesRep === currentRepProfile) : 
         customerSales.filter(s => s.isRepModeEntry !== true);
         
     const existingNames = [...new Set(allSales.map(s => s.customerName.toLowerCase()))];
