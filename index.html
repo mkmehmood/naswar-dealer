@@ -3287,12 +3287,14 @@ body.dark-mode .units-available-danger {
 
 
     <div class="nav-tabs">
-        <button class="tab-btn active" onclick="showTab('prod')">PRODUCTION</button>
-        <button class="tab-btn" onclick="showTab('sales')">SALES</button>
-        <button class="tab-btn" onclick="showTab('calc')">CALCULATOR</button>
-        <button class="tab-btn" onclick="showTab('factory')">FACTORY</button>
-        <button class="tab-btn" onclick="showTab('payments')">PAYMENTS</button>
-    </div>
+    <button class="tab-btn active" onclick="showTab('prod')">PRODUCTION</button>
+    <button class="tab-btn" onclick="showTab('sales')">SALES</button>
+    <button class="tab-btn" onclick="showTab('calc')">CALCULATOR</button>
+    <button class="tab-btn" onclick="showTab('factory')">FACTORY</button>
+    <button class="tab-btn" onclick="showTab('payments')">PAYMENTS</button>
+    <button class="tab-btn" onclick="showTab('rep')">REP SALES</button>
+</div>
+
 
 
 <div id="adminPinOverlay" class="factory-overlay">
@@ -3306,13 +3308,28 @@ body.dark-mode .units-available-danger {
     </div>
 </div>
 <div id="tab-rep" class="hidden">
-    <div id="rep-header"  style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; background: var(--glass); padding: 15px; border-radius: 20px; border: 1px solid var(--glass-border);">
-    <div>
-        <h2 style="margin:0; color:var(--accent);"> <span id="current-rep-name-display">REP MODE</span></h2>
-        <span style="font-size: 0.7rem; color: var(--text-muted);">Restricted Access</span>
+    
+    <div id="admin-rep-controls" class="section liquid-card hidden" style="margin-bottom: 20px; border-left: 4px solid var(--accent); background: var(--input-bg);">
+        <div class="section-header">
+            <h3 style="margin:0; color:var(--text-main); font-size: 0.9rem;">Admin View</h3>
+        </div>
+        <div class="field" style="margin-top: 10px;">
+            <label style="color: var(--accent);">view For:</label>
+            <select id="admin-rep-selector" class="store-selector" onchange="adminSwitchRepProfile(this.value)">
+                <option value="NORAN SHAH">NORAN SHAH</option>
+                <option value="NOMAN SHAH">NOMAN SHAH</option>
+            </select>
+        </div>
     </div>
-    <button class="btn btn-danger" onclick="openAdminPinModal()"> Admin Access</button>
-</div>
+
+    <div id="rep-header" style="margin-bottom: 20px; display: none; justify-content: space-between; align-items: center; background: var(--glass); padding: 15px; border-radius: 20px; border: 1px solid var(--glass-border);">
+        <div>
+         <h2 style="margin:0; color:var(--accent);"> <span id="current-rep-name-display">REP MODE</span></h2>
+        <span style="font-size: 0.7rem; color: var(--text-muted);"> </span>
+    </div>
+    <button class="btn btn-danger" onclick="openAdminPinModal()">  Access</button>
+    </div>
+
     <div class="section liquid-card">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
             <h3 style="color:var(--accent); margin:0;">New Transaction</h3>
@@ -3323,23 +3340,20 @@ body.dark-mode .units-available-danger {
         </div>
         
         <div class="grid-inputs">
-       <div class="field"><label>Date</label><input type="date" id="rep-date" onchange="renderRepHistory()"></div>
+            <div class="field"><label>Date</label><input type="date" id="rep-date" onchange="renderRepHistory()"></div>
 
-        <div class="field">
-    <label>Customer Name</label>
-    <input type="text" id="rep-cust-name" placeholder="Search my customers..." 
-           oninput="handleCustomerInput(this.value, 'rep')" autocomplete="off">
-    <div id="rep-customer-search-results" class="hidden" style="position: absolute; z-index: 1000; width: 100%; max-height: 200px; overflow-y: auto; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 10px; margin-top: 60px; box-shadow: var(--shadow);"></div>
-</div>
-
-<div id="rep-new-customer-phone-container" class="hidden" style="margin-top: 8px; animation: slideDown 0.3s ease;">
-    <div class="field">
-        <label style="color: var(--accent-emerald);">Mobile number</label>
-        <input type="tel" id="rep-new-cust-phone" placeholder="03XX-XXXXXXX" style="border-color: var(--accent-emerald);">
-    </div>
-
-
+            <div class="field">
+                <label>Customer Name</label>
+                <input type="text" id="rep-cust-name" placeholder="Search customer..." 
+                       oninput="handleCustomerInput(this.value, 'rep')" autocomplete="off">
                 <div id="rep-customer-search-results" class="hidden" style="position: absolute; z-index: 1000; width: 100%; max-height: 200px; overflow-y: auto; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 10px; margin-top: 60px; box-shadow: var(--shadow);"></div>
+            </div>
+        </div>
+
+        <div id="rep-new-customer-phone-container" class="hidden" style="margin-top: 8px; animation: slideDown 0.3s ease;">
+            <div class="field">
+                <label style="color: var(--accent-emerald);">Mobile number</label>
+                <input type="tel" id="rep-new-cust-phone" placeholder="03XX-XXXXXXX" style="border-color: var(--accent-emerald);">
             </div>
         </div>
 
@@ -3385,31 +3399,31 @@ body.dark-mode .units-available-danger {
     </div>
 
     <div class="section liquid-card">
-   <div class="section-header" style="position: relative;">
-    <h3 style="color:var(--text-main); margin:0;">My Customer List</h3>
-    
-    <div style="display: flex; gap: 8px; align-items: center;">
-        <input type="text" id="rep-filter" class="search-bar" placeholder="Filter list..." style="width: 120px; font-size: 0.7rem;" oninput="renderRepCustomerTable()">
-        <button class="btn-theme" onclick="exportCustomerData('rep')" title="Download CSV" style="color: var(--accent-emerald); border-color: var(--accent-emerald);">
-            ⬇
-        </button>
-    </div>
-</div>
+        <div class="section-header" style="position: relative;">
+            <h3 style="color:var(--text-main); margin:0;">Customer List</h3>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <input type="text" id="rep-filter" class="search-bar" placeholder="Filter list..." style="width: 120px; font-size: 0.7rem;" oninput="renderRepCustomerTable()">
+                <button class="btn-theme" onclick="exportCustomerData('rep')" title="Download CSV" style="color: var(--accent-emerald); border-color: var(--accent-emerald);">
+                    ⬇
+                </button>
+            </div>
+        </div>
 
         <div style="overflow-x: auto; max-height: 400px; overflow-y: auto;">
-          <table class="comp-table" style="font-size: 0.75rem;">
-    <thead>
-        <tr>
-            <th style="text-align: left; font-weight: 800;">Customer</th>
-            <th style="text-align: right; font-weight: 800;">Credit</th>
-            <th style="text-align: right; font-weight: 800;">Activity</th>
-            <th style="text-align: center; font-weight: 800;">Actions</th>
-        </tr>
-    </thead>
-    <tbody id="rep-customers-table-body"></tbody>
-</table>
-</div>
-</div>
+            <table class="comp-table" style="font-size: 0.75rem;">
+                <thead>
+                    <tr>
+                        <th style="text-align: left; font-weight: 800;">Customer</th>
+                        <th style="text-align: right; font-weight: 800;">Credit</th>
+                        <th style="text-align: right; font-weight: 800;">Activity</th>
+                        <th style="text-align: center; font-weight: 800;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="rep-customers-table-body"></tbody>
+            </table>
+        </div>
+    </div>
+
     <div class="section liquid-card">
         <h3 style="color:var(--text-main); margin:0 0 15px 0;">Today's Activity</h3>
         <div id="repHistoryList" class="report-grid"></div>
@@ -10491,30 +10505,36 @@ function initFactoryTab() {
         }
     });
 }
-    // --- UI Navigation ---
-    async function showTab(tab) {
-    document.getElementById('tab-prod').className = tab === 'prod' ? '' : 'hidden';
-    document.getElementById('tab-sales').className = tab === 'sales' ? '' : 'hidden';
-    document.getElementById('tab-calc').className = tab === 'calc' ? '' : 'hidden';
-    document.getElementById('tab-factory').className = tab === 'factory' ? '' : 'hidden';
-    document.getElementById('tab-payments').className = tab === 'payments' ? '' : 'hidden';
-    
+// --- UPDATED: TAB NAVIGATION FUNCTION ---
+async function showTab(tab) {
+    // 1. Hide all tabs initially
+    document.getElementById('tab-prod').className = 'hidden';
+    document.getElementById('tab-sales').className = 'hidden';
+    document.getElementById('tab-calc').className = 'hidden';
+    document.getElementById('tab-factory').className = 'hidden';
+    document.getElementById('tab-payments').className = 'hidden';
+    document.getElementById('tab-rep').className = 'hidden'; // Added rep tab handling
+
+    // 2. Show the selected tab
+    const selectedTabElement = document.getElementById('tab-' + tab);
+    if (selectedTabElement) selectedTabElement.className = '';
+
+    // 3. Update Bottom Navigation Active States
     document.querySelectorAll('.tab-btn').forEach((btn, i) => {
         btn.classList.toggle('active', 
             (tab === 'prod' && i === 0) || 
             (tab === 'sales' && i === 1) || 
             (tab === 'calc' && i === 2) ||
             (tab === 'factory' && i === 3) ||
-            (tab === 'payments' && i === 4)
+            (tab === 'payments' && i === 4) ||
+            (tab === 'rep' && i === 5) // New index for Rep Tab
         );
     });
     
-    // NEW: Scroll to top smoothly when switching tabs
-    window.scrollTo({
-        top: 0,
-        behavior: 'smooth'
-    });
+    // 4. Smooth scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     
+    // 5. Specific Tab Logic
     if(tab === 'sales') { 
         refreshCustomerSales(); 
         updateCustomerCharts(); 
@@ -10523,7 +10543,56 @@ function initFactoryTab() {
     if(tab === 'prod') refreshUI();
     if(tab === 'factory') initFactoryTab();
     if(tab === 'payments') refreshPaymentTab();
+
+    // 6. REP TAB LOGIC (New)
+    if(tab === 'rep') {
+        const repHeader = document.getElementById('rep-header');
+        const adminControls = document.getElementById('admin-rep-controls');
+        const adminSelector = document.getElementById('admin-rep-selector');
+
+        if (appMode === 'admin') {
+            // ADMIN VIEW: Hide "Locked" card, Show Selector
+            repHeader.style.display = 'none'; 
+            adminControls.classList.remove('hidden');
+            
+            // Default dropdown to current profile or first option
+            if (adminSelector && !adminSelector.value) {
+                adminSelector.value = currentRepProfile; 
+            }
+            // Ensure global profile matches dropdown to show correct data
+            if (adminSelector) currentRepProfile = adminSelector.value;
+        } else {
+             // --- REP MODE (Repo Mod) ---
+            // Show the "Restricted Access" header
+            if(repHeader) repHeader.style.display = 'flex';
+            
+            // HIDE the Admin Control Card
+            if(adminControls) adminControls.classList.add('hidden');
+        }
+        
+        // Render data for the active profile
+        refreshRepUI();
+    }
+    
+    // 7. Sync Notify
+    setTimeout(() => notifyDataChange(tab), 100);
 }
+
+// --- NEW FUNCTION: ADMIN REP SELECTION ---
+function adminSwitchRepProfile(newProfile) {
+    if (appMode !== 'admin') return;
+    
+    currentRepProfile = newProfile;
+    
+    // Update UI
+    refreshRepUI();
+    
+    // Optional: Visual Feedback
+    if(typeof showToast === 'function') {
+        showToast(`Viewing dashboard for ${newProfile}`, 'info');
+    }
+}
+
 
     // --- CHARTS AND GRAPHS FUNCTIONS (UPDATED WITH ALL TIMES) ---
     function setMfgChartMode(mode) {
@@ -12284,7 +12353,7 @@ async function reverseReturnFromProduction(storeKey, quantity, date) {
 
 document.addEventListener('DOMContentLoaded', async function() {
     // 1. Strict Initialization: Ensure no UI rendering until loadAllData is complete
-    console.log(" System Initializing (Strict IDB-Only Mode)...");
+    console.log(" System Initializing ");
     
     try {
         // Initialize IndexedDB and load all data first
