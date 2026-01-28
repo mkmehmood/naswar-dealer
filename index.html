@@ -15,7 +15,9 @@
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/dist/umd/supabase.js"></script>
-    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
@@ -3309,18 +3311,24 @@ body.dark-mode .units-available-danger {
 </div>
 <div id="tab-rep" class="hidden">
     
-    <div id="admin-rep-controls" class="section liquid-card hidden" style="margin-bottom: 20px; border-left: 4px solid var(--accent); background: var(--input-bg);">
-        <div class="section-header">
-            <h3 style="margin:0; color:var(--text-main); font-size: 0.9rem;">Admin View</h3>
-        </div>
-        <div class="field" style="margin-top: 10px;">
-            <label style="color: var(--accent);">view For:</label>
-            <select id="admin-rep-selector" class="store-selector" onchange="adminSwitchRepProfile(this.value)">
-                <option value="NORAN SHAH">NORAN SHAH</option>
-                <option value="NOMAN SHAH">NOMAN SHAH</option>
-            </select>
-        </div>
+<div id="admin-rep-controls" class="section liquid-card hidden" style="...">
+    <div class="section-header">
+        <h3 style="margin:0; color:var(--text-main); font-size: 0.9rem;">Admin View</h3>
     </div>
+    <div class="field" style="margin-top: 10px;">
+        <label style="color: var(--accent);">View For:</label>
+        <select id="admin-rep-selector" class="store-selector" onchange="adminSwitchRepProfile(this.value)">
+            <option value="NORAN SHAH">NORAN SHAH</option>
+            <option value="NOMAN SHAH">NOMAN SHAH</option>
+        </select>
+    </div>
+
+    <div id="rep-map-container" style="height: 300px; width: 100%; margin-top: 15px; border-radius: 12px; border: 2px solid var(--glass-border); z-index: 1;"></div>
+    <div style="text-align: right; font-size: 0.7rem; color: var(--text-muted); margin-top: 5px;">
+        🔵 Sale | 🟢 Collection 
+    </div>
+</div>
+
 
     <div id="rep-header" style="margin-bottom: 20px; display: none; justify-content: space-between; align-items: center; background: var(--glass); padding: 15px; border-radius: 20px; border: 1px solid var(--glass-border);">
         <div>
@@ -10545,33 +10553,42 @@ async function showTab(tab) {
     if(tab === 'payments') refreshPaymentTab();
 
     // 6. REP TAB LOGIC (New)
-    if(tab === 'rep') {
+       if(tab === 'rep') {
         const repHeader = document.getElementById('rep-header');
         const adminControls = document.getElementById('admin-rep-controls');
         const adminSelector = document.getElementById('admin-rep-selector');
 
         if (appMode === 'admin') {
-            // ADMIN VIEW: Hide "Locked" card, Show Selector
-            repHeader.style.display = 'none'; 
-            adminControls.classList.remove('hidden');
-            
-            // Default dropdown to current profile or first option
-            if (adminSelector && !adminSelector.value) {
-                adminSelector.value = currentRepProfile; 
+            // --- ADMIN VIEW ---
+            // Show Admin Controls (Map + Selector)
+            if(adminControls) {
+                adminControls.classList.remove('hidden');
+                adminControls.style.display = 'block';
             }
-            // Ensure global profile matches dropdown to show correct data
-            if (adminSelector) currentRepProfile = adminSelector.value;
-        } else {
-             // --- REP MODE (Repo Mod) ---
-            // Show the "Restricted Access" header
-            if(repHeader) repHeader.style.display = 'flex';
+            // Hide "Locked" Header
+            if(repHeader) repHeader.style.display = 'none';
             
-            // HIDE the Admin Control Card
-            if(adminControls) adminControls.classList.add('hidden');
+            // Render Map immediately if in Admin View
+            setTimeout(() => {
+                if (typeof updateRepLiveMap === 'function') updateRepLiveMap();
+            }, 200);
+
+        } else {
+             // --- REP MODE ---
+            // HIDE Admin Controls (Map + Selector)
+            if(adminControls) {
+                adminControls.classList.add('hidden');
+                adminControls.style.display = 'none';
+            }
+            // SHOW "Locked" Header
+            if(repHeader) {
+                repHeader.classList.remove('hidden');
+                repHeader.style.display = 'flex';
+            }
         }
         
         // Render data for the active profile
-        refreshRepUI();
+        if(typeof refreshRepUI === 'function') refreshRepUI();
     }
     
     // 7. Sync Notify
@@ -14222,11 +14239,20 @@ async function saveRepTransaction() {
     const date = document.getElementById('rep-date').value;
     const name = document.getElementById('rep-cust-name').value.trim();
     
-    // --- NEW: Phone Number Capture ---
+    // --- PHONE ---
     const phoneInput = document.getElementById('rep-new-cust-phone');
     const phoneNumber = (!document.getElementById('rep-new-customer-phone-container').classList.contains('hidden')) 
                         ? phoneInput.value.trim() 
                         : '';
+
+    // --- 📍 GPS CAPTURE (NEW) ---
+    let gpsCoords = null;
+    try {
+        // Call the helper function we defined at the bottom
+        gpsCoords = await getPosition(); 
+    } catch (e) {
+        console.log("GPS unavailable");
+    }
 
     if(!date || !name) { showToast("Date and Name required", "warning"); return; }
 
@@ -14257,6 +14283,7 @@ async function saveRepTransaction() {
             supplyStore: 'STORE_A', 
             paymentType: payType, 
             salesRep: currentRepProfile, 
+            gps: gpsCoords, // <--- ADD THIS LINE
             totalCost: qty * costPerKg,
             totalValue: totalValue,
             profit: totalValue - (qty * costPerKg),
@@ -14281,6 +14308,7 @@ async function saveRepTransaction() {
             supplyStore: 'STORE_A',
             paymentType: 'COLLECTION', 
             salesRep: currentRepProfile,
+            gps: gpsCoords, // <--- ADD THIS LINE
             totalCost: 0,
             totalValue: amount, 
             profit: amount, 
@@ -14291,6 +14319,107 @@ async function saveRepTransaction() {
             affectsInventory: false
         };
     }
+    
+let repMap = null;
+let repMapMarkers = [];
+let repPolyline = null;
+
+// Initialize Map (Call this once when app loads or Admin tab opens)
+function initRepMap() {
+    if (repMap) return; // Already initialized
+
+    // Default to Bannu coordinates, zoom level 13
+    repMap = L.map('rep-map-container').setView([32.9910, 70.6055], 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(repMap);
+}
+
+// Render the Route
+function updateRepLiveMap() {
+    if (!repMap) initRepMap();
+
+    // 1. Clear existing markers
+    repMapMarkers.forEach(layer => repMap.removeLayer(layer));
+    repMapMarkers = [];
+    if (repPolyline) repMap.removeLayer(repPolyline);
+
+    const dateInput = document.getElementById('rep-date');
+    const selectedDate = dateInput ? dateInput.value : new Date().toISOString().split('T')[0];
+
+    // 2. Filter data for Selected Rep and Date
+    // Sort by timestamp to draw the path in order
+    const dailyRoute = repSales
+        .filter(s => s.salesRep === currentRepProfile && s.date === selectedDate && s.gps)
+        .sort((a, b) => a.timestamp - b.timestamp);
+
+    if (dailyRoute.length === 0) {
+        // No GPS data found
+        return;
+    }
+
+    const latLngs = [];
+
+    // 3. Plot Markers
+    dailyRoute.forEach(txn => {
+        const lat = txn.gps.lat;
+        const lng = txn.gps.lng;
+        latLngs.push([lat, lng]);
+
+        // Determine Color based on type
+        let color = '#3b82f6'; // Blue (Sale)
+        let typeStr = 'Sale';
+        if (txn.paymentType === 'COLLECTION') { 
+            color = '#10b981'; // Green (Collection)
+            typeStr = 'Collection';
+        }
+
+        // Create a custom circle marker
+        const marker = L.circleMarker([lat, lng], {
+            radius: 8,
+            fillColor: color,
+            color: '#fff',
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.8
+        })
+        .bindPopup(`
+            <strong>${txn.customerName}</strong><br>
+            ${txn.time}<br>
+            ${typeStr}: Rs ${txn.totalValue.toFixed(0)}
+        `);
+
+        marker.addTo(repMap);
+        repMapMarkers.push(marker);
+    });
+
+    // 4. Draw Path (Polyline)
+    if (latLngs.length > 1) {
+        repPolyline = L.polyline(latLngs, {
+            color: 'var(--accent)', // Uses your CSS variable color if parsed, or use hex '#2563eb'
+            weight: 3,
+            opacity: 0.6,
+            dashArray: '5, 10'
+        }).addTo(repMap);
+    }
+
+    // 5. Fit Bounds to show all points
+    const group = new L.featureGroup(repMapMarkers);
+    repMap.fitBounds(group.getBounds().pad(0.1));
+}
+
+function adminSwitchRepProfile(newProfile) {
+    if (appMode !== 'admin') return;
+    currentRepProfile = newProfile;
+
+    refreshRepUI();
+    updateRepLiveMap(); // <--- Add this
+
+    if(typeof showToast === 'function') {
+        showToast(`Viewing dashboard for ${newProfile}`, 'info');
+    }
+}
 
     // --- SAVE TO ENTITIES (If New) ---
     // Rep customers are also added to the main entity list so admin can see them
@@ -14829,7 +14958,17 @@ function renderRepHistory() {
 function refreshRepUI() {
     renderRepCustomerTable();
     renderRepHistory();
+    
+    // Only update map if in Admin mode (Reps don't need to track themselves)
+    if (appMode === 'admin') {
+        // Check if map function exists to prevent errors
+        if (typeof updateRepLiveMap === 'function') {
+            // Small timeout to allow the div to become visible
+            setTimeout(updateRepLiveMap, 200); 
+        }
+    }
 }
+
 // ==========================================
 // ADMIN & REP MODE LOGIC (GLOBAL SCOPE)
 // ==========================================
@@ -14877,34 +15016,42 @@ async function activateRepMode() {
 
 // 2. LOCK UI (Hides Admin Tabs)
 function lockToRepMode() {
-    // Hide standard nav tabs
+    // 1. Hide Standard Nav Tabs (Bottom Bar)
     const nav = document.querySelector('.nav-tabs');
     if(nav) nav.style.display = 'none';
     
-    // Hide all main content tabs
+    // 2. Hide all main content tabs initially
     ['prod', 'sales', 'calc', 'factory', 'payments'].forEach(t => {
         const el = document.getElementById('tab-' + t);
         if(el) el.classList.add('hidden');
     });
     
-    // Show Rep Tab
+    // 3. Force Show Rep Tab
     const repTab = document.getElementById('tab-rep');
     if(repTab) repTab.classList.remove('hidden');
     
-    // Show Rep Header
+    // 4. HIDE ADMIN CARD (Map + Selector) - Critical Fix
+    const adminControls = document.getElementById('admin-rep-controls');
+    if(adminControls) {
+        adminControls.classList.add('hidden'); // Use class to hide
+        adminControls.style.display = 'none';  // Double ensure with inline style
+    }
+
+    // 5. SHOW REP HEADER (Locked State)
     const repHeader = document.getElementById('rep-header');
     if(repHeader) {
         repHeader.classList.remove('hidden');
         repHeader.style.display = 'flex';
     }
     
-    // Update Display Name
+    // 6. Update Display Name
     const nameDisplay = document.getElementById('current-rep-name-display');
     if(nameDisplay) nameDisplay.innerText = currentRepProfile;
     
-    // Refresh Data if function exists
+    // 7. Refresh Data
     if(typeof refreshRepUI === 'function') refreshRepUI();
 }
+
 
 // 3. OPEN ADMIN PIN MODAL
 function openAdminPinModal() {
@@ -15114,6 +15261,149 @@ window.selectRepCustomer = function(name) {
     document.getElementById('rep-new-cust-phone').value = ''; // Clear value
 };
 
+// ==========================================
+// 🗺️ LIVE TRACKING MAP FUNCTIONS (LEAFLET)
+// ==========================================
+
+let repMap = null;
+let repMapMarkers = [];
+let repPolyline = null;
+
+// Helper to safely get GPS coordinates
+function getPosition() {
+    return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+            resolve(null);
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            (position) => resolve({
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+                accuracy: position.coords.accuracy
+            }),
+            (error) => {
+                console.log("GPS Error:", error);
+                resolve(null); // Resolve null on error so app doesn't crash
+            },
+            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+        );
+    });
+}
+
+// Initialize the Map
+function initRepMap() {
+    // Safety Check: Ensure Leaflet is loaded and container exists
+    if (typeof L === 'undefined') {
+        console.warn("Leaflet JS not loaded");
+        return;
+    }
+    const container = document.getElementById('rep-map-container');
+    if (!container) return;
+
+    // Prevent re-initialization error
+    if (repMap !== null) {
+        repMap.remove(); // Clean up existing map instance
+    }
+
+    // Default View (Bannu)
+    repMap = L.map('rep-map-container').setView([32.9910, 70.6055], 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(repMap);
+}
+
+// Update the Map with Breadcrumbs
+function updateRepLiveMap() {
+    // 1. Safety Checks
+    if (typeof L === 'undefined') return;
+    const container = document.getElementById('rep-map-container');
+    
+    // Only run if the map container is actually visible on screen
+    if (!container || container.offsetParent === null) return;
+
+    if (!repMap) initRepMap();
+
+    // 2. Clear old layers
+    if (repMapMarkers.length > 0) {
+        repMapMarkers.forEach(layer => repMap.removeLayer(layer));
+        repMapMarkers = [];
+    }
+    if (repPolyline) {
+        repMap.removeLayer(repPolyline);
+        repPolyline = null;
+    }
+
+    // 3. Get Data for Selected Rep & Date
+    // Use the rep-date input, or default to today
+    const dateInput = document.getElementById('rep-date');
+    const selectedDate = dateInput && dateInput.value ? dateInput.value : new Date().toISOString().split('T')[0];
+
+    // Filter Sales History
+    const dailyRoute = repSales
+        .filter(s => s.salesRep === currentRepProfile && s.date === selectedDate && s.gps)
+        .sort((a, b) => a.timestamp - b.timestamp);
+
+    if (dailyRoute.length === 0) {
+        // No data? Just re-center on Bannu
+        // repMap.setView([32.9910, 70.6055], 13);
+        return;
+    }
+
+    const latLngs = [];
+
+    // 4. Plot Points
+    dailyRoute.forEach(txn => {
+        if (txn.gps && txn.gps.lat && txn.gps.lng) {
+            const lat = txn.gps.lat;
+            const lng = txn.gps.lng;
+            latLngs.push([lat, lng]);
+
+            // Color Coding
+            let color = '#3b82f6'; // Blue (Sale)
+            let typeStr = 'Sale';
+            
+            if (txn.paymentType === 'COLLECTION') { 
+                color = '#10b981'; // Green (Collection)
+                typeStr = 'Collection';
+            }
+
+            const marker = L.circleMarker([lat, lng], {
+                radius: 8,
+                fillColor: color,
+                color: '#fff',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.8
+            })
+            .bindPopup(`
+                <strong>${txn.customerName}</strong><br>
+                ${txn.time}<br>
+                ${typeStr}: Rs ${txn.totalValue.toFixed(0)}
+            `);
+
+            marker.addTo(repMap);
+            repMapMarkers.push(marker);
+        }
+    });
+
+    // 5. Draw Connecting Lines
+    if (latLngs.length > 1) {
+        repPolyline = L.polyline(latLngs, {
+            color: '#2563eb', // Matches your --accent variable
+            weight: 3,
+            opacity: 0.6,
+            dashArray: '5, 10'
+        }).addTo(repMap);
+    }
+
+    // 6. Fit Map to show all points
+    if (repMapMarkers.length > 0) {
+        const group = new L.featureGroup(repMapMarkers);
+        repMap.fitBounds(group.getBounds().pad(0.1));
+    }
+}
 
 
 
