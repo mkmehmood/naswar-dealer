@@ -3335,14 +3335,15 @@ body.dark-mode .units-available-danger {
 
         
         <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
-                <button class="btn btn-main" onclick="triggerCloudAction('backup')">
-         Backup to Cloud
+    <button class="btn btn-main" id="sync-btn" onclick="performOneClickSync()" style="background: linear-gradient(135deg, #2563eb 0%, #059669 100%); font-size: 1rem; padding: 15px;">
+         SYNC DATA 
     </button>
+    <div style="font-size: 0.7rem; color: var(--text-muted); text-align: center; margin-bottom: 10px;">
+        
+    </div>
 </div>
 <div class="field">
-    <button class="btn btn-noman" onclick="triggerCloudAction('restore')">
-         Restore from Cloud
-    </button>
+
             
             <hr style="width: 100%; border: 0; border-top: 1px solid var(--glass-border); margin: 5px 0;">
             
@@ -5558,11 +5559,16 @@ window.addEventListener('offline', () => updateSignalUI('offline'));
         
         let filteredData = currentProductionView === 'combined' ? db : db.filter(item => item.store === currentStore);
 
-        const sortedDb = [...filteredData].sort((a,b) => {
-            if (a.date === selectedDate && b.date !== selectedDate) return -1;
-            if (a.date !== selectedDate && b.date === selectedDate) return 1;
-            return new Date(b.date) - new Date(a.date) || b.timestamp - a.timestamp;
-        });
+        const sortedDb = [...filteredData].sort((a, b) => {
+    // 1. If one is the selected date and the other isn't, put the selected date first
+    if (a.date === selectedDate && b.date !== selectedDate) return -1;
+    if (a.date !== selectedDate && b.date === selectedDate) return 1;
+
+    // 2. Otherwise, sort by timestamp (newest first)
+    // This ensures that even on the same day, the most recent entry is at the top
+    return b.timestamp - a.timestamp;
+});
+
 
         let htmlBuffer = '';
 
@@ -7764,20 +7770,24 @@ async function linkMaterialToSupplier(materialId, supplierId, totalCost) {
         
         updateFactoryUnitsAvailableStats();
     }
-    
     // --- FACTORY HISTORY FUNCTIONS ---
     async function renderFactoryHistory() {
         const list = document.getElementById('factoryHistoryList');
         list.innerHTML = '';
 
-        if(factoryProductionHistory.length === 0) {
+        if (factoryProductionHistory.length === 0) {
             list.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">No recent activity</div>';
             return;
         }
 
-        // Show last 10 entries
-        const recent = factoryProductionHistory.slice(0, 10);
-        
+        // UPDATED: Create a copy and Sort by Timestamp Descending (Newest First)
+        const recent = [...factoryProductionHistory].sort((a, b) => {
+            // Use timestamp if available, otherwise fallback to Date object comparison
+            const timeA = a.timestamp || new Date(a.date + ' ' + a.time).getTime();
+            const timeB = b.timestamp || new Date(b.date + ' ' + b.time).getTime();
+            return timeB - timeA;
+        });
+
         for (const entry of recent) {
             const dateObj = new Date(entry.date);
             const dateStr = dateObj.toLocaleDateString() + ' ' + entry.time;
@@ -7786,14 +7796,14 @@ async function linkMaterialToSupplier(materialId, supplierId, totalCost) {
 
             // Calculate statistics
             const perUnitCost = entry.units > 0 ? entry.totalCost / entry.units : 0;
-            
+
             // Get additional cost info
             const additionalCostPerUnit = factoryAdditionalCosts[entry.store] || 0;
             const totalAdditionalCost = additionalCostPerUnit * entry.units;
 
             const div = document.createElement('div');
             div.className = 'factory-history-item';
-            
+
             div.innerHTML = `
                 <div style="display:flex; justify-content:space-between; margin-bottom:8px; border-bottom:1px solid var(--glass-border); padding-bottom:5px;">
                     <span style="font-size:0.75rem; color:var(--text-muted);">${dateStr}</span>
@@ -7828,7 +7838,6 @@ async function linkMaterialToSupplier(materialId, supplierId, totalCost) {
             list.appendChild(div);
         }
     }
-    
     async function deleteFactoryEntry(id) {
         const entryIndex = factoryProductionHistory.findIndex(e => e.id === id);
         if (entryIndex === -1) return;
@@ -8867,9 +8876,180 @@ function mergeDatasets(localArray, cloudArray) {
     // Return the clean, merged list
     return Array.from(mergedMap.values());
 }
+// ============================================
+//  ONE-CLICK SMART SYNC (Silent Capable)
+// ============================================
 
-// --- PUSH TO CLOUD (BACKUP) - READ-MODIFY-WRITE ---
-async function pushDataToCloud(silent = false, retryCount = 0) {
+async function performOneClickSync(silent = false) {
+    // 1. Silent Guard: Don't show alerts if silent, just return
+    if (!supabaseClient || !currentUser) {
+        if (!silent) {
+            showToast("Please sign in to Sync.", "warning");
+            showAuthOverlay();
+        }
+        return;
+    }
+
+    // 2. Sync Lock: Prevent double syncing
+    if (isSyncing) return;
+    isSyncing = true;
+
+    // 3. UI Feedback (Only if NOT silent)
+    const btn = document.getElementById('sync-btn');
+    const originalText = btn ? btn.innerHTML : '';
+    
+    if (!silent) {
+        if (btn) {
+            btn.innerHTML = 'Syncing...';
+            btn.disabled = true;
+        }
+        showToast("Step 1/3: Downloading Cloud Data...", "info");
+    } else {
+        console.log("Auto-Syncing in background...");
+    }
+
+    try {
+        // --- FETCH CLOUD DATA ---
+        const { data, error } = await supabaseClient
+            .from('user_data')
+            .select('data, last_synced')
+            .eq('user_id', currentUser.id)
+            .maybeSingle();
+
+        if (error && error.code !== 'PGRST116') throw error;
+
+        let cloudData = data?.data || {};
+        
+        if (!silent) showToast("Step 2/3: Merging Changes...", "info");
+
+        // --- MERGE LOGIC (Same as before) ---
+        const cloudDeleted = new Set(cloudData.deleted_records || []);
+        const localDeleted = new Set(deletedRecordIds);
+        const mergedDeletedIds = new Set([...localDeleted, ...cloudDeleted]);
+        deletedRecordIds = mergedDeletedIds; 
+
+        const smartMergeArray = (localArr, cloudArr) => {
+            const mergedMap = new Map();
+            (cloudArr || []).forEach(item => {
+                if (item.id && !deletedRecordIds.has(item.id)) mergedMap.set(item.id, item);
+            });
+            (localArr || []).forEach(item => {
+                if (!item.id || deletedRecordIds.has(item.id)) return;
+                const existing = mergedMap.get(item.id);
+                if (!existing) {
+                    mergedMap.set(item.id, item);
+                } else {
+                    const localTime = item.timestamp || new Date(item.date).getTime() || 0;
+                    const cloudTime = existing.timestamp || new Date(existing.date).getTime() || 0;
+                    if (localTime >= cloudTime) mergedMap.set(item.id, item);
+                }
+            });
+            return Array.from(mergedMap.values());
+        };
+
+        // --- PERFORM MERGES ---
+        db = smartMergeArray(db, cloudData.mfg_pro_pkr);
+        customerSales = smartMergeArray(customerSales, cloudData.customer_sales);
+        repSales = smartMergeArray(repSales, cloudData.rep_sales);
+        salesHistory = smartMergeArray(salesHistory, cloudData.noman_history);
+        factoryInventoryData = smartMergeArray(factoryInventoryData, cloudData.factory_inventory_data);
+        factoryProductionHistory = smartMergeArray(factoryProductionHistory, cloudData.factory_production_history);
+        paymentEntities = smartMergeArray(paymentEntities, cloudData.payment_entities);
+        paymentTransactions = smartMergeArray(paymentTransactions, cloudData.payment_transactions);
+        stockReturns = smartMergeArray(stockReturns, cloudData.stock_returns);
+
+        const finalSettings = {
+            factory_default_formulas: factoryDefaultFormulas,
+            factory_additional_costs: factoryAdditionalCosts,
+            factory_cost_adjustment_factor: factoryCostAdjustmentFactor,
+            factory_sale_prices: factorySalePrices,
+            factory_unit_tracking: factoryUnitTracking,
+            naswar_default_settings: defaultSettings
+        };
+
+        // --- SAVE TO LOCAL ---
+        await Promise.all([
+            idb.set('mfg_pro_pkr', db),
+            idb.set('customer_sales', customerSales),
+            idb.set('rep_sales', repSales),
+            idb.set('noman_history', salesHistory),
+            idb.set('factory_inventory_data', factoryInventoryData),
+            idb.set('factory_production_history', factoryProductionHistory),
+            idb.set('payment_entities', paymentEntities),
+            idb.set('payment_transactions', paymentTransactions),
+            idb.set('stock_returns', stockReturns),
+            idb.set('deleted_records', Array.from(deletedRecordIds)),
+            idb.set('factory_default_formulas', factoryDefaultFormulas),
+            idb.set('factory_additional_costs', factoryAdditionalCosts),
+            idb.set('factory_cost_adjustment_factor', factoryCostAdjustmentFactor),
+            idb.set('factory_sale_prices', factorySalePrices)
+        ]);
+
+        // --- PUSH TO CLOUD ---
+        if (!silent) showToast("Step 3/3: Updating Cloud...", "info");
+        
+        const now = new Date().toISOString();
+        const finalPayload = {
+            mfg_pro_pkr: db,
+            customer_sales: customerSales,
+            rep_sales: repSales,
+            noman_history: salesHistory,
+            factory_inventory_data: factoryInventoryData,
+            factory_production_history: factoryProductionHistory,
+            payment_entities: paymentEntities,
+            payment_transactions: paymentTransactions,
+            stock_returns: stockReturns,
+            deleted_records: Array.from(deletedRecordIds),
+            ...finalSettings,
+            appMode: appMode,
+            repProfile: currentRepProfile,
+            adminPin: adminPin
+        };
+
+        const { error: uploadError } = await supabaseClient
+            .from('user_data')
+            .upsert({ 
+                user_id: currentUser.id, 
+                data: finalPayload,
+                last_synced: now 
+            }, { onConflict: 'user_id' });
+
+        if (uploadError) throw uploadError;
+
+        await idb.set('last_synced', now);
+        
+        // --- UI UPDATES (Always run these to keep screen fresh) ---
+        await refreshAllDisplays();
+        
+        const display = document.getElementById('lastSyncDisplay');
+        if (display) display.textContent = `Last Sync: ${new Date().toLocaleTimeString()}`;
+
+        if (!silent) {
+            showToast("Sync Complete!", "success");
+            if(typeof closeDataMenu === 'function') closeDataMenu();
+        } else {
+            console.log("Auto-Sync Finished successfully");
+        }
+
+    } catch (e) {
+        console.error("Sync Error:", e);
+        if (!silent) showToast("Sync Failed: " + e.message, "error");
+    } finally {
+        isSyncing = false;
+        if (!silent && btn) {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    }
+}
+
+// ============================================
+// SIMPLIFIED BACKUP & RESTORE (NO MERGE)
+// ============================================
+
+// --- PUSH TO CLOUD (BACKUP) - DIRECT UPLOAD ---
+// This takes your LOCAL data and overwrites the CLOUD data.
+async function pushDataToCloud(silent = false) {
     if (!supabaseClient) return;
     if (isSyncing) return; 
     isSyncing = true;
@@ -8896,60 +9076,48 @@ async function pushDataToCloud(silent = false, retryCount = 0) {
             if (menuBtn) {
                 btn = menuBtn;
                 originalText = btn.innerText;
-                btn.textContent = '☁️ Merging...';
+                btn.textContent = '☁️ Uploading...';
                 btn.disabled = true;
             } else {
-                showToast('☁️ Syncing with Cloud...', 'info');
+                showToast('☁️ Backing up to Cloud...', 'info');
             }
         }
 
-        // STEP 1: FETCH Current Cloud Data
-        const { data: cloudResult, error: fetchError } = await supabaseClient
-            .from('user_data')
-            .select('data')
-            .eq('user_id', currentUser.id)
-            .maybeSingle();
+        // STEP 1: PREPARE DATA PACKAGE
+        // We take exactly what is currently in memory/storage
+        const finalData = {
+            mfg_pro_pkr: db,
+            customer_sales: customerSales,
+            rep_sales: repSales,
+            noman_history: salesHistory,
+            factory_inventory_data: factoryInventoryData,
+            factory_production_history: factoryProductionHistory,
+            payment_entities: paymentEntities,
+            payment_transactions: paymentTransactions,
+            stock_returns: stockReturns,
+            
+            // Settings
+            factory_default_formulas: factoryDefaultFormulas,
+            factory_additional_costs: factoryAdditionalCosts,
+            factory_cost_adjustment_factor: factoryCostAdjustmentFactor,
+            factory_sale_prices: factorySalePrices,
+            factory_unit_tracking: factoryUnitTracking,
+            naswar_default_settings: defaultSettings,
+            
+            // App State
+            deleted_records: Array.from(deletedRecordIds),
+            appMode: appMode,
+            repProfile: currentRepProfile,
+            adminPin: adminPin
+        };
 
-        if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
-
-        let finalData = {};
-        const cloudData = cloudResult?.data || {};
-
-        // STEP 2: MERGE ARRAYS (Critical for Sales Rep History)
-        // customer_sales holds BOTH Admin Sales and Rep Sales
-        finalData.mfg_pro_pkr = mergeDatasets(db, cloudData.mfg_pro_pkr);
-        finalData.customer_sales = mergeDatasets(customerSales, cloudData.customer_sales); 
-        finalData.rep_sales = mergeDatasets(repSales, cloudData.rep_sales); 
-        finalData.noman_history = mergeDatasets(salesHistory, cloudData.noman_history);
-        finalData.factory_inventory_data = mergeDatasets(factoryInventoryData, cloudData.factory_inventory_data);
-        finalData.factory_production_history = mergeDatasets(factoryProductionHistory, cloudData.factory_production_history);
-        finalData.payment_entities = mergeDatasets(paymentEntities, cloudData.payment_entities);
-        finalData.payment_transactions = mergeDatasets(paymentTransactions, cloudData.payment_transactions);
-        finalData.stock_returns = mergeDatasets(stockReturns, cloudData.stock_returns);
-
-        // STEP 3: SAVE SETTINGS & REP STATE
-        // We prioritize local settings for these state variables to ensure the device's current mode is saved
-        finalData.factory_default_formulas = factoryDefaultFormulas;
-        finalData.factory_additional_costs = factoryAdditionalCosts;
-        finalData.factory_cost_adjustment_factor = factoryCostAdjustmentFactor;
-        finalData.factory_sale_prices = factorySalePrices;
-        finalData.factory_unit_tracking = factoryUnitTracking;
-        finalData.naswar_default_settings = defaultSettings;
-        
-        // Critical: Save Admin/Rep Mode State
-        finalData.deleted_records = Array.from(deletedRecordIds);
-        finalData.appMode = appMode;
-        finalData.repProfile = currentRepProfile;
-        finalData.adminPin = adminPin;
-
-                // STEP 4: UPLOAD
+        // STEP 2: DIRECT UPLOAD
         const now = new Date().toISOString();
         
-        // CRITICAL: Update local storage timestamp BEFORE upload completes
-        // This ensures when the socket event comes back (echo), we know we sent it.
+        // Save local timestamp first
         await idb.set('last_synced', now); 
 
-        const uploadPromise = supabaseClient
+        const { error } = await supabaseClient
             .from('user_data')
             .upsert({ 
                 user_id: currentUser.id, 
@@ -8957,32 +9125,18 @@ async function pushDataToCloud(silent = false, retryCount = 0) {
                 last_synced: now 
             }, { onConflict: 'user_id' });
 
-
-        const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error("Upload timeout")), 30000)
-        );
-
-        const { error } = await Promise.race([uploadPromise, timeoutPromise]);
-
         if (error) throw error;
-
-        await idb.set('last_synced', now);
         
         if (!silent) {
-            showToast('Cloud Sync Complete', 'success');
+            showToast('Cloud Backup Complete', 'success');
             const display = document.getElementById('lastSyncDisplay');
             if (display) display.textContent = `Last Cloud Sync: ${new Date().toLocaleString()}`;
         }
-        console.log(` Data Smart-Synced at ${new Date().toLocaleTimeString()}`);
+        console.log(` Data Uploaded at ${new Date().toLocaleTimeString()}`);
 
     } catch (error) {
         console.error('Backup Error:', error);
-        if (retryCount === 0 && !silent) {
-            console.log('Retrying sync...');
-            isSyncing = false;
-            return pushDataToCloud(silent, 1);
-        }
-        if (!silent) showToast(`Sync failed: ${error.message}`, 'error');
+        if (!silent) showToast(`Backup failed: ${error.message}`, 'error');
     } finally {
         isSyncing = false;
         if (btn) {
@@ -8991,8 +9145,10 @@ async function pushDataToCloud(silent = false, retryCount = 0) {
         }
     }
 }
-// --- PULL FROM CLOUD (RESTORE) - UPDATED: PRESERVES LOCAL CONFIG ---
-async function pullDataFromCloud(silent = false, retryCount = 0) {
+
+// --- PULL FROM CLOUD (RESTORE) - DIRECT DOWNLOAD ---
+// This takes CLOUD data and overwrites your LOCAL data.
+async function pullDataFromCloud(silent = false) {
     if (!currentUser || !supabaseClient) return;
 
     if (isSyncing) {
@@ -9002,7 +9158,7 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
     isSyncing = true;
 
     try {
-        if (!silent) showToast(' Fetching cloud data...', 'info');
+        if (!silent) showToast(' Downloading cloud data...', 'info');
 
         const { data, error } = await supabaseClient
             .from('user_data')
@@ -9020,103 +9176,60 @@ async function pullDataFromCloud(silent = false, retryCount = 0) {
 
         const cloud = data.data;
 
-// 1. FIRST: Merge Deletion Records
-// We combine local deletions with cloud deletions so we have a master list of "dead" items
-if (cloud.deleted_records && Array.isArray(cloud.deleted_records)) {
-    cloud.deleted_records.forEach(id => deletedRecordIds.add(id));
-    
-    // Save merged deletions immediately
-    await idb.set('deleted_records', Array.from(deletedRecordIds));
-}
-
-// 2. THEN: Smart Merge Data (Now using the updated deletedRecordIds)
-const mergedDB = mergeDatasets(db, cloud.mfg_pro_pkr);
-        const mergedCustomerSales = mergeDatasets(customerSales, cloud.customer_sales);
-        const mergedRepSales = mergeDatasets(repSales, cloud.rep_sales);
-        const mergedHistory = mergeDatasets(salesHistory, cloud.noman_history);
-        const mergedFactoryInv = mergeDatasets(factoryInventoryData, cloud.factory_inventory_data);
-        const mergedFactoryHist = mergeDatasets(factoryProductionHistory, cloud.factory_production_history);
-        const mergedPaymentEntities = mergeDatasets(paymentEntities, cloud.payment_entities);
-        const mergedPaymentTrans = mergeDatasets(paymentTransactions, cloud.payment_transactions);
-        const mergedStockReturns = mergeDatasets(stockReturns, cloud.stock_returns);
-
-        // Settings (Formulas/Prices) - You generally want these to sync, 
-        // but if you want *Settings* to be local-only too, you can comment these out.
-        // For now, we update formulas but NOT the App Mode.
-        const finalSettings = cloud.naswar_default_settings || defaultSettings;
+        // 1. UPDATE GLOBAL VARIABLES DIRECTLY (No Merging)
+        db = cloud.mfg_pro_pkr || [];
+        customerSales = cloud.customer_sales || [];
+        repSales = cloud.rep_sales || [];
+        salesHistory = cloud.noman_history || [];
+        factoryInventoryData = cloud.factory_inventory_data || [];
+        factoryProductionHistory = cloud.factory_production_history || [];
+        paymentEntities = cloud.payment_entities || [];
+        paymentTransactions = cloud.payment_transactions || [];
+        stockReturns = cloud.stock_returns || [];
+        
+        // Settings
         factoryDefaultFormulas = cloud.factory_default_formulas || factoryDefaultFormulas;
         factoryAdditionalCosts = cloud.factory_additional_costs || factoryAdditionalCosts;
         factoryCostAdjustmentFactor = cloud.factory_cost_adjustment_factor || factoryCostAdjustmentFactor;
         factorySalePrices = cloud.factory_sale_prices || factorySalePrices;
+        factoryUnitTracking = cloud.factory_unit_tracking || factoryUnitTracking;
+        defaultSettings = cloud.naswar_default_settings || defaultSettings;
 
-        // 2. CRITICAL: UPDATE GLOBAL DATA VARIABLES
-        db = mergedDB;
-        customerSales = mergedCustomerSales;
-        repSales = mergedRepSales;
-        salesHistory = mergedHistory;
-        factoryInventoryData = mergedFactoryInv;
-        factoryProductionHistory = mergedFactoryHist;
-        paymentEntities = mergedPaymentEntities;
-        paymentTransactions = mergedPaymentTrans;
-        stockReturns = mergedStockReturns;
-        defaultSettings = finalSettings;
+        // Restore Deleted Records Set
+        if (cloud.deleted_records && Array.isArray(cloud.deleted_records)) {
+            deletedRecordIds = new Set(cloud.deleted_records);
+        }
 
-        // 3. PRESERVE LOCAL APP STATE
-        // We explicitly IGNORE the cloud's appMode, repProfile, and adminPin.
-        // This ensures the device stays in whatever mode it was in before the sync.
-        console.log("[RESTORE] Preserving Local Configuration (Mode: " + appMode + ")");
-        
-        // (The variables appMode, currentRepProfile, and adminPin remain unchanged)
-
-        // 4. FORCE RECALCULATION
-        await updateFormulaInventory(); 
-
-        // 5. SAVE TO DATABASE (BACKGROUND)
-        // We save the MERGED data but the LOCAL config settings
+        // 2. SAVE TO INDEXEDDB
         const idbPromises = [
-            idb.set('mfg_pro_pkr', mergedDB),
-            idb.set('customer_sales', mergedCustomerSales),
-            idb.set('rep_sales', mergedRepSales),
-            idb.set('noman_history', mergedHistory),
-            idb.set('factory_inventory_data', mergedFactoryInv),
-            idb.set('factory_production_history', mergedFactoryHist),
+            idb.set('mfg_pro_pkr', db),
+            idb.set('customer_sales', customerSales),
+            idb.set('rep_sales', repSales),
+            idb.set('noman_history', salesHistory),
+            idb.set('factory_inventory_data', factoryInventoryData),
+            idb.set('factory_production_history', factoryProductionHistory),
+            idb.set('payment_entities', paymentEntities),
+            idb.set('payment_transactions', paymentTransactions),
+            idb.set('stock_returns', stockReturns),
+            
             idb.set('factory_default_formulas', factoryDefaultFormulas),
             idb.set('factory_additional_costs', factoryAdditionalCosts),
             idb.set('factory_cost_adjustment_factor', factoryCostAdjustmentFactor),
             idb.set('factory_sale_prices', factorySalePrices),
             idb.set('factory_unit_tracking', factoryUnitTracking),
-            idb.set('payment_entities', mergedPaymentEntities),
-            idb.set('payment_transactions', mergedPaymentTrans),
-            idb.set('stock_returns', mergedStockReturns),
-            idb.set('naswar_default_settings', finalSettings),
-            idb.set('last_synced', new Date().toISOString()),
+            idb.set('naswar_default_settings', defaultSettings),
+            idb.set('deleted_records', Array.from(deletedRecordIds)),
             
-            // CRITICAL: We save the CURRENT LOCAL values back to DB to ensure
-            // the device remembers its own state, ignoring the cloud's state.
-            idb.set('appMode', appMode),
-            idb.set('repProfile', currentRepProfile),
-            idb.set('adminPin', adminPin)
+            idb.set('last_synced', new Date().toISOString())
         ];
 
         await Promise.all(idbPromises);
 
-        if (!silent) showToast(' Data Updated ', 'success');
+        if (!silent) showToast(' Data Restored Successfully ', 'success');
         
-        // 6. REFRESH UI ELEMENTS
+        // 3. REFRESH UI ELEMENTS
         updateUnitsAvailableIndicator();
         await refreshAllDisplays();
-
-        // 7. RE-ENFORCE LOCAL MODE UI
-        // If the device IS locally in Rep Mode, make sure the UI reflects that
-        // (in case the refresh unlocked tabs momentarily).
-        if (appMode === 'rep') {
-            if (typeof lockToRepMode === 'function') {
-                lockToRepMode();
-            }
-            if (typeof refreshRepUI === 'function') {
-                refreshRepUI();
-            }
-        }
 
     } catch (error) {
         console.error('Cloud Restore Error:', error);
@@ -9175,21 +9288,37 @@ function stopDatabaseHeartbeat() {
     }
 }
 
-// --- AUTO-BACKUP SCHEDULER ---
-const AUTO_BACKUP_INTERVAL = 600000; // 10 minutes
+// --- AUTO-SYNC SCHEDULER (5 Minutes) ---
+const AUTO_BACKUP_INTERVAL = 300000; // 5 minutes (in milliseconds)
 
 function scheduleAutoBackup() {
     clearAutoBackup();
+    // Only schedule if user is logged in
+    if (!currentUser) return;
+
+    console.log("⏰ Background Sync scheduled for every 5 minutes");
+    
     autoSaveTimer = setInterval(async () => {
+        // Check session validity silently
         const { data } = await supabaseClient.auth.getSession();
         if (!data.session) {
+            console.log("❌ Session expired, stopping auto-sync");
             clearAutoBackup();
             return;
         }
-        console.log("Auto-syncing...");
-        await pushDataToCloud(true); // Silent backup
+        
+        // Run Silent Sync
+        await performOneClickSync(true); 
     }, AUTO_BACKUP_INTERVAL);
 }
+
+function clearAutoBackup() {
+    if (autoSaveTimer) {
+        clearInterval(autoSaveTimer);
+        autoSaveTimer = null;
+    }
+}
+
 
 function clearAutoBackup() {
     if (autoSaveTimer) {
@@ -10204,11 +10333,16 @@ function refreshUI() {
     
     let filteredData = currentProductionView === 'combined' ? db : db.filter(item => item.store === currentStore);
 
-    const sortedDb = [...filteredData].sort((a,b) => {
-        if (a.date === selectedDate && b.date !== selectedDate) return -1;
-        if (a.date !== selectedDate && b.date === selectedDate) return 1;
-        return new Date(b.date) - new Date(a.date) || b.timestamp - a.timestamp;
-    });
+    const sortedDb = [...filteredData].sort((a, b) => {
+    // 1. If one is the selected date and the other isn't, put the selected date first
+    if (a.date === selectedDate && b.date !== selectedDate) return -1;
+    if (a.date !== selectedDate && b.date === selectedDate) return 1;
+
+    // 2. Otherwise, sort by timestamp (newest first)
+    // This ensures that even on the same day, the most recent entry is at the top
+    return b.timestamp - a.timestamp;
+});
+
 
     let htmlBuffer = '';
 
@@ -14440,7 +14574,6 @@ document.getElementById('rep-amount-collected').addEventListener('input', functi
     const inputAmt = parseFloat(this.value) || 0;
     document.getElementById('rep-total-value').innerText = "Rs " + (currentDebt - inputAmt).toFixed(2);
 });
-
 // --- 4. SAVE TRANSACTION (HANDLES BOTH MODES) ---
 async function saveRepTransaction() {
     const date = document.getElementById('rep-date').value;
@@ -14455,7 +14588,8 @@ async function saveRepTransaction() {
     // --- 📍 GPS CAPTURE (NEW) ---
     let gpsCoords = null;
     try {
-        // Call the helper function we defined at the bottom
+        // Call the helper function to get current position
+        // This 'await' requires the function to be defined as 'async function'
         gpsCoords = await getPosition(); 
     } catch (e) {
         console.log("GPS unavailable");
@@ -14466,7 +14600,7 @@ async function saveRepTransaction() {
     const now = new Date();
     const timeString = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
     
-    // Standard Pricing for Reps
+    // Standard Pricing for Reps (Using factory standard cost)
     const costPerKg = calculateSalesCostPerKg('standard');
     const salePrice = factorySalePrices.standard || 0;
 
@@ -14485,12 +14619,12 @@ async function saveRepTransaction() {
             date: date,
             time: timeString,
             customerName: name,
-            customerPhone: phoneNumber, // Save Phone
+            customerPhone: phoneNumber, 
             quantity: qty,
             supplyStore: 'STORE_A', 
             paymentType: payType, 
             salesRep: currentRepProfile, 
-            gps: gpsCoords, // <--- ADD THIS LINE
+            gps: gpsCoords, 
             totalCost: qty * costPerKg,
             totalValue: totalValue,
             profit: totalValue - (qty * costPerKg),
@@ -14510,12 +14644,12 @@ async function saveRepTransaction() {
             date: date,
             time: timeString,
             customerName: name,
-            customerPhone: phoneNumber, // Save Phone
+            customerPhone: phoneNumber,
             quantity: 0, 
             supplyStore: 'STORE_A',
             paymentType: 'COLLECTION', 
             salesRep: currentRepProfile,
-            gps: gpsCoords, // <--- ADD THIS LINE
+            gps: gpsCoords,
             totalCost: 0,
             totalValue: amount, 
             profit: amount, 
@@ -14526,14 +14660,84 @@ async function saveRepTransaction() {
             affectsInventory: false
         };
     }
+
+    // --- SAVE TO ENTITIES (If New Customer with Phone) ---
+    // Rep customers are also added to the main entity list so admin can see them globally
+    if (phoneNumber) {
+        const existingEntity = paymentEntities.find(e => e.name.toLowerCase() === name.toLowerCase());
+        if (!existingEntity) {
+            paymentEntities.push({
+                id: generateUUID('ent'),
+                name: name,
+                type: 'payor',
+                phone: phoneNumber,
+                wallet: '',
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+                isRepCustomer: true 
+            });
+            await idb.set('payment_entities', paymentEntities);
+        }
     
+
+    // --- SAVE RECORD ---
+    repSales.push(transactionRecord);
+    await idb.set('rep_sales', repSales);
+    
+    // --- NOTIFY SYNC & CLEANUP ---
+    notifyDataChange('all');
+
+    document.getElementById('rep-quantity').value = '';
+    document.getElementById('rep-cust-name').value = '';
+    document.getElementById('rep-amount-collected').value = '';
+    document.getElementById('rep-customer-info-display').classList.add('hidden');
+    document.getElementById('rep-total-value').innerText = 'Rs 0.00';
+    
+    // Hide phone input
+    if(phoneInput) phoneInput.value = '';
+    document.getElementById('rep-new-customer-phone-container').classList.add('hidden');
+
+    refreshRepUI();
+    showToast("Transaction Saved Successfully", "success");
+    notifyDataChange('sales');
+}
+
+// ==========================================
+// 🗺️ LIVE TRACKING MAP FUNCTIONS (LEAFLET)
+// ==========================================
+
 let repMap = null;
 let repMapMarkers = [];
 let repPolyline = null;
 
+// Helper to safely get GPS coordinates
+function getPosition() {
+    return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+            resolve(null);
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            (position) => resolve({
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+                accuracy: position.coords.accuracy
+            }),
+            (error) => {
+                console.log("GPS Error:", error);
+                resolve(null); // Resolve null on error so app doesn't crash
+            },
+            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+        );
+    });
+}
+
 // Initialize Map (Call this once when app loads or Admin tab opens)
 function initRepMap() {
-    if (repMap) return; // Already initialized
+    if (repMap) return; // Already initialized or container missing
+
+    const mapContainer = document.getElementById('rep-map-container');
+    if (!mapContainer) return;
 
     // Default to Bannu coordinates, zoom level 13
     repMap = L.map('rep-map-container').setView([32.9910, 70.6055], 13);
@@ -14543,90 +14747,112 @@ function initRepMap() {
     }).addTo(repMap);
 }
 
-// Render the Route
+// Render the Route on the Map
 function updateRepLiveMap() {
+    // 1. Safety Checks
+    if (typeof L === 'undefined') return;
+    const container = document.getElementById('rep-map-container');
+    
+    // Only run if the map container is actually visible (Admin mode)
+    if (!container || container.offsetParent === null) return;
+
     if (!repMap) initRepMap();
 
-    // 1. Clear existing markers
+    // 2. Clear existing markers and lines
     repMapMarkers.forEach(layer => repMap.removeLayer(layer));
     repMapMarkers = [];
-    if (repPolyline) repMap.removeLayer(repPolyline);
+    if (repPolyline) {
+        repMap.removeLayer(repPolyline);
+        repPolyline = null;
+    }
 
     const dateInput = document.getElementById('rep-date');
     const selectedDate = dateInput ? dateInput.value : new Date().toISOString().split('T')[0];
 
-    // 2. Filter data for Selected Rep and Date
+    // 3. Filter data for Selected Rep and Date
     // Sort by timestamp to draw the path in order
     const dailyRoute = repSales
         .filter(s => s.salesRep === currentRepProfile && s.date === selectedDate && s.gps)
         .sort((a, b) => a.timestamp - b.timestamp);
 
     if (dailyRoute.length === 0) {
-        // No GPS data found
         return;
     }
 
     const latLngs = [];
 
-    // 3. Plot Markers
+    // 4. Plot Markers
     dailyRoute.forEach(txn => {
-        const lat = txn.gps.lat;
-        const lng = txn.gps.lng;
-        latLngs.push([lat, lng]);
+        if (txn.gps && txn.gps.lat && txn.gps.lng) {
+            const lat = txn.gps.lat;
+            const lng = txn.gps.lng;
+            latLngs.push([lat, lng]);
 
-        // Determine Color based on type
-        let color = '#3b82f6'; // Blue (Sale)
-        let typeStr = 'Sale';
-        if (txn.paymentType === 'COLLECTION') { 
-            color = '#10b981'; // Green (Collection)
-            typeStr = 'Collection';
+            // Determine Color based on type
+            let color = '#3b82f6'; // Blue (Sale)
+            let typeStr = 'Sale';
+            let detailStr = `${txn.quantity} kg`;
+
+            if (txn.paymentType === 'COLLECTION') { 
+                color = '#10b981'; // Green (Collection)
+                typeStr = 'Collection';
+                detailStr = `Rs ${txn.totalValue}`;
+            }
+
+            // Create a custom circle marker
+            const marker = L.circleMarker([lat, lng], {
+                radius: 8,
+                fillColor: color,
+                color: '#fff',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.8
+            })
+            .bindPopup(`
+                <strong>${txn.customerName}</strong><br>
+                <small>${txn.time}</small><br>
+                ${typeStr}: ${detailStr}
+            `);
+
+            marker.addTo(repMap);
+            repMapMarkers.push(marker);
         }
-
-        // Create a custom circle marker
-        const marker = L.circleMarker([lat, lng], {
-            radius: 8,
-            fillColor: color,
-            color: '#fff',
-            weight: 2,
-            opacity: 1,
-            fillOpacity: 0.8
-        })
-        .bindPopup(`
-            <strong>${txn.customerName}</strong><br>
-            ${txn.time}<br>
-            ${typeStr}: Rs ${txn.totalValue.toFixed(0)}
-        `);
-
-        marker.addTo(repMap);
-        repMapMarkers.push(marker);
     });
 
-    // 4. Draw Path (Polyline)
+    // 5. Draw Path (Polyline)
     if (latLngs.length > 1) {
         repPolyline = L.polyline(latLngs, {
-            color: 'var(--accent)', // Uses your CSS variable color if parsed, or use hex '#2563eb'
+            color: '#2563eb', // Matches your --accent variable
             weight: 3,
             opacity: 0.6,
             dashArray: '5, 10'
         }).addTo(repMap);
     }
 
-    // 5. Fit Bounds to show all points
-    const group = new L.featureGroup(repMapMarkers);
-    repMap.fitBounds(group.getBounds().pad(0.1));
+    // 6. Fit Bounds to show all points
+    if (repMapMarkers.length > 0) {
+        const group = new L.featureGroup(repMapMarkers);
+        repMap.fitBounds(group.getBounds().pad(0.1));
+    }
 }
 
+// Function to switch view in Admin Mode
 function adminSwitchRepProfile(newProfile) {
     if (appMode !== 'admin') return;
+    
     currentRepProfile = newProfile;
-
+    
+    // Update Tables and Map
     refreshRepUI();
-    updateRepLiveMap(); // <--- Add this
-
+    
+    // Small delay to allow UI to settle before map resize
+    setTimeout(updateRepLiveMap, 200);
+    
     if(typeof showToast === 'function') {
         showToast(`Viewing dashboard for ${newProfile}`, 'info');
     }
 }
+
 
     // --- SAVE TO ENTITIES (If New) ---
     // Rep customers are also added to the main entity list so admin can see them
