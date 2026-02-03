@@ -1,0 +1,119 @@
+{
+  "name": "Gull and Zubair Naswar Dealers",
+  "short_name": "Gull & Zubair",
+  "description": "Comprehensive management system for production, sales, inventory, and credits.",
+  "id": "/naswar-dealer/",
+  "start_url": "/naswar-dealer/",
+  "scope": "/naswar-dealer/",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "window-controls-overlay",
+    "minimal-ui"
+  ],
+  "orientation": "portrait",
+  "background_color": "#f0f8ff",
+  "theme_color": "#3b82f6",
+  "categories": [
+    "business",
+    "productivity",
+    "finance"
+  ],
+  "icons": [
+    {
+      "src": "192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New Sale",
+      "short_name": "Sale",
+      "description": "Record a new customer sale",
+      "url": "/naswar-dealer/?action=sales",
+      "icons": [
+        {
+          "src": "192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Production Entry",
+      "short_name": "Production",
+      "description": "Add manufacturing record",
+      "url": "/naswar-dealer/?action=production",
+      "icons": [
+        {
+          "src": "192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Calculator",
+      "short_name": "Calc",
+      "description": "Open sales calculator",
+      "url": "/naswar-dealer/?action=calc",
+      "icons": [
+        {
+          "src": "192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "share_target": {
+    "action": "/naswar-dealer/",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
+  "prefer_related_applications": false,
+  "screenshots": [
+    {
+      "src": "screenshot-mobile.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Mobile Dashboard View"
+    },
+    {
+      "src": "screenshot-desktop.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Desktop Management View"
+    }
+  ]
+}
