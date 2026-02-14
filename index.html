@@ -1,0 +1,2175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
+    <link rel="manifest" href="manifest.json">
+
+    <meta name="theme-color" content="#000000">
+
+    <link rel="apple-touch-icon" href="192.png">
+
+    <title>GULL AND ZUBAIR NASWAR DEALERS</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Firebase SDKs - UPDATED FOR FIRESTORE -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+ 
+
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;600;700;800&family=Great+Vibes&family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
+
+    <!-- External Stylesheet -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+    
+    
+
+    <!-- External Stylesheet -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<!-- Liquid Background Elements -->
+<div class="liquid-bg-element liquid-1"></div>
+<div class="liquid-bg-element liquid-2"></div>
+<div class="liquid-bg-element liquid-3"></div>
+
+<!-- Factory Settings Overlay -->
+<div id="factorySettingsOverlay" class="factory-overlay">
+    <div class="factory-overlay-card liquid-card">
+        <div class="section-header">
+            <h3 id="factorySettingsModalTitle">Factory Formulas</h3>
+            <button class="btn-theme" onclick="closeFactorySettings()"></button>
+        </div>
+        
+        <div class="factory-store-selector">
+            <div class="factory-store-opt active" onclick="selectFactoryStore('standard', this)">STANDARD</div>
+            <div class="factory-store-opt" onclick="selectFactoryStore('asaan', this)">ASAAN</div>
+        </div>
+        
+        <!-- Additional Cost Field -->
+        <div class="grid-inputs" style="margin-bottom: 15px;">
+            <div class="field">
+                <label>Additional Cost (Per Unit)</label>
+                <input type="number" id="additional-cost-per-unit" step="0.01" min="0" value="0" oninput="updateFactoryFormulasSummary()">
+            </div>
+        </div>
+        
+        <!-- NEW: Cost Adjustment (X) Input -->
+        <div class="grid-inputs" style="margin-bottom: 15px;">
+            <div class="field">
+                <label>Cost Adjustment for Sales & Calculator (X)</label>
+                <input type="number" id="cost-adjustment-factor" step="0.01" min="1" value="1" oninput="updateFactoryFormulasSummary()">
+                <div style="font-size:0.6rem; color:var(--text-muted); margin-top:3px; font-weight: 400;">
+                    Used in Sales & Calculator tabs: Cost per kg = (Raw Material Cost + Additional Cost) / X
+                </div>
+            </div>
+        </div>
+        
+        <!-- NEW: Sale Price Inputs -->
+        <div class="grid-inputs" style="margin-bottom: 15px;">
+            <div class="field">
+                <label>Sale Price - Standard (per kg)</label>
+                <input type="number" id="sale-price-standard" step="0.01" min="0" value="0" oninput="updateFactoryFormulasSummary()">
+                <div style="font-size:0.6rem; color:var(--text-muted); margin-top:3px; font-weight: 400;">
+                    Used by Zubair, Mahmood stores and Calculator
+                </div>
+            </div>
+            <div class="field">
+                <label>Sale Price - Asaan (per kg)</label>
+                <input type="number" id="sale-price-asaan" step="0.01" min="0" value="0" oninput="updateFactoryFormulasSummary()">
+                <div style="font-size:0.6rem; color:var(--text-muted); margin-top:3px; font-weight: 400;">
+                    Used by Asaan store and Sales tab
+                </div>
+            </div>
+        </div>
+        
+        <div class="factory-material-grid">
+            <div>Material</div>
+            <div>Cost (Per Unit)</div>
+            <div>Qty (kg)</div>
+        </div>
+        
+        <div id="factoryRawMaterialsContainer">
+            <!-- Material rows will be populated by JavaScript -->
+        </div>
+        
+        <button class="btn btn-theme" style="width:100%; border:1px dashed var(--accent); margin:15px 0; color:var(--accent); font-size:0.8rem;" onclick="addFactoryMaterialRow()">+ Add Ingredient Row</button>
+        
+        <div style="background:rgba(37,99,235,0.05); padding:10px; border-radius:8px; margin-bottom:15px;">
+            <div class="factory-summary-row">
+                <span class="factory-summary-label">Unit Weight:</span>
+                <span class="qty-val" id="factorySettingsUnitWeight">0.00 kg</span>
+            </div>
+            <div class="factory-summary-row">
+                <span class="factory-summary-label">Raw Material Cost per Unit:</span>
+                <span class="cost-val" id="factorySettingsRawCostPerUnit">0.00 </span>
+            </div>
+            <div class="factory-summary-row">
+                <span class="factory-summary-label">Total Cost per Unit:</span>
+                <span class="cost-val" id="factorySettingsPerUnit">0.00 </span>
+            </div>
+            <div class="factory-summary-row">
+                <span class="factory-summary-label">Available Units:</span>
+                <span class="qty-val" id="factorySettingsAvailableUnits">0</span>
+            </div>
+            <div class="factory-summary-row">
+                <span class="factory-summary-label">Cost per kg for Sales/Calculator:</span>
+                <span class="cost-val" id="factorySettingsSalesCostPerKg">0.00 </span>
+            </div>
+        </div>
+        
+        <button class="btn btn-noman" onclick="(async () => { await saveFactoryFormulas() })()">Save Formula Settings</button>
+    </div>
+</div>
+
+<div id="factoryInventoryOverlay" class="factory-overlay">
+    <div class="factory-overlay-card liquid-card">
+        <div class="section-header">
+            <h3 id="factoryInventoryModalTitle">Add Raw Material</h3>
+            <button class="btn-theme" onclick="closeFactoryInventoryModal()"></button>
+        </div>
+        
+        <div class="grid-inputs">
+            <div class="field">
+                <label>Material Name</label>
+                <input type="text" id="factoryMaterialName" placeholder="Material Name">
+            </div>
+            <div class="field">
+                <label>Purchase Unit Name</label>
+                <input type="text" id="factoryMaterialUnitName" placeholder="e.g., bag, box, carton">
+                <div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 3px;">
+                    Name of your purchase unit (optional)
+                </div>
+            </div>
+        </div>
+        
+        <div class="grid-inputs">
+            <div class="field">
+                <label>Quantity (in your unit)</label>
+                <input type="number" id="factoryMaterialQuantity" placeholder="0">
+            </div>
+            <div class="field">
+                <label>Conversion Factor (to kg)</label>
+                <input type="number" id="factoryMaterialConversionFactor" placeholder="1" value="1" step="0.01">
+                <div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 3px;">
+                    Example: 1 bag = 60 kg, enter 60
+                </div>
+            </div>
+        </div>
+        
+        <div class="grid-inputs">
+            <div class="field">
+                <label>Cost Price (Per Your Unit)</label>
+                <input type="number" id="factoryMaterialCost" placeholder="0.00">
+            </div>
+            <div class="field" style="padding: 10px; background: rgba(0, 122, 255, 0.08); border-radius: 8px; display: flex; flex-direction: column; justify-content: center;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                    <span style="font-size: 0.75rem; color: var(--text-muted);">Total in kg:</span>
+                    <span id="factoryCalculatedKg" style="font-size: 0.85rem; font-weight: 700; color: var(--accent);">0 kg</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 5px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+                    <span style="font-size: 0.75rem; color: var(--text-muted);">Total Amount:</span>
+                    <span id="factoryCalculatedAmount" style="font-size: 0.85rem; font-weight: 700; color: var(--accent-emerald);">0.00</span>
+                </div>
+            </div>
+        </div>
+        
+        <div style="margin-top: 15px; padding: 15px; background: rgba(37, 99, 235, 0.05); border-radius: 10px;">
+            <h4 style="color: var(--accent); margin: 0 0 10px 0; font-size: 0.9rem;">Supplier Information</h4>
+            
+            <div class="grid-inputs">
+                <div class="field">
+                    <label>Supplier Action</label>
+                    <select id="factoryMaterialSupplierType" onchange="toggleSupplierFields()">
+                        <option value="none">No Supplier Link</option>
+                        <option value="existing">Select Existing Entity</option>
+                        <option value="new">Add New Supplier Entity</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div id="existingSupplierSection" class="hidden">
+                <div class="field" style="position: relative;">
+                    <label>Select Supplier (Payee)</label>
+                    <input type="text" id="factoryExistingSupplier" list="supplier-list" placeholder="Search or select supplier..." 
+                           oninput="handleUniversalSearch('factoryExistingSupplier', 'factory-supplier-search-results', 'suppliers')" autocomplete="off" class="store-selector">
+                    <div id="factory-supplier-search-results" class="hidden" style="position: absolute; top: 100%; left: 0; right: 0; z-index: 1000; max-height: 200px; overflow-y: auto; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 10px; margin-top: 5px; box-shadow: var(--shadow);"></div>
+                    <datalist id="supplier-list"></datalist>
+                </div>
+            </div>
+            
+            <div id="newSupplierSection" class="hidden">
+                <div class="grid-inputs">
+                    <div class="field">
+                        <label>Supplier Name</label>
+                        <input type="text" id="factorySupplierName" placeholder="Company/Person Name">
+                    </div>
+                    <div class="field">
+                        <label>Contact (Phone)</label>
+                        <input type="tel" id="factorySupplierPhone" placeholder="Phone Number">
+                    </div>
+                </div>
+                
+                <div class="field" style="margin-top: 10px; background: rgba(5, 150, 105, 0.1); padding: 10px; border-radius: 8px;">
+                    <label style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="factorySupplierAutoEntity" checked disabled style="width: 16px; height: 16px; margin-right: 10px; accent-color: var(--accent);">
+                        <span style="font-size: 0.8rem; font-weight: 700; color: var(--accent-emerald);">
+                             Add to Quick Entity Selection
+                        </span>
+                    </label>
+                    <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 5px; margin-left: 26px;">
+                        This will automatically create a <strong>PAYEE</strong> entity. Any debts to this supplier will appear in "Supplier Payables" in the Economic Dashboard.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top:20px; display:flex; gap:10px;">
+            <button class="btn btn-danger" id="deleteFactoryInventoryBtn" onclick="(async () => { await deleteFactoryInventoryItem() })()" style="display:none; flex:1;">Delete</button>
+            <button class="btn btn-noman" onclick="(async () => { await saveFactoryInventoryItem() })()" style="flex:2;">Save Material & Update Entities</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- Entity Management Overlay -->
+<div id="entityManagementOverlay" class="factory-overlay">
+    <div class="factory-overlay-card liquid-card">
+        <div class="section-header">
+            <h3 id="entityManagementModalTitle">Add Entity</h3>
+            <button class="btn-theme" onclick="closeEntityManagement()"></button>
+        </div>
+        
+        <div class="grid-inputs">
+            <div class="field">
+                <label>Entity Name</label>
+                <input type="text" id="entityName" placeholder="Name">
+            </div>
+            <div class="field">
+                <label>Type</label>
+                <select id="entityType">
+                    <option value="payee">Payee (We pay them)</option>
+                    <option value="payor">Payor (They pay us)</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="grid-inputs">
+            <div class="field">
+                <label>Phone Number</label>
+                <input type="tel" id="entityPhone" placeholder="Phone">
+            </div>
+            <div class="field">
+                <label>Wallet Details</label>
+                <input type="text" id="entityWallet" placeholder="Wallet/Account Details">
+            </div>
+        </div>
+        
+        <div style="margin-top:20px; display:flex; gap:10px;">
+            <button class="btn btn-danger" id="deleteEntityBtn" onclick="(async () => { await deleteEntity() })()" style="display:none; flex:1;">Delete</button>
+            <button class="btn btn-noman" onclick="(async () => { await saveEntity() })()" style="flex:2;">Save Entity</button>
+        </div>
+    </div>
+</div>
+<!-- Entity Transactions Overlay -->
+<div id="entityDetailsOverlay" class="factory-overlay">
+    <div class="factory-overlay-card liquid-card" style="max-width: 800px; max-height: 90vh; display: flex; flex-direction: column;">
+        <div class="section-header">
+            <div>
+                <h3 id="manageEntityTitle" style="margin:0; color:var(--text-main);">Entity Name</h3>
+                <span id="manageEntityStats" style="font-size: 0.75rem; color:var(--text-muted);">Current Balance: 0.00</span>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <select id="entityPdfRange" class="store-selector" style="font-size: 0.75rem; padding: 6px 10px; min-width: 100px;" onchange="if(currentEntityId){const entity=paymentEntities.find(e=>String(e.id)===String(currentEntityId));if(entity)renderEntityOverlayContent(entity);}">
+                    <option value="today">Today</option>
+                    <option value="week">This Week</option>
+                    <option value="month">This Month</option>
+                    <option value="year">This Year</option>
+                    <option value="all" selected>All Time</option>
+                </select>
+                <button class="btn btn-noran btn-sm" style="padding: 6px 12px; font-size: 0.75rem;" onclick="exportEntityToPDF()" title="Export to PDF">📄</button>
+                <button class="btn-theme" onclick="closeEntityDetailsOverlay()"></button>
+            </div>
+        </div>
+
+        <div class="debt-panel" style="margin-bottom: 20px; flex-shrink: 0;">
+            <h4 style="margin: 0 0 10px 0; font-size: 0.85rem; color: var(--accent);">Quick Transaction</h4>
+            <div style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
+                <div class="field" style="flex: 1; min-width: 120px;">
+                    <label>Amount ()</label>
+                    <input type="number" id="quickEntityAmount" placeholder="0.00" style="width: 100%;">
+                </div>
+                <div class="field" style="flex: 1.5; min-width: 150px;">
+                    <label>Type</label>
+                    <div class="toggle-group" style="width: 100%; display: flex;">
+                        <div class="toggle-opt active" id="quick-type-out" onclick="setQuickEntityType('OUT')" style="flex:1;">Payment OUT (Paid)</div>
+                        <div class="toggle-opt" id="quick-type-in" onclick="setQuickEntityType('IN')" style="flex:1;">Payment IN (Recvd)</div>
+                    </div>
+                </div>
+                <button class="btn btn-noman" style="width: auto; height: 42px; margin-bottom: 1px;" onclick="(async () => { await saveQuickEntityTransaction() })()">Save</button>
+            </div>
+            <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 5px;">
+                * "Payment OUT" reduces what you owe. "Payment IN" reduces what they owe you.
+            </div>
+        </div>
+
+        <div style="margin-bottom: 10px; flex-shrink: 0;">
+            <input type="text" id="entity-trans-search" class="search-bar" placeholder="Search history..." oninput="filterEntityManagementHistory()">
+        </div>
+
+        <div style="flex: 1; overflow-y: auto; padding-right: 5px;" id="entityManagementHistoryList">
+            </div>
+        
+        <div style="margin-top: 15px; pt: 10px; border-top: 1px solid var(--glass-border); text-align: right;">
+             <button class="btn btn-danger btn-sm" onclick="deleteCurrentEntity()">Delete Entity Permanently</button>
+        </div>
+    </div>
+</div>
+
+
+<div id="customerManagementOverlay" class="factory-overlay">
+    <div class="factory-overlay-card liquid-card" style="max-width: 800px; max-height: 90vh; display: flex; flex-direction: column;">
+        <div class="section-header">
+            <div>
+                <h3 id="manageCustomerTitle" style="margin:0; color:var(--text-main);">Customer Name</h3>
+                <span id="manageCustomerStats" style="font-size: 0.75rem; color:var(--text-muted);">Current Debt: 0.00</span>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <select id="customerPdfRange" class="store-selector" style="font-size: 0.75rem; padding: 6px 10px; min-width: 100px;" onchange="if(currentManagingCustomer)renderCustomerTransactions(currentManagingCustomer);">
+                    <option value="today">Today</option>
+                    <option value="week">This Week</option>
+                    <option value="month">This Month</option>
+                    <option value="year">This Year</option>
+                    <option value="all" selected>All Time</option>
+                </select>
+                <button class="btn btn-noman btn-sm" style="padding: 6px 12px; font-size: 0.75rem;" onclick="exportCustomerToPDF()" title="Export to PDF">📄</button>
+                <button class="btn-theme" onclick="closeCustomerManagement()"></button>
+            </div>
+        </div>
+
+        <div class="debt-panel" style="margin-bottom: 20px; flex-shrink: 0;">
+            <h4 style="margin: 0 0 10px 0; font-size: 0.85rem; color: var(--accent);">Credit Payment</h4>
+            <div style="display: flex; gap: 10px; align-items: flex-end;">
+                <div class="field" style="flex: 1;">
+                    <label>Amount Received</label>
+                    <input type="number" id="bulkPaymentAmount" placeholder="Enter amount..." style="width: 100%;">
+                </div>
+                <button class="btn btn-noman" style="width: auto;" onclick="(async () => { await processBulkPayment() })()">Process Payment</button>
+            </div>
+            <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 5px;">
+                * This will mark oldest credit transactions as fully or partially paid up to this amount.
+            </div>
+        </div>
+
+        <div style="margin-bottom: 10px; flex-shrink: 0;">
+            <input type="text" id="cust-trans-search" class="search-bar" placeholder="Search history..." oninput="filterCustomerManagementHistory()">
+        </div>
+
+        <div style="flex: 1; overflow-y: auto; padding-right: 5px;" id="customerManagementHistoryList">
+            </div>
+    </div>
+</div>
+<div id="customerEditOverlay" class="factory-overlay" style="z-index: 10002;">
+    <div class="factory-overlay-card liquid-card" style="max-width: 350px;">
+        <div class="section-header">
+            <h3 style="color:var(--text-main); margin:0;">Edit Customer Details</h3>
+            <button class="btn-theme" onclick="closeCustomerEditModal()">✕</button>
+        </div>
+        
+        <div class="grid-inputs" style="margin-bottom: 20px;">
+            <div class="field">
+                <label>Customer Name</label>
+                <input type="text" id="edit-cust-name" readonly style="background: rgba(0,0,0,0.05); color: var(--text-muted); font-weight: 700;">
+            </div>
+            
+            <div class="field">
+                <label>Phone Number</label>
+                <input type="tel" id="edit-cust-phone" placeholder="03XX-XXXXXXX">
+            </div>
+            
+            <div class="field">
+                <label>Address / Location</label>
+                <div style="display: flex; gap: 5px;">
+                    <input type="text" id="edit-cust-address" placeholder="Area, Shop #, etc." style="flex: 1;">
+                    <button class="btn-theme" onclick="fetchDeviceLocation()" title="Auto-Fetch Location" style="border: 1px solid var(--accent); color: var(--accent); padding: 0 10px;">
+                        ◆
+                    </button>
+                </div>
+                <div id="location-status" style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px; font-style: italic;"></div>
+            </div>
+        </div>
+        
+        <div style="display:flex; gap:10px;">
+            <button class="btn btn-main" onclick="(async () => { await saveCustomerDetails() })()">Update Details</button>
+        </div>
+    </div>
+</div>
+
+<!-- AESTHETIC SPLASH SCREEN -->
+<div id="splash-screen">
+    <!-- Modern Flower Decorations -->
+    <div class="flower flower1">🌸</div>
+    <div class="flower flower2">🌺</div>
+    <div class="flower flower3">🌼</div>
+    <div class="flower flower4">🌻</div>
+    <div class="flower flower5">🌷</div>
+    <div class="flower flower6">🏵️</div>
+    <div class="flower flower7">💐</div>
+    <div class="flower flower8">🌹</div>
+    
+    <div class="splash-ornament ornament-top"></div>
+    
+    <div class="splash-content">
+        <div class="splash-subtitle">GULL AND ZUBAIR NASWAR DEALERS</div>
+        <div class="splash-quote" id="splash-quote">wisdom</div>
+        <div class="splash-author" id="splash-author">— Inspiring Minds</div>
+        <div class="splash-loader"></div>
+    </div>
+    
+    <div class="splash-ornament ornament-bottom"></div>
+</div>
+
+<!-- Replace this part in your system-controls div: -->
+<div class="system-controls">
+    <span style="font-weight:800; font-size:0.85rem; color:var(--accent);" class="shimmer-text">MAHMOOD KHAN</span>
+    
+    <div style="display:flex; gap:8px; align-items: center;">
+        <button class="btn-theme" id="themeToggle" onclick="(async () => { await toggleDarkMode() })()" title="Toggle Dark Mode"></button>
+        <button class="btn-theme" id="cloudMenuBtn" onclick="(async () => { await openDataMenu() })()" title="Data Management"></button>
+    </div>
+</div>
+
+<input type="file" id="restoreInput" class="hidden" accept=".json" onchange="(async () => { await unifiedRestore(event) })()">
+
+<div id="dataMenuOverlay" class="factory-overlay">
+    <div class="factory-overlay-card liquid-card" style="max-width: 350px; text-align: center;">
+        <div class="section-header">
+            <h3 style="color:var(--text-main); margin:0;">Data Options</h3>
+            <button class="btn-theme" onclick="closeDataMenu()"></button>
+        </div>
+        <hr style="width: 100%; border: 0; border-top: 1px solid var(--glass-border); margin: 5px 0;">
+<button class="btn" id="bio-toggle-btn" style="background: rgba(37, 99, 235, 0.1); color: var(--text-main); border: 1px solid var(--glass-border);" onclick="enableBiometricLock()">
+    Enable Biometric Lock 
+</button>
+
+<div id="admin-controls-section" style="background: rgba(245, 158, 11, 0.1); padding: 10px; border-radius: 10px; margin-bottom: 15px; border: 1px solid var(--warning);">
+    <h4 style="margin: 0 0 10px 0; color: var(--warning); font-size: 0.8rem;">ADMIN CONTROLS</h4>
+    <div class="field" style="margin-bottom: 10px;">
+        <label>Set Admin PIN</label>
+        <input type="password" id="setting-admin-pin" placeholder="Default: 1234" maxlength="4" style="text-align:center;">
+    </div>
+    <div class="field" style="margin-bottom: 10px;">
+        <label>Select Rep for this Device</label>
+        <select id="setting-rep-select" class="store-selector">
+            <option value="NORAN SHAH">NORAN SHAH</option>
+            <option value="NOMAN SHAH">NOMAN SHAH</option>
+        </select>
+    </div>
+    <button class="btn btn-danger" onclick="(async () => { await activateRepMode() })()"> Switch to Rep Mode</button>
+</div>
+
+<hr style="width: 100%; border: 0; border-top: 1px solid var(--glass-border); margin: 5px 0;">
+
+        
+        <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
+    <button class="btn btn-main" id="sync-btn" onclick="performOneClickSync().catch(err => console.error('Sync error:', err))" style="background: linear-gradient(135deg, #2563eb 0%, #059669 100%); font-size: 1rem; padding: 15px;">
+         SYNC DATA 
+    </button>
+    <div style="font-size: 0.7rem; color: var(--text-muted); text-align: center; margin-bottom: 10px;">
+        
+    </div>
+</div>
+<div class="field">
+
+            
+            <hr style="width: 100%; border: 0; border-top: 1px solid var(--glass-border); margin: 5px 0;">
+            
+            <button class="btn" style="background: rgba(37, 99, 235, 0.1); color: var(--text-main); border: 1px solid var(--glass-border);" onclick="(async () => { await triggerLocalBackup() })()">
+                 Backup to Phone
+            </button>
+            <button class="btn" style="background: rgba(37, 99, 235, 0.1); color: var(--text-main); border: 1px solid var(--glass-border);" onclick="document.getElementById('restoreInput').click(); closeDataMenu();">
+                 Restore from Phone
+            </button>
+        </div>
+        
+        <div id="lastSyncDisplay" style="margin-top: 15px; font-size: 0.7rem; color: var(--text-muted);">
+            Last Synced: Checking...
+        </div>
+        
+        <!-- Delta Sync Statistics -->
+        <div style="margin-top: 20px; padding: 15px; background: var(--input-bg); border-radius: 12px; border: 1px solid var(--glass-border);">
+            <h4 style="margin: 0 0 10px 0; color: var(--accent); font-size: 0.85rem; text-align: left;">📊 Delta Sync Status</h4>
+            
+            <div id="delta-sync-stats" style="font-size: 0.75rem; color: var(--text-muted);">
+                <div style="margin-bottom: 8px;">Loading sync statistics...</div>
+            </div>
+            
+            <button onclick="showDeltaSyncDetails()" 
+                    style="width: 100%; margin-top: 10px; padding: 8px; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 8px; color: var(--text); cursor: pointer; font-size: 0.75rem;">
+                View Detailed Stats
+            </button>
+            
+            <button onclick="window.migrateFirestoreUpdatedAt()" 
+                    style="width: 100%; margin-top: 8px; padding: 8px; background: rgba(255, 159, 10, 0.1); border: 1px solid rgba(255, 159, 10, 0.3); border-radius: 8px; color: #ff9f0a; cursor: pointer; font-size: 0.75rem;">
+                🔧 Run Migration (One-time Setup)
+            </button>
+        </div>
+    </div>
+</div>
+
+
+    <div class="nav-tabs">
+    <button class="tab-btn active" onclick="showTab('prod')">PRODUCTION</button>
+    <button class="tab-btn" onclick="showTab('sales')">SALES</button>
+    <button class="tab-btn" onclick="showTab('calc')">CALCULATOR</button>
+    <button class="tab-btn" onclick="showTab('factory')">FACTORY</button>
+    <button class="tab-btn" onclick="showTab('payments')">PAYMENTS</button>
+    <button class="tab-btn" onclick="showTab('rep')">REP SALES</button>
+</div>
+
+
+
+<div id="adminPinOverlay" class="factory-overlay">
+    <div class="factory-overlay-card liquid-card" style="max-width: 300px; text-align: center;">
+        <h3 style="color:var(--text-main); margin-bottom: 15px;">Enter Admin PIN</h3>
+        <input type="password" id="admin-pin-input" class="search-bar" style="text-align: center; font-size: 1.5rem; letter-spacing: 5px; margin-bottom: 20px;" maxlength="4" placeholder="••••">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <button class="btn" style="background: var(--input-bg); border: 1px solid var(--glass-border);" onclick="closeAdminPinModal()">Cancel</button>
+            <button class="btn btn-main" onclick="verifyAdminPin()">Unlock</button>
+        </div>
+    </div>
+</div>
+<div id="tab-rep" class="hidden">
+    
+<div id="admin-rep-controls" class="section liquid-card hidden">
+    <div class="section-header">
+        <h3 style="margin:0; color:var(--text-main); font-size: 0.9rem;">Admin View</h3>
+    </div>
+    
+    <div class="grid-inputs" style="margin-top: 10px;">
+        <div class="field">
+            <label style="color: var(--accent);">View For:</label>
+            <select id="admin-rep-selector" class="store-selector" onchange="adminSwitchRepProfile(this.value)">
+                <option value="NORAN SHAH">NORAN SHAH</option>
+                <option value="NOMAN SHAH">NOMAN SHAH</option>
+            </select>
+        </div>
+        <div class="field">
+            <label>Select Date</label>
+            <input type="date" id="admin-rep-date" onchange="handleAdminRepDateChange(this.value)">
+        </div>
+    </div>
+
+    <div id="rep-map-container" style="height: 300px; width: 100%; margin-top: 15px; border-radius: 12px; border: 2px solid var(--glass-border); z-index: 1;"></div>
+    
+    <div style="text-align: right; font-size: 0.7rem; color: var(--text-muted); margin-top: 5px;">
+        ● Cash Sale | ● Collection | ○ Credit Sale
+    </div>
+</div>
+
+<!-- REP SALES ANALYTICS SECTION -->
+<div id="admin-rep-analytics" class="section liquid-card hidden">
+    <div class="section-header">
+        <h3 style="color:var(--text-main); margin:0;">Analytics</h3>
+        <div class="toggle-group">
+            <div class="toggle-opt active" id="rep-analytics-day-btn" onclick="setRepAnalyticsMode('day')">Daily</div>
+            <div class="toggle-opt" id="rep-analytics-week-btn" onclick="setRepAnalyticsMode('week')">Weekly</div>
+            <div class="toggle-opt" id="rep-analytics-month-btn" onclick="setRepAnalyticsMode('month')">Monthly</div>
+            <div class="toggle-opt" id="rep-analytics-year-btn" onclick="setRepAnalyticsMode('year')">Yearly</div>
+            <div class="toggle-opt" id="rep-analytics-all-btn" onclick="setRepAnalyticsMode('all')">All Time</div>
+        </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--glass-border);">
+            <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">Collections</span>
+            <span class="profit-val" id="rep-analytics-collections" style="font-size: 0.95rem; font-weight: 800;">0.00</span>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--glass-border);">
+            <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">Cash Sales</span>
+            <span class="profit-val" id="rep-analytics-cash-sales" style="font-size: 0.95rem; font-weight: 800;">0.00</span>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; padding: 10px 0;">
+            <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">Credit Sales</span>
+            <span class="cost-val" id="rep-analytics-credit-sales" style="font-size: 0.95rem; font-weight: 800;">0.00</span>
+        </div>
+    </div>
+</div>
+
+
+
+    <div id="rep-header" style="margin-bottom: 20px; display: none; justify-content: space-between; align-items: center; background: var(--glass); padding: 15px; border-radius: 20px; border: 1px solid var(--glass-border);">
+        <div>
+         <h2 style="margin:0; color:var(--accent);"> <span id="current-rep-name-display">REP MODE</span></h2>
+        <span style="font-size: 0.7rem; color: var(--text-muted);"> </span>
+    </div>
+    <button class="btn btn-danger" onclick="openAdminPinModal()">  Access</button>
+    </div>
+
+   <div id="rep-new-transaction-card" class="section liquid-card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+        <h3 style="color:var(--accent); margin:0;">New Transaction</h3>        
+        <div style="background:var(--input-bg); padding:4px; border-radius:8px; border:1px solid var(--glass-border); display:flex;">
+            <button id="btn-mode-sale" class="toggle-opt active" onclick="setRepMode('sale')" style="padding:6px 12px; font-size:0.8rem;"> Sale</button>
+            <button id="btn-mode-coll" class="toggle-opt" onclick="setRepMode('collection')" style="padding:6px 12px; font-size:0.8rem;">Collection</button>
+        </div>
+    </div>
+        
+        <div class="grid-inputs">
+            <div class="field"><label>Date</label><input type="date" id="rep-date" onchange="renderRepHistory()"></div>
+
+            <div class="field" style="position: relative;">
+                <label>Customer Name</label>
+                <input type="text" id="rep-cust-name" placeholder="Search customer..." 
+                       oninput="handleUniversalSearch('rep-cust-name', 'rep-customer-search-results', 'repCustomers'); handleCustomerInput(this.value, 'rep')" autocomplete="off">
+                <div id="rep-customer-search-results" class="hidden" style="position: absolute; top: 100%; left: 0; right: 0; z-index: 1000; max-height: 200px; overflow-y: auto; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 10px; margin-top: 5px; box-shadow: var(--shadow);"></div>
+            </div>
+        </div>
+
+        <div id="rep-new-customer-phone-container" class="hidden" style="margin-top: 8px; animation: slideDown 0.3s ease;">
+            <div class="field">
+                <label style="color: var(--accent-emerald);">Mobile number</label>
+                <input type="tel" id="rep-new-cust-phone" placeholder="03XX-XXXXXXX" style="border-color: var(--accent-emerald);">
+            </div>
+        </div>
+
+        <div id="rep-sale-inputs">
+            <div class="grid-inputs">
+                <div class="field"><label>Quantity (kg)</label><input type="number" id="rep-quantity" step="0.001" oninput="calculateRepSalePreview()"></div>
+          <div class="field">
+    <label>Payment Type</label>
+    <div class="toggle-row" style="display: flex; flex-wrap: nowrap; gap: 8px; width: 100%;">
+        
+        <input type="radio" id="rep-pay-credit" name="rep-payment" value="CREDIT" checked onchange="calculateRepSalePreview()" class="ios-toggle-input">
+        <label for="rep-pay-credit" class="ios-toggle-container" style="flex: 1; min-width: 0; white-space: nowrap; justify-content: center;">
+            <div class="ios-toggle-switch"></div>
+            <span class="ios-toggle-label">Credit</span>
+        </label>   
+        
+        <input type="radio" id="rep-pay-cash" name="rep-payment" value="CASH" onchange="calculateRepSalePreview()" class="ios-toggle-input">
+        <label for="rep-pay-cash" class="ios-toggle-container" style="flex: 1; min-width: 0; white-space: nowrap; justify-content: center;">
+            <div class="ios-toggle-switch"></div>
+            <span class="ios-toggle-label">Cash</span>
+        </label>
+        
+    </div>
+</div>
+
+      </div>
+        </div>
+
+        <div id="rep-coll-inputs" class="hidden">
+            <div class="field">
+                <label>Amount Collected ()</label>
+                <input type="number" id="rep-amount-collected" step="1" placeholder="Enter Cash Received">
+            </div>
+        </div>
+
+        <div id="rep-customer-info-display" class="hidden" style="margin: 10px 0; padding: 12px; background: rgba(37, 99, 235, 0.05); border-radius: 10px; border: 1px solid var(--glass-border);">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">Current Debt:</span>
+                <span id="rep-customer-current-credit" style="color: var(--warning); font-weight: 800;">0.00</span>
+            </div>
+        </div>
+
+        <div class="result-box" style="display: flex; justify-content: space-between; align-items: center;">
+            <span id="rep-result-label">Transaction Value:</span>
+            <span id="rep-total-value" style="font-size: 1.1rem; color: var(--accent);">0.00</span>
+        </div>
+
+        <button class="btn btn-main" onclick="(async () => { await saveRepTransaction() })()">Submit Transaction</button>
+    </div>
+
+    <div class="section liquid-card">
+        <div class="section-header" style="position: relative;">
+            <h3 style="color:var(--text-main); margin:0;">Customer List</h3>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <input type="text" id="rep-filter" class="search-bar" placeholder="Filter list..." style="width: 120px; font-size: 0.7rem;" oninput="renderRepCustomerTable()">
+                <button class="btn-theme" onclick="exportCustomerData('rep')" title="Download PDF" style="color: var(--accent-emerald); border-color: var(--accent-emerald);">
+                    📄
+                </button>
+            </div>
+        </div>
+
+        <div style="overflow-x: auto; overflow-y: auto; max-height: 400px; margin-top: 10px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                <thead style="position: sticky; top: 0; background: var(--glass); z-index: 10;">
+                    <tr style="background: var(--input-bg); border-bottom: 2px solid var(--glass-border);">
+                        <th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 15%;">Date</th>
+                        <th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 30%;">Name</th>
+                        <th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 20%;">Contact</th>
+                        <th style="padding: 8px 2px; text-align: right; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 20%;">Amount</th>
+                        <th style="padding: 8px 2px; text-align: center; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 15%;">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="rep-customers-table-body">
+                    <tr>
+                        <td colspan="5" style="text-align: center; padding: 30px; color: var(--text-muted); font-size: 0.85rem;">
+                            No records found
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="section liquid-card">
+        <h3 style="color:var(--text-main); margin:0 0 15px 0;">Today's Activity</h3>
+        <div id="repHistoryList" class="report-grid"></div>
+    </div>
+</div>
+
+    <!-- PRODUCTION TAB -->
+    <div id="tab-prod">
+        <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+            <h1 style="color:var(--text-main); font-weight:800; margin:0;" class="shimmer-text">Manufacturing</h1>
+            <div class="production-toggle-container">
+                <button class="production-toggle-btn active" onclick="setProductionView('combined', event)">Combined</button>
+                <button class="production-toggle-btn" onclick="setProductionView('store', event)">Store Entry</button>
+            </div>
+        </header>
+
+        <!-- Production Entry Card -->
+        <div id="production-entry-section" class="section liquid-card">
+            <h3 style="color:var(--accent); margin-top:0;">New Entry</h3>
+            
+            <!-- Units Available Indicator -->
+            <div id="unitsAvailableIndicator" class="production-unit-info">
+                <span>Formula Units Available:</span>
+                <span id="currentUnitsAvailable" class="units-available-good">Calculating...</span>
+            </div>
+            
+            <div class="grid-inputs">
+                <div class="field"><label>Select Date</label><input type="date" id="sys-date" onchange="refreshUI()"></div>
+                <div class="field"><label>Gross Weight (kg)</label><input type="number" id="gross-wt" step="0.001" oninput="calcNet()"></div>
+                <div class="field"><label>Container Weight (kg)</label><input type="number" id="cont-wt" step="0.001" oninput="calcNet()"></div>
+            </div>
+            
+            <div class="grid-inputs">
+                <div class="field">
+                    <label>Net Production (kg)</label>
+                    <input type="number" id="net-wt" readonly style="background:rgba(37, 99, 235, 0.1); color:var(--accent); font-weight:bold;">
+                    <div style="font-size:0.7rem; color:var(--text-muted); margin-top:5px; font-weight: 400;">
+                        Dynamic Cost Value: <span id="display-cost-value" style="color:var(--danger);">0.00</span>
+                    </div>
+                </div>
+                
+                <!-- Store Selection -->
+                <div class="field">
+                    <label>Select Store:</label>
+                    <select id="storeSelector" class="store-selector" onchange="updateProductionCostOnStoreChange()">
+                        <option value="STORE_A">ZUBAIR</option>
+                        <option value="STORE_B">MAHMOOD</option>
+                        <option value="STORE_C">ASAAN</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Payment Status Toggle (Visible only for STORE_C) -->
+            <div id="paymentStatusContainer" class="hidden" style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 8px; font-size: 0.7rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">Payment Status:</label>
+                <div class="payment-type-container">
+                    <input type="radio" id="production-payment-cash" name="production-payment-type" value="CASH" checked class="ios-toggle-input">
+                    <label for="production-payment-cash" class="ios-toggle-container">
+                        <div class="ios-toggle-switch"></div>
+                        <span class="ios-toggle-label">Cash</span>
+                    </label>
+                    
+                    <input type="radio" id="production-payment-credit" name="production-payment-type" value="CREDIT" class="ios-toggle-input">
+                    <label for="production-payment-credit" class="ios-toggle-container">
+                        <div class="ios-toggle-switch"></div>
+                        <span class="ios-toggle-label">Credit</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- New Fields: Formula Units and Sale Price (REMOVED) -->
+            <div class="grid-inputs">
+                <div class="field">
+                    <label>Formula Units Used</label>
+                    <input type="number" id="formula-units" step="0.001" min="0" value="1" oninput="calculateDynamicProductionCost()">
+                    <div style="font-size:0.6rem; color:var(--text-muted); margin-top:3px; font-weight: 400;">
+                        Units of factory mixture consumed
+                    </div>
+                </div>
+                
+                <!-- REMOVED: Sale Price input field -->
+                <div class="field">
+                    <label>Sale Price (per kg)</label>
+                    <div class="result-box" style="background:rgba(37, 99, 235, 0.05);">
+                        <span id="production-sale-price-display" style="color:var(--accent); font-weight:800;">0.00/kg</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dynamic Cost Calculation Display -->
+            <div class="formula-unit-display">
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px; font-size:0.75rem;">
+                    <span style="color:var(--text-muted);">Formula Unit Cost:</span>
+                    <span id="formula-unit-cost-display" style="color:var(--danger); font-weight:800;">0.00/unit</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px; font-size:0.75rem;">
+                    <span style="color:var(--text-muted);">Total Formula Cost:</span>
+                    <span id="total-formula-cost-display" style="color:var(--danger); font-weight:800;">0.00</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:0.75rem;">
+                    <span style="color:var(--text-muted);">Cost per kg:</span>
+                    <span id="dynamic-cost-per-kg" style="color:var(--danger); font-weight:800;">0.00/kg</span>
+                </div>
+            </div>
+
+            <!-- Cost and Profit Display -->
+            <div class="result-box" style="background:rgba(37, 99, 235, 0.05);">
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                    <span style="font-size:0.75rem; color:var(--text-muted); font-weight: 400;">Dynamic Cost Price:</span>
+                    <span id="factory-cost-price" style="color:var(--danger); font-weight:800;">0.00/kg</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                    <span style="font-size:0.75rem; color:var(--text-muted); font-weight: 400;">Sale Price:</span>
+                    <span id="profit-sale-price" style="color:var(--accent); font-weight:800;">0.00/kg</span>
+                </div>
+                <div style="display:flex; justify-content:space-between;">
+                    <span style="font-size:0.75rem; color:var(--text-muted); font-weight: 400;">Profit (per kg):</span>
+                    <span id="profit-per-kg" style="color:var(--accent-emerald); font-weight:800;">0.00</span>
+                </div>
+            </div>
+
+            <!-- Warning Message for Insufficient Units -->
+            <div id="insufficientUnitsWarning" class="warning-message hidden">
+                Insufficient formula units available! Please reduce formula units used.
+            </div>
+
+            <button class="btn btn-main" onclick="(async () => { await recordEntry() })()">Save Production</button>
+        </div>
+
+        <!-- Combined Overview -->
+        <div id="combinedOverview" class="combined-overview liquid-card">
+            <h3 style="margin:0 0 15px 0; text-align:center; color:var(--accent); font-size:0.95rem; text-transform:uppercase; font-weight:800;" class="shimmer-text">All Stores Overview</h3>
+            
+            <!-- Toggle for daily, weekly, monthly, yearly, all times -->
+            <div class="all-stores-toggle">
+                <div class="toggle-group">
+                    <div class="toggle-opt active" id="overview-day-btn" onclick="setOverviewMode('day')">Daily</div>
+                    <div class="toggle-opt" id="overview-week-btn" onclick="setOverviewMode('week')">Weekly</div>
+                    <div class="toggle-opt" id="overview-month-btn" onclick="setOverviewMode('month')">Monthly</div>
+                    <div class="toggle-opt" id="overview-year-btn" onclick="setOverviewMode('year')">Yearly</div>
+                    <div class="toggle-opt" id="overview-all-btn" onclick="setOverviewMode('all')">All Times</div>
+                </div>
+            </div>
+            
+            <div class="overview-report-grid" id="all-stores-grid">
+                <!-- Cards will be populated by JavaScript -->
+            </div>
+
+            <!-- Store Comparison Graph Toggle -->
+            <div class="store-comparison-toggle">
+                <label style="display: block; margin-bottom: 6px; font-size: 0.65rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">Compare Stores By:</label>
+                <div class="comparison-metric-selector">
+                    <button class="metric-btn active" onclick="setStoreComparisonMetric('weight', event)">Weight (kg)</button>
+                    <button class="metric-btn" onclick="setStoreComparisonMetric('value', event)">Total Value</button>
+                    <button class="metric-btn" onclick="setStoreComparisonMetric('cost', event)">Total Cost</button>
+                    <button class="metric-btn" onclick="setStoreComparisonMetric('profit', event)">Net Profit</button>
+                </div>
+            </div>
+            
+            <div class="chart-container">
+                <div class="chart-box">
+                    <canvas id="storeComparisonChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="section liquid-card">
+            <div class="section-header">
+                <h3 style="color:var(--text-main); margin:0;">Analytics</h3>
+                <div class="toggle-group">
+                    <div class="toggle-opt active" id="mfg-week-btn" onclick="setMfgChartMode('week')">Weekly</div>
+                    <div class="toggle-opt" id="mfg-month-btn" onclick="setMfgChartMode('month')">Monthly</div>
+                    <div class="toggle-opt" id="mfg-year-btn" onclick="setMfgChartMode('year')">Yearly</div>
+                    <div class="toggle-opt" id="mfg-all-btn" onclick="setMfgChartMode('all')">All Times</div>
+                </div>
+            </div>
+            <div class="chart-container">
+                <div class="chart-box">
+                    <canvas id="mfgBarChart"></canvas>
+                </div>
+                <div class="chart-box">
+                    <div class="percentage-toggle-container">
+                        <button class="percentage-toggle-btn" id="mfgPiePercentageToggle" onclick="togglePercentage('mfgPieChart')">Show %</button>
+                    </div>
+                    <canvas id="mfgPieChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-header">
+            <h3>Summary Reports <span class="update-indicator" id="summaryUpdateIndicator"></span></h3>
+        </div>
+        <div class="report-grid summary-enhanced" id="prod-summary-grid">
+            <div class="card highlight-card liquid-card">
+                <h4>Daily Summary</h4>
+                <p><span>Net Weight:</span> <span class="qty-val" id="day-qty">0.00 kg</span></p>
+                <p><span>Total Value:</span> <span class="rev-val" id="day-value">0.00</span></p>
+                <p><span>Total Cost:</span> <span class="cost-val" id="day-cost">0.00</span></p>
+                <p><span>Net Profit:</span> <span class="profit-val" id="day-profit">0.00</span></p>
+                <hr style="margin: 6px 0;">
+                <p><span>Formula Units Used:</span> <span class="qty-val" id="day-formula-units">0.00</span></p>
+                <p><span>Formula Cost:</span> <span class="cost-val" id="day-formula-cost">0.00</span></p>
+            </div>
+            <div class="card liquid-card">
+                <h4>Weekly Summary</h4>
+                <p><span>Net Weight:</span> <span class="qty-val" id="week-qty">0.00 kg</span></p>
+                <p><span>Total Value:</span> <span class="rev-val" id="week-value">0.00</span></p>
+                <p><span>Total Cost:</span> <span class="cost-val" id="week-cost">0.00</span></p>
+                <p><span>Net Profit:</span> <span class="profit-val" id="week-profit">0.00</span></p>
+                <hr style="margin: 6px 0;">
+                <p><span>Formula Units Used:</span> <span class="qty-val" id="week-formula-units">0.00</span></p>
+                <p><span>Formula Cost:</span> <span class="cost-val" id="week-formula-cost">0.00</span></p>
+            </div>
+            <div class="card liquid-card">
+                <h4>Monthly Summary</h4>
+                <p><span>Net Weight:</span> <span class="qty-val" id="month-qty">0.00 kg</span></p>
+                <p><span>Total Value:</span> <span class="rev-val" id="month-value">0.00</span></p>
+                <p><span>Total Cost:</span> <span class="cost-val" id="month-cost">0.00</span></p>
+                <p><span>Net Profit:</span> <span class="profit-val" id="month-profit">0.00</span></p>
+                <hr style="margin: 6px 0;">
+                <p><span>Formula Units Used:</span> <span class="qty-val" id="month-formula-units">0.00</span></p>
+                <p><span>Formula Cost:</span> <span class="cost-val" id="month-formula-cost">0.00</span></p>
+            </div>
+            <div class="card liquid-card">
+                <h4>Yearly Summary</h4>
+                <p><span>Net Weight:</span> <span class="qty-val" id="year-qty">0.00 kg</span></p>
+                <p><span>Total Value:</span> <span class="rev-val" id="year-value">0.00</span></p>
+                <p><span>Total Cost:</span> <span class="cost-val" id="year-cost">0.00</span></p>
+                <p><span>Net Profit:</span> <span class="profit-val" id="year-profit">0.00</span></p>
+                <hr style="margin: 6px 0;">
+                <p><span>Formula Units Used:</span> <span class="qty-val" id="year-formula-units">0.00</span></p>
+                <p><span>Formula Cost:</span> <span class="cost-val" id="year-formula-cost">0.00</span></p>
+            </div>
+            <div class="card all-times-summary liquid-card" id="all-times-production-card" style="display: none;">
+                <h4>All Times Summary</h4>
+                <p><span>Net Weight:</span> <span class="qty-val" id="all-qty">0.00 kg</span></p>
+                <p><span>Total Value:</span> <span class="rev-val" id="all-value">0.00</span></p>
+                <p><span>Total Cost:</span> <span class="cost-val" id="all-cost">0.00</span></p>
+                <p><span>Net Profit:</span> <span class="profit-val" id="all-profit">0.00</span></p>
+                <hr style="margin: 6px 0;">
+                <p><span>Formula Units Used:</span> <span class="qty-val" id="all-formula-units">0.00</span></p>
+                <p><span>Formula Cost:</span> <span class="cost-val" id="all-formula-cost">0.00</span></p>
+            </div>
+        </div>
+
+        <div class="section-header" style="margin-top:25px;">
+            <h3>History</h3>
+        </div>
+
+        <!-- Search Bar for Production History -->
+        <div class="section liquid-card">
+            <input type="text" id="production-search" class="search-bar" placeholder=" Search production history by date or store..." oninput="filterProductionHistory()">
+        </div>
+
+        <div id="prodHistoryList"></div>
+        <div id="production-pagination" style="margin-top:15px; text-align:center;" class="report-grid"></div>
+    </div>
+
+    <!-- SALES TAB -->
+    <div id="tab-sales" class="hidden">
+        <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+            <h1 style="color:var(--text-main); font-weight:800; margin:0;" class="shimmer-text">Sales</h1>
+        </header>
+
+        <div class="section liquid-card">
+            <h3 style="color:var(--accent); margin-top:0;">New Sale</h3>
+            <!-- In SALES TAB, replace the customer name input section -->
+<div class="grid-inputs">
+    <div class="field"><label>Date</label><input type="date" id="cust-date" onchange="refreshCustomerSales()"></div>
+    <div class="field" style="position: relative;">
+    <label>Customer Name</label>
+    <input type="text" id="cust-name" list="customer-list" placeholder="Search or type new..." 
+           oninput="handleUniversalSearch('cust-name', 'customer-search-results', 'customers'); handleCustomerInput(this.value, 'admin')" autocomplete="off">
+    <div id="customer-search-results" class="hidden" style="position: absolute; top: 100%; left: 0; right: 0; z-index: 1000; max-height: 200px; overflow-y: auto; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 10px; margin-top: 5px; box-shadow: var(--shadow);"></div>
+    
+    <div id="new-customer-phone-container" class="hidden" style="margin-top: 8px; animation: slideDown 0.3s ease;">
+        <div class="field">
+            <label style="color: var(--accent-emerald);">Mobile number</label>
+            <input type="tel" id="new-cust-phone" placeholder="03XX-XXXXXXX" style="border-color: var(--accent-emerald);">
+        </div>
+    </div>
+    
+    <datalist id="customer-list"></datalist>
+    </div>
+</div>
+
+<div class="field" style="margin-bottom: 15px;">
+    <label>Sales Representative (For Calculator Link)</label>
+    
+    <div class="toggle-row" style="display: flex; flex-wrap: nowrap; gap: 8px; width: 100%;">
+        
+        <input type="radio" id="rep-none" name="sales-rep" value="NONE" checked onchange="autoFillCustomerName()" class="ios-toggle-input">
+        <label for="rep-none" class="ios-toggle-container" style="flex: 1; min-width: 0; white-space: nowrap; justify-content: center; padding: 4px 8px;">
+            <div class="ios-toggle-switch"></div>
+            <span class="ios-toggle-label">Direct</span>
+        </label>
+
+        <input type="radio" id="rep-noran" name="sales-rep" value="NORAN SHAH" onchange="autoFillCustomerName()" class="ios-toggle-input">
+        <label for="rep-noran" class="ios-toggle-container" style="flex: 1; min-width: 0; white-space: nowrap; justify-content: center; padding: 4px 8px;">
+            <div class="ios-toggle-switch"></div>
+            <span class="ios-toggle-label">Noran</span>
+        </label>
+
+        <input type="radio" id="rep-noman" name="sales-rep" value="NOMAN SHAH" onchange="autoFillCustomerName()" class="ios-toggle-input">
+        <label for="rep-noman" class="ios-toggle-container" style="flex: 1; min-width: 0; white-space: nowrap; justify-content: center; padding: 4px 8px;">
+            <div class="ios-toggle-switch"></div>
+            <span class="ios-toggle-label">Noman</span>
+        </label>
+        
+    </div>
+</div>
+
+
+
+            <div class="grid-inputs">
+                <div class="field"><label>Quantity (kg)</label><input type="number" id="cust-quantity" step="0.001" oninput="calculateCustomerSale()"></div>
+            </div>
+            <!-- Add this section after the quantity input and before store selection -->
+<div id="customer-info-display" class="hidden" style="margin: 10px 0; padding: 12px; background: rgba(37, 99, 235, 0.05); border-radius: 10px; border: 1px solid var(--glass-border);">
+    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+        <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 400;">Current Credit:</span>
+        <span id="customer-current-credit" style="color: var(--warning); font-weight: 400;">0.00</span>
+    </div>
+    <div style="display: flex; justify-content: space-between;">
+        <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 400;">Total Quantity:</span>
+        <span id="customer-total-quantity" style="color: var(--accent); font-weight: 400;">0.00</span>
+    </div>
+</div>
+            <!-- Store Selection for Sales -->
+         <div class="field" style="margin-bottom: 15px;">
+    <label>Supply</label>
+    
+    <div class="toggle-row" style="display: flex; flex-wrap: nowrap; gap: 8px; width: 100%;">
+        
+        <input type="radio" id="supply-store-a" name="supply-store" value="STORE_A" checked class="ios-toggle-input">
+        <label for="supply-store-a" class="ios-toggle-container" style="flex: 1; min-width: 0; white-space: nowrap; justify-content: center; padding: 4px 8px;">
+            <div class="ios-toggle-switch"></div>
+            <span class="ios-toggle-label">ZUBAIR</span>
+        </label>
+
+        <input type="radio" id="supply-store-b" name="supply-store" value="STORE_B" class="ios-toggle-input">
+        <label for="supply-store-b" class="ios-toggle-container" style="flex: 1; min-width: 0; white-space: nowrap; justify-content: center; padding: 4px 8px;">
+            <div class="ios-toggle-switch"></div>
+            <span class="ios-toggle-label">MAHMOOD</span>
+        </label>
+
+        <input type="radio" id="supply-store-c" name="supply-store" value="STORE_C" class="ios-toggle-input">
+        <label for="supply-store-c" class="ios-toggle-container" style="flex: 1; min-width: 0; white-space: nowrap; justify-content: center; padding: 4px 8px;">
+            <div class="ios-toggle-switch"></div>
+            <span class="ios-toggle-label">ASAAN</span>
+        </label>
+        
+    </div>
+</div>
+
+            
+            <div class="field" style="margin-bottom: 15px;">
+                <label>Payment:</label>
+                <div class="payment-type-container">
+                    <input type="radio" id="payment-cash" name="payment-type" value="CASH" checked class="ios-toggle-input">
+                    <label for="payment-cash" class="ios-toggle-container">
+                        <div class="ios-toggle-switch"></div>
+                        <span class="ios-toggle-label">Cash</span>
+                    </label>
+                    
+                    <input type="radio" id="payment-credit" name="payment-type" value="CREDIT" class="ios-toggle-input">
+                    <label for="payment-credit" class="ios-toggle-container">
+                        <div class="ios-toggle-switch"></div>
+                        <span class="ios-toggle-label">Credit</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Cost and Profit Display -->
+
+            <div class="result-box">
+                Total Cost: <span id="cust-total-cost">0.00</span>
+            </div>
+            <div class="result-box">
+                Total Value: <span id="cust-total-value">0.00</span>
+            </div>
+            <div class="result-box">
+                Profit: <span id="cust-profit">0.00</span>
+            </div>
+
+            <button class="btn btn-main" onclick="(async () => { await saveCustomerSale() })()">Save Transaction</button>
+        </div>
+<!-- CUSTOMERS CARD - Updated with Edit Button -->
+<div class="section liquid-card" id="customers-card">
+   <div class="section-header">
+    <h3 style="color:var(--text-main); margin:0;">CUSTOMERS</h3>
+    <div style="display: flex; gap: 8px; align-items: center;">
+        <input type="text" id="customer-filter" class="search-bar" placeholder="Filter customers..." 
+               style="width: 150px; font-size: 0.7rem;" oninput="filterCustomers()">
+        <span id="customer-count" style="font-size: 0.7rem; color: var(--text-muted); display:none;">0 customers</span>
+        
+        <button class="btn-theme" onclick="exportCustomerData('admin')" title="Download PDF" style="color: var(--accent); border-color: var(--accent); padding: 5px 10px;">
+            📄
+        </button>
+    </div>
+</div>
+
+    
+    <!-- Customer List Table -->
+    <div style="overflow-x: auto; overflow-y: auto; max-height: 400px; margin-top: 10px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+            <thead style="position: sticky; top: 0; background: var(--glass); z-index: 10;">
+                <tr style="background: var(--input-bg); border-bottom: 2px solid var(--glass-border);">
+                    <th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 15%;">Date</th>
+                    <th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 30%;">Name</th>
+                    <th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 20%;">Contact</th>
+                    <th style="padding: 8px 2px; text-align: right; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 20%;">Amount</th>
+                    <th style="padding: 8px 2px; text-align: center; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 15%;">Action</th>
+                </tr>
+            </thead>
+            <tbody id="customers-table-body">
+                <tr>
+                    <td colspan="5" style="text-align: center; padding: 30px; color: var(--text-muted); font-size: 0.85rem;">
+                        No records found
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Summary Footer -->
+    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--glass-border);">
+        <div style="display: flex; justify-content: space-between; font-size: 0.7rem;">
+            <span style="color: var(--text-muted); font-weight: 400;">Total Outstanding Credit:</span>
+            <span id="customers-total-credit" style="color: var(--warning); font-weight: 400;">0.00</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 0.7rem;">
+            <span style="color: var(--text-muted); font-weight: 400;">Total Quantity Sold:</span>
+            <span id="customers-total-quantity" style="color: var(--accent); font-weight: 400;">0.00</span>
+        </div>
+    </div>
+</div>
+        <div class="section liquid-card">
+            <div class="section-header">
+                <h3 style="color:var(--text-main); margin:0;">Analytics</h3>
+                <div class="toggle-group">
+                    <div class="toggle-opt active" id="cust-week-btn" onclick="setCustomerChartMode('week')">Weekly</div>
+                    <div class="toggle-opt" id="cust-month-btn" onclick="setCustomerChartMode('month')">Monthly</div>
+                    <div class="toggle-opt" id="cust-year-btn" onclick="setCustomerChartMode('year')">Yearly</div>
+                    <div class="toggle-opt" id="cust-all-btn" onclick="setCustomerChartMode('all')">All Times</div>
+                </div>
+            </div>
+            <div class="chart-container">
+                <div class="chart-box">
+                    <canvas id="custSalesChart"></canvas>
+                </div>
+                <div class="chart-box">
+                    <div class="percentage-toggle-container">
+                        <button class="percentage-toggle-btn" id="custPaymentPercentageToggle" onclick="togglePercentage('custPaymentChart')">Show %</button>
+                    </div>
+                    <canvas id="custPaymentChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-header">
+            <h3>Summary</h3>
+        </div>
+        <div class="report-grid">
+            <div class="card highlight-card liquid-card">
+                <h4>Daily Sales</h4>
+                <p><span>Total Quantity:</span> <span class="qty-val" id="cust-day-qty">0.00 kg</span></p>
+                <p><span>Total Value:</span> <span class="rev-val" id="cust-day-value">0.00</span></p>
+                <p><span>Cash (Inc. Received):</span> <span style="color:#059669; font-weight:800;" id="cust-day-cash">0.00</span></p>
+                <p><span>Pending Credits:</span> <span style="color:#f59e0b; font-weight:800;" id="cust-day-credit">0.00</span></p>
+                <p><span>Net Profit:</span> <span class="profit-val" id="cust-day-profit">0.00</span></p>
+            </div>
+            <div class="card liquid-card">
+                <h4>Weekly Sales</h4>
+                <p><span>Total Quantity:</span> <span class="qty-val" id="cust-week-qty">0.00 kg</span></p>
+                <p><span>Total Value:</span> <span class="rev-val" id="cust-week-value">0.00</span></p>
+                <p><span>Cash (Inc. Received):</span> <span style="color:#059669; font-weight:800;" id="cust-week-cash">0.00</span></p>
+                <p><span>Pending Credits:</span> <span style="color:#f59e0b; font-weight:800;" id="cust-week-credit">0.00</span></p>
+                <p><span>Net Profit:</span> <span class="profit-val" id="cust-week-profit">0.00</span></p>
+            </div>
+            <div class="card liquid-card">
+                <h4>Monthly Sales</h4>
+                <p><span>Total Quantity:</span> <span class="qty-val" id="cust-month-qty">0.00 kg</span></p>
+                <p><span>Total Value:</span> <span class="rev-val" id="cust-month-value">0.00</span></p>
+                <p><span>Cash (Inc. Received):</span> <span style="color:#059669; font-weight:800;" id="cust-month-cash">0.00</span></p>
+                <p><span>Pending Credits:</span> <span style="color:#f59e0b; font-weight:800;" id="cust-month-credit">0.00</span></p>
+                <p><span>Net Profit:</span> <span class="profit-val" id="cust-month-profit">0.00</span></p>
+            </div>
+            <div class="card liquid-card">
+                <h4>Yearly Sales</h4>
+                <p><span>Total Quantity:</span> <span class="qty-val" id="cust-year-qty">0.00 kg</span></p>
+                <p><span>Total Value:</span> <span class="rev-val" id="cust-year-value">0.00</span></p>
+                <p><span>Cash (Inc. Received):</span> <span style="color:#059669; font-weight:800;" id="cust-year-cash">0.00</span></p>
+                <p><span>Pending Credits:</span> <span style="color:#f59e0b; font-weight:800;" id="cust-year-credit">0.00</span></p>
+                <p><span>Net Profit:</span> <span class="profit-val" id="cust-year-profit">0.00</span></p>
+            </div>
+            <div class="card all-times-summary liquid-card" id="all-times-sales-card" style="display: none;">
+                <h4>All Times Sales</h4>
+                <p><span>Total Quantity:</span> <span class="qty-val" id="cust-all-qty">0.00 kg</span></p>
+                <p><span>Total Value:</span> <span class="rev-val" id="cust-all-value">0.00</span></p>
+                <p><span>Cash (Inc. Received):</span> <span style="color:#059669; font-weight:800;" id="cust-all-cash">0.00</span></p>
+                <p><span>Pending Credits:</span> <span style="color:#f59e0b; font-weight:800;" id="cust-all-credit">0.00</span></p>
+                <p><span>Net Profit:</span> <span class="profit-val" id="cust-all-profit">0.00</span></p>
+            </div>
+        </div>
+
+        <div class="section-header" style="margin-top:25px;">
+            <h3>Transaction History</h3>
+        </div>
+
+        <div class="section liquid-card">
+            <input type="text" id="customer-search" class="search-bar" placeholder="Search sales by name" oninput="filterCustomerTransactions()">
+        </div>
+
+        <div id="custHistoryList"></div>
+        <div id="sales-pagination" style="margin-top:15px; text-align:center;" class="report-grid"></div>
+    </div>
+
+    <!-- CALCULATOR TAB -->
+    <div id="tab-calc" class="hidden">
+        <h2 style="color:var(--accent); font-weight:800;" class="shimmer-text">CALCULATOR</h2>
+
+        <div class="section liquid-card">
+            <label>Sales Representative:</label>
+            <select id="sellerSelect" class="store-selector" onchange="(async () => { await loadSalesData() })()">
+                <option value="NORAN SHAH">NORAN SHAH</option>
+                <option value="NOMAN SHAH">NOMAN SHAH</option>
+                <option value="COMBINED">COMPARISON</option>
+            </select>
+
+            <div id="entrySection" class="hidden">
+                <div class="grid-inputs">
+                    <div class="field"><label>Date</label><input type="date" id="sale-date" onchange="(async () => { await loadSalesData() })()"></div>
+                    <div class="field">
+    <label>Total Sold Qty</label>
+    <input type="number" id="totalSold" readonly style="background:rgba(37, 99, 235, 0.1); color:var(--text-main); font-weight:800; border:1px solid var(--accent);">
+</div>
+
+                  <div class="field"><label>Returned Qty</label><input type="number" id="returnedQuantity" oninput="handleReturnQtyInput()"></div>
+
+<div id="returnStoreSection" class="hidden" style="grid-column: 1 / -1; margin: 10px 0; padding: 12px; background: rgba(245, 158, 11, 0.1); border-radius: 10px; border: 1px solid var(--warning);">
+    <label style="color: var(--warning); font-weight: 800; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;"> Return Stock To Physical Inventory:</label>
+    <div class="payment-type-container" style="margin-top: 8px;">
+        <div class="payment-option">
+            <input type="radio" id="ret-store-a" name="return-store" value="STORE_A">
+            <label for="ret-store-a" style="color: var(--text-main);">ZUBAIR</label>
+        </div>
+        <div class="payment-option">
+            <input type="radio" id="ret-store-b" name="return-store" value="STORE_B">
+            <label for="ret-store-b" style="color: var(--text-main);">MAHMOOD</label>
+        </div>
+    </div>
+    <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 5px;">
+        * This will increase the store's stock level without creating a new production record.
+    </div>
+</div>
+
+
+                </div>
+                <div class="grid-inputs">
+                    <div class="field"><label>Credit Sales Qty</label><input type="number" id="creditSales" oninput="calculateSales()"></div>
+                    <div class="field"><label>Recovered Credit</label><input type="number" id="prevCreditReceived" oninput="calculateSales()"></div>
+                    <div class="field"><label>Physical Cash In Hand</label><input type="number" id="receivedCash" oninput="calculateSales()"></div>
+                </div>
+
+                <div class="result-box">Expected Cash: <span id="totalExpectedCash">0.00</span></div>
+                <div class="result-box" id="discrepancyBox">Status: <span id="discrepancyStatus">OK</span></div>
+                
+                <button class="btn btn-noman" onclick="(async () => { await saveTransaction() })()">Save Transaction</button>
+            </div>
+
+            <div id="combinedSection" class="hidden">
+                <div class="section-header">
+                    <h3 style="color:var(--text-main); margin:0;">Comparison</h3>
+                    <div class="toggle-group">
+                        <div class="toggle-opt" id="comp-week-btn" onclick="(async () => { await loadSalesData('week') })()">Week</div>
+                        <div class="toggle-opt" id="comp-month-btn" onclick="(async () => { await loadSalesData('month') })()">Month</div>
+                        <div class="toggle-opt" id="comp-year-btn" onclick="(async () => { await loadSalesData('year') })()">Year</div>
+                        <div class="toggle-opt active" id="comp-all-btn" onclick="(async () => { await loadSalesData('all') })()">All Time</div>
+                    </div>
+                </div>
+                
+                <div id="combinedExportArea">
+                    <div class="field" style="margin-bottom: 12px;">
+                        <label>View Chart For:</label>
+                        <select id="metricSelector" class="store-selector" onchange="(async () => { await loadSalesData(currentCompMode) })()">
+                            <option value="prof">Net Profit (Value)</option>
+                            <option value="rev">Gross Revenue (Value)</option>
+                            <option value="sold">Quantity Sold</option>
+                        </select>
+                    </div>
+
+                    <div class="chart-container">
+                        <div class="chart-box">
+                            <p style="font-size: 10px; text-align: center; color: var(--accent); margin: 0 0 8px 0; font-weight: 800;">COMPETITION</p>
+                            <canvas id="performanceChart"></canvas>
+                        </div>
+                        <div class="chart-box">
+                            <div class="percentage-toggle-container">
+                                <button class="percentage-toggle-btn" id="compositionPercentageToggle" onclick="togglePercentage('compositionChart')">Show %</button>
+                            </div>
+                            <p style="font-size: 10px; text-align: center; color: var(--accent); margin: 0 0 8px 0; font-weight: 800;">MARKET COMPOSITION</p>
+                            <canvas id="compositionChart"></canvas>
+                        </div>
+                    </div>
+
+                    <table class="comp-table">
+                        <thead><tr><th>Metric Comparison</th><th id="thNoran">Noran</th><th id="thNoman">Noman</th></tr></thead>
+                        <tbody id="comparisonBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Individual Sales Representative Performance Charts -->
+            <div id="individualChartSection" class="hidden">
+                <div class="section liquid-card">
+                    <div class="section-header">
+                        <h3 style="color:var(--text-main); margin:0;">Performance Analytics for <span id="selectedSellerName">...</span></h3>
+                        <div class="toggle-group">
+                            <div class="toggle-opt active" id="ind-week-btn" onclick="setIndChartMode('week')">Weekly</div>
+                            <div class="toggle-opt" id="ind-month-btn" onclick="setIndChartMode('month')">Monthly</div>
+                            <div class="toggle-opt" id="ind-year-btn" onclick="setIndChartMode('year')">Yearly</div>
+                            <div class="toggle-opt" id="ind-all-btn" onclick="setIndChartMode('all')">All Times</div>
+                        </div>
+                    </div>
+                    
+                    <div class="sales-rep-metric-selector">
+                        <label style="font-size: 0.65rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 5px;">Select Metric:</label>
+                        <select id="indMetricSelector" class="sales-rep-metric-dropdown" onchange="setIndChartMetric(this.value)">
+                            <option value="weight">Weight (kg)</option>
+                            <option value="value">Total Value ()</option>
+                            <option value="cost">Total Cost ()</option>
+                            <option value="profit">Net Profit ()</option>
+                            <option value="cash">Cash Sales ()</option>
+                            <option value="credit">Credit Sales ()</option>
+                        </select>
+                    </div>
+                    
+                    <div class="sales-rep-chart-container">
+                        <div class="sales-rep-chart-box">
+                            <canvas id="indPerformanceChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Daily Performance Overview Added -->
+        <div class="daily-performance-overview">
+            <h3 style="margin-bottom:15px;">Performance Overview (<span id="reportSellerName">...</span>)</h3>
+            <div class="report-grid" id="summary-section">
+                <div id="dailyReport"></div>
+                <div id="weeklyReport"></div>
+                <div id="monthlyReport"></div>
+                <div id="yearlyReport"></div>
+                <div id="allTimeReport"></div>
+                
+              <div class="card all-times-summary liquid-card" id="all-times-calculator-card" style="display: none;">
+                    <h4>All Times Summary</h4>
+                    <p><span>Total Sold:</span> <span class="qty-val" id="all-sold">0.00</span></p>
+                    <p><span>Returns:</span> <span class="qty-val" id="all-ret">0.00</span></p>
+                    <p><span>Revenue:</span> <span class="rev-val" id="all-revenue">0.00</span></p>
+                    <p><span>Profit:</span> <span class="profit-val" id="all-profit-calc">0.00</span></p>
+                    <hr>
+                    <p><span>Credit Out:</span> <span class="cost-val" id="all-creditVal">0.00</span></p>
+                    <p><span>Credit In:</span> <span class="profit-val" id="all-collected">0.00</span></p>
+                    <p><span>Net Debt:</span> <span class="balance-neg" id="all-balance">0.00</span></p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="debt-panel liquid-card">
+            <div style="text-align:center; font-weight:800; font-size:13px; text-transform:uppercase; margin-bottom:12px; color:var(--text-main);"><span id="debtSellerName">...</span> Market Debt Tracker</div>
+            <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid rgba(100,100,100,0.1);">
+                <span>Total Credit Issued:</span> <span id="ltCredit">0.00</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid rgba(100,100,100,0.1);">
+                <span>Total Cash Recovered:</span> <span id="ltCollected">0.00</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; padding:12px 0 0 0; font-size:1.1rem; font-weight:800;">
+                <span>Current Market Debt:</span> <span id="ltBalance">0.00</span>
+            </div>
+        </div>
+
+        <div class="section-header" style="margin-top:25px;">
+            <h3>Transaction History</h3>
+        </div>
+
+        <!-- Search Bar for Calculator History -->
+        <div class="section liquid-card">
+            <input type="text" id="calculator-search" class="search-bar" placeholder=" Search calculator history by date or seller..." oninput="filterCalculatorHistory()">
+        </div>
+
+        <div id="historyList" class="report-grid"></div>
+    </div>
+
+    <!-- FACTORY TAB -->
+    <div id="tab-factory" class="hidden">
+        <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+            <h1 style="color:var(--text-main); font-weight:800; margin:0;" class="shimmer-text">Factory</h1>
+            <div style="display:flex; gap:10px;">
+                <button class="btn-theme" onclick="openFactorySettings()"></button>
+            </div>
+        </header>
+
+        <!-- ADDED: Date Selection for Factory Tab -->
+        <div class="section liquid-card">
+            <div class="section-header">
+                <h3 style="color:var(--accent); margin-top:0;">Date Selection</h3>
+            </div>
+            <div class="field">
+                <label>Select Date for Reports</label>
+                <input type="date" id="factory-date" onchange="refreshFactoryTab()">
+            </div>
+        </div>
+
+        <div class="section liquid-card">
+            <div class="section-header">
+                <h3 style="color:var(--accent); margin-top:0;">New Production Entry</h3>
+            </div>
+            
+            <div class="factory-store-selector">
+                <div class="factory-store-opt active" onclick="selectFactoryEntryStore('standard', this)">STANDARD STORE</div>
+                <div class="factory-store-opt" onclick="selectFactoryEntryStore('asaan', this)">ASAAN STORE</div>
+            </div>
+
+            <div class="grid-inputs">
+                <div class="field">
+                    <label>Units to Produce</label>
+                    <input type="number" id="factoryProductionUnits" value="1" min="1" oninput="calculateFactoryProduction()">
+                </div>
+                <div class="field">
+                    <label>Total Cost</label>
+                    <div id="factoryTotalProductionCostDisplay" class="cost-display">0 </div>
+                </div>
+            </div>
+
+            <div id="factoryFormulaDisplay" class="formula-display">
+                Select a store...
+            </div>
+
+            <button class="btn btn-noman" onclick="(async () => { await saveFactoryProductionEntry() })()">Save Production Entry</button>
+        </div>
+
+        <div class="section liquid-card">
+            <div class="section-header">
+                <h3 style="color:var(--text-main); margin:0;">Units Available <span class="update-indicator" id="unitsUpdateIndicator"></span></h3>
+                <div class="toggle-group">
+                    <div class="toggle-opt active" onclick="setFactoryAvailableStore('standard', this)">Standard Store</div>
+                    <div class="toggle-opt" onclick="setFactoryAvailableStore('asaan', this)">Asaan Store</div>
+                </div>
+            </div>
+
+            <div id="factoryAvailStatsStandard">
+                <div class="factory-summary-row">
+                    <span class="factory-summary-label">Available Units</span>
+                    <span class="qty-val" id="factoryStdUnits">0</span>
+                </div>
+                <div class="factory-summary-row">
+                    <span class="factory-summary-label">Used Units</span>
+                    <span class="qty-val" id="factoryStdUsedUnits">0</span>
+                </div>
+                <div class="factory-summary-row">
+                    <span class="factory-summary-label">Per Unit Cost</span>
+                    <span class="cost-val" id="factoryStdUnitCost">0</span>
+                </div>
+                <div class="factory-summary-row">
+                    <span class="factory-summary-label">Total Cost Value</span>
+                    <span class="rev-val" id="factoryStdTotalVal">0</span>
+                </div>
+                <div class="factory-summary-row">
+                    <span class="factory-summary-label">Output Quantity</span>
+                    <span class="qty-val" id="factoryStdOutput">0 kg</span>
+                </div>
+                <div class="factory-summary-row">
+                    <span class="factory-summary-label">Raw Materials Used</span>
+                    <span class="qty-val" id="factoryStdRawUsed">0 kg</span>
+                </div>
+                <div class="factory-summary-row">
+                    <span class="factory-summary-label">Materials Value</span>
+                    <span class="cost-val" id="factoryStdMatVal">0</span>
+                </div>
+                <div class="factory-summary-row">
+                    <span class="factory-summary-label">Total Profit</span>
+                    <span class="profit-val" id="factoryStdProfit">0</span>
+                </div>
+                <div class="factory-summary-row">
+                    <span class="factory-summary-label">Profit Per Unit</span>
+                    <span class="profit-val" id="factoryStdProfitUnit">0</span>
+                </div>
+            </div>
+
+            <div id="factoryAvailStatsAsaan" class="hidden">
+                <div class="factory-summary-row">
+                    <span class="factory-summary-label">Available Units</span>
+                    <span class="qty-val" id="factoryAsaanUnits">0</span>
+                </div>
+                <div class="factory-summary-row">
+                    <span class="factory-summary-label">Used Units</span>
+                    <span class="qty-val" id="factoryAsaanUsedUnits">0</span>
+                </div>
+                <div class="factory-summary-row">
+                    <span class="factory-summary-label">Per Unit Cost</span>
+                    <span class="cost-val" id="factoryAsaanUnitCost">0</span>
+                </div>
+                <div class="factory-summary-row">
+                    <span class="factory-summary-label">Total Cost Value</span>
+                    <span class="rev-val" id="factoryAsaanTotalVal">0</span>
+                </div>
+                <div class="factory-summary-row">
+                    <span class="factory-summary-label">Output Quantity</span>
+                    <span class="qty-val" id="factoryAsaanOutput">0 kg</span>
+                </div>
+                <div class="factory-summary-row">
+                    <span class="factory-summary-label">Raw Materials Used</span>
+                    <span class="qty-val" id="factoryAsaanRawUsed">0 kg</span>
+                </div>
+                <div class="factory-summary-row">
+                    <span class="factory-summary-label">Materials Value</span>
+                    <span class="cost-val" id="factoryAsaanMatVal">0</span>
+                </div>
+                <div class="factory-summary-row">
+                    <span class="factory-summary-label">Total Profit</span>
+                    <span class="profit-val" id="factoryAsaanProfit">0</span>
+                </div>
+                <div class="factory-summary-row">
+                    <span class="factory-summary-label">Profit Per Unit</span>
+                    <span class="profit-val" id="factoryAsaanProfitUnit">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="section liquid-card">
+            <div class="section-header">
+                <h3 style="color:var(--text-main); margin:0;">Raw Material Inventory</h3>
+                <button class="btn-theme" style="font-size:0.8rem;" onclick="openFactoryInventoryModal()">+ Add</button>
+            </div>
+            
+            <div style="overflow-x: auto; overflow-y: auto; max-height: 500px; margin-top: 10px;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                    <thead style="position: sticky; top: 0; background: var(--glass); z-index: 10;">
+                        <tr style="background: var(--input-bg); border-bottom: 2px solid var(--glass-border);">
+                            <th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 30%;">Material</th>
+                            <th style="padding: 8px 2px; text-align: center; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 15%;">Stock</th>
+                            <th style="padding: 8px 2px; text-align: right; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 15%;">Cost/Unit</th>
+                            <th style="padding: 8px 2px; text-align: right; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 20%;">Total Value</th>
+                            <th style="padding: 8px 2px; text-align: center; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 20%;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="factoryInventoryTableBody">
+                        <!-- Inventory rows will be populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--glass-border);">
+                <div style="display: flex; justify-content: space-between; font-size: 0.85rem;">
+                    <span style="color: var(--text-muted); font-weight: 600;">Total Inventory Value:</span>
+                    <span class="rev-val" id="factoryTotalInventoryValue" style="color: var(--accent); font-weight: 700;">0.00</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="section liquid-card">
+            <div class="section-header">
+                <h3 style="color:var(--text-main); margin:0;">Performance Summary</h3>
+                <div class="toggle-group">
+                    <div class="toggle-opt active" onclick="setFactorySummaryMode('daily', this)">Daily</div>
+                    <div class="toggle-opt" onclick="setFactorySummaryMode('weekly', this)">Weekly</div>
+                    <div class="toggle-opt" onclick="setFactorySummaryMode('monthly', this)">Monthly</div>
+                    <div class="toggle-opt" onclick="setFactorySummaryMode('yearly', this)">Yearly</div>
+                    <div class="toggle-opt" onclick="setFactorySummaryMode('all', this)">All Times</div>
+                </div>
+            </div>
+
+            <div style="overflow-x: auto;">
+                <table class="comp-table">
+                    <tbody id="factorySummaryTableBody">
+                        <tr>
+                            <td>Available Units</td>
+                            <td style="text-align:right;" class="qty-val" id="factorySumUnits">0</td>
+                        </tr>
+                        <tr>
+                            <td>Used Units</td>
+                            <td style="text-align:right;" class="qty-val" id="factorySumUsedUnits">0</td>
+                        </tr>
+                        <tr>
+                            <td>Per Unit Cost</td>
+                            <td style="text-align:right;" class="cost-val" id="factorySumUnitCost">0.00</td>
+                        </tr>
+                        <tr>
+                            <td>Total Cost Value</td>
+                            <td style="text-align:right;" class="rev-val" id="factorySumTotalCost">0.00</td>
+                        </tr>
+                        <tr>
+                            <td>Output Quantity</td>
+                            <td style="text-align:right;" class="qty-val" id="factorySumOutput">0.00 kg</td>
+                        </tr>
+                        <tr>
+                            <td>Raw Materials Used</td>
+                            <td style="text-align:right;" class="qty-val" id="factorySumRawUsed">0.00 kg</td>
+                        </tr>
+                        <tr>
+                            <td>Materials Value</td>
+                            <td style="text-align:right;" class="cost-val" id="factorySumMatVal">0.00</td>
+                        </tr>
+                        <tr>
+                            <td>Total Profit</td>
+                            <td style="text-align:right;" class="profit-val" id="factorySumProfit">0.00</td>
+                        </tr>
+                        <tr>
+                            <td>Profit Per Unit</td>
+                            <td style="text-align:right;" class="profit-val" id="factorySumProfitUnit">0.00</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="section liquid-card">
+            <div class="section-header">
+                <h3 style="color:var(--text-main); margin:0;">Recent Production Activity</h3>
+            </div>
+            <div id="factoryHistoryList">
+                <!-- History items will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <!-- PAYMENTS TAB -->
+    <div id="tab-payments" class="hidden">
+        <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+            <h1 style="color:var(--text-main); font-weight:800; margin:0;" class="shimmer-text">Payments</h1>
+            <button class="btn-theme" onclick="openEntityManagement()"></button>
+        </header>
+
+        <!-- Transaction Manager Card -->
+        <div class="section liquid-card">
+            <div class="section-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="color:var(--text-main); margin:0;">Transaction Manager</h3>
+                <button class="btn-theme" onclick="clearExpenseForm()" style="padding: 6px 12px; font-size: 0.75rem;">
+                    Clear
+                </button>
+            </div>
+            
+            <!-- Redesigned Transaction Manager Input Layout -->
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
+                
+                <!-- Row 1: Date and Name/Entity -->
+                <div style="display: flex; gap: 8px; align-items: flex-end;">
+                    <div style="flex: 1; min-width: 140px;">
+                        <label style="font-size: 0.7rem; margin-bottom: 3px; display: block; color: var(--text-muted);">Date</label>
+                        <input 
+                            type="date" 
+                            id="expenseDate" 
+                            style="width: 100%; font-size: 0.85rem; padding: 8px;"
+                        >
+                    </div>
+                    
+                    <div style="flex: 2; min-width: 200px; position: relative;">
+                        <label style="font-size: 0.7rem; margin-bottom: 3px; display: block; color: var(--text-muted);">Name/Entity</label>
+                        <input 
+                            type="text" 
+                            id="expenseName" 
+                            placeholder="Search expenses or entities..." 
+                            oninput="handleExpenseSearch()"
+                            autocomplete="off"
+                            style="width: 100%; font-size: 0.85rem; padding: 8px;"
+                        >
+                        <div id="expense-search-results" class="hidden" style="
+                            position: absolute; 
+                            z-index: 1000; 
+                            width: 100%; 
+                            max-height: 200px; 
+                            overflow-y: auto; 
+                            background: var(--glass); 
+                            border: 1px solid var(--glass-border); 
+                            border-radius: 10px; 
+                            margin-top: 5px; 
+                            box-shadow: var(--shadow);
+                        "></div>
+                    </div>
+                </div>
+
+                <!-- Row 2: Amount and Description -->
+                <div style="display: flex; gap: 8px; align-items: flex-end;">
+                    <div style="flex: 1; min-width: 120px;">
+                        <label style="font-size: 0.7rem; margin-bottom: 3px; display: block; color: var(--text-muted);">Amount</label>
+                        <input 
+                            type="number" 
+                            id="expenseAmount" 
+                            placeholder="0" 
+                            step="0.01" 
+                            min="0"
+                            style="width: 100%; font-size: 0.85rem; font-weight: 600; padding: 8px;"
+                        >
+                    </div>
+
+                    <div style="flex: 2; min-width: 200px;">
+                        <label style="font-size: 0.7rem; margin-bottom: 3px; display: block; color: var(--text-muted);">Description <span style="opacity: 0.6;">(Optional)</span></label>
+                        <input 
+                            type="text" 
+                            id="expenseDescription" 
+                            placeholder="Add details..."
+                            style="width: 100%; font-size: 0.85rem; padding: 8px;"
+                        >
+                    </div>
+                </div>
+
+                <!-- Row 3: Type Toggles (Operating / Payment IN / Payment OUT) -->
+                <div style="margin-top: 5px;">
+                    <label style="font-size: 0.7rem; margin-bottom: 5px; display: block; color: var(--text-muted);">Transaction Type</label>
+                    <div style="display: flex; gap: 6px;">
+                        <input type="radio" id="category-operating" name="expense-category" value="operating" checked class="ios-toggle-input">
+                        <label for="category-operating" class="ios-toggle-container" style="flex: 1; padding: 8px 12px; font-size: 0.8rem;">
+                            <div class="ios-toggle-switch"></div>
+                            <span class="ios-toggle-label">Operating Expense</span>
+                        </label>
+
+                        <input type="radio" id="category-in" name="expense-category" value="IN" class="ios-toggle-input">
+                        <label for="category-in" class="ios-toggle-container" style="flex: 1; padding: 8px 12px; font-size: 0.8rem;">
+                            <div class="ios-toggle-switch"></div>
+                            <span class="ios-toggle-label">Payment IN</span>
+                        </label>
+
+                        <input type="radio" id="category-out" name="expense-category" value="OUT" class="ios-toggle-input">
+                        <label for="category-out" class="ios-toggle-container" style="flex: 1; padding: 8px 12px; font-size: 0.8rem;">
+                            <div class="ios-toggle-switch"></div>
+                            <span class="ios-toggle-label">Payment OUT</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Row 4: Save Button (Centered) -->
+                <div style="display: flex; justify-content: center; margin-top: 10px;">
+                    <button 
+                        onclick="saveExpense()" 
+                        style="
+                            min-width: 250px;
+                            background: linear-gradient(135deg, var(--accent) 0%, #2563eb 100%); 
+                            color: white;
+                            border: none;
+                            border-radius: 10px;
+                            font-size: 0.95rem; 
+                            padding: 12px 35px;
+                            font-weight: 700;
+                            cursor: pointer;
+                            transition: all 0.2s;
+                            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+                        "
+                        onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(37, 99, 235, 0.5)'"
+                        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(37, 99, 235, 0.3)'"
+                    >
+                        Save Transaction
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Economic Health Dashboard Card -->
+        <div class="section liquid-card net-cash-dashboard">
+    <h3 style="color:var(--accent); margin-top:0; text-align:center;">ECONOMIC HEALTH DASHBOARD</h3>
+    
+    <!-- Main Cash Indicator -->
+    <div class="net-cash-value" id="netCashValue">0.00</div>
+    
+    <!-- Operating Cash Flow -->
+    <div class="formula-item" style="background:rgba(37, 99, 235, 0.1); padding:10px; border-radius:8px; margin-bottom:15px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="color:var(--accent); font-weight:800; font-size:0.9rem;">Operating Cash Flow:</span>
+            <span style="font-weight:800; font-size:1.1rem; color:var(--accent-emerald);" id="operatingCashFlow">0.00</span>
+        </div>
+    </div>
+    
+    <!-- DETAILED CASH IN HAND BREAKDOWN -->
+    <div class="formula-breakdown">
+        <h4 style="color:var(--accent-emerald); margin:15px 0 10px 0; border-bottom:2px solid var(--accent-emerald); padding-bottom:5px;">CASH IN HAND DETAILS</h4>
+        
+        <div class="formula-item">
+            <span>Net Sales Cash (Direct Customers):</span>
+            <span class="formula-value" id="cashDetailDirectSales">0.00</span>
+        </div>
+        
+        <div class="formula-item">
+            <span>Net Production Cash (After Credits):</span>
+            <span class="formula-value" id="cashDetailProductionCash">0.00</span>
+        </div>
+        
+        <div class="formula-item">
+            <span>Representative Collections:</span>
+            <span class="formula-value" id="cashDetailRepCollections">0.00</span>
+        </div>
+        
+        <div class="formula-item">
+            <span>External Payments Received:</span>
+            <span class="formula-value" id="cashDetailPaymentsIn">0.00</span>
+        </div>
+        
+        <div class="formula-item" style="background:rgba(220, 38, 38, 0.1); padding:5px; border-radius:5px;">
+            <span>External Payments Made:</span>
+            <span class="formula-value" style="color:var(--danger);" id="cashDetailPaymentsOut">0.00</span>
+        </div>
+        
+        <div class="formula-item" style="font-weight:800; background:rgba(37, 99, 235, 0.1); padding:8px; border-radius:6px; margin-top:5px;">
+            <span>NET CASH IN HAND:</span>
+            <span class="formula-value" style="color:var(--accent-emerald);" id="cashDetailNet">0.00</span>
+        </div>
+        
+        <!-- CURRENT ASSETS SECTION -->
+        <h4 style="color:var(--store-a); margin:15px 0 10px 0; border-bottom:2px solid var(--store-a); padding-bottom:5px;">CURRENT ASSETS</h4>
+        
+        <div class="formula-item">
+            <span>Cash in Hand (Above):</span>
+            <span class="formula-value" id="formulaProdTotal">0.00</span>
+        </div>
+        
+        <div class="formula-item">
+            <span>Raw Materials Inventory:</span>
+            <span class="formula-value" style="color:var(--store-a);" id="formulaRawMaterials">0.00</span>
+        </div>
+        
+        <div class="formula-item">
+            <span>Formula Units Inventory:</span>
+            <span class="formula-value" style="color:var(--store-b);" id="formulaUnitsValue">0.00</span>
+        </div>
+        
+        <!-- ACCOUNTS RECEIVABLE -->
+        <h4 style="color:var(--accent); margin:15px 0 10px 0; border-bottom:2px solid var(--accent); padding-bottom:5px;">ACCOUNTS RECEIVABLE</h4>
+        
+        <div class="formula-item">
+            <span>Direct Customer Credits:</span>
+            <span class="formula-value" id="salesReceivables">0.00</span>
+        </div>
+        
+        <div class="formula-item">
+            <span>Production Tab Credits:</span>
+            <span class="formula-value" id="productionReceivables">0.00</span>
+        </div>
+        
+        <div class="formula-item">
+            <span>Representative Credits:</span>
+            <span class="formula-value" id="calculatorReceivables">0.00</span>
+        </div>
+        
+        <div class="formula-item" style="font-weight:800; background:rgba(37, 99, 235, 0.05); padding:8px; border-radius:6px;">
+            <span>TOTAL RECEIVABLES:</span>
+            <span class="formula-value" style="color:var(--accent);" id="formulaReceivables">0.00</span>
+        </div>
+        
+        <!-- CURRENT ASSETS TOTAL -->
+        <div class="formula-item" style="font-weight:800; background:rgba(37, 99, 235, 0.1); padding:8px; border-radius:6px; margin-top:10px;">
+            <span>TOTAL CURRENT ASSETS:</span>
+            <span class="formula-value" style="color:var(--accent-emerald);" id="currentAssetsTotal">0.00</span>
+        </div>
+        
+        <!-- CURRENT LIABILITIES -->
+        <h4 style="color:var(--danger); margin:15px 0 10px 0; border-bottom:2px solid var(--danger); padding-bottom:5px;">CURRENT LIABILITIES</h4>
+
+        <!-- ACCOUNTS PAYABLE SECTION -->
+        <div class="formula-item" style="font-weight:700; color:var(--danger);">
+            <span>ACCOUNTS PAYABLE:</span>
+        </div>
+
+        <div class="formula-item" style="margin-left:15px;">
+            <span>Supplier Payables (Inventory Purchases):</span>
+            <span class="formula-value" style="color:var(--danger);" id="supplierPayables">0.00</span>
+        </div>
+
+        <!-- OTHER PAYABLES BREAKDOWN -->
+        <div class="formula-item" style="margin-left:15px;">
+            <span>Other Payables:</span>
+        </div>
+        <div class="formula-item" style="margin-left:30px; font-size:0.8rem;">
+            <span>Operating Expenses:</span>
+            <span class="formula-value" style="color:var(--danger);" id="otherPayablesOperating">0.00</span>
+        </div>
+
+        <div class="formula-item" style="margin-left:15px; font-weight:700; background:rgba(220, 38, 38, 0.05); padding:5px; border-radius:5px;">
+            <span>TOTAL ACCOUNTS PAYABLE:</span>
+            <span class="formula-value" style="color:var(--danger);" id="formulaPayOut">0.00</span>
+        </div>
+
+        <!-- TOTAL CURRENT LIABILITIES -->
+        <div class="formula-item" style="font-weight:800; background:rgba(220, 38, 38, 0.1); padding:8px; border-radius:6px; margin-top:10px;">
+            <span>TOTAL CURRENT LIABILITIES:</span>
+            <span class="formula-value" style="color:var(--danger);" id="currentLiabilitiesTotal">0.00</span>
+        </div>
+        
+        <!-- Key Economic Indicators -->
+        <div class="formula-item" style="font-weight:800; color:var(--accent-emerald); background:rgba(5, 150, 105, 0.1); padding:10px; border-radius:8px;">
+            <span>Net Working Capital:</span>
+            <span class="formula-value" id="formulaPayIn">0.00</span>
+        </div>
+        
+        <div class="formula-item" style="font-weight:800; color:var(--accent); background:rgba(37, 99, 235, 0.1); padding:10px; border-radius:8px;">
+            <span>Total Enterprise Value:</span>
+            <span class="formula-value" id="formulaFinal">0.00</span>
+        </div>
+        
+        <!-- Financial Ratios -->
+        <h4 style="color:var(--text-main); margin:15px 0 10px 0; border-bottom:1px solid var(--glass-border); padding-bottom:5px;">FINANCIAL RATIOS</h4>
+        
+        <div class="formula-item">
+            <span>Current Ratio:</span>
+            <span class="formula-value" id="formulaCalcDisc">1.00</span>
+        </div>
+        
+        <div class="formula-item">
+            <span>Quick Ratio:</span>
+            <span class="formula-value" id="quickRatio">1.00</span>
+        </div>
+        
+        <div class="formula-item">
+            <span>Cash Ratio:</span>
+            <span class="formula-value" id="cashRatio">1.00</span>
+        </div>
+    </div>
+</div>
+<!-- Add this after the NET CASH DASHBOARD section -->
+<div class="section liquid-card">
+    <div class="section-header">
+        <h3 style="color:var(--text-main); margin:0;">CASH IN HAND TRACKER</h3>
+        <div class="toggle-group">
+            <div class="toggle-opt active" onclick="setCashTrackerMode('day')">Daily</div>
+            <div class="toggle-opt" onclick="setCashTrackerMode('week')">Weekly</div>
+            <div class="toggle-opt" onclick="setCashTrackerMode('month')">Monthly</div>
+            <div class="toggle-opt" onclick="setCashTrackerMode('year')">Yearly</div>
+            <div class="toggle-opt" onclick="setCashTrackerMode('all')">All Times</div>
+        </div>
+    </div>
+    
+    <div class="report-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+        <!-- Cash Tracker Card -->
+        <div class="card highlight-card liquid-card">
+            <h4>Net Cash Flow</h4>
+            <p><span>Production Value:</span> <span class="rev-val" id="cash-prod-value">Rs 0.00</span></p>
+            <p><span>Production Credits:</span> <span class="cost-val" id="cash-prod-credits">Rs 0.00</span></p>
+            <p><span>Sales Tab Cash:</span> <span class="profit-val" id="cash-sales-cash">Rs 0.00</span></p>
+            <p><span>Calculator Cash:</span> <span class="profit-val" id="cash-calculator-cash">Rs 0.00</span></p>
+            <p><span>Payments In:</span> <span class="profit-val" id="cash-payments-in">Rs 0.00</span></p>
+            <p><span>Payments Out:</span> <span class="cost-val" id="cash-payments-out">Rs 0.00</span></p>
+            <p><span>Expenses:</span> <span class="cost-val" id="cash-expenses">Rs 0.00</span></p>
+            <hr style="margin: 10px 0;">
+            <p><span>NET CASH:</span> <span class="profit-val" id="cash-net-total" style="font-size:1.2rem;">Rs 0.00</span></p>
+        </div>
+        
+        <!-- Total Credits Card -->
+<div class="card liquid-card" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%); border-color: rgba(245, 158, 11, 0.3);">
+    <h4 style="color:var(--warning);">TOTAL OUTSTANDING CREDITS</h4>
+    <p><span>Production Tab Credits:</span> <span class="qty-val" id="credit-production">Rs 0.00</span></p>
+    <p><span>Sales Tab Credits:</span> <span class="qty-val" id="credit-sales-tab">Rs 0.00</span></p>
+    <p><span>Calculator Credits:</span> <span class="qty-val" id="credit-calculator">Rs 0.00</span></p>
+    <hr style="margin: 10px 0; border-color: rgba(245, 158, 11, 0.2);">
+    <p><span>TOTAL CREDITS:</span> <span class="cost-val" id="credit-total" style="font-size:1.2rem; color:var(--warning);">Rs 0.00</span></p>
+    <div style="font-size:0.7rem; color:var(--text-muted); margin-top:8px;">
+        <span class="update-indicator"></span> Credits awaiting collection
+    </div>
+</div>
+    </div>
+</div>
+
+<!-- Unified Transaction & Entity Table -->
+            <div style="margin-top: 20px; padding-top: 15px; border-top: 2px solid var(--glass-border);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                    <h4 style="margin: 0; font-size: 1rem; color: var(--text-main); font-weight: 700;">Unified Records</h4>
+                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                        <input type="text" id="unified-search" class="search-bar" placeholder="Search..." 
+                               style="width: 140px; font-size: 0.75rem;" oninput="renderUnifiedTable()">
+                        <button class="btn-theme" onclick="exportUnifiedData()" title="Download PDF" 
+                                style="color: var(--accent-emerald); border-color: var(--accent-emerald); padding: 5px 10px;">📄 </button>
+                    </div>
+                </div>
+
+                <!-- Unified Filter Controls -->
+                <div style="display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;">
+                    <!-- View Mode Toggle -->
+                    <select id="unifiedViewMode" onchange="renderUnifiedTable()" style="flex: 1; min-width: 150px; font-size: 0.85rem; padding: 8px;">
+                        <option value="entities" selected>Entities & Balances</option>
+                        <option value="transactions">Expenses</option>
+                    </select>
+                    
+                    <!-- Period Filter -->
+                    <select id="unifiedPeriodFilter" onchange="renderUnifiedTable()" style="flex: 1; min-width: 120px; font-size: 0.85rem; padding: 8px;">
+                        <option value="today">Today</option>
+                        <option value="week">This Week</option>
+                        <option value="month" selected>This Month</option>
+                        <option value="all">All Time</option>
+                    </select>
+                </div>
+
+                <!-- Unified Table -->
+                <div id="unified-table-container" style="overflow-x: auto; overflow-y: auto; max-height: 500px; margin-top: 10px;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                        <thead style="position: sticky; top: 0; background: var(--glass); z-index: 10;">
+                            <tr style="background: var(--input-bg); border-bottom: 2px solid var(--glass-border);">
+                                <th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 15%;">Date</th>
+                                <th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 30%;">Name</th>
+                                <th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 20%;">Contact</th>
+                                <th style="padding: 8px 2px; text-align: right; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 20%;">Amount</th>
+                                <th style="padding: 8px 2px; text-align: center; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 15%;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="unified-table-body">
+                            <tr>
+                                <td colspan="5" style="text-align: center; padding: 30px; color: var(--text-muted); font-size: 0.85rem;">
+                                    No records found
+                                </td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr style="background: var(--input-bg); border-top: 2px solid var(--glass-border);">
+                                <td colspan="3" style="padding: 10px 2px; font-weight: 700; text-align: right; font-size: 0.75rem;">
+                                    <span id="unified-table-footer-label">Total:</span>
+                                </td>
+                                <td id="unified-table-total" style="padding: 10px 2px; font-weight: 700; text-align: right; font-size: 0.85rem;">0.00</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                
+                <!-- Summary Statistics for Unified View -->
+                <!-- ✓ SOURCE OF TRUTH: Supplier Payables Calculation -->
+                <div id="unified-summary" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--glass-border); display: none;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; font-size: 0.75rem;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-muted);">Total Receivables:</span>
+                            <span id="unified-receivables" style="color: var(--accent-emerald); font-weight: 700;">0.00</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-muted);">Supplier Payables:</span>
+                            <span id="unified-payables" style="color: var(--danger); font-weight: 700;">0.00</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-muted);">Operating Expenses:</span>
+                            <span id="unified-expenses" style="color: var(--warning); font-weight: 700;">0.00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        <!-- PAYMENT TAB EXCLUSIVE CONTENT - NOW PROPERLY INSIDE TAB-PAYMENTS -->
+        <!-- Summary Reports -->
+        <div id="payment-summary-section">
+        <div class="section-header">
+            <h3>Payment Summary</h3>
+        </div>
+        <div class="report-grid">
+            <div class="card highlight-card liquid-card">
+                <h4>Daily Payments</h4>
+                <p><span>Total IN:</span> <span class="profit-val" id="payments-day-in">0.00</span></p>
+                <p><span>Total OUT:</span> <span class="cost-val" id="payments-day-out">0.00</span></p>
+                <p><span>Net Flow:</span> <span class="rev-val" id="payments-day-net">0.00</span></p>
+                <p><span>Transaction Count:</span> <span class="qty-val" id="payments-day-count">0</span></p>
+            </div>
+            <div class="card liquid-card">
+                <h4>Weekly Payments</h4>
+                <p><span>Total IN:</span> <span class="profit-val" id="payments-week-in">0.00</span></p>
+                <p><span>Total OUT:</span> <span class="cost-val" id="payments-week-out">0.00</span></p>
+                <p><span>Net Flow:</span> <span class="rev-val" id="payments-week-net">0.00</span></p>
+                <p><span>Transaction Count:</span> <span class="qty-val" id="payments-week-count">0</span></p>
+            </div>
+            <div class="card liquid-card">
+                <h4>Monthly Payments</h4>
+                <p><span>Total IN:</span> <span class="profit-val" id="payments-month-in">0.00</span></p>
+                <p><span>Total OUT:</span> <span class="cost-val" id="payments-month-out">0.00</span></p>
+                <p><span>Net Flow:</span> <span class="rev-val" id="payments-month-net">0.00</span></p>
+                <p><span>Transaction Count:</span> <span class="qty-val" id="payments-month-count">0</span></p>
+            </div>
+            <div class="card liquid-card">
+                <h4>Yearly Payments</h4>
+                <p><span>Total IN:</span> <span class="profit-val" id="payments-year-in">0.00</span></p>
+                <p><span>Total OUT:</span> <span class="cost-val" id="payments-year-out">0.00</span></p>
+                <p><span>Net Flow:</span> <span class="rev-val" id="payments-year-net">0.00</span></p>
+                <p><span>Transaction Count:</span> <span class="qty-val" id="payments-year-count">0</span></p>
+            </div>
+        </div>
+        </div>
+        <!-- End Payment Summary Section -->
+
+        <!-- Transaction History -->
+        <div id="payment-history-section">
+        <div class="section-header" style="margin-top:25px;">
+            <h3>Payment History</h3>
+        </div>
+        
+        <div class="section liquid-card">
+            <input type="text" id="payment-search" class="search-bar" placeholder=" Search payment history by entity or description..." oninput="filterPaymentHistory()">
+        </div>
+
+        <div id="paymentHistoryList" class="report-grid"></div>
+        </div>
+        <!-- End Payment History Section -->
+        <!-- END PAYMENT TAB EXCLUSIVE CONTENT -->
+        
+        </div>
+
+
+<div id="entityManagementOverlay" class="factory-overlay">
+    <div class="factory-overlay-card liquid-card" style="max-width: 400px;">
+        <div class="section-header">
+            <h3 id="entityManagementModalTitle">Add New Entity</h3>
+            <button class="btn-theme" onclick="closeEntityManagement()">✕</button>
+        </div>
+        
+        <div class="grid-inputs">
+            <div class="field">
+                <label>Entity Name</label>
+                <input type="text" id="entityName" placeholder="Name (e.g. John Doe)">
+            </div>
+            <div class="field">
+                <label>Type</label>
+                <select id="entityType">
+                    <option value="payee">Payee (Supplier/Receiver)</option>
+                    <option value="payor">Payor (Customer/Payer)</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="grid-inputs">
+            <div class="field">
+                <label>Phone Number</label>
+                <input type="tel" id="entityPhone" placeholder="03XX-XXXXXXX">
+            </div>
+            <div class="field">
+                <label>Wallet/Note</label>
+                <input type="text" id="entityWallet" placeholder="Easypaisa/JazzCash etc.">
+            </div>
+        </div>
+        
+        <button class="btn btn-noman" onclick="(async () => { await saveEntity() })()" style="margin-top: 15px;">Save Entity</button>
+    </div>
+</div>
+
+<div id="connection-indicator" title="Checking Connection..."></div>
+
+
+
+
+    <!-- External JavaScript Files -->
+    <!-- CRITICAL: Load order must be preserved! -->
+    <script src="firestore.js"></script>
+    <script src="app.js"></script>
+    <script src="bridge.js"></script>
+</body>
+</html>
+
