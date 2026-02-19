@@ -1,4 +1,4 @@
-const CACHE_NAME = 'naswar-dealer-v18'; // IMPORTANT: Increment this (v4, v5...) every time you update code!
+const CACHE_NAME = 'naswar-dealer-v19'; // IMPORTANT: Increment this (v4, v5...) every time you update code!
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
