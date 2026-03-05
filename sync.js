@@ -304,7 +304,7 @@ console.warn('Failed to save persistent login:', e);
 }
 hideAuthOverlay();
 showToast(`Welcome back, ${user.email.split('@')[0]}`, 'success');
-try { sessionStorage.setItem('_gznd_session_active', '1'); } catch(e) {}
+try { localStorage.setItem('_gznd_session_active', '1'); sessionStorage.setItem('_gznd_session_active', '1'); } catch(e) {}
 idb.setUserPrefix(user.uid);
 await IDBCrypto.initialize();
 const keyRestored = await IDBCrypto.restoreSessionKeyFromStorage();
@@ -3965,7 +3965,7 @@ const _signInCred = await firebaseAuth.signInWithEmailAndPassword(email, passwor
 await OfflineAuth.saveCredentials(email, password);
 idb.setUserPrefix(_signInCred.user.uid);
 await IDBCrypto.setSessionKey(email, password);
-try { sessionStorage.setItem('_gznd_session_active', '1'); } catch(e) {}
+try { localStorage.setItem('_gznd_session_active', '1'); sessionStorage.setItem('_gznd_session_active', '1'); } catch(e) {}
 LoginRateLimiter.recordSuccess();
 messageDiv.textContent = 'Success! Loading...';
 messageDiv.style.color = 'var(--accent-emerald)';
@@ -3999,7 +3999,7 @@ offlineMode: true
 };
 idb.setUserPrefix(currentUser.uid);
 await IDBCrypto.setSessionKey(email, password);
-try { sessionStorage.setItem('_gznd_session_active', '1'); } catch(e) {}
+try { localStorage.setItem('_gznd_session_active', '1'); sessionStorage.setItem('_gznd_session_active', '1'); } catch(e) {}
 LoginRateLimiter.recordSuccess();
 messageDiv.textContent = '✓ Offline Login Successful';
 messageDiv.style.color = 'var(--accent-emerald)';
@@ -4029,7 +4029,7 @@ if (valid) {
 currentUser = { id: email.replace(/[^a-zA-Z0-9]/g, '_'), uid: email.replace(/[^a-zA-Z0-9]/g, '_'), email, offlineMode: true };
 idb.setUserPrefix(currentUser.uid);
 await IDBCrypto.setSessionKey(email, password);
-try { sessionStorage.setItem('_gznd_session_active', '1'); } catch(e) {}
+try { localStorage.setItem('_gznd_session_active', '1'); sessionStorage.setItem('_gznd_session_active', '1'); } catch(e) {}
 try { if (typeof loadAllData === 'function') await loadAllData(); } catch(e) {}
 messageDiv.textContent = '✓ Offline Login (Network unavailable)';
 messageDiv.style.color = 'var(--accent-emerald)';
@@ -4081,7 +4081,7 @@ displayName: userCredential.user.displayName
 await OfflineAuth.saveCredentials(email, password);
 idb.setUserPrefix(currentUser.uid);
 await IDBCrypto.setSessionKey(email, password);
-try { sessionStorage.setItem('_gznd_session_active', '1'); } catch(e) {}
+try { localStorage.setItem('_gznd_session_active', '1'); sessionStorage.setItem('_gznd_session_active', '1'); } catch(e) {}
 if (database) {
 await firebaseDB.collection('users').doc(currentUser.uid).set({
 email: email,
@@ -4132,14 +4132,14 @@ await auth.signOut();
 currentUser = null;
 IDBCrypto.clearSessionKey();
 idb.clearUserPrefix();
-try { sessionStorage.removeItem('_gznd_session_active'); } catch(e) {}
+try { sessionStorage.removeItem('_gznd_session_active'); localStorage.removeItem('_gznd_session_active'); localStorage.removeItem('_gznd_session_key_backup'); localStorage.removeItem('persistentLogin'); } catch(e) {}
 DeltaSync.clearAllTimestamps().catch(e => console.warn("[DeltaSync] clearAllTimestamps on signout:", e));
 showToast(' Signed out successfully', 'success');
 } else {
 currentUser = null;
 IDBCrypto.clearSessionKey();
 idb.clearUserPrefix();
-try { sessionStorage.removeItem('_gznd_session_active'); } catch(e) {}
+try { sessionStorage.removeItem('_gznd_session_active'); localStorage.removeItem('_gznd_session_active'); localStorage.removeItem('_gznd_session_key_backup'); localStorage.removeItem('persistentLogin'); } catch(e) {}
 DeltaSync.clearAllTimestamps().catch(e => console.warn("[DeltaSync] clearAllTimestamps on signout:", e));
 showToast(' Signed out', 'success');
 }

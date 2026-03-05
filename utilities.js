@@ -9987,6 +9987,31 @@ document.addEventListener('DOMContentLoaded', async function _appBootstrap() {
   if (!hasFirebaseSession) {
     createAuthOverlay();
     showAuthOverlay();
+  } else {
+    // ── Persistent session restore ──────────────────────────────────────────
+    // App was closed and reopened. onAuthStateChanged fires asynchronously
+    // (can take 1-3s with Firebase), so we pre-warm the user prefix and
+    // encryption key from localStorage right now so loadAllData() below
+    // reads the correct prefixed keys and can decrypt them immediately.
+    try {
+      const persistentLogin = localStorage.getItem('persistentLogin');
+      if (persistentLogin) {
+        const parsed = JSON.parse(persistentLogin);
+        if (parsed && parsed.uid) {
+          idb.setUserPrefix(parsed.uid);
+          // Restore encryption key from localStorage backup (written on every login)
+          await IDBCrypto.initialize();
+          const keyRestored = await IDBCrypto.restoreSessionKeyFromStorage();
+          if (!keyRestored) {
+            // Key backup exists in IDB, but we can't decrypt without password.
+            // onAuthStateChanged will handle re-auth prompt if needed.
+            console.warn('Session: could not restore encryption key from storage, waiting for Firebase auth');
+          }
+        }
+      }
+    } catch(e) {
+      console.warn('Session pre-warm failed:', e);
+    }
   }
 
   try {

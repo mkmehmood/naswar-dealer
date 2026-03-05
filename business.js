@@ -448,8 +448,20 @@ const tokenExists = await _readFirebaseTokenFromIDB();
 if (tokenExists) return true;
 }
 }
+// Check sessionStorage first (same-tab fast path)
 const sessionFlag = sessionStorage.getItem('_gznd_session_active');
 if (sessionFlag === '1') return true;
+// Check localStorage (survives app close — set on every login)
+try {
+  const lsFlag = localStorage.getItem('_gznd_session_active');
+  if (lsFlag === '1') return true;
+  // Also check persistentLogin record written by onAuthStateChanged
+  const persistentLogin = localStorage.getItem('persistentLogin');
+  if (persistentLogin) {
+    const parsed = JSON.parse(persistentLogin);
+    if (parsed && parsed.uid) return true;
+  }
+} catch(e) {}
 return false;
 } catch(e) {
 return false;
@@ -684,12 +696,15 @@ const IDBCrypto = (() => {
       
 
       try {
-        sessionStorage.setItem('_gznd_session_key_backup', JSON.stringify({
+        // Use localStorage so the key backup survives app close/reopen
+        const keyBackup = JSON.stringify({
           email,
           salt: saltHex,
           wrappedKey: keyHex,
           version: KEY_VERSION
-        }));
+        });
+        localStorage.setItem('_gznd_session_key_backup', keyBackup);
+        sessionStorage.setItem('_gznd_session_key_backup', keyBackup); // keep session copy for fast same-tab access
       } catch (e) {
 
       }
@@ -741,8 +756,8 @@ const IDBCrypto = (() => {
         return key;
       }
 
-      
-      const sessionBackup = sessionStorage.getItem('_gznd_session_key_backup');
+      // Try localStorage first (persists across app close), then sessionStorage (same-tab fast path)
+      const sessionBackup = localStorage.getItem('_gznd_session_key_backup') || sessionStorage.getItem('_gznd_session_key_backup');
       if (sessionBackup) {
         const backup = JSON.parse(sessionBackup);
         if (backup.salt && backup.wrappedKey) {
@@ -903,6 +918,9 @@ const IDBCrypto = (() => {
       try {
         sessionStorage.removeItem('_gznd_session_key_backup');
         sessionStorage.removeItem('_gznd_session_active');
+        // Also clear localStorage copies on explicit logout
+        localStorage.removeItem('_gznd_session_key_backup');
+        localStorage.removeItem('_gznd_session_active');
       } catch (e) {}
 
       
