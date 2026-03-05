@@ -1,0 +1,1876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'none';
+  script-src  'self' 'unsafe-inline'
+              https://www.gstatic.com
+              https://unpkg.com
+              https://cdn.jsdelivr.net
+              https://cdnjs.cloudflare.com
+              https://apis.google.com;
+  style-src   'self' 'unsafe-inline'
+              https://fonts.googleapis.com
+              https://unpkg.com;
+  font-src    https://fonts.gstatic.com;
+  img-src     'self' data:
+              https://*.tile.openstreetmap.org
+              https://www.gstatic.com;
+  connect-src 'self'
+              https://*.googleapis.com
+              https://*.firebaseio.com
+              wss://*.firebaseio.com
+              https://*.firebaseapp.com
+              https://nominatim.openstreetmap.org
+              https://firestore.googleapis.com
+              https://*.google.com;
+  frame-src   https://apis.google.com
+              https://*.firebaseapp.com
+              https://*.google.com;
+  worker-src  'self';
+  manifest-src 'self';
+  base-uri    'self';
+  form-action 'self';
+  object-src  'none';
+  upgrade-insecure-requests;
+">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-visual">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#009688">
+<link rel="apple-touch-icon" href="192.png">
+<title>GULL AND ZUBAIR NASWAR DEALERS</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700;800;900&family=Geist+Mono:wght@300;400;500;600;700&family=Noto+Nastaliq+Urdu:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
+<script>
+if ('serviceWorker' in navigator) {
+window.addEventListener('load', () => {
+navigator.serviceWorker.register('./sw.js').then(reg => {
+reg.update();
+reg.onupdatefound = () => {
+const installingWorker = reg.installing;
+installingWorker.onstatechange = () => {
+if (installingWorker.state === 'installed') {
+if (navigator.serviceWorker.controller) {
+// New SW waiting — tell it to skip waiting and take over immediately
+if (reg.waiting) {
+reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+}
+}
+}
+};
+};
+}).catch(err => console.error('Service Worker Registration Failed', err));
+navigator.serviceWorker.addEventListener('controllerchange', () => {
+window.location.reload();
+});
+});
+}
+
+</script>
+</head>
+<body>
+<div class="liquid-bg-element liquid-1"></div>
+<div class="liquid-bg-element liquid-2"></div>
+<div class="liquid-bg-element liquid-3"></div>
+<div id="factorySettingsOverlay" class="factory-overlay">
+<div class="factory-overlay-card liquid-card">
+<div class="section-header">
+<h3 id="factorySettingsModalTitle">Factory Formulas</h3>
+<button class="btn-theme" onclick="closeFactorySettings()"></button>
+</div>
+<div class="factory-store-selector">
+<div class="factory-store-opt active" onclick="selectFactoryStore('standard', this)">STANDARD</div>
+<div class="factory-store-opt" onclick="selectFactoryStore('asaan', this)">ASAAN</div>
+</div>
+<div class="grid-inputs u-mb-15" >
+<div class="field">
+<label>Additional Cost (Per Unit)</label>
+<input type="number" id="additional-cost-per-unit" step="0.01" min="0" value="0" oninput="updateFactoryFormulasSummary()">
+</div>
+</div>
+<div class="grid-inputs u-mb-15" >
+<div class="field">
+<label>Cost Adjustment for Sales & Calculator (X)</label>
+<input type="number" id="cost-adjustment-factor" step="0.01" min="1" value="1" oninput="updateFactoryFormulasSummary()">
+<div class="u-field-hint-xs" >
+Used in Sales & Calculator tabs: Cost per kg = (Raw Material Cost + Additional Cost) / X
+</div>
+</div>
+</div>
+<div class="grid-inputs u-mb-15" >
+<div class="field">
+<label>Sale Price - Standard (per kg)</label>
+<input type="number" id="sale-price-standard" step="0.01" min="0" value="0" oninput="updateFactoryFormulasSummary()">
+<div class="u-field-hint-xs" >
+Used by Zubair, Mahmood stores and Calculator
+</div>
+</div>
+<div class="field">
+<label>Sale Price - Asaan (per kg)</label>
+<input type="number" id="sale-price-asaan" step="0.01" min="0" value="0" oninput="updateFactoryFormulasSummary()">
+<div class="u-field-hint-xs" >
+Used by Asaan store and Sales tab
+</div>
+</div>
+</div>
+<div id="factoryRawMaterialsContainer">
+</div>
+<button class="btn btn-theme u-add-row-btn" onclick="addFactoryMaterialRow()">+ Add Ingredient Row</button>
+<div class="u-bg-accent-5 u-p-10 u-rounded-8 u-mb-15" >
+<div class="factory-summary-row">
+<span class="factory-summary-label">Unit Weight:</span>
+<span class="qty-val" id="factorySettingsUnitWeight">0.00 kg</span>
+</div>
+<div class="factory-summary-row">
+<span class="factory-summary-label">Raw Material Cost per Unit:</span>
+<span class="cost-val" id="factorySettingsRawCostPerUnit">0.00 </span>
+</div>
+<div class="factory-summary-row">
+<span class="factory-summary-label">Total Cost per Unit:</span>
+<span class="cost-val" id="factorySettingsPerUnit">0.00 </span>
+</div>
+<div class="factory-summary-row">
+<span class="factory-summary-label">Available Units:</span>
+<span class="qty-val" id="factorySettingsAvailableUnits">0</span>
+</div>
+<div class="factory-summary-row">
+<span class="factory-summary-label">Cost per kg for Sales/Calculator:</span>
+<span class="cost-val" id="factorySettingsSalesCostPerKg">0.00 </span>
+</div>
+</div>
+<button class="btn btn-noman" onclick="(async () => { await saveFactoryFormulas() })()">Save Formula Settings</button>
+</div>
+</div>
+<div id="factoryInventoryOverlay" class="factory-overlay">
+<div class="factory-overlay-card liquid-card">
+<div class="section-header">
+<h3 id="factoryInventoryModalTitle">Add Raw Material</h3>
+<button class="btn-theme" onclick="closeFactoryInventoryModal()"></button>
+</div>
+<div class="grid-inputs">
+<div class="field">
+<label>Material Name</label>
+<input type="text" id="factoryMaterialName" placeholder="Material Name">
+</div>
+<div class="field">
+<label>Purchase Unit Name</label>
+<input type="text" id="factoryMaterialUnitName" placeholder="e.g., bag, box, carton">
+<div class="u-field-hint-xxs" >
+Name of your purchase unit (optional)
+</div>
+</div>
+</div>
+<div class="grid-inputs">
+<div class="field">
+<label>units Quantity</label>
+<input type="number" id="factoryMaterialQuantity" placeholder="0">
+</div>
+<div class="field">
+<label>kgs per unit</label>
+<input type="number" id="factoryMaterialConversionFactor" placeholder="1" value="1" step="0.01">
+<div class="u-field-hint-xxs" >
+Example: 1 bag = 60 kg, enter 60
+</div>
+</div>
+</div>
+<div class="grid-inputs">
+<div class="field">
+<label>Cost Price Per Unit</label>
+<input type="number" id="factoryMaterialCost" placeholder="0.00">
+</div>
+<div class="field u-calc-block" >
+<div class="u-row-between" >
+<span class="u-fs-sm2 u-text-muted" >Total in kg:</span>
+<span class="u-accent-num" id="factoryCalculatedKg" >0 kg</span>
+</div>
+<div class="u-inline-divider" >
+<span class="u-fs-sm2 u-text-muted" >Total Amount:</span>
+<span class="u-emerald-num" id="factoryCalculatedAmount" >0.00</span>
+</div>
+</div>
+</div>
+<div class="u-info-block" >
+<h4 style="color: var(--accent); margin: 0 0 10px 0; font-size: 0.9rem;">Supplier Information</h4>
+<div class="grid-inputs">
+<div class="field">
+<label>Supplier Action</label>
+<select id="factoryMaterialSupplierType" onchange="toggleSupplierFields()">
+<option value="none">No Supplier Link</option>
+<option value="existing">Select Existing Entity</option>
+<option value="new">Add New Supplier Entity</option>
+</select>
+</div>
+</div>
+<div id="existingSupplierSection" class="hidden">
+<div class="field u-pos-relative" >
+<label>Select Supplier</label>
+<input type="text" id="factoryExistingSupplier" list="supplier-list" placeholder="Search or select supplier..."
+oninput="handleUniversalSearch('factoryExistingSupplier', 'factory-supplier-search-results', 'suppliers')" autocomplete="off" class="store-selector">
+<div id="factory-supplier-search-results" class="hidden u-search-dropdown" ></div>
+<datalist id="supplier-list"></datalist>
+</div>
+</div>
+<div id="newSupplierSection" class="hidden">
+<div class="grid-inputs">
+<div class="field">
+<label>Supplier Name</label>
+<input type="text" id="factorySupplierName" placeholder="Company/Person Name">
+</div>
+<div class="field">
+<label>Contact (Phone)</label>
+<input type="tel" id="factorySupplierPhone" placeholder="Phone Number">
+</div>
+</div>
+<div class="field u-success-field" >
+<label class="u-checkbox-accent" >
+<input class="u-checkbox-16" type="checkbox" id="factorySupplierAutoEntity" checked disabled >
+<span class="u-fs-sm3 u-fw-700 u-text-emerald" >
+Add to Quick Entity Selection
+</span>
+</label>
+<div class="u-field-hint u-ml-26" >
+This will automatically create a <strong>PAYEE</strong> entity. Any debts to this supplier will appear in "Supplier Payables" in the Economic Dashboard.
+</div>
+</div>
+</div>
+</div>
+<div class="u-action-row" >
+<button class="btn btn-danger u-flex-1" id="deleteFactoryInventoryBtn" style="display:none;" onclick="(async () => { await deleteFactoryInventoryItem() })()">Delete material</button>
+<button class="btn btn-noman u-flex-2" onclick="(async () => { await saveFactoryInventoryItem() })()" >Save Material & Entity</button>
+</div>
+</div>
+</div>
+<div id="entityManagementOverlay" class="factory-overlay" >
+<div class="factory-overlay-card liquid-card">
+<div class="section-header">
+<h3 id="entityManagementModalTitle">Add Entity</h3>
+<button class="btn-theme" onclick="closeEntityManagement()"></button>
+</div>
+<div class="grid-inputs">
+<div class="field">
+<label>Entity Name</label>
+<input type="text" id="entityName" placeholder="Name">
+</div>
+</div>
+<div class="grid-inputs">
+<div class="field">
+<label>Phone Number</label>
+<input type="tel" id="entityPhone" placeholder="Phone">
+</div>
+<div class="field">
+<label>Wallet Details</label>
+<input type="text" id="entityWallet" placeholder="Wallet/Account Details">
+</div>
+</div>
+<div class="u-action-row" >
+<button class="btn btn-danger u-hidden u-flex-1" id="deleteEntityBtn" onclick="(async () => { await deleteCurrentEntity() })()" >Delete</button>
+<button class="btn btn-noman u-flex-2" onclick="(async () => { await saveEntity() })()" >Save Entity</button>
+</div>
+</div>
+</div>
+<div id="entityDetailsOverlay" class="factory-overlay">
+<div class="factory-overlay-card liquid-card u-overlay-card-lg" >
+<div class="overlay-header">
+<div class="overlay-header__row1">
+<div class="u-title-row" >
+<h3 class="u-m-0" id="manageEntityTitle" >Entity Name</h3>
+<button class="btn-theme u-edit-btn-inline" onclick="openEditEntityFromDetails()" title="Edit Entity" ></button>
+</div>
+<button class="btn-theme" onclick="closeEntityDetailsOverlay()"></button>
+</div>
+<div class="overlay-header__row2">
+<span id="manageEntityStats">Current Balance: 0.00</span>
+</div>
+<div class="overlay-header__row3">
+<select id="entityPdfRange" class="store-selector" onchange="if(currentEntityId){const entity=paymentEntities.find(e=>String(e.id)===String(currentEntityId));if(entity)renderEntityOverlayContent(entity);}">
+<option value="today">Today</option>
+<option value="week">This Week</option>
+<option value="month">This Month</option>
+<option value="year">This Year</option>
+<option value="all" selected>All Time</option>
+</select>
+<button class="btn btn-noran btn-sm btn-pdf" onclick="exportEntityToPDF()" title="Export to PDF">📄</button>
+</div>
+</div>
+<div class="debt-panel u-debt-header" >
+<h4 class="u-heading-accent" >Quick Transaction</h4>
+<div class="u-quick-row" >
+<div class="field u-field-flex-1-min" >
+<label>Amount ()</label>
+<input class="u-w-full" type="number" id="quickEntityAmount" placeholder="0.00" >
+</div>
+<div class="field u-field-flex-1-5" >
+<label>Type</label>
+<div class="toggle-group u-toggle-full" >
+<div class="toggle-opt active u-flex-1" id="quick-type-out" onclick="setQuickEntityType('OUT')" >Payment OUT</div>
+<div class="toggle-opt u-flex-1" id="quick-type-in" onclick="setQuickEntityType('IN')" >Payment IN</div>
+</div>
+</div>
+<button class="btn btn-noman u-quick-btn" onclick="(async () => { await saveQuickEntityTransaction() })()">Save</button>
+</div>
+<div class="u-field-hint" >
+* "Payment OUT" reduces what you owe. "Payment IN" reduces what they owe you.
+</div>
+</div>
+<div class="u-debt-title" >
+<input type="text" id="entity-trans-search" class="search-bar" placeholder="Search history..." oninput="filterEntityManagementHistory()">
+</div>
+<div class="u-overlay-scroll" id="entityManagementHistoryList">
+</div>
+<div class="u-summary-row" >
+<button class="btn btn-danger btn-sm" onclick="deleteCurrentEntity()">Delete Entity Permanently</button>
+</div>
+</div>
+</div>
+<div id="expenseDetailsOverlay" class="factory-overlay">
+<div class="factory-overlay-card liquid-card u-overlay-card-lg" >
+<div class="overlay-header">
+<div class="overlay-header__row1">
+<h3 id="expenseOverlayTitle">Expense Name</h3>
+<button class="btn-theme" onclick="closeExpenseDetailsOverlay()"></button>
+</div>
+<div class="overlay-header__row2">
+<span id="expenseOverlayStats">Total: 0.00</span>
+</div>
+<div class="overlay-header__row3">
+<select id="expenseOverlayRange" class="store-selector" onchange="renderExpenseOverlayContent()">
+<option value="today">Today</option>
+<option value="week">This Week</option>
+<option value="month">This Month</option>
+<option value="year">This Year</option>
+<option value="all" selected>All Time</option>
+</select>
+<button class="btn btn-noran btn-sm btn-pdf" onclick="exportExpenseOverlayToPDF()" title="Export to PDF">📄</button>
+</div>
+</div>
+<div class="debt-panel u-debt-header" >
+<h4 class="u-heading-accent" >Quick Add Expense</h4>
+<div class="u-quick-row" >
+<div class="field u-field-flex-1-min" >
+<label>Amount (Rs)</label>
+<input class="u-w-full" type="number" id="quickExpenseAmount" placeholder="0.00" >
+</div>
+<div class="field u-field-flex-1-5b" >
+<label>Description (optional)</label>
+<input class="u-w-full" type="text" id="quickExpenseDescription" placeholder="e.g. Monthly rent" >
+</div>
+<button class="btn btn-noman u-quick-btn" onclick="(async () => { await saveQuickExpenseEntry() })()">Save</button>
+</div>
+<div class="u-field-hint" >
+* Adds a new expense record under "<span class="u-text-warning u-fw-600" id="quickExpenseNameLabel" ></span>" for today's date.
+</div>
+</div>
+<div class="u-debt-title" >
+<input type="text" id="expense-history-search" class="search-bar" placeholder="Search history..." oninput="filterExpenseManagementHistory()">
+</div>
+<div class="u-overlay-scroll" id="expenseManagementHistoryList">
+</div>
+<div class="u-summary-row" >
+<button class="btn btn-danger btn-sm" onclick="deleteAllExpensesByName()">Delete All Records Permanently</button>
+</div>
+</div>
+</div>
+<div id="customerManagementOverlay" class="factory-overlay">
+<div class="factory-overlay-card liquid-card u-overlay-card-lg" >
+<div class="overlay-header">
+<div class="overlay-header__row1">
+<h3 id="manageCustomerTitle">Customer Name</h3>
+<button class="btn-theme" onclick="closeCustomerManagement()"></button>
+</div>
+<div class="overlay-header__row2">
+<span id="manageCustomerStats">Current Debt: 0.00</span>
+</div>
+<div class="overlay-header__row3">
+<select id="customerPdfRange" class="store-selector" onchange="if(currentManagingCustomer)renderCustomerTransactions(currentManagingCustomer);">
+<option value="today">Today</option>
+<option value="week">This Week</option>
+<option value="month">This Month</option>
+<option value="year">This Year</option>
+<option value="all" selected>All Time</option>
+</select>
+<button class="btn btn-noman btn-sm btn-pdf" onclick="exportCustomerToPDF()" title="Export to PDF">📄</button>
+</div>
+</div>
+<div class="debt-panel u-debt-header" >
+<h4 class="u-heading-accent" >Credit Payment</h4>
+<div class="u-quick-row-stretch" >
+<div class="field u-field-m0" >
+<label class="u-label-block" >Amount Received</label>
+<input class="u-input-full-tall" type="number" id="bulkPaymentAmount" placeholder="Enter amount..." >
+</div>
+<div class="u-flex-col-end" >
+<button class="btn btn-noman u-quick-btn u-nowrap u-px-18" onclick="(async () => { await processBulkPayment() })()">Process Payment</button>
+</div>
+</div>
+<div class="u-field-hint" >
+* This will mark oldest credit transactions as fully or partially paid up to this amount.
+</div>
+</div>
+<div class="u-debt-title" >
+<input type="text" id="cust-trans-search" class="search-bar" placeholder="Search history..." oninput="filterCustomerManagementHistory()">
+</div>
+<div class="u-overlay-scroll" id="customerManagementHistoryList">
+</div>
+</div>
+</div>
+<div id="customerEditOverlay" class="factory-overlay" style="z-index: 10002;">
+<div class="factory-overlay-card liquid-card u-overlay-card-sm" >
+<div class="section-header">
+<h3 class="u-heading-main" >Edit Customer Details</h3>
+<button class="btn-theme" onclick="closeCustomerEditModal()"></button>
+</div>
+<div class="grid-inputs u-mb-20" >
+<div class="field">
+<label>Customer Name</label>
+<input type="text" id="edit-cust-name" readonly style="background: rgba(0,0,0,0.05); color: var(--text-muted); font-weight: 700;">
+</div>
+<div class="field">
+<label>Phone Number</label>
+<input type="tel" id="edit-cust-phone" placeholder="03XX-XXXXXXX">
+</div>
+<div class="field">
+<label>Previous Balance / Old Debt</label>
+<input type="number" id="edit-cust-old-debit" placeholder="Enter previous balance amount" step="0.01" min="0">
+<div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px;">
+Will be added as a debt transaction in customer history
+</div>
+</div>
+<div class="field">
+<label>Address / Location</label>
+<div style="display: flex; gap: 5px;">
+<input class="u-flex-1" type="text" id="edit-cust-address" placeholder="Area, Shop #, etc." >
+<button class="btn-theme" onclick="fetchDeviceLocation()" title="Auto-Fetch Location" style="border: 1px solid var(--accent); color: var(--accent); padding: 0 10px;">
+</button>
+</div>
+<div id="location-status" style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px; font-style: italic;"></div>
+</div>
+</div>
+<div style="display:flex; gap:10px; margin-top: 4px;">
+<button class="btn btn-main u-h-42 u-fs-md2 u-fw-700" onclick="(async () => { await saveCustomerDetails() })()">Update Details</button>
+</div>
+</div>
+</div>
+<div id="repCustomerManagementOverlay" class="factory-overlay">
+<div class="factory-overlay-card liquid-card u-overlay-card-lg" >
+<div class="overlay-header">
+<div class="overlay-header__row1">
+<h3 id="repManageCustomerTitle">Rep Customer</h3>
+<button class="btn-theme" onclick="closeRepCustomerManagement()"></button>
+</div>
+<div class="overlay-header__row2">
+<span id="repManageCustomerStats">Current Debt: 0.00</span>
+</div>
+<div class="overlay-header__row3">
+<select id="repCustomerPdfRange" class="store-selector" onchange="if(currentManagingRepCustomer)renderRepCustomerTransactions(currentManagingRepCustomer);">
+<option value="today">Today</option>
+<option value="week">This Week</option>
+<option value="month">This Month</option>
+<option value="year">This Year</option>
+<option value="all" selected>All Time</option>
+</select>
+<button class="btn btn-noman btn-sm btn-pdf" onclick="exportRepCustomerToPDF()" title="Export to PDF">📄</button>
+</div>
+</div>
+<div class="debt-panel u-debt-header" >
+<h4 class="u-heading-accent" >Credit Payment</h4>
+<div class="u-quick-row-stretch" >
+<div class="field u-field-m0" >
+<label class="u-label-block" >Amount Received</label>
+<input class="u-input-full-tall" type="number" id="repBulkPaymentAmount" placeholder="Enter amount..." >
+</div>
+<div class="u-flex-col-end" >
+<button class="btn btn-noman u-quick-btn u-nowrap u-px-18" onclick="(async () => { await processRepBulkPayment() })()">Process Payment</button>
+</div>
+</div>
+<div class="u-field-hint" >
+* This will mark oldest credit transactions as fully or partially paid up to this amount.
+</div>
+</div>
+<div class="u-debt-title" >
+<input type="text" id="rep-cust-trans-search" class="search-bar" placeholder="Search history..." oninput="filterRepCustomerManagementHistory()">
+</div>
+<div class="u-overlay-scroll" id="repCustomerManagementHistoryList"></div>
+</div>
+</div>
+<div id="repCustomerEditOverlay" class="factory-overlay" style="z-index: 10002;">
+<div class="factory-overlay-card liquid-card u-overlay-card-sm" >
+<div class="section-header">
+<h3 class="u-heading-main" >Edit Rep Customer Details</h3>
+<button class="btn-theme" onclick="closeRepCustomerEditModal()"></button>
+</div>
+<div class="grid-inputs u-mb-20" >
+<div class="field">
+<label>Customer Name</label>
+<input type="text" id="rep-edit-cust-name" readonly style="background: rgba(0,0,0,0.05); color: var(--text-muted); font-weight: 700;">
+</div>
+<div class="field">
+<label>Phone Number</label>
+<input type="tel" id="rep-edit-cust-phone" placeholder="03XX-XXXXXXX">
+</div>
+<div class="field">
+<label>Previous Balance / Old Debt</label>
+<input type="number" id="rep-edit-cust-old-debit" placeholder="Enter previous balance amount" step="0.01" min="0">
+<div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px;">
+Will be added as a debt transaction in rep customer history
+</div>
+</div>
+<div class="field">
+<label>Address / Location</label>
+<div style="display: flex; gap: 5px;">
+<input class="u-flex-1" type="text" id="rep-edit-cust-address" placeholder="Area, Shop #, etc." >
+<button class="btn-theme" onclick="fetchRepDeviceLocation()" title="Auto-Fetch Location" style="border: 1px solid var(--accent); color: var(--accent); padding: 0 10px;"></button>
+</div>
+<div id="rep-location-status" style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px; font-style: italic;"></div>
+</div>
+</div>
+<div style="display:flex; gap:10px; margin-top: 4px;">
+<button class="btn btn-main u-h-42 u-fs-md2 u-fw-700" onclick="(async () => { await saveRepCustomerDetails() })()">Update Details</button>
+</div>
+</div>
+</div>
+<div id="splash-screen">
+<div class="flower flower1">🌸</div>
+<div class="flower flower2">🌺</div>
+<div class="flower flower3">🌼</div>
+<div class="flower flower4">🌻</div>
+<div class="flower flower5">🌷</div>
+<div class="flower flower6">🏵️</div>
+<div class="flower flower7">💐</div>
+<div class="flower flower8">🌹</div>
+<div class="splash-ornament ornament-top"></div>
+<div class="splash-content">
+<div class="splash-brand">
+<div class="splash-brand-main">GULL AND ZUBAIR</div>
+<div class="splash-brand-sub">Naswar Dealers</div>
+</div>
+<div class="splash-quote" id="splash-quote">wisdom</div>
+<div class="splash-author" id="splash-author">— Inspiring Minds</div>
+<div class="splash-loader"></div>
+</div>
+<div class="splash-ornament ornament-bottom"></div>
+</div>
+<div class="system-controls">
+<span style="font-weight:800; font-size:0.85rem; color:var(--accent);" class="shimmer-text">MAHMOOD KHAN</span>
+<div style="display:flex; gap:8px; align-items: center;">
+<button class="btn-theme" id="themeToggle" onclick="(async () => { await toggleDarkMode() })()" title="Toggle Dark Mode"></button>
+<button class="btn-theme" id="cloudMenuBtn" onclick="(async () => { await openDataMenu() })()" title="Data Management" style="display: none;"></button>
+</div>
+</div>
+<input type="file" id="restoreInput" class="hidden" accept=".json,.gznd" onchange="(async () => { await unifiedRestore(event) })()">
+<div id="dataMenuOverlay" class="factory-overlay">
+<div class="factory-overlay-card liquid-card" style="max-width: 350px; text-align: center;">
+<div class="section-header">
+<h3 class="u-heading-main" >Data Options</h3>
+<button class="btn-theme" onclick="closeDataMenu()"></button>
+</div>
+<hr style="width: 100%; border: 0; border-top: 1px solid var(--glass-border); margin: 5px 0;">
+<button class="btn" id="bio-toggle-btn" style="background: rgba(37, 99, 235, 0.1); color: var(--text-main); border: 1px solid var(--glass-border);" onclick="enableBiometricLock()">
+Enable Biometric Lock
+</button>
+<hr style="width: 100%; border: 0; border-top: 1px solid var(--glass-border); margin: 5px 0;">
+<div style="display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
+<button class="btn btn-main" id="sync-btn" onclick="performOneClickSync().catch(err => console.error('Sync error:', err))" style="background: var(--accent); font-size: 1rem; padding: 15px;">
+SYNC DATA
+</button>
+<div style="font-size: 0.7rem; color: var(--text-muted); text-align: center; margin-bottom: 10px;">
+</div>
+</div>
+<div class="field">
+<hr style="width: 100%; border: 0; border-top: 1px solid var(--glass-border); margin: 5px 0;">
+<button class="btn" style="background: rgba(37, 99, 235, 0.1); color: var(--text-main); border: 1px solid var(--glass-border); display:flex; align-items:center; justify-content:center; gap:6px;" onclick="(async () => { await triggerLocalBackup() })()">
+Backup to Phone
+</button>
+<button class="btn" style="background: rgba(37, 99, 235, 0.1); color: var(--text-main); border: 1px solid var(--glass-border); display:flex; align-items:center; justify-content:center; gap:6px;" onclick="document.getElementById('restoreInput').click(); closeDataMenu();">
+Restore from Phone
+</button>
+</div>
+<div id="lastSyncDisplay" style="margin-top: 15px; font-size: 0.7rem; color: var(--text-muted);">
+Last Synced: Checking...
+</div>
+<div style="margin-top: 20px; padding: 15px; background: var(--input-bg); border-radius: 12px; border: 1px solid var(--glass-border);">
+<button onclick="showDeltaSyncDetails()"
+style="width: 100%; padding: 12px; background: var(--accent); border: none; border-radius: 999px; color: white; cursor: pointer; font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px;">
+View Database Structure
+</button>
+<button onclick="runUnifiedCleanup()"
+style="width: 100%; margin-top: 12px; padding: 14px; background: var(--accent-emerald); border: none; border-radius: 999px; color: white; cursor: pointer; font-size: 0.9rem; font-weight: 700;">
+Verify & Sync
+</button>
+<div style="font-size: 0.7rem; color: var(--text-muted); text-align: center; margin-top: 8px; line-height: 1.4;">
+</div>
+</div>
+</div>
+</div>
+<div class="nav-tabs">
+<button class="tab-btn active" onclick="showTab('prod')">PRODUCTION</button>
+<button class="tab-btn" onclick="showTab('sales')">SALES</button>
+<button class="tab-btn" onclick="showTab('calc')">CALCULATOR</button>
+<button class="tab-btn" onclick="showTab('factory')">FACTORY</button>
+<button class="tab-btn" onclick="showTab('payments')">PAYMENTS</button>
+<button class="tab-btn" onclick="showTab('rep')">REP SALES</button>
+</div>
+<div id="tab-rep" class="hidden">
+<header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+<h1 class="shimmer-text u-heading-bold">Rep Sales</h1>
+<button id="btn-manage-reps" class="btn-theme" onclick="openManageRepsModal()" title="Add / Manage Sales Representatives" style="font-size:1.25rem; font-weight:300; line-height:1;"></button>
+</header>
+<div id="admin-rep-controls" class="section liquid-card hidden">
+<div class="section-header">
+<h3 style="margin:0; color:var(--text-main); font-size: 0.9rem;">Admin View</h3>
+</div>
+<div class="grid-inputs" style="margin-top: 10px;">
+<div class="field">
+<label style="color: var(--accent);">View For:</label>
+<select id="admin-rep-selector" class="store-selector" onchange="adminSwitchRepProfile(this.value)">
+</select>
+</div>
+<div class="field">
+<label>Select Date</label>
+<input type="date" id="admin-rep-date" onchange="handleAdminRepDateChange(this.value)">
+</div>
+</div>
+<div id="rep-map-container" style="height: 300px; width: 100%; margin-top: 15px; border-radius: 12px; border: 2px solid var(--glass-border); z-index: 1;"></div>
+<div style="text-align: right; font-size: 0.7rem; color: var(--text-muted); margin-top: 5px;">
+● Cash Sale | ● Collection | ○ Credit Sale
+</div>
+</div>
+<div id="admin-rep-analytics" class="section liquid-card hidden">
+<div class="section-header">
+<h3 class="u-heading-main" >Analytics</h3>
+<div class="toggle-group">
+<div class="toggle-opt active" id="rep-analytics-day-btn" onclick="setRepAnalyticsMode('day')">Daily</div>
+<div class="toggle-opt" id="rep-analytics-week-btn" onclick="setRepAnalyticsMode('week')">Weekly</div>
+<div class="toggle-opt" id="rep-analytics-month-btn" onclick="setRepAnalyticsMode('month')">Monthly</div>
+<div class="toggle-opt" id="rep-analytics-year-btn" onclick="setRepAnalyticsMode('year')">Yearly</div>
+<div class="toggle-opt" id="rep-analytics-all-btn" onclick="setRepAnalyticsMode('all')">All Time</div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--glass-border);">
+<span class="u-fs-md u-text-muted u-fw-600" >Collections</span>
+<span class="profit-val" id="rep-analytics-collections" style="font-size: 0.95rem; font-weight: 800;">0.00</span>
+</div>
+<div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--glass-border);">
+<span class="u-fs-md u-text-muted u-fw-600" >Cash Sales</span>
+<span class="profit-val" id="rep-analytics-cash-sales" style="font-size: 0.95rem; font-weight: 800;">0.00</span>
+</div>
+<div style="display: flex; justify-content: space-between; padding: 10px 0;">
+<span class="u-fs-md u-text-muted u-fw-600" >Credit Sales</span>
+<span class="cost-val" id="rep-analytics-credit-sales" style="font-size: 0.95rem; font-weight: 800;">0.00</span>
+</div>
+</div>
+</div>
+<div id="rep-header" class="locked-mode-header" style="display:none;"><div style="display:inline-flex;align-items:center;gap:9px;padding:6px 14px 6px 7px;border-radius:9999px;background:rgba(255,204,2,0.10);border:1px solid rgba(255,204,2,0.30);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);position:relative;overflow:hidden;max-width:calc(100% - 32px);"><div style="position:absolute;inset:0 0 auto 0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,204,2,0.55),transparent);pointer-events:none;"></div><div style="width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:rgba(255,204,2,0.22);color:var(--accent-gold);font-size:0.68rem;font-weight:800;letter-spacing:0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div style="min-width:0;display:flex;flex-direction:column;gap:0px;"><div style="font-size:0.52rem;font-weight:600;text-transform:uppercase;letter-spacing:0.09em;color:var(--text-secondary);line-height:1.2;">Sales Representative</div><div id="current-rep-name-display" style="font-size:0.80rem;font-weight:700;color:var(--accent-gold);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;line-height:1.3;">—</div></div><span style="font-size:0.56rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:2px 7px;border-radius:9999px;flex-shrink:0;border:1px solid rgba(255,204,2,0.38);background:rgba(255,204,2,0.14);color:var(--accent-gold);">REP</span></div></div>
+<div id="rep-new-transaction-card" class="section liquid-card">
+<div class="section-header">
+<h3 style="color:var(--accent); margin:0;">New Transaction</h3>
+<div class="toggle-group">
+<button id="btn-mode-sale" class="toggle-opt active" onclick="setRepMode('sale')">Sale</button>
+<button id="btn-mode-coll" class="toggle-opt" onclick="setRepMode('collection')">Collection</button>
+</div>
+</div>
+<div class="grid-inputs">
+<div class="field"><label>Date</label><input type="date" id="rep-date" onchange="renderRepHistory()"></div>
+<div class="field u-pos-relative" >
+<label>Customer Name</label>
+<input type="text" id="rep-cust-name" placeholder="Search customer..."
+oninput="handleUniversalSearch('rep-cust-name', 'rep-customer-search-results', 'repCustomers'); handleCustomerInput(this.value, 'rep')" autocomplete="off">
+<div id="rep-customer-search-results" class="hidden u-search-dropdown" ></div>
+</div>
+</div>
+<div id="rep-new-customer-phone-container" class="hidden" style="margin-top: 8px; animation: slideDown 0.3s ease;">
+<div class="field">
+<label style="color: var(--accent-emerald);">Mobile number</label>
+<input type="tel" id="rep-new-cust-phone" placeholder="03XX-XXXXXXX" style="border-color: var(--accent-emerald);">
+</div>
+</div>
+<div id="rep-sale-inputs">
+<div class="grid-inputs">
+<div class="field"><label>Quantity (kg)</label><input type="number" id="rep-quantity" step="0.001" oninput="calculateRepSalePreview()"></div>
+<div class="field">
+<label>Payment Type</label>
+<div class="toggle-group">
+<button id="btn-rep-pay-credit" class="toggle-opt active" onclick="selectRepPaymentType(this,'CREDIT')">Credit</button>
+<button id="btn-rep-pay-cash" class="toggle-opt" onclick="selectRepPaymentType(this,'CASH')">Cash</button>
+</div>
+<input type="hidden" id="rep-payment-value" value="CREDIT">
+</div>
+</div>
+</div>
+<div id="rep-coll-inputs" class="hidden">
+<div class="field">
+<label>Amount Collected ()</label>
+<input type="number" id="rep-amount-collected" step="1" placeholder="Enter Cash Received">
+</div>
+</div>
+<div id="rep-customer-info-display" class="hidden" style="margin: 10px 0; padding: 12px; background: rgba(37, 99, 235, 0.05); border-radius: 10px; border: 1px solid var(--glass-border);">
+<div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+<span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">Current Debt:</span>
+<span id="rep-customer-current-credit" style="color: var(--warning); font-weight: 800;">0.00</span>
+</div>
+</div>
+<div class="result-box u-row-between" >
+<span id="rep-result-label">Transaction Value:</span>
+<span id="rep-total-value" style="font-size: 1.1rem; color: var(--accent);">0.00</span>
+</div>
+<button class="btn btn-main" onclick="(async () => { await saveRepTransaction() })()">Submit Transaction</button>
+</div>
+<div class="section liquid-card">
+<div class="section-header" style="position: relative; flex-wrap: nowrap; gap: 10px; align-items: center;">
+<h3 style="color:var(--text-main); margin:0; white-space: nowrap; flex-shrink: 0;">Customer List</h3>
+<input type="text" id="rep-filter" class="search-bar u-flex-1 u-min-w-0 u-fs-sm2 u-m-0"
+placeholder="Search customers..."
+oninput="renderRepCustomerTable()">
+<button class="btn-theme" onclick="exportCustomerData('rep')" title="Download PDF"
+style="color: var(--accent-emerald); border-color: var(--accent-emerald); flex-shrink: 0; padding: 6px 12px; white-space: nowrap;">📄</button>
+</div>
+<div id="vs-scroller-rep-customers" style="overflow-x: auto; overflow-y: auto; max-height: 400px; margin-top: 10px;">
+<table class="u-table-full" >
+<thead class="u-thead-sticky" >
+<tr class="u-thead-bg" >
+<th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 15%;">Date</th>
+<th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 30%;">Name</th>
+<th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 20%;">Contact</th>
+<th style="padding: 8px 2px; text-align: right; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 20%;">Amount</th>
+<th style="padding: 8px 2px; text-align: center; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 15%;">Action</th>
+</tr>
+</thead>
+<tbody id="rep-customers-table-body">
+<tr>
+<td class="u-empty-state-md" colspan="5" >
+No records found
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div id="repHistoryList" class="report-grid"></div>
+</div>
+<div id="tab-prod">
+<header id="prod-tab-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
+<h1 class="shimmer-text u-heading-bold">Manufacturing</h1>
+<div id="prod-toggle-container" class="production-toggle-container">
+<button class="production-toggle-btn" onclick="setProductionView('combined', event)">Combined</button>
+<button class="production-toggle-btn active" onclick="setProductionView('store', event)">Store Entry</button>
+</div>
+</header>
+<div id="prod-locked-header" class="locked-mode-header" style="display:none;"><div style="display:inline-flex;align-items:center;gap:9px;padding:6px 14px 6px 7px;border-radius:9999px;background:rgba(105,240,174,0.10);border:1px solid rgba(105,240,174,0.30);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);position:relative;overflow:hidden;max-width:calc(100% - 32px);"><div style="position:absolute;inset:0 0 auto 0;height:1px;background:linear-gradient(90deg,transparent,rgba(105,240,174,0.55),transparent);pointer-events:none;"></div><div style="width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:rgba(105,240,174,0.22);color:var(--accent-emerald);font-size:0.68rem;font-weight:800;letter-spacing:0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div style="min-width:0;display:flex;flex-direction:column;gap:0px;"><div style="font-size:0.52rem;font-weight:600;text-transform:uppercase;letter-spacing:0.09em;color:var(--text-secondary);line-height:1.2;">Production</div><div id="prod-locked-name-display" style="font-size:0.80rem;font-weight:700;color:var(--accent-emerald);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;line-height:1.3;">—</div></div><span style="font-size:0.56rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:2px 7px;border-radius:9999px;flex-shrink:0;border:1px solid rgba(105,240,174,0.38);background:rgba(105,240,174,0.14);color:var(--accent-emerald);">USER</span></div></div>
+<div id="production-entry-section" class="section liquid-card">
+<h3 class="u-text-accent" >New Entry</h3>
+<div id="unitsAvailableIndicator" class="production-unit-info">
+<span>Formula Units Available:</span>
+<span id="currentUnitsAvailable" class="units-available-good">Calculating...</span>
+</div>
+<div class="grid-inputs">
+<div class="field"><label>Select Date</label><input type="date" id="sys-date" onchange="refreshUI(); setOverviewMode(currentOverviewMode);"></div>
+<div class="field"><label>Gross Weight (kg)</label><input type="number" id="gross-wt" step="0.001" oninput="calcNet()"></div>
+<div class="field"><label>Container Weight (kg)</label><input type="number" id="cont-wt" step="0.001" oninput="calcNet()"></div>
+</div>
+<div class="grid-inputs">
+<div class="field">
+<label>Net Production (kg)</label>
+<input type="number" id="net-wt" readonly style="background:rgba(37, 99, 235, 0.1); color:var(--accent); font-weight:bold;">
+<div style="font-size:0.7rem; color:var(--text-muted); margin-top:5px; font-weight: 400;">
+Dynamic Cost Value: <span class="u-text-danger" id="display-cost-value" >0.00</span>
+</div>
+</div>
+<div class="field">
+<label>Select Store:</label>
+<select id="storeSelector" class="store-selector" onchange="updateProductionCostOnStoreChange()">
+<option value="STORE_A">ZUBAIR</option>
+<option value="STORE_B">MAHMOOD</option>
+<option value="STORE_C">ASAAN</option>
+</select>
+</div>
+</div>
+<div id="paymentStatusContainer" class="hidden u-mb-15">
+<label style="display: block; margin-bottom: 8px; font-size: 0.7rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">Payment Status:</label>
+<div class="toggle-group">
+<button id="production-payment-cash" class="toggle-opt active" onclick="selectProductionPayment(this, 'CASH')">Cash</button>
+<button id="production-payment-credit" class="toggle-opt" onclick="selectProductionPayment(this, 'CREDIT')">Credit</button>
+</div>
+</div>
+<div class="grid-inputs">
+<div class="field">
+<label>Formula Units Used</label>
+<input type="number" id="formula-units" step="0.001" min="0" value="1" oninput="calculateDynamicProductionCost()">
+<div class="u-field-hint-xs" >
+Units of factory mixture consumed
+</div>
+</div>
+<div class="field" id="prod-sale-price-field">
+<label>Sale Price (per kg)</label>
+<div class="result-box" style="background:rgba(37, 99, 235, 0.05);">
+<span class="u-text-accent u-fw-800" id="production-sale-price-display" >0.00/kg</span>
+</div>
+</div>
+</div>
+<div class="formula-unit-display" id="prod-formula-cost-block">
+<div style="display:flex; justify-content:space-between; margin-bottom:5px; font-size:0.75rem;">
+<span class="u-text-muted" >Formula Unit Cost:</span>
+<span class="u-danger-bold" id="formula-unit-cost-display" >0.00/unit</span>
+</div>
+<div style="display:flex; justify-content:space-between; margin-bottom:5px; font-size:0.75rem;">
+<span class="u-text-muted" >Total Formula Cost:</span>
+<span class="u-danger-bold" id="total-formula-cost-display" >0.00</span>
+</div>
+<div style="display:flex; justify-content:space-between; font-size:0.75rem;">
+<span class="u-text-muted" >Cost per kg:</span>
+<span class="u-danger-bold" id="dynamic-cost-per-kg" >0.00/kg</span>
+</div>
+</div>
+<div class="result-box" id="prod-profit-block" style="background:rgba(37, 99, 235, 0.05);">
+<div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+<span class="u-fs-sm2 u-text-muted u-fw-400" >Dynamic Cost Price:</span>
+<span class="u-danger-bold" id="factory-cost-price" >0.00/kg</span>
+</div>
+<div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+<span class="u-fs-sm2 u-text-muted u-fw-400" >Sale Price:</span>
+<span class="u-text-accent u-fw-800" id="profit-sale-price" >0.00/kg</span>
+</div>
+<div style="display:flex; justify-content:space-between;">
+<span class="u-fs-sm2 u-text-muted u-fw-400" >Profit (per kg):</span>
+<span class="u-text-emerald u-fw-800" id="profit-per-kg" >0.00</span>
+</div>
+</div>
+<div id="insufficientUnitsWarning" class="warning-message hidden">
+Insufficient formula units available! Please reduce formula units used.
+</div>
+<button class="btn btn-main" onclick="(async () => { await recordEntry() })()">Save Production</button>
+</div>
+<div id="combinedOverview" class="section liquid-card" style="padding:20px;">
+<h3 style="margin:0 0 14px 0; text-align:center; color:var(--accent); font-size:0.95rem; text-transform:uppercase; font-weight:800;" class="shimmer-text">All Stores Overview</h3>
+<div class="all-stores-toggle" style="margin-bottom:16px;">
+<div class="toggle-group">
+<div class="toggle-opt active" id="overview-day-btn" onclick="setOverviewMode('day')">Daily</div>
+<div class="toggle-opt" id="overview-week-btn" onclick="setOverviewMode('week')">Weekly</div>
+<div class="toggle-opt" id="overview-month-btn" onclick="setOverviewMode('month')">Monthly</div>
+<div class="toggle-opt" id="overview-year-btn" onclick="setOverviewMode('year')">Yearly</div>
+<div class="toggle-opt" id="overview-all-btn" onclick="setOverviewMode('all')">All Times</div>
+</div>
+</div>
+<div class="overview-report-grid" id="all-stores-grid">
+</div>
+</div>
+<div id="combinedChart" class="section liquid-card chart-card" style="padding:20px;">
+<div class="store-comparison-toggle">
+<label style="display:block; margin-bottom:6px; font-size:0.65rem; font-weight:800; color:var(--text-muted); text-transform:uppercase;">Compare Stores By:</label>
+<div class="comparison-metric-selector">
+<button class="metric-btn active" onclick="setStoreComparisonMetric('weight', event)">Weight (kg)</button>
+<button class="metric-btn" onclick="setStoreComparisonMetric('value', event)">Total Value</button>
+<button class="metric-btn" onclick="setStoreComparisonMetric('cost', event)">Total Cost</button>
+<button class="metric-btn" onclick="setStoreComparisonMetric('profit', event)">Net Profit</button>
+</div>
+</div>
+<div class="chart-container" style="margin-top:12px;">
+<div class="chart-box">
+<canvas id="storeComparisonChart"></canvas>
+</div>
+</div>
+</div>
+<div id="prod-analytics-section" class="section liquid-card chart-card">
+<div class="section-header">
+<h3 class="u-heading-main" >Analytics</h3>
+<div class="toggle-group">
+<div class="toggle-opt active" id="mfg-week-btn" onclick="setMfgChartMode('week')">Weekly</div>
+<div class="toggle-opt" id="mfg-month-btn" onclick="setMfgChartMode('month')">Monthly</div>
+<div class="toggle-opt" id="mfg-year-btn" onclick="setMfgChartMode('year')">Yearly</div>
+<div class="toggle-opt" id="mfg-all-btn" onclick="setMfgChartMode('all')">All Times</div>
+</div>
+</div>
+<div class="chart-container">
+<div class="chart-box">
+<canvas id="mfgBarChart"></canvas>
+</div>
+<div class="chart-box">
+<div class="percentage-toggle-container">
+<button class="percentage-toggle-btn" id="mfgPiePercentageToggle" onclick="togglePercentage('mfgPieChart')">Show %</button>
+</div>
+<canvas id="mfgPieChart"></canvas>
+</div>
+</div>
+</div>
+<div id="prod-history-header" style="display:flex; align-items:center; gap:12px; margin-top:25px; margin-bottom:10px; padding:0;">
+<span style="font-size:0.82rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; white-space:nowrap; flex-shrink:0;">Production History</span>
+<input type="text" id="production-search" class="search-bar u-flex-field-1" placeholder="Search by date or store..." oninput="filterProductionHistory()" >
+</div>
+<div id="prodHistoryList"></div>
+</div>
+<div id="tab-sales" class="hidden">
+<header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+<h1 class="shimmer-text u-heading-bold">Sales</h1>
+</header>
+<div id="sales-locked-header" class="locked-mode-header" style="display:none;"><div style="display:inline-flex;align-items:center;gap:9px;padding:6px 14px 6px 7px;border-radius:9999px;background:rgba(29,233,182,0.10);border:1px solid rgba(29,233,182,0.30);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);position:relative;overflow:hidden;max-width:calc(100% - 32px);"><div style="position:absolute;inset:0 0 auto 0;height:1px;background:linear-gradient(90deg,transparent,rgba(29,233,182,0.55),transparent);pointer-events:none;"></div><div style="width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:rgba(29,233,182,0.22);color:var(--accent);font-size:0.68rem;font-weight:800;letter-spacing:0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div style="min-width:0;display:flex;flex-direction:column;gap:0px;"><div style="font-size:0.52rem;font-weight:600;text-transform:uppercase;letter-spacing:0.09em;color:var(--text-secondary);line-height:1.2;">Sales</div><div id="sales-locked-name-display" style="font-size:0.80rem;font-weight:700;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;line-height:1.3;">—</div></div><span style="font-size:0.56rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:2px 7px;border-radius:9999px;flex-shrink:0;border:1px solid rgba(29,233,182,0.38);background:rgba(29,233,182,0.14);color:var(--accent);">USER</span></div></div>
+<div class="section liquid-card">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+<h3 class="u-text-accent" style="margin:0;">New Sale</h3>
+<span id="new-sale-id-display" style="font-size:0.62rem;color:var(--text-secondary);font-family:'Geist Mono',monospace;background:var(--glass-raised);border:1px solid var(--glass-border);border-radius:var(--radius-full);padding:2px 8px;letter-spacing:0.03em;display:none;">ID: —</span>
+</div>
+<div class="grid-inputs">
+<div class="field"><label>Date</label><input type="date" id="cust-date" onchange="refreshCustomerSales(); setSalesSummaryMode(currentSalesSummaryMode || 'day');"></div>
+<div class="field u-pos-relative" >
+<label>Customer Name</label>
+<input type="text" id="cust-name" list="customer-list" placeholder="Search or type new..."
+oninput="handleUniversalSearch('cust-name', 'customer-search-results', 'customers'); handleCustomerInput(this.value, 'admin')" autocomplete="off">
+<div id="customer-search-results" class="hidden u-search-dropdown" ></div>
+<div id="new-customer-phone-container" class="hidden" style="margin-top: 8px; animation: slideDown 0.3s ease;">
+<div class="field">
+<label style="color: var(--accent-emerald);">Mobile number</label>
+<input type="tel" id="new-cust-phone" placeholder="03XX-XXXXXXX" style="border-color: var(--accent-emerald);">
+</div>
+</div>
+<datalist id="customer-list"></datalist>
+</div>
+</div>
+<div class="field u-mb-15" >
+<label>Sales Representative (For Calculator Link)</label>
+<div class="toggle-group" id="sales-rep-toggle-group">
+<button class="toggle-opt active" onclick="selectSalesRep(this,'NONE')">Direct</button>
+</div>
+<input type="hidden" id="sales-rep-value" value="NONE">
+</div>
+<div class="grid-inputs">
+<div class="field"><label>Quantity (kg)</label><input type="number" id="cust-quantity" step="0.001" oninput="calculateCustomerSale()"></div>
+</div>
+<div id="customer-info-display" class="hidden" style="margin: 10px 0; padding: 12px; background: rgba(37, 99, 235, 0.05); border-radius: 10px; border: 1px solid var(--glass-border);">
+<div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+<span class="u-fs-sm2 u-text-muted u-fw-400" >Current Credit:</span>
+<span id="customer-current-credit" style="color: var(--warning); font-weight: 400;">0.00</span>
+</div>
+<div style="display: flex; justify-content: space-between;">
+<span class="u-fs-sm2 u-text-muted u-fw-400" >Total Quantity:</span>
+<span id="customer-total-quantity" style="color: var(--accent); font-weight: 400;">0.00</span>
+</div>
+</div>
+<div class="field u-mb-15" >
+<label>Supply</label>
+<div class="toggle-group">
+<button id="btn-supply-store-a" class="toggle-opt active" onclick="selectSupplyStore(this,'STORE_A')">ZUBAIR</button>
+<button id="btn-supply-store-b" class="toggle-opt" onclick="selectSupplyStore(this,'STORE_B')">MAHMOOD</button>
+<button id="btn-supply-store-c" class="toggle-opt" onclick="selectSupplyStore(this,'STORE_C')">ASAAN</button>
+</div>
+<input type="hidden" id="supply-store-value" value="STORE_A">
+</div>
+<div class="field u-mb-15" >
+<label>Payment:</label>
+<div class="toggle-group">
+<button id="btn-payment-cash" class="toggle-opt active" onclick="selectPaymentType(this,'CASH')">Cash</button>
+<button id="btn-payment-credit" class="toggle-opt" onclick="selectPaymentType(this,'CREDIT')">Credit</button>
+</div>
+<input type="hidden" id="payment-type-value" value="CASH">
+</div>
+<div class="result-box" id="sale-result-cost">
+Total Cost: <span id="cust-total-cost">0.00</span>
+</div>
+<div class="result-box" id="sale-result-value">
+Total Value: <span id="cust-total-value">0.00</span>
+</div>
+<div class="result-box" id="sale-result-profit">
+Profit: <span id="cust-profit">0.00</span>
+</div>
+<button class="btn btn-main" onclick="(async () => { await saveCustomerSale() })()">Save Transaction</button>
+</div>
+<div class="section liquid-card" id="customers-card">
+<div class="section-header" style="flex-wrap: nowrap; gap: 10px; align-items: center;">
+<h3 style="color:var(--text-main); margin:0; white-space: nowrap; flex-shrink: 0;">CUSTOMERS</h3>
+<input type="text" id="customer-filter" class="search-bar u-flex-1 u-min-w-0 u-fs-sm2 u-m-0" placeholder="Search customers..."
+oninput="filterCustomers()">
+<span id="customer-count" style="font-size: 0.7rem; color: var(--text-muted); display:none;">0 customers</span>
+<button class="btn-theme" onclick="exportCustomerData('admin')" title="Download PDF" style="color: var(--accent); border-color: var(--accent); padding: 6px 12px; flex-shrink: 0; white-space: nowrap;">📄</button>
+</div>
+<div id="vs-scroller-customers" style="overflow-x: auto; overflow-y: auto; max-height: 400px; margin-top: 10px;">
+<table class="u-table-full" >
+<thead class="u-thead-sticky" >
+<tr class="u-thead-bg" >
+<th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 15%;">Date</th>
+<th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 30%;">Name</th>
+<th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 20%;">Contact</th>
+<th style="padding: 8px 2px; text-align: right; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 20%;">Amount</th>
+<th style="padding: 8px 2px; text-align: center; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 15%;">Action</th>
+</tr>
+</thead>
+<tbody id="customers-table-body">
+<tr>
+<td class="u-empty-state-md" colspan="5" >
+No records found
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--glass-border);">
+<div style="display: flex; justify-content: space-between; font-size: 0.7rem;">
+<span style="color: var(--text-muted); font-weight: 400;">Total Outstanding Credit:</span>
+<span id="customers-total-credit" style="color: var(--warning); font-weight: 400;">0.00</span>
+</div>
+<div style="display: flex; justify-content: space-between; font-size: 0.7rem;">
+<span style="color: var(--text-muted); font-weight: 400;">Total Quantity Sold:</span>
+<span id="customers-total-quantity" style="color: var(--accent); font-weight: 400;">0.00</span>
+</div>
+</div>
+</div>
+<div class="section liquid-card chart-card">
+<div class="section-header">
+<h3 class="u-heading-main" >Analytics</h3>
+<div class="toggle-group">
+<div class="toggle-opt active" id="cust-week-btn" onclick="setCustomerChartMode('week')">Weekly</div>
+<div class="toggle-opt" id="cust-month-btn" onclick="setCustomerChartMode('month')">Monthly</div>
+<div class="toggle-opt" id="cust-year-btn" onclick="setCustomerChartMode('year')">Yearly</div>
+<div class="toggle-opt" id="cust-all-btn" onclick="setCustomerChartMode('all')">All Times</div>
+</div>
+</div>
+<div class="chart-container">
+<div class="chart-box">
+<canvas id="custSalesChart"></canvas>
+</div>
+<div class="chart-box">
+<div class="percentage-toggle-container">
+<button class="percentage-toggle-btn" id="custPaymentPercentageToggle" onclick="togglePercentage('custPaymentChart')">Show %</button>
+</div>
+<canvas id="custPaymentChart"></canvas>
+</div>
+</div>
+</div>
+<div class="section-header">
+<h3>Summary</h3>
+<div class="toggle-group" id="sales-summary-toggle">
+<div class="toggle-opt active" id="ss-day-btn" onclick="setSalesSummaryMode('day')">Daily</div>
+<div class="toggle-opt" id="ss-week-btn" onclick="setSalesSummaryMode('week')">Weekly</div>
+<div class="toggle-opt" id="ss-month-btn" onclick="setSalesSummaryMode('month')">Monthly</div>
+<div class="toggle-opt" id="ss-year-btn" onclick="setSalesSummaryMode('year')">Yearly</div>
+<div class="toggle-opt" id="ss-all-btn" onclick="setSalesSummaryMode('all')">All Time</div>
+</div>
+</div>
+<div class="card highlight-card liquid-card" id="sales-summary-card">
+<h4 id="sales-summary-title">Daily Sales</h4>
+<p><span>Total Quantity:</span> <span class="qty-val" id="cust-active-qty">0.00 kg</span></p>
+<p><span>Total Value:</span> <span class="rev-val" id="cust-active-value">0.00</span></p>
+<p><span>Cash (Inc. Received):</span> <span style="color:#059669; font-weight:800;" id="cust-active-cash">0.00</span></p>
+<p><span>Pending Credits:</span> <span style="color:#f59e0b; font-weight:800;" id="cust-active-credit">0.00</span></p>
+<p><span>Net Profit:</span> <span class="profit-val" id="cust-active-profit">0.00</span></p>
+</div>
+<span class="u-hidden" id="cust-day-qty" ></span><span class="u-hidden" id="cust-day-value" ></span>
+<span class="u-hidden" id="cust-day-cash" ></span><span class="u-hidden" id="cust-day-credit" ></span>
+<span class="u-hidden" id="cust-day-profit" ></span>
+<span class="u-hidden" id="cust-week-qty" ></span><span class="u-hidden" id="cust-week-value" ></span>
+<span class="u-hidden" id="cust-week-cash" ></span><span class="u-hidden" id="cust-week-credit" ></span>
+<span class="u-hidden" id="cust-week-profit" ></span>
+<span class="u-hidden" id="cust-month-qty" ></span><span class="u-hidden" id="cust-month-value" ></span>
+<span class="u-hidden" id="cust-month-cash" ></span><span class="u-hidden" id="cust-month-credit" ></span>
+<span class="u-hidden" id="cust-month-profit" ></span>
+<span class="u-hidden" id="cust-year-qty" ></span><span class="u-hidden" id="cust-year-value" ></span>
+<span class="u-hidden" id="cust-year-cash" ></span><span class="u-hidden" id="cust-year-credit" ></span>
+<span class="u-hidden" id="cust-year-profit" ></span>
+<span class="u-hidden" id="cust-all-qty" ></span><span class="u-hidden" id="cust-all-value" ></span>
+<span class="u-hidden" id="cust-all-cash" ></span><span class="u-hidden" id="cust-all-credit" ></span>
+<span class="u-hidden" id="cust-all-profit" ></span>
+<div style="display:flex; align-items:center; gap:12px; margin-top:25px; margin-bottom:10px; padding:0;">
+<span style="font-size:0.82rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; white-space:nowrap; flex-shrink:0;">Sales History</span>
+<input type="text" id="customer-search" class="search-bar u-flex-field-1" placeholder="Search by name..." oninput="filterCustomerTransactions()" >
+</div>
+<div id="custHistoryList"></div>
+</div>
+<div id="tab-calc" class="hidden">
+<header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+<h1 class="shimmer-text u-heading-bold">Calculator</h1>
+</header>
+<div class="section liquid-card chart-card">
+<label>Sales Representative:</label>
+<select id="sellerSelect" class="store-selector" onchange="(async () => { await loadSalesData() })()">
+<option value="COMBINED">COMPARISON</option>
+</select>
+<div id="entrySection" class="hidden">
+<div class="grid-inputs">
+<div class="field"><label>Date</label><input type="date" id="sale-date" onchange="(async () => { await loadSalesData(); setPerfOverviewMode(currentPerfOverviewMode || 'day'); })()"></div>
+<div class="field">
+<label>Total Sold Qty</label>
+<input type="number" id="totalSold" readonly style="background:rgba(37, 99, 235, 0.1); color:var(--text-main); font-weight:800; border:1px solid var(--accent);" onclick="handleTripleTap(this, 'sales')">
+</div>
+<div class="field"><label>Returned Qty</label><input type="number" id="returnedQuantity" oninput="handleReturnQtyInput()"></div>
+<div id="returnStoreSection" class="hidden" style="grid-column: 1 / -1; margin: 10px 0; padding: 12px; background: rgba(245, 158, 11, 0.1); border-radius: 10px; border: 1px solid var(--warning);">
+<label style="color: var(--warning); font-weight: 800; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;"> Return Stock To Physical Inventory:</label>
+<div class="toggle-group" style="margin-top: 8px;">
+<button id="ret-store-a" class="toggle-opt" onclick="selectReturnStore('STORE_A', this)">ZUBAIR</button>
+<button id="ret-store-b" class="toggle-opt" onclick="selectReturnStore('STORE_B', this)">MAHMOOD</button>
+</div>
+<div class="u-field-hint" >
+* This will increase the store's stock level without creating a new production record.
+</div>
+</div>
+</div>
+<div class="grid-inputs">
+<div class="field"><label>Credit Sales Qty</label><input type="number" id="creditSales" oninput="calculateSales()" onclick="handleTripleTap(this, 'rep')"></div>
+<div class="field"><label>Recovered Credit</label><input type="number" id="prevCreditReceived" oninput="calculateSales()" onclick="handleTripleTap(this, 'rep')"></div>
+<div class="field"><label>Physical Cash In Hand</label><input type="number" id="receivedCash" oninput="calculateSales()"></div>
+</div>
+<div class="result-box">Expected Cash: <span id="totalExpectedCash">0.00</span></div>
+<div class="result-box" id="discrepancyBox">Status: <span id="discrepancyStatus">OK</span></div>
+<button class="btn btn-noman" onclick="(async () => { await saveTransaction() })()">Save Transaction</button>
+</div>
+<div id="combinedSection" class="hidden">
+<div class="section-header">
+<h3 class="u-heading-main" >Comparison</h3>
+<div class="toggle-group">
+<div class="toggle-opt" id="comp-week-btn" onclick="(async () => { await loadSalesData('week') })()">Week</div>
+<div class="toggle-opt" id="comp-month-btn" onclick="(async () => { await loadSalesData('month') })()">Month</div>
+<div class="toggle-opt" id="comp-year-btn" onclick="(async () => { await loadSalesData('year') })()">Year</div>
+<div class="toggle-opt active" id="comp-all-btn" onclick="(async () => { await loadSalesData('all') })()">All Time</div>
+</div>
+</div>
+<div id="combinedExportArea">
+<div class="field" style="margin-bottom: 12px;">
+<label>View Chart For:</label>
+<select id="metricSelector" class="store-selector" onchange="(async () => { await loadSalesData(currentCompMode) })()">
+<option value="prof">Net Profit (Value)</option>
+<option value="rev">Gross Revenue (Value)</option>
+<option value="sold">Quantity Sold</option>
+</select>
+</div>
+<div class="chart-container">
+<div class="chart-box">
+<p style="font-size: 10px; text-align: center; color: var(--accent); margin: 0 0 8px 0; font-weight: 800;">COMPETITION</p>
+<canvas id="performanceChart"></canvas>
+</div>
+<div class="chart-box">
+<div class="percentage-toggle-container">
+<button class="percentage-toggle-btn" id="compositionPercentageToggle" onclick="togglePercentage('compositionChart')">Show %</button>
+</div>
+<p style="font-size: 10px; text-align: center; color: var(--accent); margin: 0 0 8px 0; font-weight: 800;">MARKET COMPOSITION</p>
+<canvas id="compositionChart"></canvas>
+</div>
+</div>
+<table class="comp-table">
+<thead id="comparisonHead"><tr><th>Metric Comparison</th></tr></thead>
+<tbody id="comparisonBody"></tbody>
+</table>
+</div>
+</div>
+<div id="individualChartSection" class="hidden">
+<div class="section liquid-card chart-card">
+<div class="section-header">
+<h3 class="u-heading-main" >Performance Analytics for <span id="selectedSellerName">...</span></h3>
+<div class="toggle-group">
+<div class="toggle-opt active" id="ind-week-btn" onclick="setIndChartMode('week')">Weekly</div>
+<div class="toggle-opt" id="ind-month-btn" onclick="setIndChartMode('month')">Monthly</div>
+<div class="toggle-opt" id="ind-year-btn" onclick="setIndChartMode('year')">Yearly</div>
+<div class="toggle-opt" id="ind-all-btn" onclick="setIndChartMode('all')">All Times</div>
+</div>
+</div>
+<div class="sales-rep-metric-selector">
+<label style="font-size: 0.65rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 5px;">Select Metric:</label>
+<select id="indMetricSelector" class="sales-rep-metric-dropdown" onchange="setIndChartMetric(this.value)">
+<option value="weight">Weight (kg)</option>
+<option value="value">Total Value ()</option>
+<option value="cost">Total Cost ()</option>
+<option value="profit">Net Profit ()</option>
+<option value="cash">Cash Sales ()</option>
+<option value="credit">Credit Sales ()</option>
+</select>
+</div>
+<div class="sales-rep-chart-container">
+<div class="sales-rep-chart-box">
+<canvas id="indPerformanceChart"></canvas>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="daily-performance-overview">
+<div class="section-header" style="margin-bottom:12px;">
+<h3>Performance Overview (<span id="reportSellerName">...</span>)</h3>
+<div class="toggle-group" id="perf-overview-toggle">
+<div class="toggle-opt active" id="po-day-btn" onclick="setPerfOverviewMode('day')">Daily</div>
+<div class="toggle-opt" id="po-week-btn" onclick="setPerfOverviewMode('week')">Weekly</div>
+<div class="toggle-opt" id="po-month-btn" onclick="setPerfOverviewMode('month')">Monthly</div>
+<div class="toggle-opt" id="po-year-btn" onclick="setPerfOverviewMode('year')">Yearly</div>
+<div class="toggle-opt" id="po-all-btn" onclick="setPerfOverviewMode('all')">All Time</div>
+</div>
+</div>
+<div id="activeReport"></div>
+<div class="u-hidden" id="dailyReport" ></div>
+<div class="u-hidden" id="weeklyReport" ></div>
+<div class="u-hidden" id="monthlyReport" ></div>
+<div class="u-hidden" id="yearlyReport" ></div>
+<div class="u-hidden" id="allTimeReport" ></div>
+<div class="u-hidden" id="summary-section" >
+<div class="u-hidden" id="all-times-calculator-card" >
+<span id="all-sold"></span><span id="all-ret"></span>
+<span id="all-revenue"></span><span id="all-profit-calc"></span>
+<span id="all-creditVal"></span><span id="all-collected"></span>
+<span id="all-balance"></span>
+</div>
+</div>
+</div>
+<div class="debt-panel liquid-card">
+<div style="text-align:center; font-weight:800; font-size:13px; text-transform:uppercase; margin-bottom:12px; color:var(--text-main);"><span id="debtSellerName">...</span> Market Debt Tracker</div>
+<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid rgba(100,100,100,0.1);">
+<span>Total Credit Issued:</span> <span id="ltCredit">0.00</span>
+</div>
+<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid rgba(100,100,100,0.1);">
+<span>Total Cash Recovered:</span> <span id="ltCollected">0.00</span>
+</div>
+<div style="display:flex; justify-content:space-between; padding:12px 0 0 0; font-size:1.1rem; font-weight:800;">
+<span>Current Market Debt:</span> <span id="ltBalance">0.00</span>
+</div>
+</div>
+<div style="display:flex; align-items:center; gap:12px; margin-top:25px; margin-bottom:10px; padding:0;">
+<span style="font-size:0.82rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; white-space:nowrap; flex-shrink:0;">Calculator History</span>
+<input type="text" id="calculator-search" class="search-bar u-flex-field-1" placeholder="Search by date or seller..." oninput="filterCalculatorHistory()" >
+</div>
+<div id="historyList" class="report-grid"></div>
+</div>
+<div id="tab-factory" class="hidden">
+<header id="factory-tab-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
+<h1 class="shimmer-text u-heading-bold">Factory</h1>
+<div style="display:flex; gap:10px;">
+<button id="factory-settings-btn" class="btn-theme" onclick="openFactorySettings()"></button>
+</div>
+</header>
+<div id="factory-locked-header" class="locked-mode-header" style="display:none;"><div style="display:inline-flex;align-items:center;gap:9px;padding:6px 14px 6px 7px;border-radius:9999px;background:rgba(206,147,216,0.10);border:1px solid rgba(206,147,216,0.30);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);position:relative;overflow:hidden;max-width:calc(100% - 32px);"><div style="position:absolute;inset:0 0 auto 0;height:1px;background:linear-gradient(90deg,transparent,rgba(206,147,216,0.55),transparent);pointer-events:none;"></div><div style="width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:rgba(206,147,216,0.22);color:var(--accent-purple);font-size:0.68rem;font-weight:800;letter-spacing:0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div style="min-width:0;display:flex;flex-direction:column;gap:0px;"><div style="font-size:0.52rem;font-weight:600;text-transform:uppercase;letter-spacing:0.09em;color:var(--text-secondary);line-height:1.2;">Factory</div><div id="factory-locked-name-display" style="font-size:0.80rem;font-weight:700;color:var(--accent-purple);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;line-height:1.3;">—</div></div><span style="font-size:0.56rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:2px 7px;border-radius:9999px;flex-shrink:0;border:1px solid rgba(206,147,216,0.38);background:rgba(206,147,216,0.14);color:var(--accent-purple);">USER</span></div></div>
+<div id="factory-entry-section" class="section">
+<div class="section-header">
+<h3 class="u-text-accent" >New Production Entry</h3>
+<div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
+<label style="font-size:0.7rem; color:var(--text-muted); margin:0;">Date</label>
+<input type="date" id="factory-date" onchange="refreshFactoryTab(); _filterFactoryHistoryByMode(currentFactorySummaryMode || 'all');" style="font-size:0.8rem; padding:5px 8px;">
+</div>
+</div>
+<div class="factory-store-selector">
+<div class="factory-store-opt active" onclick="selectFactoryEntryStore('standard', this)">STANDARD STORE</div>
+<div class="factory-store-opt" onclick="selectFactoryEntryStore('asaan', this)">ASAAN STORE</div>
+</div>
+<div class="grid-inputs">
+<div class="field">
+<label>Units to Produce</label>
+<input type="number" id="factoryProductionUnits" value="1" min="1" oninput="calculateFactoryProduction()">
+</div>
+<div class="field">
+<label>Total Cost</label>
+<div id="factoryTotalProductionCostDisplay" class="cost-display">0 </div>
+</div>
+</div>
+<div id="factoryFormulaDisplay" class="formula-display">
+Select a store...
+</div>
+<button class="btn btn-noman" onclick="(async () => { await saveFactoryProductionEntry() })()">Save Production Entry</button>
+</div>
+<div class="section liquid-card">
+<div class="section-header">
+<h3 class="u-heading-main" >Units Available <span class="update-indicator" id="unitsUpdateIndicator"></span></h3>
+<div class="toggle-group">
+<div class="toggle-opt active" onclick="setFactoryAvailableStore('standard', this)">Standard Store</div>
+<div class="toggle-opt" onclick="setFactoryAvailableStore('asaan', this)">Asaan Store</div>
+</div>
+</div>
+<div id="factoryAvailStatsStandard">
+<div style="display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:4px;">
+<div style="background:var(--glass-raised); border-radius:14px; padding:14px 16px; display:flex; flex-direction:column; gap:6px; border:1px solid var(--glass-border);">
+<span style="font-size:0.62rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:2px;">Units</span>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Available</span>
+<span class="qty-val" id="factoryStdUnits" style="font-size:1.05rem;font-weight:700;">0</span>
+</div>
+<div style="height:1px;background:var(--glass-border);margin:2px 0;"></div>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Used</span>
+<span class="qty-val" id="factoryStdUsedUnits" style="font-size:0.88rem;font-weight:600;">0</span>
+</div>
+</div>
+<div style="background:var(--glass-raised); border-radius:14px; padding:14px 16px; display:flex; flex-direction:column; gap:6px; border:1px solid var(--glass-border);">
+<span style="font-size:0.62rem;font-weight:700;color:var(--accent-purple);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:2px;">Output</span>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Quantity</span>
+<span class="qty-val" id="factoryStdOutput" style="font-size:1.05rem;font-weight:700;">0 kg</span>
+</div>
+<div style="height:1px;background:var(--glass-border);margin:2px 0;"></div>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Raw Used</span>
+<span class="qty-val" id="factoryStdRawUsed" style="font-size:0.88rem;font-weight:600;">0 kg</span>
+</div>
+</div>
+<div style="background:var(--glass-raised); border-radius:14px; padding:14px 16px; display:flex; flex-direction:column; gap:6px; border:1px solid var(--glass-border);">
+<span style="font-size:0.62rem;font-weight:700;color:var(--warning);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:2px;">Cost</span>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Per Unit</span>
+<span class="cost-val" id="factoryStdUnitCost" style="font-size:1.05rem;font-weight:700;">0</span>
+</div>
+<div style="height:1px;background:var(--glass-border);margin:2px 0;"></div>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Total</span>
+<span class="rev-val" id="factoryStdTotalVal" style="font-size:0.88rem;font-weight:600;">0</span>
+</div>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Materials</span>
+<span class="cost-val" id="factoryStdMatVal" style="font-size:0.88rem;font-weight:600;">0</span>
+</div>
+</div>
+<div style="background:var(--glass-raised); border-radius:14px; padding:14px 16px; display:flex; flex-direction:column; gap:6px; border:1px solid rgba(102,187,106,0.3);">
+<span style="font-size:0.62rem;font-weight:700;color:var(--success);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:2px;">Profit</span>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Total</span>
+<span class="profit-val" id="factoryStdProfit" style="font-size:1.05rem;font-weight:700;">0</span>
+</div>
+<div style="height:1px;background:var(--glass-border);margin:2px 0;"></div>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Per kg</span>
+<span class="profit-val" id="factoryStdProfitUnit" style="font-size:0.88rem;font-weight:600;">0</span>
+</div>
+</div>
+</div>
+</div>
+<div id="factoryAvailStatsAsaan" class="hidden">
+<div style="display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:4px;">
+<div style="background:var(--glass-raised); border-radius:14px; padding:14px 16px; display:flex; flex-direction:column; gap:6px; border:1px solid var(--glass-border);">
+<span style="font-size:0.62rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:2px;">Units</span>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Available</span>
+<span class="qty-val" id="factoryAsaanUnits" style="font-size:1.05rem;font-weight:700;">0</span>
+</div>
+<div style="height:1px;background:var(--glass-border);margin:2px 0;"></div>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Used</span>
+<span class="qty-val" id="factoryAsaanUsedUnits" style="font-size:0.88rem;font-weight:600;">0</span>
+</div>
+</div>
+<div style="background:var(--glass-raised); border-radius:14px; padding:14px 16px; display:flex; flex-direction:column; gap:6px; border:1px solid var(--glass-border);">
+<span style="font-size:0.62rem;font-weight:700;color:var(--accent-purple);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:2px;">Output</span>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Quantity</span>
+<span class="qty-val" id="factoryAsaanOutput" style="font-size:1.05rem;font-weight:700;">0 kg</span>
+</div>
+<div style="height:1px;background:var(--glass-border);margin:2px 0;"></div>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Raw Used</span>
+<span class="qty-val" id="factoryAsaanRawUsed" style="font-size:0.88rem;font-weight:600;">0 kg</span>
+</div>
+</div>
+<div style="background:var(--glass-raised); border-radius:14px; padding:14px 16px; display:flex; flex-direction:column; gap:6px; border:1px solid var(--glass-border);">
+<span style="font-size:0.62rem;font-weight:700;color:var(--warning);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:2px;">Cost</span>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Per Unit</span>
+<span class="cost-val" id="factoryAsaanUnitCost" style="font-size:1.05rem;font-weight:700;">0</span>
+</div>
+<div style="height:1px;background:var(--glass-border);margin:2px 0;"></div>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Total</span>
+<span class="rev-val" id="factoryAsaanTotalVal" style="font-size:0.88rem;font-weight:600;">0</span>
+</div>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Materials</span>
+<span class="cost-val" id="factoryAsaanMatVal" style="font-size:0.88rem;font-weight:600;">0</span>
+</div>
+</div>
+<div style="background:var(--glass-raised); border-radius:14px; padding:14px 16px; display:flex; flex-direction:column; gap:6px; border:1px solid rgba(102,187,106,0.3);">
+<span style="font-size:0.62rem;font-weight:700;color:var(--success);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:2px;">Profit</span>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Total</span>
+<span class="profit-val" id="factoryAsaanProfit" style="font-size:1.05rem;font-weight:700;">0</span>
+</div>
+<div style="height:1px;background:var(--glass-border);margin:2px 0;"></div>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Per kg</span>
+<span class="profit-val" id="factoryAsaanProfitUnit" style="font-size:0.88rem;font-weight:600;">0</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="section liquid-card">
+<div class="section-header">
+<h3 class="u-heading-main" >Raw Material Inventory</h3>
+<button class="btn-theme" style="font-size:0.8rem;" onclick="openFactoryInventoryModal()"></button>
+</div>
+<div id="vs-scroller-factory-inventory" style="overflow-x: auto; overflow-y: auto; max-height: 500px; margin-top: 10px;">
+<table class="u-table-full" >
+<thead class="u-thead-sticky" >
+<tr class="u-thead-bg" >
+<th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 30%;">Material</th>
+<th style="padding: 8px 2px; text-align: center; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 15%;">Stock</th>
+<th style="padding: 8px 2px; text-align: right; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 15%;">Cost/Unit</th>
+<th style="padding: 8px 2px; text-align: right; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 20%;">Total Value</th>
+<th style="padding: 8px 2px; text-align: center; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 20%;">Action</th>
+</tr>
+</thead>
+<tbody id="factoryInventoryTableBody">
+</tbody>
+</table>
+</div>
+<div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--glass-border);">
+<div style="display: flex; justify-content: space-between; font-size: 0.85rem;">
+<span style="color: var(--text-muted); font-weight: 600;">Total Inventory Value:</span>
+<span class="rev-val" id="factoryTotalInventoryValue" style="color: var(--accent); font-weight: 700;">0.00</span>
+</div>
+</div>
+</div>
+<div class="section liquid-card">
+<div class="section-header">
+<h3 class="u-heading-main" >Performance Summary</h3>
+<div class="toggle-group">
+<div class="toggle-opt active" onclick="setFactorySummaryMode('daily', this)">Daily</div>
+<div class="toggle-opt" onclick="setFactorySummaryMode('weekly', this)">Weekly</div>
+<div class="toggle-opt" onclick="setFactorySummaryMode('monthly', this)">Monthly</div>
+<div class="toggle-opt" onclick="setFactorySummaryMode('yearly', this)">Yearly</div>
+<div class="toggle-opt" onclick="setFactorySummaryMode('all', this)">All Times</div>
+</div>
+</div>
+<div style="display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:4px;">
+<div style="background:var(--glass-raised); border-radius:14px; padding:14px 16px; display:flex; flex-direction:column; gap:6px; border:1px solid var(--glass-border);">
+<span style="font-size:0.62rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:2px;">Units</span>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Available</span>
+<span class="qty-val" id="factorySumUnits" style="font-size:1.05rem;font-weight:700;">0</span>
+</div>
+<div style="height:1px;background:var(--glass-border);margin:2px 0;"></div>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Used</span>
+<span class="qty-val" id="factorySumUsedUnits" style="font-size:0.88rem;font-weight:600;">0</span>
+</div>
+</div>
+<div style="background:var(--glass-raised); border-radius:14px; padding:14px 16px; display:flex; flex-direction:column; gap:6px; border:1px solid var(--glass-border);">
+<span style="font-size:0.62rem;font-weight:700;color:var(--accent-purple);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:2px;">Output</span>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Quantity</span>
+<span class="qty-val" id="factorySumOutput" style="font-size:1.05rem;font-weight:700;">0.00 kg</span>
+</div>
+<div style="height:1px;background:var(--glass-border);margin:2px 0;"></div>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Raw Used</span>
+<span class="qty-val" id="factorySumRawUsed" style="font-size:0.88rem;font-weight:600;">0.00 kg</span>
+</div>
+</div>
+<div style="background:var(--glass-raised); border-radius:14px; padding:14px 16px; display:flex; flex-direction:column; gap:6px; border:1px solid var(--glass-border);">
+<span style="font-size:0.62rem;font-weight:700;color:var(--warning);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:2px;">Cost</span>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Per Unit</span>
+<span class="cost-val" id="factorySumUnitCost" style="font-size:1.05rem;font-weight:700;">0.00</span>
+</div>
+<div style="height:1px;background:var(--glass-border);margin:2px 0;"></div>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Total</span>
+<span class="rev-val" id="factorySumTotalCost" style="font-size:0.88rem;font-weight:600;">0.00</span>
+</div>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Materials</span>
+<span class="cost-val" id="factorySumMatVal" style="font-size:0.88rem;font-weight:600;">0.00</span>
+</div>
+</div>
+<div style="background:var(--glass-raised); border-radius:14px; padding:14px 16px; display:flex; flex-direction:column; gap:6px; border:1px solid rgba(102,187,106,0.3);">
+<span style="font-size:0.62rem;font-weight:700;color:var(--success);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:2px;">Profit</span>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Total</span>
+<span class="profit-val" id="factorySumProfit" style="font-size:1.05rem;font-weight:700;">0.00</span>
+</div>
+<div style="height:1px;background:var(--glass-border);margin:2px 0;"></div>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Per kg</span>
+<span class="profit-val" id="factorySumProfitUnit" style="font-size:0.88rem;font-weight:600;">0.00</span>
+</div>
+</div>
+</div>
+</div>
+<div class="section liquid-card">
+<div class="section-header">
+<h3 class="u-heading-main" >Recent Production Activity</h3>
+</div>
+<div id="factoryHistoryList">
+</div>
+</div>
+</div>
+<div id="tab-payments" class="hidden">
+<header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+<h1 class="shimmer-text u-heading-bold">Payments</h1>
+<button class="btn-theme" onclick="openEntityManagement()"></button>
+</header>
+<div id="payments-locked-header" class="locked-mode-header" style="display:none;"><div style="display:inline-flex;align-items:center;gap:9px;padding:6px 14px 6px 7px;border-radius:9999px;background:rgba(128,222,234,0.10);border:1px solid rgba(128,222,234,0.30);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);position:relative;overflow:hidden;max-width:calc(100% - 32px);"><div style="position:absolute;inset:0 0 auto 0;height:1px;background:linear-gradient(90deg,transparent,rgba(128,222,234,0.55),transparent);pointer-events:none;"></div><div style="width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:rgba(128,222,234,0.22);color:var(--accent-cyan);font-size:0.68rem;font-weight:800;letter-spacing:0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div style="min-width:0;display:flex;flex-direction:column;gap:0px;"><div style="font-size:0.52rem;font-weight:600;text-transform:uppercase;letter-spacing:0.09em;color:var(--text-secondary);line-height:1.2;">Payments</div><div id="payments-locked-name-display" style="font-size:0.80rem;font-weight:700;color:var(--accent-cyan);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;line-height:1.3;">—</div></div><span style="font-size:0.56rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:2px 7px;border-radius:9999px;flex-shrink:0;border:1px solid rgba(128,222,234,0.38);background:rgba(128,222,234,0.14);color:var(--accent-cyan);">USER</span></div></div>
+<div class="section liquid-card">
+<div class="section-header u-row-between" >
+<div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
+<h3 class="u-heading-main" style="margin:0;">Transaction Manager</h3>
+<span id="expense-id-display" style="font-size:0.62rem;color:var(--text-secondary);font-family:'Geist Mono',monospace;background:var(--glass-raised);border:1px solid var(--glass-border);border-radius:var(--radius-full);padding:2px 8px;letter-spacing:0.03em;white-space:nowrap;display:none;">ID: —</span>
+</div>
+<button class="btn-theme" onclick="clearExpenseForm()" style="padding: 6px 12px; font-size: 0.75rem;">
+Clear
+</button>
+</div>
+<div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
+<div style="display: flex; gap: 8px; align-items: flex-end;">
+<div style="flex: 1; min-width: 140px;">
+<label class="u-label-sm" >Date</label>
+<input
+type="date"
+id="expenseDate"
+style="width: 100%; font-size: 0.85rem; padding: 8px;"
+>
+</div>
+<div id="expense-name-wrap" style="flex: 2; min-width: 200px; position: relative;">
+<label class="u-label-sm" >Name/Entity</label>
+<input
+type="text"
+id="expenseName"
+placeholder="Search expenses or entities..."
+oninput="handleExpenseSearch()"
+autocomplete="off"
+style="width: 100%; font-size: 0.85rem; padding: 8px;"
+>
+<div id="expense-search-results" class="hidden" style="
+position: absolute;
+z-index: 1000;
+width: 100%;
+max-height: 200px;
+overflow-y: auto;
+background: var(--glass);
+border: 1px solid var(--glass-border);
+border-radius: 10px;
+margin-top: 5px;
+box-shadow: var(--shadow);
+"></div>
+</div>
+</div>
+<div style="display: flex; gap: 8px; align-items: flex-end;">
+<div class="u-field-flex-1-min" >
+<label class="u-label-sm" >Amount</label>
+<input
+type="number"
+id="expenseAmount"
+placeholder="0"
+step="0.01"
+min="0"
+style="width: 100%; font-size: 0.85rem; font-weight: 600; padding: 8px;"
+>
+</div>
+<div style="flex: 2; min-width: 200px;">
+<label class="u-label-sm" >Description <span style="opacity: 0.6;">(Optional)</span></label>
+<input
+type="text"
+id="expenseDescription"
+placeholder="Add details..."
+style="width: 100%; font-size: 0.85rem; padding: 8px;"
+>
+</div>
+</div>
+<div class="u-mt-5" >
+<label style="font-size: 0.7rem; margin-bottom: 8px; display: block; color: var(--text-muted);">Transaction Type</label>
+<div class="toggle-group" style="width:100%; display:flex;">
+<button id="btn-category-operating" class="toggle-opt active u-flex-1" onclick="selectExpenseCategory('operating', this)">Operating Expense</button>
+<button id="btn-category-in" class="toggle-opt u-flex-1" onclick="selectExpenseCategory('IN', this)">Payment IN</button>
+<button id="btn-category-out" class="toggle-opt u-flex-1" onclick="selectExpenseCategory('OUT', this)">Payment OUT</button>
+</div>
+</div>
+<div style="display: flex; justify-content: center; margin-top: 10px;">
+<button
+onclick="saveExpense()"
+class="btn btn-main"
+style="min-width: 250px; font-size: 0.95rem; padding: 12px 35px;"
+>
+Save Transaction
+</button>
+</div>
+</div>
+</div>
+<div class="section liquid-card net-cash-dashboard">
+<h3 style="color:var(--accent); margin-top:0; text-align:center;">ECONOMIC HEALTH DASHBOARD</h3>
+<div class="net-cash-value" id="netCashValue">0.00</div>
+<div class="formula-item" style="background:rgba(37, 99, 235, 0.1); padding:10px; border-radius:8px; margin-bottom:15px;">
+<div class="u-row-between" >
+<span style="color:var(--accent); font-weight:800; font-size:0.9rem;">Operating Cash Flow:</span>
+<span style="font-weight:800; font-size:1.1rem; color:var(--accent-emerald);" id="operatingCashFlow">0.00</span>
+</div>
+</div>
+<div class="formula-breakdown">
+<h4 style="color:var(--accent-emerald); margin:15px 0 10px 0; border-bottom:2px solid var(--accent-emerald); padding-bottom:5px;">CASH IN HAND DETAILS</h4>
+<div class="formula-item">
+<span>Net Sales Cash (Direct Customers):</span>
+<span class="formula-value" id="cashDetailDirectSales">0.00</span>
+</div>
+<div class="formula-item">
+<span>Net Production Cash (After Credits):</span>
+<span class="formula-value" id="cashDetailProductionCash">0.00</span>
+</div>
+<div class="formula-item">
+<span>Representative Collections:</span>
+<span class="formula-value" id="cashDetailRepCollections">0.00</span>
+</div>
+<div class="formula-item">
+<span>External Payments Received:</span>
+<span class="formula-value" id="cashDetailPaymentsIn">0.00</span>
+</div>
+<div class="formula-item" style="background:rgba(220, 38, 38, 0.1); padding:5px; border-radius:5px;">
+<span>External Payments Made:</span>
+<span class="formula-value u-text-danger" id="cashDetailPaymentsOut">0.00</span>
+</div>
+<div class="formula-item" style="font-weight:800; background:rgba(37, 99, 235, 0.1); padding:8px; border-radius:6px; margin-top:5px;">
+<span>NET CASH IN HAND:</span>
+<span class="formula-value u-text-emerald" id="cashDetailNet">0.00</span>
+</div>
+<h4 style="color:var(--store-a); margin:15px 0 10px 0; border-bottom:2px solid var(--store-a); padding-bottom:5px;">CURRENT ASSETS</h4>
+<div class="formula-item">
+<span>Cash in Hand (Above):</span>
+<span class="formula-value" id="formulaProdTotal">0.00</span>
+</div>
+<div class="formula-item">
+<span>Raw Materials Inventory:</span>
+<span class="formula-value" style="color:var(--store-a);" id="formulaRawMaterials">0.00</span>
+</div>
+<div class="formula-item">
+<span>Formula Units Inventory:</span>
+<span class="formula-value" style="color:var(--store-b);" id="formulaUnitsValue">0.00</span>
+</div>
+<h4 style="color:var(--accent); margin:15px 0 10px 0; border-bottom:2px solid var(--accent); padding-bottom:5px;">ACCOUNTS RECEIVABLE</h4>
+<div class="formula-item">
+<span>Direct Customer Credits:</span>
+<span class="formula-value" id="salesReceivables">0.00</span>
+</div>
+<div class="formula-item">
+<span>Production Tab Credits:</span>
+<span class="formula-value" id="productionReceivables">0.00</span>
+</div>
+<div class="formula-item">
+<span>Representative Credits:</span>
+<span class="formula-value" id="calculatorReceivables">0.00</span>
+</div>
+<div class="formula-item" style="font-weight:800; background:rgba(37, 99, 235, 0.05); padding:8px; border-radius:6px;">
+<span>TOTAL RECEIVABLES:</span>
+<span class="formula-value" style="color:var(--accent);" id="formulaReceivables">0.00</span>
+</div>
+<div class="formula-item" style="font-weight:800; background:rgba(37, 99, 235, 0.1); padding:8px; border-radius:6px; margin-top:10px;">
+<span>TOTAL CURRENT ASSETS:</span>
+<span class="formula-value u-text-emerald" id="currentAssetsTotal">0.00</span>
+</div>
+<h4 style="color:var(--danger); margin:15px 0 10px 0; border-bottom:2px solid var(--danger); padding-bottom:5px;">CURRENT LIABILITIES</h4>
+<div class="formula-item" style="font-weight:700; color:var(--danger);">
+<span>ACCOUNTS PAYABLE:</span>
+</div>
+<div class="formula-item u-ml-15" >
+<span>Supplier Payables (Raw Material Invoices):</span>
+<span class="formula-value u-text-danger" id="supplierPayables">0.00</span>
+</div>
+<div class="formula-item u-ml-15" >
+<span>Entity Payables (Payment Entities):</span>
+<span class="formula-value u-text-danger" id="entityPayables">0.00</span>
+</div>
+<div class="formula-item u-ml-15" >
+<span>Other Payables:</span>
+</div>
+<div class="formula-item" style="margin-left:30px; font-size:0.8rem;">
+<span>Operating Expenses:</span>
+<span class="formula-value u-text-danger" id="otherPayablesOperating">0.00</span>
+</div>
+<div class="formula-item" style="margin-left:15px; font-weight:700; background:rgba(220, 38, 38, 0.05); padding:5px; border-radius:5px;">
+<span>TOTAL ACCOUNTS PAYABLE:</span>
+<span class="formula-value u-text-danger" id="formulaPayOut">0.00</span>
+</div>
+<div class="formula-item" style="font-weight:800; background:rgba(220, 38, 38, 0.1); padding:8px; border-radius:6px; margin-top:10px;">
+<span>TOTAL CURRENT LIABILITIES:</span>
+<span class="formula-value u-text-danger" id="currentLiabilitiesTotal">0.00</span>
+</div>
+<div class="formula-item" style="font-weight:800; color:var(--accent-emerald); background:rgba(5, 150, 105, 0.1); padding:10px; border-radius:8px;">
+<span>Net Working Capital:</span>
+<span class="formula-value" id="formulaPayIn">0.00</span>
+</div>
+<div class="formula-item" style="font-weight:800; color:var(--accent); background:rgba(37, 99, 235, 0.1); padding:10px; border-radius:8px;">
+<span>Total Enterprise Value:</span>
+<span class="formula-value" id="formulaFinal">0.00</span>
+</div>
+<h4 style="color:var(--text-main); margin:15px 0 10px 0; border-bottom:1px solid var(--glass-border); padding-bottom:5px;">FINANCIAL RATIOS</h4>
+<div class="formula-item">
+<span>Current Ratio:</span>
+<span class="formula-value" id="formulaCalcDisc">1.00</span>
+</div>
+<div class="formula-item">
+<span>Quick Ratio:</span>
+<span class="formula-value" id="quickRatio">1.00</span>
+</div>
+<div class="formula-item">
+<span>Cash Ratio:</span>
+<span class="formula-value" id="cashRatio">1.00</span>
+</div>
+</div>
+</div>
+<div class="section liquid-card">
+<div class="section-header">
+<h3 class="u-heading-main" >CASH IN HAND TRACKER</h3>
+<div class="toggle-group">
+<div class="toggle-opt active" onclick="setCashTrackerMode('day')">Daily</div>
+<div class="toggle-opt" onclick="setCashTrackerMode('week')">Weekly</div>
+<div class="toggle-opt" onclick="setCashTrackerMode('month')">Monthly</div>
+<div class="toggle-opt" onclick="setCashTrackerMode('year')">Yearly</div>
+<div class="toggle-opt" onclick="setCashTrackerMode('all')">All Times</div>
+</div>
+</div>
+<div class="report-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+<div class="card highlight-card liquid-card">
+<h4>Net Cash Flow</h4>
+<p><span>Production Value:</span> <span class="rev-val" id="cash-prod-value">Rs 0.00</span></p>
+<p><span>Production Credits:</span> <span class="cost-val" id="cash-prod-credits">Rs 0.00</span></p>
+<p><span>Sales Tab Cash:</span> <span class="profit-val" id="cash-sales-cash">Rs 0.00</span></p>
+<p><span>Calculator Cash:</span> <span class="profit-val" id="cash-calculator-cash">Rs 0.00</span></p>
+<p><span>Payments In:</span> <span class="profit-val" id="cash-payments-in">Rs 0.00</span></p>
+<p><span>Payments Out:</span> <span class="cost-val" id="cash-payments-out">Rs 0.00</span></p>
+<p><span>Expenses:</span> <span class="cost-val" id="cash-expenses">Rs 0.00</span></p>
+<hr style="margin: 10px 0;">
+<p><span>NET CASH:</span> <span class="profit-val" id="cash-net-total" style="font-size:1.2rem;">Rs 0.00</span></p>
+</div>
+<div class="card liquid-card" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%); border-color: rgba(245, 158, 11, 0.3);">
+<h4 style="color:var(--warning);">TOTAL OUTSTANDING CREDITS</h4>
+<p><span>Production Tab Credits:</span> <span class="qty-val" id="credit-production">Rs 0.00</span></p>
+<p><span>Sales Tab Credits:</span> <span class="qty-val" id="credit-sales-tab">Rs 0.00</span></p>
+<p><span>Calculator Credits:</span> <span class="qty-val" id="credit-calculator">Rs 0.00</span></p>
+<hr style="margin: 10px 0; border-color: rgba(245, 158, 11, 0.2);">
+<p><span>TOTAL CREDITS:</span> <span class="cost-val" id="credit-total" style="font-size:1.2rem; color:var(--warning);">Rs 0.00</span></p>
+<div style="font-size:0.7rem; color:var(--text-muted); margin-top:8px;">
+<span class="update-indicator"></span> Credits awaiting collection
+</div>
+</div>
+</div>
+</div>
+<div id="payments-unified-section" style="margin-top: 20px; padding-top: 15px; border-top: 2px solid var(--glass-border);">
+<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px; flex-wrap: nowrap;">
+<h4 style="margin: 0; font-size: 1rem; color: var(--text-main); font-weight: 700; white-space: nowrap; flex-shrink: 0;">Unified Records</h4>
+<input type="text" id="unified-search" class="search-bar u-flex-1 u-min-w-0 u-fs-sm2 u-m-0" placeholder="Search..."
+oninput="renderUnifiedTable()">
+<button class="btn-theme" onclick="exportUnifiedData()" title="Download PDF"
+style="color: var(--accent-emerald); border-color: var(--accent-emerald); padding: 6px 12px; flex-shrink: 0; white-space: nowrap;">📄</button>
+</div>
+<div style="display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;">
+<select id="unifiedViewMode" onchange="renderUnifiedTable()" style="flex: 1; min-width: 150px; font-size: 0.85rem; padding: 8px;">
+<option value="entities" selected>Entities & Balances</option>
+<option value="transactions">Expenses</option>
+</select>
+<select id="unifiedPeriodFilter" onchange="renderUnifiedTable()" style="flex: 1; min-width: 120px; font-size: 0.85rem; padding: 8px;">
+<option value="today">Today</option>
+<option value="week">This Week</option>
+<option value="month" selected>This Month</option>
+<option value="all">All Time</option>
+</select>
+</div>
+<div id="unified-table-container" style="overflow-x: auto; overflow-y: auto; max-height: 500px; margin-top: 10px;">
+<table class="u-table-full" >
+<thead class="u-thead-sticky" >
+<tr class="u-thead-bg" >
+<th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 15%;">Date</th>
+<th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 30%;">Name</th>
+<th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 20%;">Contact</th>
+<th style="padding: 8px 2px; text-align: right; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 20%;">Amount</th>
+<th style="padding: 8px 2px; text-align: center; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 15%;">Action</th>
+</tr>
+</thead>
+<tbody id="unified-table-body">
+<tr>
+<td class="u-empty-state-md" colspan="5" >
+No records found
+</td>
+</tr>
+</tbody>
+<tfoot>
+<tr style="background: var(--input-bg); border-top: 2px solid var(--glass-border);">
+<td colspan="3" style="padding: 10px 2px; font-weight: 700; text-align: right; font-size: 0.75rem;">
+<span id="unified-table-footer-label">Total:</span>
+</td>
+<td id="unified-table-total" style="padding: 10px 2px; font-weight: 700; text-align: right; font-size: 0.85rem;">0.00</td>
+<td></td>
+</tr>
+</tfoot>
+</table>
+</div>
+<div id="unified-summary" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--glass-border); display: none;">
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; font-size: 0.75rem;">
+<div style="display:flex; justify-content:space-between; align-items:center; padding:5px 8px; background:rgba(52,217,116,0.07); border-radius:6px; border-left:3px solid var(--accent-emerald);">
+<span class="u-text-muted" >Total Receivable</span>
+<span id="unified-receivables" style="color:var(--accent-emerald); font-weight:700;">0.00</span>
+</div>
+<div style="display:flex; justify-content:space-between; align-items:center; padding:5px 8px; background:rgba(255,184,48,0.07); border-radius:6px; border-left:3px solid var(--warning);">
+<span class="u-text-muted" >Expenses</span>
+<span id="unified-expenses" style="color:var(--warning); font-weight:700;">0.00</span>
+</div>
+<div style="display:flex; justify-content:space-between; align-items:center; padding:5px 8px; background:rgba(255,77,109,0.07); border-radius:6px; border-left:3px solid var(--danger);">
+<span class="u-text-muted" >Supplies Payable</span>
+<span id="unified-supplier-payables" style="color:var(--danger); font-weight:700;">0.00</span>
+</div>
+<div style="display:flex; justify-content:space-between; align-items:center; padding:5px 8px; background:rgba(201,110,245,0.07); border-radius:6px; border-left:3px solid var(--accent-purple);">
+<span class="u-text-muted" >Entity Payable</span>
+<span id="unified-entity-payables" style="color:var(--accent-purple); font-weight:700;">0.00</span>
+</div>
+<span class="u-hidden" id="unified-payables" >0.00</span>
+</div>
+</div>
+</div>
+<div id="payment-history-section" style="display:flex; align-items:center; gap:12px; margin-top:32px; margin-bottom:10px; padding:0;">
+<span style="font-size:0.82rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; white-space:nowrap; flex-shrink:0;">Payment History</span>
+<input type="text" id="payment-search" class="search-bar u-flex-field-1" placeholder="Search by entity or description..." oninput="filterPaymentHistory()" >
+</div>
+<div id="paymentHistoryList" class="report-grid"></div>
+</div>
+</div>
+<div id="offline-banner" role="alert" aria-live="polite">
+<span> Offline — changes saved locally</span>
+<span id="offline-queue-badge" title="Pending uploads when back online">0 pending</span>
+</div>
+<div id="manage-reps-modal">
+<div id="manage-reps-card" class="liquid-card">
+<div class="section-header">
+<h3 class="u-heading-main">Manage Team</h3>
+<button class="btn-theme" onclick="closeManageRepsModal()"></button>
+</div>
+<div style="display:flex; gap:6px; margin-bottom:18px; background:var(--glass-raised); border-radius:var(--radius-full); padding:4px;">
+<button id="team-tab-rep" class="toggle-opt active" onclick="switchManageTeamTab('rep')" style="flex:1; font-size:0.68rem; padding:7px 4px; border-radius:var(--radius-full);">Sales Rep</button>
+<button id="team-tab-userrole" class="toggle-opt" onclick="switchManageTeamTab('userrole')" style="flex:1; font-size:0.68rem; padding:7px 4px; border-radius:var(--radius-full);">User Roles</button>
+</div>
+<div id="team-panel-rep">
+<div class="grid-inputs u-mb-20">
+<div class="field">
+<label>Representative Name</label>
+<input type="text" id="new-rep-name-input" placeholder="sales representative name" oninput="this.value=this.value.toUpperCase()">
+</div>
+</div>
+<div style="display:flex; gap:10px; margin-bottom: 20px;">
+<button class="btn btn-main u-h-42 u-fs-md2 u-fw-700" onclick="addNewSalesRep()">Add Representative</button>
+</div>
+<div style="border-top: 1px solid var(--glass-border); padding-top: 16px;">
+<label style="font-size:0.72rem; color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:10px;">Current Representatives</label>
+<div id="manage-reps-list"></div>
+</div>
+</div>
+<div id="team-panel-userrole" style="display:none;">
+<div class="grid-inputs u-mb-15">
+<div class="field">
+<label>User Name</label>
+<input type="text" id="new-userrole-name-input" placeholder="user name" oninput="this.value=this.value.toUpperCase()">
+</div>
+</div>
+<div style="margin-bottom:15px;">
+<label style="font-size:0.72rem; color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:8px;">Assign Tab Access</label>
+<div style="display:flex; gap:6px; flex-wrap:wrap;">
+<button id="userrole-tab-factory" class="toggle-opt" onclick="toggleUserRoleTabAccess('factory')" style="flex:1; min-width:80px; font-size:0.72rem; padding:8px 6px; border-radius:var(--radius-full);">Factory</button>
+<button id="userrole-tab-prod" class="toggle-opt" onclick="toggleUserRoleTabAccess('prod')" style="flex:1; min-width:80px; font-size:0.72rem; padding:8px 6px; border-radius:var(--radius-full);">Production</button>
+<button id="userrole-tab-payments" class="toggle-opt" onclick="toggleUserRoleTabAccess('payments')" style="flex:1; min-width:80px; font-size:0.72rem; padding:8px 6px; border-radius:var(--radius-full);">Payments</button>
+<button id="userrole-tab-sales" class="toggle-opt" onclick="toggleUserRoleTabAccess('sales')" style="flex:1; min-width:80px; font-size:0.72rem; padding:8px 6px; border-radius:var(--radius-full);">Sales</button>
+</div>
+<div id="userrole-access-hint" style="font-size:0.65rem;color:var(--text-secondary);margin-top:6px;text-align:center;">Select one or more tabs to assign</div>
+</div>
+<div style="display:flex; gap:10px; margin-bottom: 20px;">
+<button class="btn btn-main u-h-42 u-fs-md2 u-fw-700" onclick="addNewUserRole()">Add User</button>
+</div>
+<div style="border-top: 1px solid var(--glass-border); padding-top: 16px;">
+<label style="font-size:0.72rem; color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:10px;">Current Users</label>
+<div id="manage-userrole-list"></div>
+</div>
+</div>
+</div>
+</div>
+<script src="business.js"></script>
+<script src="sync.js"></script>
+<script src="utilities.js"></script>
+</body>
+</html>
