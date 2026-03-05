@@ -290,21 +290,25 @@ uid: user.uid,
 email: user.email,
 displayName: user.displayName
 };
+// ── Store persistent login in IDB (primary) with localStorage mirror (fast-path)
 try {
-const savedLogin = localStorage.getItem('persistentLogin');
-const isRestoredSession = savedLogin && JSON.parse(savedLogin).uid === user.uid;
-localStorage.setItem('persistentLogin', JSON.stringify({
-uid: user.uid,
-email: user.email,
-displayName: user.displayName,
-lastLogin: new Date().toISOString()
-}));
+  const loginData = {
+    uid: user.uid,
+    email: user.email,
+    displayName: user.displayName,
+    lastLogin: new Date().toISOString()
+  };
+  await IDBCrypto.sessionSet('login', loginData);
+  await IDBCrypto.sessionSet('active', { value: '1', ts: Date.now() });
+  // localStorage mirrors for synchronous _checkFirebaseSessionExists()
+  localStorage.setItem('persistentLogin', JSON.stringify(loginData));
+  localStorage.setItem('_gznd_session_active', '1');
+  sessionStorage.setItem('_gznd_session_active', '1');
 } catch (e) {
 console.warn('Failed to save persistent login:', e);
 }
 hideAuthOverlay();
 showToast(`Welcome back, ${user.email.split('@')[0]}`, 'success');
-try { localStorage.setItem('_gznd_session_active', '1'); sessionStorage.setItem('_gznd_session_active', '1'); } catch(e) {}
 idb.setUserPrefix(user.uid);
 await IDBCrypto.initialize();
 const keyRestored = await IDBCrypto.restoreSessionKeyFromStorage();
@@ -382,7 +386,13 @@ performOneClickSync(false);
 } else {
 currentUser = null;
 try {
-localStorage.removeItem('persistentLogin');
+  // Clear IDB session store (primary) and localStorage mirrors
+  await IDBCrypto.sessionDelete('login');
+  await IDBCrypto.sessionDelete('active');
+  await IDBCrypto.sessionDelete('keyBackup');
+  localStorage.removeItem('persistentLogin');
+  localStorage.removeItem('_gznd_session_active');
+  sessionStorage.removeItem('_gznd_session_active');
 } catch (e) {
 console.error('Failed to clear persistent login:', e);
 }
@@ -3965,6 +3975,13 @@ const _signInCred = await firebaseAuth.signInWithEmailAndPassword(email, passwor
 await OfflineAuth.saveCredentials(email, password);
 idb.setUserPrefix(_signInCred.user.uid);
 await IDBCrypto.setSessionKey(email, password);
+// Update session login record with the actual uid
+await IDBCrypto.sessionSet('login', {
+  uid: _signInCred.user.uid,
+  email,
+  displayName: _signInCred.user.displayName || '',
+  lastLogin: new Date().toISOString()
+});
 try { localStorage.setItem('_gznd_session_active', '1'); sessionStorage.setItem('_gznd_session_active', '1'); } catch(e) {}
 LoginRateLimiter.recordSuccess();
 messageDiv.textContent = 'Success! Loading...';

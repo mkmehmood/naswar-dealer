@@ -5939,3 +5939,53 @@ thead { background: var(--glass-raised) !important; background-image: none !impo
   box-shadow: 0 1px 0 rgba(255,255,255,0.20) inset, 0 7px 22px rgba(105,240,174,0.32);
 }
 #cy-continue-btn:active { transform: translateY(0); }
+/* ── SETTLED badge & state ─────────────────────────────────────────────── */
+.settled-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.30);
+  border-radius: 999px;
+  font-size: 0.60rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  text-transform: uppercase;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+[data-theme="light"] .settled-badge {
+  background: rgba(16, 185, 129, 0.10);
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+/* Cards / rows that are settled: slightly dimmed, no hover lift */
+.is-settled-record {
+  opacity: 0.72;
+}
+.is-settled-record:hover {
+  transform: none !important;
+}
+/* Settled records push to the bottom of lists */
+.is-settled-record {
+  order: 999;
+}
+
+/* Archive badge for entities */
+.archived-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(107, 114, 128, 0.14);
+  color: var(--text-muted);
+  border: 1px solid rgba(107, 114, 128, 0.25);
+  border-radius: 999px;
+  font-size: 0.60rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  text-transform: uppercase;
+  margin-left: 6px;
+}

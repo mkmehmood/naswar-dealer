@@ -422,6 +422,9 @@ This will automatically create a <strong>PAYEE</strong> entity. Any debts to thi
 </div>
 <div class="u-overlay-scroll" id="customerManagementHistoryList">
 </div>
+<div class="u-summary-row" >
+<button class="btn btn-danger btn-sm" onclick="(async () => { await deleteCurrentCustomer() })()">Delete Customer Permanently</button>
+</div>
 </div>
 </div>
 <div id="customerEditOverlay" class="factory-overlay" style="z-index: 10002;">
@@ -504,6 +507,9 @@ Will be added as a debt transaction in customer history
 <input type="text" id="rep-cust-trans-search" class="search-bar" placeholder="Search history..." oninput="filterRepCustomerManagementHistory()">
 </div>
 <div class="u-overlay-scroll" id="repCustomerManagementHistoryList"></div>
+<div class="u-summary-row" >
+<button class="btn btn-danger btn-sm" onclick="(async () => { await deleteCurrentRepCustomer() })()">Delete Customer Permanently</button>
+</div>
 </div>
 </div>
 <div id="repCustomerEditOverlay" class="factory-overlay" style="z-index: 10002;">

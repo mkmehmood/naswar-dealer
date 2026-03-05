@@ -568,6 +568,41 @@ if (Array.isArray(freshCats)) expenseCategories = freshCats;
 console.error('Failed to load expense categories.', e);
 showToast('Failed to load expense categories.', 'error');
 }
+// Backfill: ensure every customer that appears in customerSales is in the salesCustomers registry,
+// and every customer in repSales is in the repCustomers registry.
+// This makes customers survive transaction deletions even for data that existed before this fix.
+try {
+let _bfSalesChanged = false;
+const _bfSalesMap = new Map((Array.isArray(salesCustomers) ? salesCustomers : []).map(c => [c.name.toLowerCase(), c]));
+(Array.isArray(customerSales) ? customerSales : []).forEach(s => {
+const _bfName = s && (s.salesRep && s.salesRep !== 'NONE' && s.salesRep !== 'ADMIN' ? s.salesRep : s.customerName);
+if (_bfName && _bfName.trim() && !_bfSalesMap.has(_bfName.toLowerCase())) {
+const _bfC = { id: generateUUID(), name: _bfName, phone: s.customerPhone || '', address: '', oldDebit: 0, createdAt: getTimestamp(), updatedAt: getTimestamp(), timestamp: getTimestamp() };
+_bfSalesMap.set(_bfName.toLowerCase(), _bfC);
+if (!Array.isArray(salesCustomers)) salesCustomers = [];
+salesCustomers.push(_bfC);
+_bfSalesChanged = true;
+}
+});
+if (_bfSalesChanged) {
+saveWithTracking('sales_customers', salesCustomers).catch(e => console.warn('Backfill sales_customers save failed:', e));
+}
+let _bfRepChanged = false;
+const _bfRepMap = new Map((Array.isArray(repCustomers) ? repCustomers : []).map(c => [c.name.toLowerCase(), c]));
+(Array.isArray(repSales) ? repSales : []).forEach(s => {
+const _bfRName = s && s.customerName;
+if (_bfRName && _bfRName.trim() && !_bfRepMap.has(_bfRName.toLowerCase())) {
+const _bfRC = { id: generateUUID(), name: _bfRName, phone: s.customerPhone || '', address: '', oldDebit: 0, createdAt: getTimestamp(), updatedAt: getTimestamp(), timestamp: getTimestamp() };
+_bfRepMap.set(_bfRName.toLowerCase(), _bfRC);
+if (!Array.isArray(repCustomers)) repCustomers = [];
+repCustomers.push(_bfRC);
+_bfRepChanged = true;
+}
+});
+if (_bfRepChanged) {
+saveWithTracking('rep_customers', repCustomers).catch(e => console.warn('Backfill rep_customers save failed:', e));
+}
+} catch (_bfErr) { console.warn('Customer registry backfill failed:', _bfErr); }
 }
 function triggerAutoSync() {
 if (typeof currentUser === 'undefined' || !currentUser) {
@@ -1479,7 +1514,7 @@ const badgeBg = isOut ? 'rgba(220, 38, 38, 0.1)' : 'rgba(5, 150, 105, 0.1)';
 const badgeColor = isOut ? 'var(--danger)' : 'var(--accent-emerald)';
 const label = isOut ? 'PAYMENT OUT' : 'PAYMENT IN';
 const item = document.createElement('div');
-item.className = 'cust-history-item';
+item.className = `cust-history-item${t.isSettled ? ' is-settled-record' : ''}`;
 item.innerHTML = `
 <div class="cust-history-info">
 <div class="u-mono-bold" >${formatDisplayDate(t.date)}</div>
@@ -1490,7 +1525,7 @@ ${t.isMerged ? _mergedBadgeHtml(t) : ''}
 <span style="background:${badgeBg}; color:${badgeColor}; padding:2px 6px; border-radius:4px; font-size:0.65rem; font-weight:700;">${label}</span>
 <div class="${colorClass}" style="font-size:0.9rem; margin-top:2px;">${fmtAmt(t.amount)}</div>
 </div>
-<button class="btn btn-sm btn-danger u-p-4-8" onclick="deleteEntityTransaction('${esc(t.id)}')">⌫</button>
+${t.isMerged ? '' : `<button class="btn btn-sm btn-danger u-p-4-8" onclick="deleteEntityTransaction('${esc(t.id)}')">⌫</button>`}
 `;
 list.appendChild(item);
 });
@@ -1620,70 +1655,14 @@ const _dtTypeLabel = _dt.type === 'IN' ? 'Payment Received (IN)' : 'Payment Made
 const _dtAmount = (parseFloat(_dt.amount) || 0).toFixed(2);
 const _dtDate = _dt.date || 'Unknown date';
 const _dtDesc = _dt.description ? `\nNote: ${_dt.description}` : '';
-const _dtPayable = _dt.isPayable === true && _dt.type === 'OUT';
-const _dtSupplierMats = _dtPayable
-? factoryInventoryData.filter(m => String(m.supplierId) === String(_dt.entityId))
-: [];
 let _dtMsg = `Delete this ${_dtTypeLabel}?`;
 _dtMsg += `\n\nEntity: ${_dtEntityName}`;
 _dtMsg += `\nAmount: ${_dtAmount}`;
 _dtMsg += `\nDate: ${_dtDate}`;
 if (_dtDesc) _dtMsg += _dtDesc;
-if (_dtPayable && _dtSupplierMats.length > 0) {
-_dtMsg += `\n\n↩ Supplier debt reversal: This payment will be unrecorded and ${_dtSupplierMats.length} raw material${_dtSupplierMats.length !== 1 ? 's' : ''} for "${_dtEntityName}" will revert to outstanding payable status.`;
-} else if (_dt.type === 'IN') {
-_dtMsg += `\n\n↩ This received payment will be removed from the entity balance.`;
-}
 _dtMsg += `\n\nThis cannot be undone.`;
 if (await showGlassConfirm(_dtMsg, { title: `Delete ${_dt.type === 'IN' ? 'Payment IN' : 'Payment OUT'}`, confirmText: "Delete", danger: true })) {
 try {
-const transaction = _dt;
-const supplierId = transaction.entityId;
-const wasPayable = transaction.isPayable === true;
-const transactionType = transaction.type;
-if (wasPayable && transactionType === 'OUT') {
-const supplierMaterials = factoryInventoryData.filter(m =>
-String(m.supplierId) === String(supplierId)
-);
-supplierMaterials.forEach(mat => {
-const originalAmount = parseFloat((mat.totalValue || (mat.purchaseCost && mat.purchaseQuantity ? mat.purchaseCost * mat.purchaseQuantity : mat.quantity * mat.cost) || 0).toFixed(2));
-mat.totalPayable = originalAmount;
-mat.paymentStatus = 'pending';
-delete mat.paidDate;
-mat.updatedAt = getTimestamp();
-});
-const remainingPayments = paymentTransactions
-.filter(t =>
-t.id !== id &&
-t.isPayable === true &&
-t.type === 'OUT' &&
-String(t.entityId) === String(supplierId)
-)
-.sort((a, b) => new Date(a.date || a.createdAt || 0) - new Date(b.date || b.createdAt || 0));
-const sortedMaterials = supplierMaterials.slice().sort((a, b) =>
-new Date(a.purchaseDate || a.date || a.createdAt || 0) -
-new Date(b.purchaseDate || b.date || b.createdAt || 0)
-);
-remainingPayments.forEach(payment => {
-let remaining = parseFloat(payment.amount) || 0;
-for (const mat of sortedMaterials) {
-if (remaining <= 0) break;
-if (mat.totalPayable <= 0) continue;
-if (remaining >= mat.totalPayable) {
-remaining -= mat.totalPayable;
-mat.totalPayable = 0;
-mat.paymentStatus = 'paid';
-mat.paidDate = payment.date;
-} else {
-mat.totalPayable = parseFloat((mat.totalPayable - remaining).toFixed(2));
-remaining = 0;
-}
-}
-});
-for (const mat of supplierMaterials) {
-await unifiedSave('factory_inventory_data', factoryInventoryData, mat);
-}
-}
 paymentTransactions = paymentTransactions.filter(t => t.id !== id);
 await unifiedDelete('payment_transactions', paymentTransactions, id);
 notifyDataChange('payments');
@@ -1704,34 +1683,53 @@ async function deleteCurrentEntity() {
 if(!currentEntityId) return;
 const _entityToDel = paymentEntities.find(e => String(e.id) === String(currentEntityId));
 const _entityName = _entityToDel ? _entityToDel.name : 'this entity';
+if (_entityToDel?.isArchived) {
+showToast('This entity is already archived', 'info');
+return;
+}
 const _entityTxs = paymentTransactions.filter(t => String(t.entityId) === String(currentEntityId));
 const hasTrans = _entityTxs.length > 0;
 const _totalIn = _entityTxs.filter(t => t.type === 'IN').reduce((s,t) => s + (parseFloat(t.amount)||0), 0);
 const _totalOut = _entityTxs.filter(t => t.type === 'OUT').reduce((s,t) => s + (parseFloat(t.amount)||0), 0);
-let msg = `Permanently delete "${_entityName}"?`;
+let msg = `Archive "${_entityName}"?`;
 if (hasTrans) {
-msg += `\n\n⚠ This entity has ${_entityTxs.length} transaction${_entityTxs.length !== 1 ? 's' : ''} on record`;
+msg += `\n\n This entity has ${_entityTxs.length} transaction${_entityTxs.length !== 1 ? 's' : ''} on record`;
 if (_totalIn > 0) msg += `\n • Received: ${fmtAmt(_totalIn)}`;
 if (_totalOut > 0) msg += `\n • Paid out: ${fmtAmt(_totalOut)}`;
-msg += `\n\nAll transaction history will be permanently deleted.`;
+msg += `\n\nAll transactions will be retained and marked as SETTLED.`;
 }
-msg += `\n\nThis cannot be undone.`;
-if (await showGlassConfirm(msg, { title: `Delete Entity`, confirmText: "Delete", danger: true })) {
+msg += `\n\nThe entity will be marked as Archived and hidden from active lists. History is preserved.`;
+if (await showGlassConfirm(msg, { title: `Archive Entity`, confirmText: "Archive", danger: false })) {
 try {
-const associatedTransactions = paymentTransactions.filter(t => t.entityId === currentEntityId);
-paymentEntities = paymentEntities.filter(e => e.id !== currentEntityId);
-paymentTransactions = paymentTransactions.filter(t => t.entityId !== currentEntityId);
-await unifiedDelete('payment_entities', paymentEntities, currentEntityId);
-for (const trans of associatedTransactions) {
-await deleteRecordFromFirestore('payment_transactions', trans.id);
+const entityIdx = paymentEntities.findIndex(e => String(e.id) === String(currentEntityId));
+if (entityIdx !== -1) {
+paymentEntities[entityIdx].isArchived = true;
+paymentEntities[entityIdx].archivedAt = getTimestamp();
+paymentEntities[entityIdx].updatedAt = getTimestamp();
+await saveWithTracking('payment_entities', paymentEntities);
+await saveRecordToFirestore('payment_entities', paymentEntities[entityIdx]);
 }
+// Mark all associated transactions as settled
+for (const trans of _entityTxs) {
+if (!trans.isSettled) {
+trans.isSettled = true;
+trans.settledAt = getTimestamp();
+trans.settledBy = 'entity_archived';
+trans.updatedAt = getTimestamp();
+}
+}
+if (_entityTxs.length > 0) {
 await saveWithTracking('payment_transactions', paymentTransactions);
+for (const trans of _entityTxs) {
+await saveRecordToFirestore('payment_transactions', trans);
+}
+}
 notifyDataChange('entities');
 closeEntityDetailsOverlay();
 if (typeof refreshPaymentTab === 'function') await refreshPaymentTab();
-showToast("Entity deleted successfully", "success");
+showToast("Entity archived. History preserved.", "success");
 } catch (error) {
-showToast('Failed to delete entity. Please try again.', 'error');
+showToast('Failed to archive entity. Please try again.', 'error');
 }
 }
 }
@@ -2926,20 +2924,11 @@ const _dpEntityName = _dpEntity ? _dpEntity.name : 'Unknown Entity';
 const _dpTypeLabel = _dpTx?.type === 'IN' ? 'Payment Received (IN)' : 'Payment Made (OUT)';
 const _dpAmount = (parseFloat(_dpTx?.amount) || 0).toFixed(2);
 const _dpDate = _dpTx?.date || 'Unknown date';
-const _dpIsPayable = _dpTx?.isPayable === true && _dpTx?.type === 'OUT';
-const _dpSupMats = _dpIsPayable ? factoryInventoryData.filter(m => String(m.supplierId) === String(_dpTx?.entityId)) : [];
 let _dpMsg = `Delete this ${_dpTypeLabel}?`;
 _dpMsg += `\n\nEntity: ${_dpEntityName}`;
 _dpMsg += `\nAmount: ${_dpAmount}`;
 _dpMsg += `\nDate: ${_dpDate}`;
 if (_dpTx?.description) _dpMsg += `\nNote: ${_dpTx.description}`;
-if (_dpIsPayable && _dpSupMats.length > 0) {
-_dpMsg += `\n\n↩ Supplier payable reversal: This payment will be unrecorded and ${_dpSupMats.length} raw material${_dpSupMats.length !== 1 ? 's' : ''} linked to "${_dpEntityName}" will revert to outstanding payable status.`;
-} else if (_dpTx?.type === 'IN') {
-_dpMsg += `\n\n↩ This received payment will be removed and the entity's receivable balance will be restored.`;
-} else {
-_dpMsg += `\n\n↩ This outgoing payment will be removed from the entity's payment history.`;
-}
 _dpMsg += `\n\nThis cannot be undone.`;
 if (await showGlassConfirm(_dpMsg, { title: `Delete ${_dpTx?.type === 'IN' ? 'Payment IN' : 'Payment OUT'}`, confirmText: "Delete", danger: true })) {
 try {
@@ -2948,62 +2937,6 @@ if (!transaction) {
 if (typeof refreshPaymentTab === 'function') await refreshPaymentTab();
 if (typeof calculateNetCash === 'function') calculateNetCash();
 return;
-}
-const supplierId = transaction.entityId;
-const wasPayable = transaction.isPayable === true;
-const transactionType = transaction.type;
-if (wasPayable && transactionType === 'OUT') {
-const supplierMaterials = factoryInventoryData.filter(m =>
-String(m.supplierId) === String(supplierId)
-);
-supplierMaterials.forEach(mat => {
-const originalAmount = parseFloat((mat.totalValue || (mat.purchaseCost && mat.purchaseQuantity ? mat.purchaseCost * mat.purchaseQuantity : mat.quantity * mat.cost) || 0).toFixed(2));
-mat.totalPayable = originalAmount;
-mat.paymentStatus = 'pending';
-delete mat.paidDate;
-mat.updatedAt = getTimestamp();
-});
-const remainingPayments = paymentTransactions
-.filter(t =>
-t.id !== id &&
-t.isPayable === true &&
-t.type === 'OUT' &&
-String(t.entityId) === String(supplierId)
-)
-.sort((a, b) => new Date(a.date || a.createdAt || 0) - new Date(b.date || b.createdAt || 0));
-const sortedMaterials = supplierMaterials.slice().sort((a, b) =>
-new Date(a.purchaseDate || a.date || a.createdAt || 0) -
-new Date(b.purchaseDate || b.date || b.createdAt || 0)
-);
-remainingPayments.forEach(payment => {
-let remaining = parseFloat(payment.amount) || 0;
-for (const mat of sortedMaterials) {
-if (remaining <= 0) break;
-if (mat.totalPayable <= 0) continue;
-if (remaining >= mat.totalPayable) {
-remaining -= mat.totalPayable;
-mat.totalPayable = 0;
-mat.paymentStatus = 'paid';
-mat.paidDate = payment.date;
-} else {
-mat.totalPayable = parseFloat((mat.totalPayable - remaining).toFixed(2));
-remaining = 0;
-}
-}
-});
-for (const mat of supplierMaterials) {
-await unifiedSave('factory_inventory_data', factoryInventoryData, mat);
-}
-}
-if (transaction.expenseId) {
-const expense = expenseRecords.find(e => e.id === transaction.expenseId);
-if (expense) {
-expense.paid = false;
-delete expense.paidDate;
-expense.updatedAt = getTimestamp();
-await saveWithTracking('expenses', expenseRecords);
-await saveRecordToFirestore('expenses', expense);
-}
 }
 paymentTransactions = paymentTransactions.filter(t => t.id !== id);
 await unifiedDelete('payment_transactions', paymentTransactions, id);
@@ -5108,6 +5041,21 @@ try {
 customerSales.push(validatedRecord);
 await saveWithTracking('customer_sales', customerSales);
 await saveRecordToFirestore('customer_sales', validatedRecord);
+// Auto-register customer in the sales_customers registry so they persist even if all transactions are deleted
+try {
+const _scName = validatedRecord.customerName;
+const _scPhone = validatedRecord.customerPhone || '';
+if (_scName && _scName.trim()) {
+const existsInRegistry = Array.isArray(salesCustomers) && salesCustomers.some(c => c && c.name && c.name.toLowerCase() === _scName.toLowerCase());
+if (!existsInRegistry) {
+const _scContact = { id: generateUUID(), name: _scName, phone: _scPhone, address: '', oldDebit: 0, createdAt: getTimestamp(), updatedAt: getTimestamp(), timestamp: getTimestamp() };
+if (!Array.isArray(salesCustomers)) salesCustomers = [];
+salesCustomers.push(_scContact);
+await saveWithTracking('sales_customers', salesCustomers);
+await saveRecordToFirestore('sales_customers', _scContact);
+}
+}
+} catch (_scErr) { console.warn('Auto-register sales customer failed:', _scErr); }
 notifyDataChange('sales');
 triggerAutoSync();
 if (typeof calculateCashTracker === 'function') calculateCashTracker();
@@ -5306,7 +5254,6 @@ if (recordToDelete.isMerged) {
 showToast('Merged opening balance records cannot be deleted', 'warning');
 return;
 }
-const recordTime = getRecordTimestamp(recordToDelete);
 const recordDate = recordToDelete.date || 'Unknown date';
 const _dcStoreLabel = recordToDelete.supplyStore ? getStoreLabel(recordToDelete.supplyStore) : '';
 const _dcIsCredit = recordToDelete.paymentType === 'CREDIT';
@@ -5320,9 +5267,9 @@ _dcMsg += `\nQty: ${recordToDelete.quantity || 0} kg`;
 if (recordToDelete.totalValue) _dcMsg += `\nValue: ${fmtAmt(recordToDelete.totalValue||0)}`;
 if (_dcStoreLabel) _dcMsg += `\nStore: ${_dcStoreLabel}`;
 if (_dcIsCredit) {
-if (_dcIsPaid) _dcMsg += `\n\n\u2714 This sale is already marked PAID. Deleting will erase the payment record from the customer's history.`;
-else if (_dcPartialPaid > 0) _dcMsg += `\n\n\u26a0 ${fmtAmt(_dcPartialPaid)} partially collected. Deleting will erase both the sale and the partial payment.`;
-else _dcMsg += `\n\n\u26a0 This credit sale is UNPAID. Deleting will permanently remove the outstanding balance of ${fmtAmt(recordToDelete.totalValue||0)} from this customer's account.`;
+if (_dcIsPaid) _dcMsg += `\n\n\u2714 This sale is already marked PAID. Deleting will erase the payment record.`;
+else if (_dcPartialPaid > 0) _dcMsg += `\n\n\u26a0 ${fmtAmt(_dcPartialPaid)} partially collected. Deleting will erase the sale and partial payment.`;
+else _dcMsg += `\n\n\u26a0 This credit sale is UNPAID. Deleting removes the outstanding balance of ${fmtAmt(recordToDelete.totalValue||0)}.`;
 } else {
 _dcMsg += `\n\n\u21a9 ${(recordToDelete.quantity||0).toFixed(2)} kg will be restored to ${recordDate} inventory.`;
 }
@@ -5332,9 +5279,7 @@ try {
 await registerDeletion(id, 'sales');
 const originalLength = customerSales.length;
 customerSales = customerSales.filter(item => item.id !== id);
-if (customerSales.length === originalLength) {
-throw new Error('Record not found or not deleted');
-}
+if (customerSales.length === originalLength) throw new Error('Record not found or not deleted');
 await saveWithTracking('customer_sales', customerSales);
 await deleteRecordFromFirestore('customer_sales', id);
 await refreshCustomerSales();
@@ -9311,7 +9256,7 @@ if (item.isMerged) {
 mergedBadge = _mergedBadgeHtml(item, {inline:true});
 }
 const card = document.createElement('div');
-card.className = `card liquid-card ${highlightClass}`;
+card.className = `card liquid-card ${highlightClass}${item.isSettled ? ' is-settled-record' : ''}`.trim();
 if (item.date) card.setAttribute('data-date', item.date);
 let creditSection = '';
 if (!isOldDebtItem) {
@@ -9326,7 +9271,7 @@ creditSection = `
 creditSection = `<div class="received-indicator">Credit Received </div>`;
 }
 }
-const deleteBtnHtml = item.isMerged ? '' : `<button class="tbl-action-btn danger u-w-full u-mt-8" onclick="(async () => { await deleteCustomerSale('${esc(item.id)}') })()">Delete</button>`;
+const deleteBtnHtml = item.isMerged ? '' : item.isSettled ? `<div class="settled-badge">✓ Settled</div>` : `<button class="tbl-action-btn danger u-w-full u-mt-8" onclick="(async () => { await deleteCustomerSale('${esc(item.id)}') })()">Delete</button>`;
 if (isOldDebtItem) {
 card.innerHTML = `
 <div class="payment-badge credit">CREDIT</div>
@@ -9989,24 +9934,23 @@ document.addEventListener('DOMContentLoaded', async function _appBootstrap() {
     showAuthOverlay();
   } else {
     // ── Persistent session restore ──────────────────────────────────────────
-    // App was closed and reopened. onAuthStateChanged fires asynchronously
-    // (can take 1-3s with Firebase), so we pre-warm the user prefix and
-    // encryption key from localStorage right now so loadAllData() below
-    // reads the correct prefixed keys and can decrypt them immediately.
+    // IDBCrypto.preWarm() fired the moment business.js loaded, so PBKDF2 is
+    // already running in the background. We just set the user prefix and await
+    // the pre-warm — near-instant on repeat opens thanks to wrapKeyCache.
     try {
-      const persistentLogin = localStorage.getItem('persistentLogin');
-      if (persistentLogin) {
-        const parsed = JSON.parse(persistentLogin);
-        if (parsed && parsed.uid) {
-          idb.setUserPrefix(parsed.uid);
-          // Restore encryption key from localStorage backup (written on every login)
-          await IDBCrypto.initialize();
-          const keyRestored = await IDBCrypto.restoreSessionKeyFromStorage();
-          if (!keyRestored) {
-            // Key backup exists in IDB, but we can't decrypt without password.
-            // onAuthStateChanged will handle re-auth prompt if needed.
-            console.warn('Session: could not restore encryption key from storage, waiting for Firebase auth');
-          }
+      // Primary: IDB session store. Fallback: localStorage mirror.
+      let loginData = await IDBCrypto.sessionGet('login');
+      if (!loginData || !loginData.uid) {
+        const lsLogin = localStorage.getItem('persistentLogin');
+        if (lsLogin) { try { loginData = JSON.parse(lsLogin); } catch(e) {} }
+      }
+      if (loginData && loginData.uid) {
+        idb.setUserPrefix(loginData.uid);
+        // restoreSessionKeyFromStorage() reuses the preWarm promise — no double PBKDF2
+        await IDBCrypto.initialize();
+        const keyRestored = await IDBCrypto.restoreSessionKeyFromStorage();
+        if (!keyRestored) {
+          console.warn('Session: could not restore encryption key from storage, waiting for Firebase auth');
         }
       }
     } catch(e) {
@@ -10721,15 +10665,17 @@ const badgeText = transaction.type === 'IN' ? 'IN' : 'OUT';
 const entityName = entity ? entity.name : (transaction.entityName || 'Unknown Entity');
 const entityType = entity ? entity.type : (transaction.entityType || 'Unknown');
 const isMerged = transaction.isMerged === true;
+const isSettled = transaction.isSettled === true;
 const mergedBadge = isMerged ? _mergedBadgeHtml(transaction, {inline:true}) : '';
+const settledBadge = isSettled ? `<span class="settled-badge">✓ Settled</span>` : '';
 const deleteButton = isMerged ? '' : `<button class="tbl-action-btn danger u-w-full u-mt-8" onclick="(async () => { await deletePaymentTransaction('${esc(transaction.id)}') })()">Delete</button>`;
 const card = document.createElement('div');
-card.className = 'card liquid-card';
+card.className = `card liquid-card${isSettled ? ' is-settled-record' : ''}`;
 if (transaction.date) card.setAttribute('data-date', transaction.date);
 card.innerHTML = `
 <span class="transaction-badge ${badgeClass}">${badgeText}</span>
 <h4>${formatDisplayDate(transaction.date)} @ ${esc(transaction.time || 'N/A')}</h4>
-<div class="customer-name">${esc(entityName)}${mergedBadge}</div>
+<div class="customer-name">${esc(entityName)}${mergedBadge}${settledBadge}</div>
 <p><span>Type:</span> <span>${esc(entityType)}</span></p>
 <p><span>Description:</span> <span>${esc(transaction.description || 'No description')}</span></p>
 <hr>
@@ -12913,6 +12859,19 @@ customerSales = Array.from(recordMap.values());
 console.error('UI refresh failed.', error);
 showToast('UI refresh failed.', 'error');
 }
+// Refresh salesCustomers registry separately — never let it fail the sales data load
+try {
+const freshSalesCustomers = await idb.get('sales_customers', []);
+if (Array.isArray(freshSalesCustomers) && freshSalesCustomers.length > 0) {
+const regMap = new Map(freshSalesCustomers.map(c => [c.id, c]));
+if (Array.isArray(salesCustomers)) {
+salesCustomers.forEach(c => { if (c && c.id && !regMap.has(c.id)) regMap.set(c.id, c); });
+}
+salesCustomers = Array.from(regMap.values());
+}
+} catch (regError) {
+console.warn('Registry refresh failed, using in-memory:', regError);
+}
 const filterInput = document.getElementById('customer-filter');
 const filterValue = filterInput ? filterInput.value.toLowerCase() : '';
 const customerStats = {};
@@ -12956,6 +12915,16 @@ let sortedCustomers = Object.values(customerStats)
 if (b.credit !== a.credit) return b.credit - a.credit;
 return b.lastSaleDate - a.lastSaleDate;
 });
+// Include customers from the salesCustomers registry who have no current transactions,
+// so they remain visible even after all their transactions are deleted.
+if (Array.isArray(salesCustomers)) {
+const statsNames = new Set(sortedCustomers.map(c => c.name.toLowerCase()));
+salesCustomers.forEach(sc => {
+if (sc && sc.name && sc.name.trim() && !statsNames.has(sc.name.toLowerCase())) {
+sortedCustomers.push({ name: sc.name, credit: 0, quantity: 0, lastSaleDate: 0 });
+}
+});
+}
 if (filterValue) {
 sortedCustomers = sortedCustomers.filter(c => c && c.name && c.name.toLowerCase().includes(filterValue));
 }
@@ -13083,6 +13052,52 @@ console.warn('closeCustomerManagement IDB error', e);
 if (typeof renderCustomersTable === 'function') renderCustomersTable();
 }, 100);
 }
+async function deleteCurrentCustomer() {
+if (!currentManagingCustomer) return;
+const name = currentManagingCustomer;
+const txs = customerSales.filter(s =>
+s && s.customerName === name &&
+s.isRepModeEntry !== true &&
+(!s.salesRep || s.salesRep === 'NONE' || s.salesRep === 'ADMIN' || s.salesRep === name)
+);
+const totalDebt = txs
+.filter(s => s.paymentType === 'CREDIT' && !s.creditReceived)
+.reduce((sum, s) => sum + (s.totalValue || 0) - (s.partialPaymentReceived || 0), 0);
+let msg = `Permanently delete customer "${name}"?`;
+if (txs.length > 0) {
+msg += `\n\n⚠ This customer has ${txs.length} transaction record${txs.length !== 1 ? 's' : ''} on file.`;
+if (totalDebt > 0) msg += `\n Outstanding debt: ${fmtAmt(totalDebt)}`;
+msg += `\n\nAll sales history for this customer will be permanently deleted.`;
+}
+msg += `\n\nThis cannot be undone.`;
+if (!(await showGlassConfirm(msg, { title: 'Delete Customer', confirmText: 'Delete Permanently', danger: true }))) return;
+try {
+// Remove contact record
+const contactIdx = salesCustomers.findIndex(c => c && c.name && c.name.toLowerCase() === name.toLowerCase());
+if (contactIdx !== -1) {
+const contactId = salesCustomers[contactIdx].id;
+salesCustomers.splice(contactIdx, 1);
+await saveWithTracking('sales_customers', salesCustomers);
+await deleteRecordFromFirestore('sales_customers', contactId);
+}
+// Remove all transaction records
+const idsToDelete = txs.map(s => s.id);
+customerSales = customerSales.filter(s => !idsToDelete.includes(s.id));
+for (const id of idsToDelete) {
+await registerDeletion(id, 'sales');
+}
+await saveWithTracking('customer_sales', customerSales);
+for (const id of idsToDelete) {
+await deleteRecordFromFirestore('customer_sales', id);
+}
+notifyDataChange('sales');
+triggerAutoSync();
+closeCustomerManagement();
+showToast(`Customer "${name}" and all records deleted.`, 'success');
+} catch (e) {
+showToast('Failed to delete customer. Please try again.', 'error');
+}
+}
 async function renderCustomerTransactions(name) {
 const list = document.getElementById('customerManagementHistoryList');
 if (!list) return;
@@ -13198,7 +13213,7 @@ const isCredit = t.paymentType === 'CREDIT';
 const isPartialPayment = t.paymentType === 'PARTIAL_PAYMENT';
 const isCollection = t.paymentType === 'COLLECTION';
 const item = document.createElement('div');
-item.className = 'cust-history-item';
+item.className = `cust-history-item${t.isSettled ? ' is-settled-record' : ''}`;
 let statusClass = t.creditReceived ? 'paid' : 'pending';
 let btnText = t.creditReceived ? 'PAID' : 'PENDING';
 let toggleBtnHtml = '';
@@ -13357,33 +13372,32 @@ const _partialPaid = _txItem?.partialPaymentReceived || 0;
 let _txMsg, _txTitle;
 if (_isOldDebt) {
 _txTitle = '\u26a0 Delete Old Debt Record';
-_txMsg = `You are about to permanently delete an OLD DEBT record for ${_txCust || 'this customer'}.`;
+_txMsg = `Permanently delete an OLD DEBT record for ${_txCust || 'this customer'}.`;
 _txMsg += `\nBalance: ${fmtAmt(_txItem.totalValue||0)}`;
 if (_txDate) _txMsg += `\nRecorded: ${_txDate}`;
 if (_txItem?.notes) _txMsg += `\nNote: ${_txItem.notes}`;
-_txMsg += `\n\n\u26a0 Warning: This will remove the carried-forward balance from the customer's history. If this debt is still owed, deleting it will make it disappear from all records and reports permanently.`;
-_txMsg += `\n\nOnly delete if this was entered by mistake or has already been fully settled elsewhere.`;
+_txMsg += `\n\n\u26a0 Warning: This will remove the carried-forward balance from the customer's history permanently.`;
 } else if (_txItem?.paymentType === 'COLLECTION') {
 _txTitle = 'Delete Bulk Collection';
 _txMsg = `Delete this bulk collection payment from ${_txCust || 'customer'}?`;
 if (_txDate) _txMsg += `\nDate: ${_txDate}`;
 _txMsg += `\nAmount Collected: ${fmtAmt(_txItem.totalValue||0)}`;
-_txMsg += `\n\n\u21a9 This collection will be reversed and the customer's outstanding balance restored accordingly.`;
+_txMsg += `\n\n\u21a9 This collection will be reversed and the customer's outstanding balance restored.`;
 } else if (_txItem?.paymentType === 'PARTIAL_PAYMENT') {
 _txTitle = 'Delete Partial Payment';
 _txMsg = `Delete this partial payment from ${_txCust || 'customer'}?`;
 if (_txDate) _txMsg += `\nDate: ${_txDate}`;
 _txMsg += `\nPayment Amount: ${fmtAmt(_txItem.totalValue||0)}`;
-_txMsg += `\n\n\u21a9 This will reverse the partial payment and restore the full pending credit balance on the linked sale.`;
+_txMsg += `\n\n\u21a9 This will reverse the partial payment and restore the full pending credit balance.`;
 } else if (_txItem?.paymentType === 'CREDIT') {
 _txTitle = 'Delete Credit Sale';
 _txMsg = `Delete this credit sale for ${_txCust || 'customer'}?`;
 if (_txDate) _txMsg += `\nDate: ${_txDate}`;
 if (_txQty) _txMsg += `\nQty: ${_txQty}${_txAmt}`;
 if (_txStore) _txMsg += `\nStore: ${_txStore}`;
-if (_partialPaid > 0) _txMsg += `\n\n\u26a0 ${fmtAmt(_partialPaid)} has been partially collected. Deleting will erase both the sale and the partial payment record.`;
+if (_partialPaid > 0) _txMsg += `\n\n\u26a0 ${fmtAmt(_partialPaid)} partially collected. Deleting will erase both the sale and partial payment.`;
 else if (_txItem?.creditReceived) _txMsg += `\n\n\u26a0 This sale is already marked PAID. Deleting will remove the payment record.`;
-else _txMsg += `\n\n\u26a0 This credit sale is UNPAID. Deleting will permanently remove the outstanding balance from this customer's account.`;
+else _txMsg += `\n\n\u26a0 This credit sale is UNPAID. Deleting removes the outstanding balance.`;
 } else {
 _txTitle = 'Delete Cash Sale';
 _txMsg = `Delete this cash sale for ${_txCust || 'customer'}?`;
@@ -13397,9 +13411,7 @@ if (!(await showGlassConfirm(_txMsg, { title: _txTitle || `Delete ${_txType}`, c
 try {
 const item = customerSales.find(s => s.id === id);
 if (!item) { renderCustomerTransactions(currentManagingCustomer); return; }
-const wasCredit = item.paymentType === 'CREDIT';
 const wasPartialPayment = item.paymentType === 'PARTIAL_PAYMENT';
-const wasCollection = item.paymentType === 'COLLECTION';
 const paymentAmount = item.totalValue || 0;
 if (wasPartialPayment && item.relatedSaleId) {
 const rel = customerSales.find(s => s.id === item.relatedSaleId);
@@ -13418,13 +13430,7 @@ if (typeof refreshCustomerSales === 'function') await refreshCustomerSales();
 renderCustomersTable();
 notifyDataChange('sales');
 triggerAutoSync();
-let msg = ` ${wasPartialPayment ? 'Payment' : wasCollection ? 'Collection' : 'Transaction'} deleted!`;
-if ((item.quantity || 0) > 0) msg += ` ${item.quantity} kg restored.`;
-if ((wasPartialPayment || wasCollection || (wasCredit && item.partialPaymentReceived > 0)) && paymentAmount > 0) {
-const ref = wasCredit ? (item.partialPaymentReceived || 0) : paymentAmount;
-if (ref > 0) msg += ` Payment of ${await formatCurrency(ref)} reversed.`;
-}
-showToast(msg, 'success');
+showToast(` Transaction deleted successfully.`, 'success');
 } catch (e) {
 showToast('Failed to delete transaction. Please try again.', 'error');
 }
@@ -13450,8 +13456,7 @@ _rMsg = `Permanently delete an OLD DEBT record for ${_rCust || 'this customer'}$
 _rMsg += `\nBalance: ${fmtAmt(_rItem.totalValue||0)}`;
 if (_rDate) _rMsg += `\nRecorded: ${_rDate}`;
 if (_rItem?.notes) _rMsg += `\nNote: ${_rItem.notes}`;
-_rMsg += `\n\n\u26a0 Warning: This will remove the carried-forward balance from the rep customer's history permanently.`;
-_rMsg += `\n\nOnly delete if this was entered by mistake or has already been fully settled elsewhere.`;
+_rMsg += `\n\n\u26a0 Warning: This will remove the carried-forward balance permanently.`;
 } else if (_rItem?.paymentType === 'COLLECTION') {
 _rTitle = 'Delete Rep Collection';
 _rMsg = `Delete this bulk collection from ${_rCust || 'customer'}${_rRep ? ` (Rep: ${_rRep})` : ''}?`;
@@ -13463,15 +13468,15 @@ _rTitle = 'Delete Rep Partial Payment';
 _rMsg = `Delete this partial payment from ${_rCust || 'customer'}${_rRep ? ` (Rep: ${_rRep})` : ''}?`;
 if (_rDate) _rMsg += `\nDate: ${_rDate}`;
 _rMsg += `\nPayment Amount: ${fmtAmt(_rItem.totalValue||0)}`;
-_rMsg += `\n\n\u21a9 This will reverse the partial payment and restore the full pending credit balance on the linked rep sale.`;
+_rMsg += `\n\n\u21a9 This will reverse the partial payment and restore the full pending credit balance.`;
 } else if (_rItem?.paymentType === 'CREDIT') {
 _rTitle = 'Delete Rep Credit Sale';
 _rMsg = `Delete this credit sale for ${_rCust || 'customer'}${_rRep ? ` (Rep: ${_rRep})` : ''}?`;
 if (_rDate) _rMsg += `\nDate: ${_rDate}`;
 if (_rQty) _rMsg += `\nQty: ${_rQty}${_rAmt}`;
-if (_rPartialPaid > 0) _rMsg += `\n\n\u26a0 ${fmtAmt(_rPartialPaid)} has already been partially collected. Deleting will erase both the sale and the partial payment record.`;
-else if (_rItem?.creditReceived) _rMsg += `\n\n\u26a0 This rep sale is already marked PAID. Deleting will remove the payment record.`;
-else _rMsg += `\n\n\u26a0 This rep credit sale is UNPAID. Deleting will remove the outstanding balance from the rep customer's account.`;
+if (_rPartialPaid > 0) _rMsg += `\n\n\u26a0 ${fmtAmt(_rPartialPaid)} partially collected. Deleting will erase both the sale and partial payment.`;
+else if (_rItem?.creditReceived) _rMsg += `\n\n\u26a0 This rep sale is already marked PAID. Deleting removes the payment record.`;
+else _rMsg += `\n\n\u26a0 This rep credit sale is UNPAID. Deleting removes the outstanding balance.`;
 } else {
 _rTitle = 'Delete Rep Cash Sale';
 _rMsg = `Delete this cash sale for ${_rCust || 'customer'}${_rRep ? ` (Rep: ${_rRep})` : ''}?`;
@@ -13484,9 +13489,7 @@ if (!(await showGlassConfirm(_rMsg, { title: _rTitle || `Delete ${_rType}`, conf
 try {
 const item = repSales.find(s => s.id === id);
 if (!item) { renderRepCustomerTransactions(currentManagingRepCustomer); return; }
-const wasCredit = item.paymentType === 'CREDIT';
 const wasPartialPayment = item.paymentType === 'PARTIAL_PAYMENT';
-const wasCollection = item.paymentType === 'COLLECTION';
 const paymentAmount = item.totalValue || 0;
 if (wasPartialPayment && item.relatedSaleId) {
 const rel = repSales.find(s => s.id === item.relatedSaleId);
@@ -13503,12 +13506,7 @@ renderRepCustomerTransactions(currentManagingRepCustomer);
 renderRepCustomerTable();
 notifyDataChange('rep');
 triggerAutoSync();
-let msg = ` ${wasPartialPayment ? 'Payment' : wasCollection ? 'Collection' : 'Transaction'} deleted!`;
-if ((wasPartialPayment || wasCollection || (wasCredit && item.partialPaymentReceived > 0)) && paymentAmount > 0) {
-const ref = wasCredit ? (item.partialPaymentReceived || 0) : paymentAmount;
-if (ref > 0) msg += ` Payment of ${await formatCurrency(ref)} reversed.`;
-}
-showToast(msg, 'success');
+showToast(` Transaction deleted successfully.`, 'success');
 } catch (e) {
 showToast('Failed to delete transaction. Please try again.', 'error');
 }
@@ -14611,6 +14609,21 @@ transactionRecord = ensureRecordIntegrity(transactionRecord, false);
 }
 repSales.push(transactionRecord);
 await saveWithTracking('rep_sales', repSales);
+// Auto-register customer in the rep_customers registry so they persist even if all transactions are deleted
+try {
+const _rcName = transactionRecord.customerName;
+const _rcPhone = transactionRecord.customerPhone || '';
+if (_rcName && _rcName.trim()) {
+const existsInRepRegistry = Array.isArray(repCustomers) && repCustomers.some(c => c && c.name && c.name.toLowerCase() === _rcName.toLowerCase());
+if (!existsInRepRegistry) {
+const _rcContact = { id: generateUUID(), name: _rcName, phone: _rcPhone, address: '', oldDebit: 0, createdAt: getTimestamp(), updatedAt: getTimestamp(), timestamp: getTimestamp() };
+if (!Array.isArray(repCustomers)) repCustomers = [];
+repCustomers.push(_rcContact);
+await saveWithTracking('rep_customers', repCustomers);
+saveRecordToFirestore('rep_customers', _rcContact).catch(e => {});
+}
+}
+} catch (_rcErr) { console.warn('Auto-register rep customer failed:', _rcErr); }
 if (firebaseDB && currentUser) {
 saveRecordToFirestore('rep_sales', transactionRecord).catch(e => {
 });
@@ -14901,6 +14914,19 @@ repSales = Array.from(recordMap.values());
 console.error('Rep sales operation failed.', error);
 showToast('Rep sales operation failed.', 'error');
 }
+// Refresh repCustomers registry separately — never let it fail the rep sales data load
+try {
+const freshRepCustomersList = await idb.get('rep_customers', []);
+if (Array.isArray(freshRepCustomersList) && freshRepCustomersList.length > 0) {
+const repRegMap = new Map(freshRepCustomersList.map(c => [c.id, c]));
+if (Array.isArray(repCustomers)) {
+repCustomers.forEach(c => { if (c && c.id && !repRegMap.has(c.id)) repRegMap.set(c.id, c); });
+}
+repCustomers = Array.from(repRegMap.values());
+}
+} catch (repRegError) {
+console.warn('Rep registry refresh failed, using in-memory:', repRegError);
+}
 const filterInput = document.getElementById('rep-filter');
 const filter = filterInput ? filterInput.value.toLowerCase() : '';
 const myData = repSales.filter(s =>
@@ -14923,6 +14949,18 @@ custMap[s.customerName].debt -= (s.totalValue || 0);
 }
 });
 const sortedCustomers = Object.keys(custMap).sort();
+// Include customers from the repCustomers registry who have no current transactions,
+// so they remain visible even after all their transactions are deleted.
+if (Array.isArray(repCustomers)) {
+const custMapNames = new Set(Object.keys(custMap).map(n => n.toLowerCase()));
+repCustomers.forEach(rc => {
+if (rc && rc.name && rc.name.trim() && !custMapNames.has(rc.name.toLowerCase())) {
+custMap[rc.name] = { debt: 0, count: 0 };
+sortedCustomers.push(rc.name);
+}
+});
+sortedCustomers.sort();
+}
 const filteredCustomers = sortedCustomers.filter(name => {
 if (!filter) return true;
 return name && typeof name === 'string' && name.toLowerCase().includes(filter);
@@ -15025,6 +15063,48 @@ console.warn('closeRepCustomerManagement IDB error', e);
 }
 if (typeof renderRepCustomerTable === 'function') renderRepCustomerTable();
 }, 100);
+}
+async function deleteCurrentRepCustomer() {
+if (!currentManagingRepCustomer) return;
+const name = currentManagingRepCustomer;
+const txs = repSales.filter(s => s && s.customerName === name && s.salesRep === currentRepProfile);
+const totalDebt = txs
+.filter(s => s.paymentType === 'CREDIT' && !s.creditReceived)
+.reduce((sum, s) => sum + (s.totalValue || 0) - (s.partialPaymentReceived || 0), 0);
+let msg = `Permanently delete rep customer "${name}"?`;
+if (txs.length > 0) {
+msg += `\n\n⚠ This customer has ${txs.length} transaction record${txs.length !== 1 ? 's' : ''} on file.`;
+if (totalDebt > 0) msg += `\n Outstanding debt: ${fmtAmt(totalDebt)}`;
+msg += `\n\nAll rep sales history for this customer will be permanently deleted.`;
+}
+msg += `\n\nThis cannot be undone.`;
+if (!(await showGlassConfirm(msg, { title: 'Delete Rep Customer', confirmText: 'Delete Permanently', danger: true }))) return;
+try {
+// Remove contact record
+const contactIdx = repCustomers.findIndex(c => c && c.name && c.name.toLowerCase() === name.toLowerCase());
+if (contactIdx !== -1) {
+const contactId = repCustomers[contactIdx].id;
+repCustomers.splice(contactIdx, 1);
+await saveWithTracking('rep_customers', repCustomers);
+await deleteRecordFromFirestore('rep_customers', contactId);
+}
+// Remove all transaction records
+const idsToDelete = txs.map(s => s.id);
+repSales = repSales.filter(s => !idsToDelete.includes(s.id));
+for (const id of idsToDelete) {
+await registerDeletion(id, 'rep_sales');
+}
+await saveWithTracking('rep_sales', repSales);
+for (const id of idsToDelete) {
+await deleteRecordFromFirestore('rep_sales', id);
+}
+notifyDataChange('rep');
+triggerAutoSync();
+closeRepCustomerManagement();
+showToast(`Rep customer "${name}" and all records deleted.`, 'success');
+} catch (e) {
+showToast('Failed to delete rep customer. Please try again.', 'error');
+}
 }
 async function renderRepCustomerTransactions(name) {
 const list = document.getElementById('repCustomerManagementHistoryList');
@@ -15134,7 +15214,7 @@ toggleBtnHtml = `<span class="status-toggle-btn" style="background:rgba(37,99,23
 }
 const deleteBtnHtml = t.isMerged ? '' : `<button class="btn btn-sm btn-danger u-p-4-8" onclick="deleteRepTransactionFromOverlay('${esc(t.id)}')">⌫</button>`;
 const item = document.createElement('div');
-item.className = 'cust-history-item';
+item.className = `cust-history-item${t.isSettled ? ' is-settled-record' : ''}`;
 let itemContent = '';
 if (isPartialPayment || isCollection) {
 itemContent = `
@@ -15882,12 +15962,14 @@ background: var(--input-bg);
 border-radius: 10px;
 border: 1px solid var(--glass-border);
 transition: all 0.2s;
+${item.isSettled ? 'opacity:0.65;' : ''}
 ">
 <div class="u-flex-1" >
 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
 <span style="font-size: 1.2rem;">${typeIcon}</span>
 <strong style="color: var(--text-main); font-size: 0.9rem;">${esc(item.customerName)}</strong>
 ${item.isMerged ? _mergedBadgeHtml(item, {inline:true}) : ''}
+${item.isSettled ? `<span class="settled-badge">✓ Settled</span>` : ''}
 </div>
 <div style="font-size: 0.75rem; color: ${typeColor}; font-weight: 600;">
 ${qtyAmount}
@@ -16351,22 +16433,21 @@ confirmMsg = `Permanently delete an OLD DEBT record for ${_rtCust} (Rep: ${_rtRe
 confirmMsg += `\nBalance: ${fmtAmt(_rtAmt)}`;
 confirmMsg += `\nRecorded: ${_rtDate}`;
 if (transaction.notes) confirmMsg += `\nNote: ${transaction.notes}`;
-confirmMsg += `\n\n\u26a0 Warning: This will erase the carried-forward balance from this rep customer's history. If the debt is still owed, it will vanish from all records permanently.`;
-confirmMsg += `\n\nOnly delete if this was entered by mistake or has already been fully settled elsewhere.`;
+confirmMsg += `\n\n\u26a0 Warning: This will erase the carried-forward balance from this rep customer's history permanently.`;
 } else if (_rtPayType === 'COLLECTION') {
 confirmTitle = 'Delete Rep Bulk Collection';
 confirmMsg = `Delete this bulk collection payment?\n\nRep: ${_rtRep}\nCustomer: ${_rtCust}\nDate: ${_rtDate}\nAmount Collected: ${fmtAmt(_rtAmt)}`;
-confirmMsg += `\n\n\u21a9 This will reverse the collection and restore the customer's outstanding balance with this rep.`;
+confirmMsg += `\n\n\u21a9 This will reverse the collection and restore the customer's outstanding balance.`;
 } else if (_rtPayType === 'PARTIAL_PAYMENT') {
 confirmTitle = 'Delete Rep Partial Payment';
 confirmMsg = `Delete this partial payment?\n\nRep: ${_rtRep}\nCustomer: ${_rtCust}\nDate: ${_rtDate}\nPayment: ${fmtAmt(_rtAmt)}`;
-confirmMsg += `\n\n\u21a9 This will reverse the partial payment and restore the pending credit balance on the linked rep sale.`;
+confirmMsg += `\n\n\u21a9 This will reverse the partial payment and restore the pending credit balance.`;
 } else if (_rtPayType === 'CREDIT') {
 confirmTitle = 'Delete Rep Credit Sale';
 confirmMsg = `Delete this credit sale permanently?\n\nRep: ${_rtRep}\nCustomer: ${_rtCust}\nDate: ${_rtDate}\nQty: ${_rtQty} kg — ${fmtAmt(_rtAmt)}`;
-if (_rtPartialPaid > 0) confirmMsg += `\n\n\u26a0 ${fmtAmt(_rtPartialPaid)} has already been partially collected. Deleting will erase both the sale and the partial payment record.`;
-else if (transaction.creditReceived) confirmMsg += `\n\n\u26a0 This sale is already marked PAID. Deleting it will remove the payment record from this rep\'s account.`;
-else confirmMsg += `\n\n\u26a0 This credit sale is UNPAID. Deleting will remove the outstanding balance from the rep customer's account and affect the rep's sales totals.`;
+if (_rtPartialPaid > 0) confirmMsg += `\n\n\u26a0 ${fmtAmt(_rtPartialPaid)} partially collected. Deleting will erase both the sale and partial payment.`;
+else if (transaction.creditReceived) confirmMsg += `\n\n\u26a0 This sale is already marked PAID. Deleting will remove the payment record.`;
+else confirmMsg += `\n\n\u26a0 This credit sale is UNPAID. Deleting will remove the outstanding balance.`;
 } else {
 confirmTitle = 'Delete Rep Cash Sale';
 confirmMsg = `Delete this cash sale permanently?\n\nRep: ${_rtRep}\nCustomer: ${_rtCust}\nDate: ${_rtDate}\nQty: ${_rtQty} kg — ${fmtAmt(_rtAmt)}`;
@@ -16375,7 +16456,6 @@ confirmMsg += `\n\n\u21a9 ${_rtQty} kg will be restored to inventory.`;
 confirmMsg += `\n\nThis cannot be undone.`;
 if (await showGlassConfirm(confirmMsg, { title: confirmTitle || 'Delete Rep Transaction', confirmText: "Delete", danger: true })) {
 try {
-const deletedQuantity = transaction.quantity || 0;
 const wasCredit = transaction.paymentType === 'CREDIT';
 const wasPartialPayment = transaction.paymentType === 'PARTIAL_PAYMENT';
 const wasCollection = transaction.paymentType === 'COLLECTION';
@@ -16384,24 +16464,16 @@ const relatedSaleId = transaction.relatedSaleId;
 if (wasPartialPayment && relatedSaleId) {
 const relatedSale = repSales.find(s => s.id === relatedSaleId);
 if (relatedSale) {
-relatedSale.partialPaymentReceived = (relatedSale.partialPaymentReceived || 0) - paymentAmount;
-if (relatedSale.partialPaymentReceived < 0) relatedSale.partialPaymentReceived = 0;
-if (relatedSale.partialPaymentReceived === 0) {
-relatedSale.creditReceived = false;
-delete relatedSale.creditReceivedDate;
-}
+relatedSale.partialPaymentReceived = Math.max(0, (relatedSale.partialPaymentReceived || 0) - paymentAmount);
+if (relatedSale.partialPaymentReceived === 0) { relatedSale.creditReceived = false; delete relatedSale.creditReceivedDate; }
 relatedSale.updatedAt = getTimestamp();
 }
 }
-transaction.deletedAt = getTimestamp();
-transaction.updatedAt = getTimestamp();
 repSales = repSales.filter(t => t.id !== id);
 await unifiedDelete('rep_sales', repSales, id);
 if (wasPartialPayment && relatedSaleId) {
 const relatedSale = repSales.find(s => s.id === relatedSaleId);
-if (relatedSale) {
-await saveRecordToFirestore('rep_sales', relatedSale);
-}
+if (relatedSale) await saveRecordToFirestore('rep_sales', relatedSale);
 }
 await refreshRepUI(true);
 if (currentManagingRepCustomer && typeof renderRepCustomerTransactions === 'function') {
@@ -16412,7 +16484,7 @@ triggerAutoSync();
 let message = ` ${wasPartialPayment ? 'Payment' : wasCollection ? 'Collection' : 'Transaction'} deleted!`;
 if ((wasPartialPayment || wasCollection || (wasCredit && transaction.partialPaymentReceived > 0)) && (paymentAmount > 0 || transaction.partialPaymentReceived > 0)) {
 const refundAmount = wasCredit ? transaction.partialPaymentReceived : paymentAmount;
-message += ` Payment of ${await formatCurrency(refundAmount)} reversed.`;
+message += ` Payment of ${fmtAmt(refundAmount)} reversed.`;
 }
 showToast(message, "success");
 } catch (error) {
@@ -16455,7 +16527,7 @@ phoneContainer.classList.remove('hidden');
 phoneContainer.classList.add('hidden');
 }
 }
-function handleUniversalSearch(inputId, resultsId, dataSource) {
+async function handleUniversalSearch(inputId, resultsId, dataSource) {
 const input = document.getElementById(inputId);
 const resultsDiv = document.getElementById(resultsId);
 if (!input || !resultsDiv) return;
@@ -16467,11 +16539,24 @@ return;
 let matches = [];
 let html = '';
 switch(dataSource) {
-case 'customers':
-const uniqueCustomers = [...new Set(customerSales
+case 'customers': {
+// Read registry fresh from IDB so deleted-transaction customers are always found
+let _freshSalesReg = [];
+try { _freshSalesReg = await idb.get('sales_customers', []) || []; } catch(e) { console.warn('[SEARCH] sales_customers IDB read failed:', e); }
+console.log('[SEARCH customers] IDB sales_customers count:', _freshSalesReg.length, '| in-memory salesCustomers count:', Array.isArray(salesCustomers) ? salesCustomers.length : 'not array');
+// Merge IDB registry with in-memory (in case IDB write is in-flight)
+const _salesRegMap = new Map((_freshSalesReg).filter(c => c && c.id).map(c => [c.id, c]));
+if (Array.isArray(salesCustomers)) salesCustomers.forEach(c => { if (c && c.id && !_salesRegMap.has(c.id)) _salesRegMap.set(c.id, c); });
+const _mergedSalesReg = Array.from(_salesRegMap.values());
+console.log('[SEARCH customers] merged registry names:', _mergedSalesReg.map(c => c.name));
+const _custNamesFromSales = customerSales
 .filter(s => s && s.isRepModeEntry !== true)
-.map(s => s.customerName)
-.filter(n => n && typeof n === 'string'))];
+.map(s => (s.salesRep && s.salesRep !== 'NONE' && s.salesRep !== 'ADMIN') ? s.salesRep : s.customerName)
+.filter(n => n && typeof n === 'string');
+const _custNamesFromRegistry = _mergedSalesReg
+.filter(c => c && c.name && typeof c.name === 'string').map(c => c.name);
+const uniqueCustomers = [...new Set([..._custNamesFromSales, ..._custNamesFromRegistry])];
+console.log('[SEARCH customers] uniqueCustomers:', uniqueCustomers, '| query:', query);
 matches = uniqueCustomers.filter(name =>
 name && typeof name === 'string' && name.toLowerCase().includes(query.toLowerCase())
 );
@@ -16492,6 +16577,7 @@ No match found. "${query}" will be created as new customer.
 </div>`;
 }
 break;
+}
 case 'entities':
 if (Array.isArray(paymentEntities)) {
 matches = paymentEntities.filter(entity =>
@@ -16546,11 +16632,24 @@ No matching suppliers found
 </div>`;
 }
 break;
-case 'repCustomers':
-const repUniqueCustomers = [...new Set(repSales
+case 'repCustomers': {
+// Read registry fresh from IDB so deleted-transaction customers are always found
+let _freshRepReg = [];
+try { _freshRepReg = await idb.get('rep_customers', []) || []; } catch(e) { console.warn('[SEARCH] rep_customers IDB read failed:', e); }
+console.log('[SEARCH repCustomers] IDB rep_customers count:', _freshRepReg.length, '| in-memory repCustomers count:', Array.isArray(repCustomers) ? repCustomers.length : 'not array');
+// Merge IDB registry with in-memory (in case IDB write is in-flight)
+const _repRegMap = new Map((_freshRepReg).filter(c => c && c.id).map(c => [c.id, c]));
+if (Array.isArray(repCustomers)) repCustomers.forEach(c => { if (c && c.id && !_repRegMap.has(c.id)) _repRegMap.set(c.id, c); });
+const _mergedRepReg = Array.from(_repRegMap.values());
+console.log('[SEARCH repCustomers] merged registry names:', _mergedRepReg.map(c => c.name));
+const _repNamesFromSales = repSales
 .filter(s => s && s.salesRep === currentRepProfile)
 .map(s => s.customerName)
-.filter(n => n && typeof n === 'string'))];
+.filter(n => n && typeof n === 'string');
+const _repNamesFromRegistry = _mergedRepReg
+.filter(c => c && c.name && typeof c.name === 'string').map(c => c.name);
+const repUniqueCustomers = [...new Set([..._repNamesFromSales, ..._repNamesFromRegistry])];
+console.log('[SEARCH repCustomers] repUniqueCustomers:', repUniqueCustomers, '| query:', query);
 matches = repUniqueCustomers.filter(name =>
 name && typeof name === 'string' && name.toLowerCase().includes(query.toLowerCase())
 );
@@ -16571,6 +16670,7 @@ No match found. "${query}" will be created.
 </div>`;
 }
 break;
+}
 }
 resultsDiv.innerHTML = html;
 resultsDiv.classList.remove('hidden');

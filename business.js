@@ -503,13 +503,19 @@ const IDBCrypto = (() => {
   let _db = null;
   let _initPromise = null;
 
+  // ── Fast-path: pre-warm the restore as soon as this module loads so the key
+  // is ready before DOMContentLoaded finishes (eliminates the visible delay).
+  let _preWarmPromise = null;
+
   const PBKDF2_ITERS = 100000;
 
   
   const DB_NAME = 'GZND_SecureStorage';
-  const DB_VERSION = 1;
+  const DB_VERSION = 2;                   // bumped: adds session + wrapKeyCache stores
   const KEY_STORE = 'encryptedKeys';
   const ENTROPY_STORE = 'deviceEntropy';
+  const SESSION_STORE = 'userSession';     // persistent session state (replaces localStorage)
+  const WRAPKEY_CACHE_STORE = 'wrapKeyCache'; // caches derived AES-KW key material bytes
   const IDB_KDF_SALT = new Uint8Array([
     0x47,0x5A,0x4E,0x44,0x49,0x44,0x42,0x4B,
     0x45,0x59,0x53,0x41,0x4C,0x54,0x76,0x31,
@@ -555,6 +561,16 @@ const IDBCrypto = (() => {
         
         if (!db.objectStoreNames.contains(ENTROPY_STORE)) {
           db.createObjectStore(ENTROPY_STORE, { keyPath: 'id' });
+        }
+
+        // Persistent session store — replaces localStorage for session flags/login data
+        if (!db.objectStoreNames.contains(SESSION_STORE)) {
+          db.createObjectStore(SESSION_STORE, { keyPath: 'id' });
+        }
+
+        // Cache for derived AES-KW wrapping key bytes — avoids PBKDF2 on every open
+        if (!db.objectStoreNames.contains(WRAPKEY_CACHE_STORE)) {
+          db.createObjectStore(WRAPKEY_CACHE_STORE, { keyPath: 'id' });
         }
       };
     });
@@ -602,11 +618,81 @@ const IDBCrypto = (() => {
     });
   }
 
+  // ── Wrap-key cache: stores derived AES-KW key bytes in IDB so PBKDF2 only
+  // runs once (on first login). Subsequent opens use AES-KW import — ~instant.
+  async function _getCachedWrapKeyBytes(saltHex) {
+    try {
+      const db = await _initDB();
+      const result = await new Promise((res, rej) => {
+        const tx = db.transaction(WRAPKEY_CACHE_STORE, 'readonly');
+        const req = tx.objectStore(WRAPKEY_CACHE_STORE).get('primary');
+        req.onsuccess = () => res(req.result);
+        req.onerror = () => res(null);
+      });
+      if (result && result.saltHex === saltHex && result.keyBytes) return result.keyBytes;
+    } catch (e) {}
+    return null;
+  }
+
+  async function _setCachedWrapKeyBytes(saltHex, keyBytes) {
+    try {
+      const db = await _initDB();
+      const tx = db.transaction(WRAPKEY_CACHE_STORE, 'readwrite');
+      tx.objectStore(WRAPKEY_CACHE_STORE).put({ id: 'primary', saltHex, keyBytes, ts: Date.now() });
+    } catch (e) {}
+  }
+
+  // ── Session IDB helpers: persistent session state stored in IDB (not localStorage)
+  async function _idbSessionSet(id, value) {
+    try {
+      const db = await _initDB();
+      await new Promise((res, rej) => {
+        const tx = db.transaction(SESSION_STORE, 'readwrite');
+        const req = tx.objectStore(SESSION_STORE).put({ id, ...value });
+        tx.oncomplete = () => res();
+        tx.onerror = () => rej(tx.error);
+      });
+      // Mirror critical flags to localStorage as a synchronous fast-path for
+      // _checkFirebaseSessionExists() which runs before first async tick
+      if (id === 'active') {
+        try { localStorage.setItem('_gznd_session_active', '1'); } catch(e) {}
+      }
+      if (id === 'login') {
+        try { localStorage.setItem('persistentLogin', JSON.stringify(value)); } catch(e) {}
+      }
+    } catch (e) {}
+  }
+
+  async function _idbSessionGet(id) {
+    try {
+      const db = await _initDB();
+      return await new Promise((res) => {
+        const tx = db.transaction(SESSION_STORE, 'readonly');
+        const req = tx.objectStore(SESSION_STORE).get(id);
+        req.onsuccess = () => res(req.result || null);
+        req.onerror = () => res(null);
+      });
+    } catch (e) { return null; }
+  }
+
+  async function _idbSessionDelete(id) {
+    try {
+      const db = await _initDB();
+      await new Promise((res) => {
+        const tx = db.transaction(SESSION_STORE, 'readwrite');
+        tx.objectStore(SESSION_STORE).delete(id);
+        tx.oncomplete = () => res();
+        tx.onerror = () => res();
+      });
+    } catch(e) {}
+  }
+
   async function deriveSessionKey(email, password) {
     const enc = new TextEncoder();
     const keyMaterial = await crypto.subtle.importKey(
       'raw', 
       enc.encode(email.toLowerCase().trim() + ':' + password),
+
       'PBKDF2', 
       false, 
       ['deriveKey']
@@ -627,10 +713,27 @@ const IDBCrypto = (() => {
   }
 
   async function deriveWrappingKey(wrapSalt) {
-    const deviceEntropy = await _getDeviceEntropy();
-    const enc = new TextEncoder();
+    const saltHex = Array.from(wrapSalt).map(b => b.toString(16).padStart(2, '0')).join('');
 
-    
+    // ── Fast path: if we cached the raw AES-KW key bytes from a previous run,
+    // re-import them directly. AES-KW importKey is ~0ms vs 100k-iter PBKDF2.
+    const cachedBytes = await _getCachedWrapKeyBytes(saltHex);
+    if (cachedBytes) {
+      try {
+        return await crypto.subtle.importKey(
+          'raw',
+          new Uint8Array(cachedBytes),
+          { name: 'AES-KW' },
+          false,
+          ['wrapKey', 'unwrapKey']
+        );
+      } catch (e) {
+        // Cache corrupt — fall through to full derivation
+      }
+    }
+
+    const deviceEntropy = await _getDeviceEntropy();
+
     const combined = new Uint8Array(deviceEntropy.length + wrapSalt.length);
     combined.set(deviceEntropy, 0);
     combined.set(wrapSalt, deviceEntropy.length);
@@ -643,18 +746,35 @@ const IDBCrypto = (() => {
       ['deriveKey']
     );
 
-    return crypto.subtle.deriveKey(
+    // exportable:true so we can cache the raw bytes for next time
+    const wrapKey = await crypto.subtle.deriveKey(
       {
         name: 'PBKDF2',
         salt: IDB_KDF_SALT,
-        iterations: PBKDF2_ITERS, 
+        iterations: PBKDF2_ITERS,
         hash: 'SHA-256'
       },
       keyMaterial,
       { name: 'AES-KW', length: 256 },
-      false,
+      true,                          // exportable for caching
       ['wrapKey', 'unwrapKey']
     );
+
+    // Persist raw bytes so next open skips PBKDF2 entirely
+    try {
+      const rawBuf = await crypto.subtle.exportKey('raw', wrapKey);
+      await _setCachedWrapKeyBytes(saltHex, Array.from(new Uint8Array(rawBuf)));
+      // Return a non-exportable copy for use
+      return await crypto.subtle.importKey(
+        'raw',
+        new Uint8Array(rawBuf),
+        { name: 'AES-KW' },
+        false,
+        ['wrapKey', 'unwrapKey']
+      );
+    } catch (e) {
+      return wrapKey;
+    }
   }
 
   async function _persistKey(key, email) {
@@ -693,25 +813,19 @@ const IDBCrypto = (() => {
         request.onerror = () => reject(request.error);
       });
 
-      
-
+      // ── Persist key backup in IDB SESSION_STORE (primary) and keep a
+      // localStorage mirror only as a synchronous fallback for the first-tick
+      // check in _checkFirebaseSessionExists.
       try {
-        // Use localStorage so the key backup survives app close/reopen
-        const keyBackup = JSON.stringify({
-          email,
-          salt: saltHex,
-          wrappedKey: keyHex,
-          version: KEY_VERSION
-        });
-        localStorage.setItem('_gznd_session_key_backup', keyBackup);
-        sessionStorage.setItem('_gznd_session_key_backup', keyBackup); // keep session copy for fast same-tab access
-      } catch (e) {
-
-      }
+        const keyBackup = { email, salt: saltHex, wrappedKey: keyHex, version: KEY_VERSION, ts: Date.now() };
+        await _idbSessionSet('keyBackup', keyBackup);
+        // Minimal localStorage mirror for the sync fast-path only
+        localStorage.setItem('_gznd_session_key_backup', JSON.stringify(keyBackup));
+        sessionStorage.setItem('_gznd_session_key_backup', JSON.stringify(keyBackup));
+      } catch (e) {}
 
       _keyEmail = email;
 
-      
       _clearLegacyStorage();
 
     } catch (e) {
@@ -738,10 +852,9 @@ const IDBCrypto = (() => {
         const wrapSalt = new Uint8Array(stored.salt.match(/.{2}/g).map(h => parseInt(h, 16)));
         const wrappedBytes = new Uint8Array(stored.wrappedKey.match(/.{2}/g).map(h => parseInt(h, 16)));
 
-        
+        // deriveWrappingKey now uses the wrapKeyCache — runs in ~0ms after first login
         const wrapKey = await deriveWrappingKey(wrapSalt);
 
-        
         const key = await crypto.subtle.unwrapKey(
           'raw',
           wrappedBytes,
@@ -756,8 +869,24 @@ const IDBCrypto = (() => {
         return key;
       }
 
-      // Try localStorage first (persists across app close), then sessionStorage (same-tab fast path)
-      const sessionBackup = localStorage.getItem('_gznd_session_key_backup') || sessionStorage.getItem('_gznd_session_key_backup');
+      // ── Secondary: IDB SESSION_STORE key backup (primary persistent store)
+      const idbBackup = await _idbSessionGet('keyBackup');
+      if (idbBackup && idbBackup.salt && idbBackup.wrappedKey) {
+        const wrapSalt = new Uint8Array(idbBackup.salt.match(/.{2}/g).map(h => parseInt(h, 16)));
+        const wrappedBytes = new Uint8Array(idbBackup.wrappedKey.match(/.{2}/g).map(h => parseInt(h, 16)));
+        const wrapKey = await deriveWrappingKey(wrapSalt);
+        const key = await crypto.subtle.unwrapKey(
+          'raw', wrappedBytes, wrapKey, 'AES-KW',
+          { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+        );
+        _keyEmail = idbBackup.email;
+        // Re-persist to KEY_STORE so primary path works next open
+        await _persistKey(key, idbBackup.email);
+        return key;
+      }
+
+      // ── Tertiary: localStorage fallback (for devices that haven't re-logged in yet)
+      const sessionBackup = sessionStorage.getItem('_gznd_session_key_backup') || localStorage.getItem('_gznd_session_key_backup');
       if (sessionBackup) {
         const backup = JSON.parse(sessionBackup);
         if (backup.salt && backup.wrappedKey) {
@@ -778,14 +907,13 @@ const IDBCrypto = (() => {
 
           _keyEmail = backup.email;
 
-          
+          // Migrate to IDB — this will also populate wrapKeyCache for next time
           await _persistKey(key, backup.email);
 
           return key;
         }
       }
 
-      
       return await _migrateFromLegacy();
 
     } catch (e) {
@@ -865,14 +993,42 @@ const IDBCrypto = (() => {
       }
     },
 
+    // ── Pre-warm: called immediately when the module loads (below), so the key
+    // restore runs in the background before DOMContentLoaded needs it.
+    preWarm() {
+      if (!_preWarmPromise) {
+        _preWarmPromise = _restoreKey().then(key => {
+          if (key) { _sessionKey = key; }
+          _preWarmPromise = null;
+          return !!key;
+        }).catch(() => { _preWarmPromise = null; return false; });
+      }
+      return _preWarmPromise;
+    },
+
     async setSessionKey(email, password) {
       _sessionKey = await deriveSessionKey(email, password);
       await _persistKey(_sessionKey, email);
       _keyEmail = email;
+      // Store session login info in IDB (persistent, encrypted-store-native)
+      await _idbSessionSet('login', {
+        uid: null, // set by caller if known
+        email,
+        lastLogin: new Date().toISOString()
+      });
+      await _idbSessionSet('active', { value: '1', ts: Date.now() });
     },
+
+    // Expose session IDB helpers so sync.js can use them
+    async sessionSet(id, value) { return _idbSessionSet(id, value); },
+    async sessionGet(id) { return _idbSessionGet(id); },
+    async sessionDelete(id) { return _idbSessionDelete(id); },
 
     async restoreSessionKeyFromStorage() {
       if (_sessionKey) return true;
+
+      // If preWarm is still running, wait for it instead of spawning a second PBKDF2
+      if (_preWarmPromise) return _preWarmPromise;
 
       // Deduplicate concurrent restore calls — only run PBKDF2 once even if
       // getBatch() fires 30+ decrypt() calls before the key is ready.
@@ -907,23 +1063,23 @@ const IDBCrypto = (() => {
       _sessionKey = null;
       _keyEmail = null;
 
-      
       _initDB().then(db => {
-        const tx = db.transaction([KEY_STORE, ENTROPY_STORE], 'readwrite');
+        // Clear key store, entropy, and both new stores atomically
+        const tx = db.transaction([KEY_STORE, ENTROPY_STORE, SESSION_STORE, WRAPKEY_CACHE_STORE], 'readwrite');
         tx.objectStore(KEY_STORE).delete('primary');
         tx.objectStore(ENTROPY_STORE).delete('primary');
+        tx.objectStore(SESSION_STORE).clear();
+        tx.objectStore(WRAPKEY_CACHE_STORE).clear();
       }).catch(() => {});
 
-      
       try {
         sessionStorage.removeItem('_gznd_session_key_backup');
         sessionStorage.removeItem('_gznd_session_active');
-        // Also clear localStorage copies on explicit logout
         localStorage.removeItem('_gznd_session_key_backup');
         localStorage.removeItem('_gznd_session_active');
+        localStorage.removeItem('persistentLogin');
       } catch (e) {}
 
-      
       _clearLegacyStorage();
     },
 
@@ -1024,6 +1180,12 @@ const IDBCrypto = (() => {
     }
   };
 })();
+
+// ── Pre-warm the session key restore immediately on script load.
+// By the time DOMContentLoaded fires and calls restoreSessionKeyFromStorage(),
+// the PBKDF2 derivation will already be done (or nearly so). This is the single
+// biggest speedup for app reload time.
+IDBCrypto.preWarm();
 
 let currentActiveTab = 'prod';
 const USE_IDB_ONLY = true;
