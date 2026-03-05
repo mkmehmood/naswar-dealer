@@ -342,6 +342,15 @@ return;
 }
 
 }
+// ── CRITICAL FIX: reload data now that user prefix AND encryption key are ready.
+// DOMContentLoaded called loadAllData() too early (no prefix, no key) so all
+// arrays were empty. Re-load here with the correct context, then refresh UI.
+try {
+  if (typeof loadAllData === 'function') await loadAllData();
+  if (typeof refreshAllDisplays === 'function') await refreshAllDisplays();
+} catch(e) {
+  console.warn('Auth: post-login data reload failed:', e);
+}
 updateSyncButton();
 if (typeof subscribeToRealtime === 'function') {
 subscribeToRealtime();
@@ -3960,10 +3969,15 @@ try { sessionStorage.setItem('_gznd_session_active', '1'); } catch(e) {}
 LoginRateLimiter.recordSuccess();
 messageDiv.textContent = 'Success! Loading...';
 messageDiv.style.color = 'var(--accent-emerald)';
+// Reload data with correct prefix + key before showing UI
+try {
+  if (typeof loadAllData === 'function') await loadAllData();
+} catch(e) { console.warn('Post-login data reload failed:', e); }
 setTimeout(() => {
 hideAuthOverlay();
+if (typeof refreshAllDisplays === 'function') refreshAllDisplays();
 if(typeof performOneClickSync === 'function') performOneClickSync();
-}, 1000);
+}, 300);
 } else {
 const hasStored = await OfflineAuth.hasStoredCredentials();
 if (!hasStored) {
@@ -3989,13 +4003,18 @@ try { sessionStorage.setItem('_gznd_session_active', '1'); } catch(e) {}
 LoginRateLimiter.recordSuccess();
 messageDiv.textContent = '✓ Offline Login Successful';
 messageDiv.style.color = 'var(--accent-emerald)';
+// Reload data with correct prefix + key before showing UI
+try {
+  if (typeof loadAllData === 'function') await loadAllData();
+} catch(e) { console.warn('Post-offline-login data reload failed:', e); }
 setTimeout(() => {
 if (currentUser) {
 const overlay = document.getElementById('auth-overlay');
 if (overlay) { overlay.style.display = 'none'; }
 document.body.style.overflow = '';
+if (typeof refreshAllDisplays === 'function') refreshAllDisplays();
 }
-}, 1000);
+}, 300);
 }
 } catch (error) {
 console.error('Sign in failed.', error);
@@ -4011,9 +4030,10 @@ currentUser = { id: email.replace(/[^a-zA-Z0-9]/g, '_'), uid: email.replace(/[^a
 idb.setUserPrefix(currentUser.uid);
 await IDBCrypto.setSessionKey(email, password);
 try { sessionStorage.setItem('_gznd_session_active', '1'); } catch(e) {}
+try { if (typeof loadAllData === 'function') await loadAllData(); } catch(e) {}
 messageDiv.textContent = '✓ Offline Login (Network unavailable)';
 messageDiv.style.color = 'var(--accent-emerald)';
-setTimeout(() => { if(currentUser){const o=document.getElementById('auth-overlay');if(o)o.style.display='none';document.body.style.overflow='';} }, 1000);
+setTimeout(() => { if(currentUser){const o=document.getElementById('auth-overlay');if(o)o.style.display='none';document.body.style.overflow='';if(typeof refreshAllDisplays==='function')refreshAllDisplays();} }, 300);
 return;
 }
 errorMessage = 'Network error. If you have logged in before, ensure correct credentials for offline access.';

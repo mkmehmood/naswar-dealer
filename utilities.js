@@ -10011,7 +10011,7 @@ document.addEventListener('DOMContentLoaded', async function _appBootstrap() {
   setTimeout(() => {
     if (typeof initializeFirebaseSystem === 'function') initializeFirebaseSystem();
     else if (typeof initFirebase === 'function') initFirebase();
-  }, 500);
+  }, 100);
 
   const today = new Date().toISOString().split('T')[0];
   ['sys-date','sale-date','cust-date','factory-date','paymentDate','rep-date'].forEach(id => {
@@ -10047,9 +10047,12 @@ document.addEventListener('DOMContentLoaded', async function _appBootstrap() {
 
   initSplashScreen();
   setProductionView('store');
-  syncFactoryProductionStats();
-  updateAllTabsWithFactoryCosts();
-  await refreshAllDisplays();
+
+  // Defer heavy UI renders until after first paint — splash screen appears immediately
+  requestAnimationFrame(async () => {
+    syncFactoryProductionStats();
+    updateAllTabsWithFactoryCosts();
+    await refreshAllDisplays();
 
   if (appMode === 'rep') {
     if (typeof renderRepHistory === 'function') renderRepHistory();
@@ -10065,9 +10068,11 @@ document.addEventListener('DOMContentLoaded', async function _appBootstrap() {
       if (expIdEl) { const id2 = generateUUID('exp'); expIdEl.textContent = 'ID: ' + id2.split('-').slice(0,2).join('-') + '\u2026'; expIdEl.title = id2; }
     }
   }, 400);
+  }); // end requestAnimationFrame
 
   scheduleAutomaticCleanup();
-  setTimeout(() => validateAllDataOnStartup(), 2000);
+  // Defer heavy validation until after first paint (was 2s, now 5s to clear splash first)
+  setTimeout(() => validateAllDataOnStartup(), 5000);
 
   if (window._connectionCheckInterval) clearInterval(window._connectionCheckInterval);
   window._connectionCheckInterval = setInterval(() => {
@@ -10084,7 +10089,7 @@ document.addEventListener('DOMContentLoaded', async function _appBootstrap() {
   setTimeout(() => {
     const splash = document.getElementById('splash-screen');
     if (splash) splash.style.display = 'none';
-  }, 1500);
+  }, 800);
 });
 
 function _filterFactoryHistoryByMode(mode) {

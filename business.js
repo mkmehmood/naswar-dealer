@@ -298,7 +298,7 @@ const CryptoEngine = (() => {
 const MAGIC = new Uint8Array([0x47,0x5A,0x4E,0x44,0x5F,0x45,0x4E,0x43,0x5F,0x56,0x32]);
 const SALT_LEN = 32;
 const IV_LEN = 12;
-const PBKDF2_ITERS = 310000;
+const PBKDF2_ITERS = 100000;
 async function deriveKey(email, password, salt) {
 const enc = new TextEncoder();
 const keyMaterial = await crypto.subtle.importKey(
@@ -491,7 +491,7 @@ const IDBCrypto = (() => {
   let _db = null;
   let _initPromise = null;
 
-  const PBKDF2_ITERS = 310000;
+  const PBKDF2_ITERS = 100000;
 
   
   const DB_NAME = 'GZND_SecureStorage';
@@ -859,13 +859,16 @@ const IDBCrypto = (() => {
     async restoreSessionKeyFromStorage() {
       if (_sessionKey) return true;
 
-      const key = await _restoreKey();
-      if (key) {
-        _sessionKey = key;
-
-        return true;
+      // Deduplicate concurrent restore calls — only run PBKDF2 once even if
+      // getBatch() fires 30+ decrypt() calls before the key is ready.
+      if (!this._restorePromise) {
+        this._restorePromise = _restoreKey().then(key => {
+          this._restorePromise = null;
+          if (key) { _sessionKey = key; return true; }
+          return false;
+        }).catch(() => { this._restorePromise = null; return false; });
       }
-      return false;
+      return this._restorePromise;
     },
 
     async rederiveKey(email, password) {
@@ -1296,16 +1299,31 @@ transaction.onerror = () => reject(transaction.error);
 async getBatch(keys) {
 await this.init();
 const results = new Map();
+if (keys.length === 0) return results;
+
+// ── Step 1: restore session key ONCE before any decrypt (avoids N×PBKDF2)
+await IDBCrypto.restoreSessionKeyFromStorage();
+
+// ── Step 2: read all raw values from IDB in a single transaction
+const rawMap = new Map();
 await new Promise((resolve, reject) => {
 const transaction = this.db.transaction(IDB_CONFIG.store, 'readonly');
 const store = transaction.objectStore(IDB_CONFIG.store);
 let completed = 0;
-if (keys.length === 0) { resolve(); return; }
 keys.forEach(key => {
 const request = store.get(this._k(key));
-request.onsuccess = async () => {
-const rawData = this._unwrapValue(request.result);
-if (rawData !== null && rawData !== undefined) {
+request.onsuccess = () => {
+rawMap.set(key, this._unwrapValue(request.result));
+if (++completed === keys.length) resolve();
+};
+request.onerror = () => { rawMap.set(key, null); if (++completed === keys.length) resolve(); };
+});
+});
+
+// ── Step 3: decrypt all values in parallel (key is already in memory — no extra PBKDF2)
+await Promise.all(keys.map(async key => {
+const rawData = rawMap.get(key);
+if (rawData === null || rawData === undefined) { results.set(key, null); return; }
 try {
 const decrypted = await IDBCrypto.decrypt(rawData);
 if (decrypted === null) {
@@ -1320,15 +1338,7 @@ results.set(key, decrypted);
 console.warn('IDB: Decryption error for key in batch:', key, e);
 try { results.set(key, JSON.parse(rawData)); } catch(e2) { results.set(key, rawData); }
 }
-} else {
-results.set(key, null);
-}
-completed++;
-if (completed === keys.length) resolve();
-};
-request.onerror = () => { completed++; if (completed === keys.length) resolve(); };
-});
-});
+}));
 return results;
 },
 async remove(key) {
