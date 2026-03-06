@@ -180,9 +180,9 @@ return false;
 }
 }
 async function unifiedSave(idbKey, dataArray, specificRecord = null) {
-// Save to local IndexedDB immediately — UI unblocks here
+
 await saveWithTracking(idbKey, dataArray);
-// Fire Firestore sync in the background without blocking the caller
+
 if (specificRecord && specificRecord.id) {
   const collectionName = getFirestoreCollection(idbKey);
   if (collectionName) DeltaSync.trackId(collectionName, specificRecord.id);
@@ -192,9 +192,9 @@ triggerAutoSync();
 return true;
 }
 async function unifiedDelete(idbKey, dataArray, deletedRecordId) {
-// Save updated local array immediately — UI unblocks here
+
 await saveWithTracking(idbKey, dataArray);
-// Fire Firestore delete + deletion log in the background without blocking the caller
+
 const collectionName = getFirestoreCollection(idbKey);
 Promise.resolve().then(async () => {
   try {
@@ -290,7 +290,7 @@ uid: user.uid,
 email: user.email,
 displayName: user.displayName
 };
-// ── Store persistent login in IDB (primary) with localStorage mirror (fast-path)
+
 try {
   const loginData = {
     uid: user.uid,
@@ -300,7 +300,7 @@ try {
   };
   await IDBCrypto.sessionSet('login', loginData);
   await IDBCrypto.sessionSet('active', { value: '1', ts: Date.now() });
-  // localStorage mirrors for synchronous _checkFirebaseSessionExists()
+  
   localStorage.setItem('persistentLogin', JSON.stringify(loginData));
   localStorage.setItem('_gznd_session_active', '1');
   sessionStorage.setItem('_gznd_session_active', '1');
@@ -346,9 +346,9 @@ return;
 }
 
 }
-// ── CRITICAL FIX: reload data now that user prefix AND encryption key are ready.
-// DOMContentLoaded called loadAllData() too early (no prefix, no key) so all
-// arrays were empty. Re-load here with the correct context, then refresh UI.
+
+
+
 try {
   if (typeof loadAllData === 'function') await loadAllData();
   if (typeof refreshAllDisplays === 'function') await refreshAllDisplays();
@@ -366,8 +366,8 @@ console.warn('Device registration failed:', err);
 });
 }, 500);
 }
-// Refresh all device ID storage layers on every successful login
-// so the ID is preserved even if some layers were cleared
+
+
 if (typeof refreshDeviceIdAnchors === 'function') {
 setTimeout(() => { refreshDeviceIdAnchors().catch(() => {}); }, 1500);
 }
@@ -386,7 +386,7 @@ performOneClickSync(false);
 } else {
 currentUser = null;
 try {
-  // Clear IDB session store (primary) and localStorage mirrors
+  
   await IDBCrypto.sessionDelete('login');
   await IDBCrypto.sessionDelete('active');
   await IDBCrypto.sessionDelete('keyBackup');
@@ -1251,12 +1251,17 @@ for (const change of changes) {
 try {
 const docData = { id: change.doc.id, ...change.doc.data() };
 if (change.type === 'added' || change.type === 'modified') {
+
+if (!deletedRecordIds.has(change.doc.id)) {
 db = updateArray(db, docData, 'production');
 hasChanges = true;
+}
 } else if (change.type === 'removed') {
+
+if (deletedRecordIds.has(change.doc.id)) {
 db = db.filter(item => item.id !== change.doc.id);
-deletedRecordIds.add(change.doc.id);
 hasChanges = true;
+}
 }
 } catch (docError) {
 console.warn('Firebase operation failed.', docError);
@@ -1300,12 +1305,16 @@ for (const change of changes) {
 try {
 const docData = { id: change.doc.id, ...change.doc.data() };
 if (change.type === 'added' || change.type === 'modified') {
+if (!deletedRecordIds.has(change.doc.id)) {
 customerSales = updateArray(customerSales, docData, 'sale');
 hasChanges = true;
+}
 } else if (change.type === 'removed') {
+
+if (deletedRecordIds.has(change.doc.id)) {
 customerSales = customerSales.filter(item => item.id !== change.doc.id);
-deletedRecordIds.add(change.doc.id);
 hasChanges = true;
+}
 }
 } catch (docError) {
 console.warn('Firebase operation failed.', docError);
@@ -1347,12 +1356,21 @@ for (const change of snapshot.docChanges()) {
 try {
 const docData = { id: change.doc.id, ...change.doc.data() };
 if (change.type === 'added' || change.type === 'modified') {
+if (!deletedRecordIds.has(change.doc.id)) {
 repSales = updateArray(repSales, docData, 'rep sale');
 hasChanges = true;
+}
 } else if (change.type === 'removed') {
+
+
+
+
+if (deletedRecordIds.has(change.doc.id)) {
 repSales = repSales.filter(item => item.id !== change.doc.id);
-deletedRecordIds.add(change.doc.id);
 hasChanges = true;
+}
+
+
 }
 } catch (docError) { console.warn('repSales doc error', docError); }
 }
@@ -1390,12 +1408,16 @@ for (const change of snapshot.docChanges()) {
 try {
 const docData = { id: change.doc.id, ...change.doc.data() };
 if (change.type === 'added' || change.type === 'modified') {
+if (!deletedRecordIds.has(change.doc.id)) {
 repCustomers = updateArray(repCustomers, docData, 'rep customer');
 hasChanges = true;
+}
 } else if (change.type === 'removed') {
+
+if (deletedRecordIds.has(change.doc.id)) {
 repCustomers = repCustomers.filter(item => item.id !== change.doc.id);
-deletedRecordIds.add(change.doc.id);
 hasChanges = true;
+}
 }
 } catch (docError) { console.warn('repCustomers doc error', docError); }
 }
@@ -1434,12 +1456,16 @@ for (const change of snapshot.docChanges()) {
 try {
 const docData = { id: change.doc.id, ...change.doc.data() };
 if (change.type === 'added' || change.type === 'modified') {
+if (!deletedRecordIds.has(change.doc.id)) {
 salesCustomers = updateArray(salesCustomers, docData, 'sales customer');
 hasChanges = true;
+}
 } else if (change.type === 'removed') {
+
+if (deletedRecordIds.has(change.doc.id)) {
 salesCustomers = salesCustomers.filter(item => item.id !== change.doc.id);
-deletedRecordIds.add(change.doc.id);
 hasChanges = true;
+}
 }
 } catch (docError) { console.warn('salesCustomers doc error', docError); }
 }
@@ -1479,12 +1505,16 @@ for (const change of changes) {
 try {
 const docData = { id: change.doc.id, ...change.doc.data() };
 if (change.type === 'added' || change.type === 'modified') {
+if (!deletedRecordIds.has(change.doc.id)) {
 paymentTransactions = updateArray(paymentTransactions, docData, 'transaction');
 hasChanges = true;
+}
 } else if (change.type === 'removed') {
+
+if (deletedRecordIds.has(change.doc.id)) {
 paymentTransactions = paymentTransactions.filter(item => item.id !== change.doc.id);
-deletedRecordIds.add(change.doc.id);
 hasChanges = true;
+}
 }
 } catch (docError) {
 console.warn('Payment transaction failed.', docError);
@@ -1525,12 +1555,16 @@ for (const change of snapshot.docChanges()) {
 try {
 const docData = { id: change.doc.id, ...change.doc.data() };
 if (change.type === 'added' || change.type === 'modified') {
+if (!deletedRecordIds.has(change.doc.id)) {
 paymentEntities = updateArray(paymentEntities, docData, 'entity');
 hasChanges = true;
+}
 } else if (change.type === 'removed') {
+
+if (deletedRecordIds.has(change.doc.id)) {
 paymentEntities = paymentEntities.filter(item => item.id !== change.doc.id);
-deletedRecordIds.add(change.doc.id);
 hasChanges = true;
+}
 }
 } catch (docError) { console.warn('entities doc error', docError); }
 }
@@ -1569,12 +1603,16 @@ for (const change of snapshot.docChanges()) {
 try {
 const docData = { id: change.doc.id, ...change.doc.data() };
 if (change.type === 'added' || change.type === 'modified') {
+if (!deletedRecordIds.has(change.doc.id)) {
 factoryInventoryData = updateArray(factoryInventoryData, docData, 'inventory item');
 hasChanges = true;
+}
 } else if (change.type === 'removed') {
+
+if (deletedRecordIds.has(change.doc.id)) {
 factoryInventoryData = factoryInventoryData.filter(item => item.id !== change.doc.id);
-deletedRecordIds.add(change.doc.id);
 hasChanges = true;
+}
 }
 } catch (docError) { console.warn('inventory doc error', docError); }
 }
@@ -1613,12 +1651,16 @@ for (const change of snapshot.docChanges()) {
 try {
 const docData = { id: change.doc.id, ...change.doc.data() };
 if (change.type === 'added' || change.type === 'modified') {
+if (!deletedRecordIds.has(change.doc.id)) {
 factoryProductionHistory = updateArray(factoryProductionHistory, docData, 'factory history');
 hasChanges = true;
+}
 } else if (change.type === 'removed') {
+
+if (deletedRecordIds.has(change.doc.id)) {
 factoryProductionHistory = factoryProductionHistory.filter(item => item.id !== change.doc.id);
-deletedRecordIds.add(change.doc.id);
 hasChanges = true;
+}
 }
 } catch (docError) { console.warn('factoryHistory doc error', docError); }
 }
@@ -1657,12 +1699,16 @@ for (const change of snapshot.docChanges()) {
 try {
 const docData = { id: change.doc.id, ...change.doc.data() };
 if (change.type === 'added' || change.type === 'modified') {
+if (!deletedRecordIds.has(change.doc.id)) {
 stockReturns = updateArray(stockReturns, docData, 'return');
 hasChanges = true;
+}
 } else if (change.type === 'removed') {
+
+if (deletedRecordIds.has(change.doc.id)) {
 stockReturns = stockReturns.filter(item => item.id !== change.doc.id);
-deletedRecordIds.add(change.doc.id);
 hasChanges = true;
+}
 }
 } catch (docError) { console.warn('returns doc error', docError); }
 }
@@ -1701,12 +1747,16 @@ for (const change of snapshot.docChanges()) {
 try {
 const docData = { id: change.doc.id, ...change.doc.data() };
 if (change.type === 'added' || change.type === 'modified') {
+if (!deletedRecordIds.has(change.doc.id)) {
 expenseRecords = updateArray(expenseRecords, docData, 'expense');
 hasExpenseChanges = true;
+}
 } else if (change.type === 'removed') {
+
+if (deletedRecordIds.has(change.doc.id)) {
 expenseRecords = expenseRecords.filter(item => item.id !== change.doc.id);
-deletedRecordIds.add(change.doc.id);
 hasExpenseChanges = true;
+}
 }
 } catch (docError) { console.warn('expenses doc error', docError); }
 }
@@ -1747,12 +1797,16 @@ for (const change of changes) {
 try {
 const docData = { id: change.doc.id, ...change.doc.data() };
 if (change.type === 'added' || change.type === 'modified') {
+if (!deletedRecordIds.has(change.doc.id)) {
 salesHistory = updateArray(salesHistory, docData, 'calc history');
 hasChanges = true;
+}
 } else if (change.type === 'removed') {
+
+if (deletedRecordIds.has(change.doc.id)) {
 salesHistory = salesHistory.filter(item => item.id !== change.doc.id);
-deletedRecordIds.add(change.doc.id);
 hasChanges = true;
+}
 }
 } catch (docError) {
 console.warn('Firebase operation failed.', docError);
@@ -2046,13 +2100,15 @@ await idb.set('mfg_pro_pkr', db);
 } else if ((docData.recordType === 'sale' || docData.recordType === 'sales') && docData.recordId) {
 customerSales = customerSales.filter(item => item.id !== docData.recordId);
 await idb.set('customer_sales', customerSales);
-} else if (docData.recordType === 'expense' && docData.recordId) {
+
+
+} else if ((docData.recordType === 'expenses' || docData.recordType === 'expense') && docData.recordId) {
 expenseRecords = expenseRecords.filter(item => item.id !== docData.recordId);
 await idb.set('expenses', expenseRecords);
-} else if (docData.recordType === 'transaction' && docData.recordId) {
+} else if ((docData.recordType === 'transactions' || docData.recordType === 'transaction') && docData.recordId) {
 paymentTransactions = paymentTransactions.filter(item => item.id !== docData.recordId);
 await idb.set('payment_transactions', paymentTransactions);
-} else if (docData.recordType === 'rep_sale' && docData.recordId) {
+} else if ((docData.recordType === 'rep_sales' || docData.recordType === 'rep_sale') && docData.recordId) {
 repSales = repSales.filter(item => item.id !== docData.recordId);
 await idb.set('rep_sales', repSales);
 } else if (docData.recordType === 'rep_customers' && docData.recordId) {
@@ -2703,10 +2759,7 @@ lastChecked: Date.now(),
 initialized: true,
 restoredItems: totalCloudChanges
 });
-['production','sales','calculator_history','transactions','entities',
-'inventory','factory_history','returns','expenses','rep_sales',
-'rep_customers','sales_customers','deletions'
-].reduce((p, c) => p.then(() => DeltaSync.setLastSyncTimestamp(c)), Promise.resolve());
+
 }
 }
 if (userType === 'existing') {
@@ -3150,7 +3203,7 @@ console.warn('Failed to write batch item to Firestore', itemError);
 }
 }
 }
-// deltaName will be stamped after successful commit (see below)
+
 DeltaSync.clearDirty(deltaName);
 }
 }
@@ -3317,14 +3370,15 @@ const settingsBatch = getCurrentBatch();
 settingsBatch.set(settingsRef, sanitizedSettings, { merge: true });
 operationCount++;
 batches.push(currentBatch);
-await idb.set('last_synced', now);
 try {
-// Commit batches one at a time with event-loop yields — keeps UI smooth
+
 for (let _bi = 0; _bi < batches.length; _bi++) {
 await batches[_bi].commit();
-await new Promise(r => setTimeout(r, 0)); // yield to browser
+await new Promise(r => setTimeout(r, 0)); 
 }
-// Stamp sync timestamps AFTER all batches committed successfully
+
+
+await idb.set('last_synced', now);
 for (const _col of Object.keys(collections)) {
 await DeltaSync.setLastSyncTimestamp(_col);
 }
@@ -3420,10 +3474,8 @@ userRef.collection('factorySettings').doc('config').get(),
 userRef.collection('expenseCategories').doc('categories').get(),
 userRef.collection('deletions').get()
 ]);
-for (const collection of ['production', 'sales', 'calculator_history', 'rep_sales', 'rep_customers', 'transactions',
-'entities', 'inventory', 'factory_history', 'returns', 'expenses', 'sales_customers']) {
-await DeltaSync.setLastSyncTimestamp(collection);
-}
+
+
 trackFirestoreRead(12);
 trackFirestoreRead(3);
 const hasData = productionSnap.docs.length > 0 || salesSnap.docs.length > 0 ||
@@ -3625,7 +3677,6 @@ salesHistory = salesHistory.filter(item => !deletedRecordIds.has(item.id));
 paymentTransactions = paymentTransactions.filter(item => !deletedRecordIds.has(item.id));
 paymentEntities = paymentEntities.filter(item => !deletedRecordIds.has(item.id));
 factoryInventoryData = factoryInventoryData.filter(item => !deletedRecordIds.has(item.id));
-hasChanges = true;
 factoryProductionHistory = factoryProductionHistory.filter(item => !deletedRecordIds.has(item.id));
 stockReturns = stockReturns.filter(item => !deletedRecordIds.has(item.id));
 expenseRecords = expenseRecords.filter(item => !deletedRecordIds.has(item.id));
@@ -3689,6 +3740,12 @@ if (idb.setBatch) {
 await idb.setBatch(saveEntries);
 } else {
 await Promise.all(saveEntries.map(([key, value]) => idb.set(key, value)));
+}
+
+
+for (const collection of ['production', 'sales', 'calculator_history', 'rep_sales', 'rep_customers',
+'transactions', 'entities', 'inventory', 'factory_history', 'returns', 'expenses', 'sales_customers']) {
+await DeltaSync.setLastSyncTimestamp(collection);
 }
 if (!silent) showToast(' Data Restored Successfully', 'success');
 updateUnitsAvailableIndicator();
@@ -3975,7 +4032,7 @@ const _signInCred = await firebaseAuth.signInWithEmailAndPassword(email, passwor
 await OfflineAuth.saveCredentials(email, password);
 idb.setUserPrefix(_signInCred.user.uid);
 await IDBCrypto.setSessionKey(email, password);
-// Update session login record with the actual uid
+
 await IDBCrypto.sessionSet('login', {
   uid: _signInCred.user.uid,
   email,
@@ -3986,7 +4043,7 @@ try { localStorage.setItem('_gznd_session_active', '1'); sessionStorage.setItem(
 LoginRateLimiter.recordSuccess();
 messageDiv.textContent = 'Success! Loading...';
 messageDiv.style.color = 'var(--accent-emerald)';
-// Reload data with correct prefix + key before showing UI
+
 try {
   if (typeof loadAllData === 'function') await loadAllData();
 } catch(e) { console.warn('Post-login data reload failed:', e); }
@@ -4020,7 +4077,7 @@ try { localStorage.setItem('_gznd_session_active', '1'); sessionStorage.setItem(
 LoginRateLimiter.recordSuccess();
 messageDiv.textContent = '✓ Offline Login Successful';
 messageDiv.style.color = 'var(--accent-emerald)';
-// Reload data with correct prefix + key before showing UI
+
 try {
   if (typeof loadAllData === 'function') await loadAllData();
 } catch(e) { console.warn('Post-offline-login data reload failed:', e); }

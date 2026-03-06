@@ -9,11 +9,11 @@ function escapeHtml(str) {
 }
 const esc = escapeHtml; 
 
-// ─── Cross-browser file download helper ──────────────────────────────────────
-// Works on: Chrome, Firefox, Safari (iOS 13+), Edge, Samsung Internet, Opera.
-// Falls back to msSaveBlob for legacy Edge / IE 11.
+
+
+
 function _triggerFileDownload(blob, filename) {
-  // Legacy IE / old Edge
+  
   if (typeof window.navigator.msSaveBlob === 'function') {
     window.navigator.msSaveBlob(blob, filename);
     return;
@@ -23,12 +23,12 @@ function _triggerFileDownload(blob, filename) {
   a.href = objectUrl;
   a.download = filename;
   a.style.display = 'none';
-  // iOS Safari requires the element to be in the DOM *and* needs a real click
+  
   document.body.appendChild(a);
-  // Use a tiny delay so iOS Safari's download sheet can register the gesture
+  
   setTimeout(() => {
     a.click();
-    // Clean up after the browser has had time to initiate the download
+    
     setTimeout(() => {
       document.body.removeChild(a);
       URL.revokeObjectURL(objectUrl);
@@ -36,13 +36,13 @@ function _triggerFileDownload(blob, filename) {
   }, 0);
 }
 
-// ─── FileReader → Promise helper (with ArrayBuffer fallback for older browsers)
+
 function _readFileAsArrayBuffer(file) {
-  // Modern browsers support file.arrayBuffer() natively
+  
   if (typeof file.arrayBuffer === 'function') {
     return file.arrayBuffer();
   }
-  // Fallback: FileReader
+  
   return new Promise((resolve, reject) => {
     const fr = new FileReader();
     fr.onload  = () => resolve(fr.result);
@@ -51,7 +51,7 @@ function _readFileAsArrayBuffer(file) {
   });
 }
 
-// ─── FileReader → text Promise helper ────────────────────────────────────────
+
 function _readFileAsText(file) {
   if (typeof file.text === 'function') return file.text();
   return new Promise((resolve, reject) => {
@@ -62,34 +62,34 @@ function _readFileAsText(file) {
   });
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// GNDVirtualScroll — lightweight virtual-scroll engine for tbody tables
-//
-// How it works:
-//   • The scroll container (overflow-y: auto) gets an IntersectionObserver
-//     so the engine wakes up only when the container is visible.
-//   • A "phantom" spacer <tr> at the top pads the visible area upward,
-//     and another at the bottom extends the total scroll height downward.
-//     Both use a single cell with the correct pixel height so the table
-//     layout stays intact.
-//   • On every scroll event (throttled to one rAF per frame) the engine
-//     computes the first and last visible row index from scrollTop and
-//     renders only those rows plus an overScan buffer on each side.
-//   • Row height is measured once from the first rendered row, then cached.
-//     A ResizeObserver on the container triggers a remeasure if the
-//     container width changes (responsive layout / orientation change).
-//   • GNDVirtualScroll.mount() is idempotent: calling it again with new
-//     data tears down the previous instance and mounts fresh.
-//   • GNDVirtualScroll.destroy(id) cleanly disconnects observers.
-// ═══════════════════════════════════════════════════════════════════════════
-const GNDVirtualScroll = (() => {
-  const OVERSCAN   = 5;   // extra rows to render beyond viewport edges
-  const FALLBACK_H = 44;  // px — used before first measurement
 
-  // Map of scrollerId → instance state
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const GNDVirtualScroll = (() => {
+  const OVERSCAN   = 5;   
+  const FALLBACK_H = 44;  
+
+  
   const _instances = new Map();
 
-  // ── helpers ──────────────────────────────────────────────────────────────
+  
 
   function _makeSpacerRow(colSpan) {
     const tr = document.createElement('tr');
@@ -109,10 +109,10 @@ const GNDVirtualScroll = (() => {
   }
 
   function _colSpanOf(tbody) {
-    // Peek at the first non-spacer row to count columns, fall back to 5.
+    
     const first = Array.from(tbody.rows).find(r => !r.hasAttribute('aria-hidden'));
     if (first) return first.cells.length || 5;
-    // Try the thead for column count
+    
     const table = tbody.closest('table');
     if (table) {
       const hRow = table.querySelector('thead tr');
@@ -121,7 +121,7 @@ const GNDVirtualScroll = (() => {
     return 5;
   }
 
-  // ── core render ───────────────────────────────────────────────────────────
+  
 
   function _render(inst) {
     const { scroller, tbody, items, buildRow, topSpacer, botSpacer } = inst;
@@ -135,24 +135,24 @@ const GNDVirtualScroll = (() => {
     const lastVis  = Math.min(items.length - 1,
                        Math.ceil((scrollT + scrollH) / rowH) + OVERSCAN);
 
-    // Skip re-render if the window hasn't changed
+    
     if (inst.renderedFirst === firstVis && inst.renderedLast === lastVis) return;
     inst.renderedFirst = firstVis;
     inst.renderedLast  = lastVis;
 
-    // Build the visible fragment
+    
     const frag = document.createDocumentFragment();
     for (let i = firstVis; i <= lastVis; i++) {
       const el = buildRow(items[i], i);
       if (el) frag.appendChild(el);
     }
 
-    // Spacer heights
+    
     _setSpacerHeight(topSpacer, firstVis * rowH);
     _setSpacerHeight(botSpacer, (items.length - 1 - lastVis) * rowH);
 
-    // Swap in visible rows between the two spacers (leave spacers in place)
-    // Remove all children except spacers, then re-insert
+    
+    
     let child = topSpacer.nextSibling;
     while (child && child !== botSpacer) {
       const next = child.nextSibling;
@@ -162,25 +162,25 @@ const GNDVirtualScroll = (() => {
     tbody.insertBefore(frag, botSpacer);
   }
 
-  // ── row-height measurement ────────────────────────────────────────────────
+  
 
   function _measureRowHeight(inst) {
-    // Pull the first non-spacer TR, read its offsetHeight
+    
     const first = Array.from(inst.tbody.rows).find(r => !r.hasAttribute('aria-hidden'));
     if (first && first.offsetHeight > 0) {
       inst.rowHeight = first.offsetHeight;
     }
   }
 
-  // ── public API ────────────────────────────────────────────────────────────
+  
 
   function mount(scrollerId, items, buildRow, tbody) {
-    // Tear down any existing instance on this scroller
+    
     destroy(scrollerId);
 
     const scroller = document.getElementById(scrollerId);
     if (!scroller) {
-      // Fallback: render all rows directly (no virtual scroll possible without container)
+      
       tbody.innerHTML = '';
       const frag = document.createDocumentFragment();
       items.forEach((item, i) => {
@@ -200,7 +200,7 @@ const GNDVirtualScroll = (() => {
     const topSpacer = _makeSpacerRow(colSpan);
     const botSpacer = _makeSpacerRow(colSpan);
 
-    // Seed tbody with spacers + do an initial render
+    
     tbody.innerHTML = '';
     tbody.appendChild(topSpacer);
     tbody.appendChild(botSpacer);
@@ -219,15 +219,15 @@ const GNDVirtualScroll = (() => {
 
     _instances.set(scrollerId, inst);
 
-    // Initial render pass
+    
     _render(inst);
-    // Measure real row height after first paint
+    
     requestAnimationFrame(() => {
       _measureRowHeight(inst);
       _render(inst);
     });
 
-    // Scroll handler (throttled to one rAF per frame)
+    
     inst.scrollHandler = () => {
       if (inst.rafId) return;
       inst.rafId = requestAnimationFrame(() => {
@@ -237,10 +237,10 @@ const GNDVirtualScroll = (() => {
     };
     scroller.addEventListener('scroll', inst.scrollHandler, { passive: true });
 
-    // ResizeObserver — remeasure and re-render on container resize
+    
     if (typeof ResizeObserver !== 'undefined') {
       inst.resizeObs = new ResizeObserver(() => {
-        inst.renderedFirst = -1; // force re-render
+        inst.renderedFirst = -1; 
         inst.renderedLast  = -1;
         _measureRowHeight(inst);
         _render(inst);
@@ -248,7 +248,7 @@ const GNDVirtualScroll = (() => {
       inst.resizeObs.observe(scroller);
     }
 
-    // IntersectionObserver — only render when tab/section becomes visible
+    
     if (typeof IntersectionObserver !== 'undefined') {
       inst.intersectionObs = new IntersectionObserver(entries => {
         if (entries[0].isIntersecting) {
@@ -448,14 +448,14 @@ const tokenExists = await _readFirebaseTokenFromIDB();
 if (tokenExists) return true;
 }
 }
-// Check sessionStorage first (same-tab fast path)
+
 const sessionFlag = sessionStorage.getItem('_gznd_session_active');
 if (sessionFlag === '1') return true;
-// Check localStorage (survives app close — set on every login)
+
 try {
   const lsFlag = localStorage.getItem('_gznd_session_active');
   if (lsFlag === '1') return true;
-  // Also check persistentLogin record written by onAuthStateChanged
+  
   const persistentLogin = localStorage.getItem('persistentLogin');
   if (persistentLogin) {
     const parsed = JSON.parse(persistentLogin);
@@ -503,19 +503,19 @@ const IDBCrypto = (() => {
   let _db = null;
   let _initPromise = null;
 
-  // ── Fast-path: pre-warm the restore as soon as this module loads so the key
-  // is ready before DOMContentLoaded finishes (eliminates the visible delay).
+  
+  
   let _preWarmPromise = null;
 
   const PBKDF2_ITERS = 100000;
 
   
   const DB_NAME = 'GZND_SecureStorage';
-  const DB_VERSION = 2;                   // bumped: adds session + wrapKeyCache stores
+  const DB_VERSION = 2;                   
   const KEY_STORE = 'encryptedKeys';
   const ENTROPY_STORE = 'deviceEntropy';
-  const SESSION_STORE = 'userSession';     // persistent session state (replaces localStorage)
-  const WRAPKEY_CACHE_STORE = 'wrapKeyCache'; // caches derived AES-KW key material bytes
+  const SESSION_STORE = 'userSession';     
+  const WRAPKEY_CACHE_STORE = 'wrapKeyCache'; 
   const IDB_KDF_SALT = new Uint8Array([
     0x47,0x5A,0x4E,0x44,0x49,0x44,0x42,0x4B,
     0x45,0x59,0x53,0x41,0x4C,0x54,0x76,0x31,
@@ -563,12 +563,12 @@ const IDBCrypto = (() => {
           db.createObjectStore(ENTROPY_STORE, { keyPath: 'id' });
         }
 
-        // Persistent session store — replaces localStorage for session flags/login data
+        
         if (!db.objectStoreNames.contains(SESSION_STORE)) {
           db.createObjectStore(SESSION_STORE, { keyPath: 'id' });
         }
 
-        // Cache for derived AES-KW wrapping key bytes — avoids PBKDF2 on every open
+        
         if (!db.objectStoreNames.contains(WRAPKEY_CACHE_STORE)) {
           db.createObjectStore(WRAPKEY_CACHE_STORE, { keyPath: 'id' });
         }
@@ -618,8 +618,8 @@ const IDBCrypto = (() => {
     });
   }
 
-  // ── Wrap-key cache: stores derived AES-KW key bytes in IDB so PBKDF2 only
-  // runs once (on first login). Subsequent opens use AES-KW import — ~instant.
+  
+  
   async function _getCachedWrapKeyBytes(saltHex) {
     try {
       const db = await _initDB();
@@ -642,7 +642,7 @@ const IDBCrypto = (() => {
     } catch (e) {}
   }
 
-  // ── Session IDB helpers: persistent session state stored in IDB (not localStorage)
+  
   async function _idbSessionSet(id, value) {
     try {
       const db = await _initDB();
@@ -652,8 +652,8 @@ const IDBCrypto = (() => {
         tx.oncomplete = () => res();
         tx.onerror = () => rej(tx.error);
       });
-      // Mirror critical flags to localStorage as a synchronous fast-path for
-      // _checkFirebaseSessionExists() which runs before first async tick
+      
+      
       if (id === 'active') {
         try { localStorage.setItem('_gznd_session_active', '1'); } catch(e) {}
       }
@@ -715,8 +715,8 @@ const IDBCrypto = (() => {
   async function deriveWrappingKey(wrapSalt) {
     const saltHex = Array.from(wrapSalt).map(b => b.toString(16).padStart(2, '0')).join('');
 
-    // ── Fast path: if we cached the raw AES-KW key bytes from a previous run,
-    // re-import them directly. AES-KW importKey is ~0ms vs 100k-iter PBKDF2.
+    
+    
     const cachedBytes = await _getCachedWrapKeyBytes(saltHex);
     if (cachedBytes) {
       try {
@@ -728,7 +728,7 @@ const IDBCrypto = (() => {
           ['wrapKey', 'unwrapKey']
         );
       } catch (e) {
-        // Cache corrupt — fall through to full derivation
+        
       }
     }
 
@@ -746,7 +746,7 @@ const IDBCrypto = (() => {
       ['deriveKey']
     );
 
-    // exportable:true so we can cache the raw bytes for next time
+    
     const wrapKey = await crypto.subtle.deriveKey(
       {
         name: 'PBKDF2',
@@ -756,15 +756,15 @@ const IDBCrypto = (() => {
       },
       keyMaterial,
       { name: 'AES-KW', length: 256 },
-      true,                          // exportable for caching
+      true,                          
       ['wrapKey', 'unwrapKey']
     );
 
-    // Persist raw bytes so next open skips PBKDF2 entirely
+    
     try {
       const rawBuf = await crypto.subtle.exportKey('raw', wrapKey);
       await _setCachedWrapKeyBytes(saltHex, Array.from(new Uint8Array(rawBuf)));
-      // Return a non-exportable copy for use
+      
       return await crypto.subtle.importKey(
         'raw',
         new Uint8Array(rawBuf),
@@ -813,13 +813,13 @@ const IDBCrypto = (() => {
         request.onerror = () => reject(request.error);
       });
 
-      // ── Persist key backup in IDB SESSION_STORE (primary) and keep a
-      // localStorage mirror only as a synchronous fallback for the first-tick
-      // check in _checkFirebaseSessionExists.
+      
+      
+      
       try {
         const keyBackup = { email, salt: saltHex, wrappedKey: keyHex, version: KEY_VERSION, ts: Date.now() };
         await _idbSessionSet('keyBackup', keyBackup);
-        // Minimal localStorage mirror for the sync fast-path only
+        
         localStorage.setItem('_gznd_session_key_backup', JSON.stringify(keyBackup));
         sessionStorage.setItem('_gznd_session_key_backup', JSON.stringify(keyBackup));
       } catch (e) {}
@@ -852,7 +852,7 @@ const IDBCrypto = (() => {
         const wrapSalt = new Uint8Array(stored.salt.match(/.{2}/g).map(h => parseInt(h, 16)));
         const wrappedBytes = new Uint8Array(stored.wrappedKey.match(/.{2}/g).map(h => parseInt(h, 16)));
 
-        // deriveWrappingKey now uses the wrapKeyCache — runs in ~0ms after first login
+        
         const wrapKey = await deriveWrappingKey(wrapSalt);
 
         const key = await crypto.subtle.unwrapKey(
@@ -869,7 +869,7 @@ const IDBCrypto = (() => {
         return key;
       }
 
-      // ── Secondary: IDB SESSION_STORE key backup (primary persistent store)
+      
       const idbBackup = await _idbSessionGet('keyBackup');
       if (idbBackup && idbBackup.salt && idbBackup.wrappedKey) {
         const wrapSalt = new Uint8Array(idbBackup.salt.match(/.{2}/g).map(h => parseInt(h, 16)));
@@ -880,12 +880,12 @@ const IDBCrypto = (() => {
           { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
         );
         _keyEmail = idbBackup.email;
-        // Re-persist to KEY_STORE so primary path works next open
+        
         await _persistKey(key, idbBackup.email);
         return key;
       }
 
-      // ── Tertiary: localStorage fallback (for devices that haven't re-logged in yet)
+      
       const sessionBackup = sessionStorage.getItem('_gznd_session_key_backup') || localStorage.getItem('_gznd_session_key_backup');
       if (sessionBackup) {
         const backup = JSON.parse(sessionBackup);
@@ -907,7 +907,7 @@ const IDBCrypto = (() => {
 
           _keyEmail = backup.email;
 
-          // Migrate to IDB — this will also populate wrapKeyCache for next time
+          
           await _persistKey(key, backup.email);
 
           return key;
@@ -993,8 +993,8 @@ const IDBCrypto = (() => {
       }
     },
 
-    // ── Pre-warm: called immediately when the module loads (below), so the key
-    // restore runs in the background before DOMContentLoaded needs it.
+    
+    
     preWarm() {
       if (!_preWarmPromise) {
         _preWarmPromise = _restoreKey().then(key => {
@@ -1010,16 +1010,16 @@ const IDBCrypto = (() => {
       _sessionKey = await deriveSessionKey(email, password);
       await _persistKey(_sessionKey, email);
       _keyEmail = email;
-      // Store session login info in IDB (persistent, encrypted-store-native)
+      
       await _idbSessionSet('login', {
-        uid: null, // set by caller if known
+        uid: null, 
         email,
         lastLogin: new Date().toISOString()
       });
       await _idbSessionSet('active', { value: '1', ts: Date.now() });
     },
 
-    // Expose session IDB helpers so sync.js can use them
+    
     async sessionSet(id, value) { return _idbSessionSet(id, value); },
     async sessionGet(id) { return _idbSessionGet(id); },
     async sessionDelete(id) { return _idbSessionDelete(id); },
@@ -1027,11 +1027,11 @@ const IDBCrypto = (() => {
     async restoreSessionKeyFromStorage() {
       if (_sessionKey) return true;
 
-      // If preWarm is still running, wait for it instead of spawning a second PBKDF2
+      
       if (_preWarmPromise) return _preWarmPromise;
 
-      // Deduplicate concurrent restore calls — only run PBKDF2 once even if
-      // getBatch() fires 30+ decrypt() calls before the key is ready.
+      
+      
       if (!this._restorePromise) {
         this._restorePromise = _restoreKey().then(key => {
           this._restorePromise = null;
@@ -1064,7 +1064,7 @@ const IDBCrypto = (() => {
       _keyEmail = null;
 
       _initDB().then(db => {
-        // Clear key store, entropy, and both new stores atomically
+        
         const tx = db.transaction([KEY_STORE, ENTROPY_STORE, SESSION_STORE, WRAPKEY_CACHE_STORE], 'readwrite');
         tx.objectStore(KEY_STORE).delete('primary');
         tx.objectStore(ENTROPY_STORE).delete('primary');
@@ -1181,10 +1181,10 @@ const IDBCrypto = (() => {
   };
 })();
 
-// ── Pre-warm the session key restore immediately on script load.
-// By the time DOMContentLoaded fires and calls restoreSessionKeyFromStorage(),
-// the PBKDF2 derivation will already be done (or nearly so). This is the single
-// biggest speedup for app reload time.
+
+
+
+
 IDBCrypto.preWarm();
 
 let currentActiveTab = 'prod';
@@ -1196,7 +1196,7 @@ return (isNaN(num) || !isFinite(num)) ? defaultValue : num;
 function safeToFixed(value, decimals = 2) {
 return safeNumber(value, 0).toFixed(decimals);
 }
-// Indian currency formatter: rounds to nearest integer, formats as 1,00,000
+
 function formatIndianCurrency(value) {
 const num = Math.round(safeNumber(value, 0));
 if (isNaN(num)) return '0';
@@ -1214,7 +1214,7 @@ result = restFormatted + ',' + last3;
 }
 return isNeg ? '-' + result : result;
 }
-// Format for display: Indian number format (no decimals shown)
+
 function fmtAmt(value) {
 return formatIndianCurrency(value);
 }
@@ -1481,10 +1481,10 @@ await this.init();
 const results = new Map();
 if (keys.length === 0) return results;
 
-// ── Step 1: restore session key ONCE before any decrypt (avoids N×PBKDF2)
+
 await IDBCrypto.restoreSessionKeyFromStorage();
 
-// ── Step 2: read all raw values from IDB in a single transaction
+
 const rawMap = new Map();
 await new Promise((resolve, reject) => {
 const transaction = this.db.transaction(IDB_CONFIG.store, 'readonly');
@@ -1500,7 +1500,7 @@ request.onerror = () => { rawMap.set(key, null); if (++completed === keys.length
 });
 });
 
-// ── Step 3: decrypt all values in parallel (key is already in memory — no extra PBKDF2)
+
 await Promise.all(keys.map(async key => {
 const rawData = rawMap.get(key);
 if (rawData === null || rawData === undefined) { results.set(key, null); return; }
@@ -1673,6 +1673,9 @@ paymentEntities = ensureArray(batchResults.get('payment_entities'));
 paymentTransactions = ensureArray(batchResults.get('payment_transactions'));
 expenseRecords = ensureArray(batchResults.get('expenses'));
 deletionRecordsArray = ensureArray(batchResults.get('deletion_records'));
+
+
+deletionRecords = deletionRecordsArray;
 const deletedRecordsArray = ensureArray(batchResults.get('deleted_records'));
 deletedRecordIds = new Set(deletedRecordsArray);
 const loadedFormulas = batchResults.get('factory_default_formulas');
@@ -1727,7 +1730,7 @@ window._userRoleAllowedTabs = loadedAssignedUserTabs;
 }
 const DEVICE_ID_COOKIE = 'gz_did';
 const INSTALL_TOKEN_COOKIE = 'gz_itk';
-const COOKIE_MAX_AGE = 60 * 60 * 24 * 3650; // 10 years
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 3650; 
 const _CACHE_DEVICE_KEY = 'gz_device_anchor';
 const _CACHE_STORE_NAME = 'gz-device-anchor-v1';
 
@@ -1752,9 +1755,9 @@ return 'inst_' + 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'.replace(/x/g, () =>
 (Math.random() * 16 | 0).toString(16));
 }
 
-// --- Cache Storage anchor: survives "Clear site data" in many browsers
-// because Cache Storage is keyed per-origin and often not wiped by
-// the standard browser "clear cookies & storage" action when the SW is active.
+
+
+
 async function _readCacheAnchor() {
 try {
 if (!('caches' in window)) return null;
@@ -1770,33 +1773,33 @@ try {
 if (!('caches' in window)) return;
 const cache = await caches.open(_CACHE_STORE_NAME);
 await cache.put(_CACHE_DEVICE_KEY, new Response(value));
-} catch (e) { /* Cache API not available, silently skip */ }
+} catch (e) {  }
 }
 
-// --- sessionStorage mirror: survives page reloads within the same tab session
-// (distinct from localStorage — not cleared by "Clear site data" in some PWA shells)
+
+
 function _readSession(key) {
 try { return sessionStorage.getItem(key) || null; } catch (e) { return null; }
 }
 function _writeSession(key, value) {
-try { sessionStorage.setItem(key, value); } catch (e) { /* ignore */ }
+try { sessionStorage.setItem(key, value); } catch (e) {  }
 }
 
-// --- Persist device ID to ALL layers at once
+
 async function _persistDeviceId(deviceId) {
-// 1. Cookie (10-year max-age)
+
 _writeCookie(DEVICE_ID_COOKIE, deviceId);
-// 2. localStorage
-try { localStorage.setItem('persistent_device_id', deviceId); } catch (e) { /* ignore */ }
-// 3. sessionStorage (fast same-session recovery)
+
+try { localStorage.setItem('persistent_device_id', deviceId); } catch (e) {  }
+
 _writeSession('gz_did_session', deviceId);
-// 4. IndexedDB (unencrypted — device_id is in _DEVICE_GLOBAL)
-try { await idb.set('device_id', deviceId); } catch (e) { /* ignore */ }
-// 5. Cache Storage (most resilient — survives storage clear in PWA context)
+
+try { await idb.set('device_id', deviceId); } catch (e) {  }
+
 await _writeCacheAnchor(deviceId);
 }
 
-// --- Query Firestore by hardware fingerprint to recover device ID
+
 async function _recoverDeviceIdByFingerprint() {
 if (!firebaseDB || !currentUser) return null;
 try {
@@ -1817,7 +1820,7 @@ console.warn('Fingerprint-based device ID recovery failed:', e);
 return null;
 }
 
-// --- Query Firestore by installationToken to recover device ID
+
 async function _recoverDeviceIdByToken() {
 if (!firebaseDB || !currentUser) return null;
 try {
@@ -1841,47 +1844,47 @@ return null;
 }
 
 async function getDeviceId() {
-// ── Layer 1: Cookie (fastest, usually survives unless cookies explicitly cleared)
+
 let deviceId = _readCookie(DEVICE_ID_COOKIE);
 
-// ── Layer 2: sessionStorage (same-session, even if cookie was blocked)
+
 if (!deviceId) deviceId = _readSession('gz_did_session');
 
-// ── Layer 3: localStorage
+
 if (!deviceId) {
-try { deviceId = localStorage.getItem('persistent_device_id') || null; } catch (e) { /* ignore */ }
+try { deviceId = localStorage.getItem('persistent_device_id') || null; } catch (e) {  }
 }
 
-// ── Layer 4: IndexedDB (unencrypted via _DEVICE_GLOBAL)
+
 if (!deviceId) {
-try { deviceId = await idb.get('device_id'); } catch (e) { /* ignore */ }
+try { deviceId = await idb.get('device_id'); } catch (e) {  }
 }
 
-// ── Layer 5: Cache Storage (survives "Clear site data" in PWA / SW context)
+
 if (!deviceId) deviceId = await _readCacheAnchor();
 
-// ── Layer 6: Firestore recovery by installationToken
+
 if (!deviceId) deviceId = await _recoverDeviceIdByToken();
 
-// ── Layer 7: Firestore recovery by hardware fingerprint (most resilient fallback)
-// This works even after a full device wipe of all local storage, because
-// the fingerprint (stableHash) is deterministic from hardware/OS properties.
+
+
+
 if (!deviceId) deviceId = await _recoverDeviceIdByFingerprint();
 
-// ── Layer 8: Generate a brand-new ID (true first install)
+
 if (!deviceId) deviceId = _generateUUID();
 
-// Persist to all layers so they all stay in sync
+
 await _persistDeviceId(deviceId);
 
-// Ensure install token exists (mirrors device ID persistence strategy)
+
 const existingToken = _readCookie(INSTALL_TOKEN_COOKIE) || _readSession('gz_itk_session');
 if (!existingToken) {
 const token = _generateUUID();
 _writeCookie(INSTALL_TOKEN_COOKIE, token);
 _writeSession('gz_itk_session', token);
 } else {
-// Re-write to refresh expiry and session copy
+
 _writeCookie(INSTALL_TOKEN_COOKIE, existingToken);
 _writeSession('gz_itk_session', existingToken);
 }
@@ -1889,12 +1892,12 @@ _writeSession('gz_itk_session', existingToken);
 return deviceId;
 }
 
-// Call this after successful Firestore auth to keep all layers warm
+
 async function refreshDeviceIdAnchors() {
 try {
 const deviceId = await getDeviceId();
 await _persistDeviceId(deviceId);
-} catch (e) { /* silent */ }
+} catch (e) {  }
 }
 async function getDeviceFingerprint() {
 const ua = navigator.userAgent;
@@ -2352,19 +2355,18 @@ record.updatedAt = record.createdAt;
 }
 }
 
+
+
+
+
 if (record.isRepModeEntry === true) {
-
   if (!record.salesRep || record.salesRep === 'NONE' || record.salesRep === 'ADMIN') {
-    record.isRepModeEntry = false; 
-    console.warn('[schema] Corrected contradictory record (isRepModeEntry=true, salesRep="' + record.salesRep + '") → direct sale.', record.id);
-  }
-} else {
-
-  if (record.salesRep && record.salesRep !== 'NONE' && record.salesRep !== 'ADMIN') {
-    record.isRepModeEntry = true; 
-    console.warn('[schema] Corrected contradictory record (isRepModeEntry=false, salesRep="' + record.salesRep + '") → rep sale.', record.id);
+    record.isRepModeEntry = false;
+    console.warn('[schema] Corrected: isRepModeEntry=true but salesRep is NONE → direct sale.', record.id);
   }
 }
+
+
 return record;
 }
 async function cleanupOldTombstones() {

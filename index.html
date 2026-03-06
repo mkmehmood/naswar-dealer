@@ -701,10 +701,11 @@ oninput="handleUniversalSearch('rep-cust-name', 'rep-customer-search-results', '
 <div id="rep-customer-search-results" class="hidden u-search-dropdown" ></div>
 </div>
 </div>
-<div id="rep-new-customer-phone-container" class="hidden" style="margin-top: 8px; animation: slideDown 0.3s ease;">
-<div class="field">
-<label style="color: var(--accent-emerald);">Mobile number</label>
-<input type="tel" id="rep-new-cust-phone" placeholder="03XX-XXXXXXX" style="border-color: var(--accent-emerald);">
+<div id="rep-new-customer-phone-container" class="hidden" style="margin-top:10px; animation: slideDown 0.3s ease;">
+<div class="field" style="margin:0;">
+<label style="color:var(--accent-emerald);">Mobile number</label>
+<input type="tel" id="rep-new-cust-phone" placeholder="03XX-XXXXXXX"
+style="border-color:var(--accent-emerald); width:100%; box-sizing:border-box; padding:10px; font-size:16px;">
 </div>
 </div>
 <div id="rep-sale-inputs">
@@ -766,6 +767,20 @@ No records found
 </tr>
 </tbody>
 </table>
+</div>
+<div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--glass-border);">
+<div style="display: flex; justify-content: space-between; font-size: 0.7rem;">
+<span style="color: var(--text-muted); font-weight: 400;">Total Outstanding Credit:</span>
+<span id="rep-customers-total-credit" style="color: var(--warning); font-weight: 400;">0.00</span>
+</div>
+<div style="display: flex; justify-content: space-between; font-size: 0.7rem; margin-top: 6px;">
+<span style="color: var(--text-muted); font-weight: 400;">Total Credit Sales:</span>
+<span id="rep-customers-total-credit-sales" style="color: var(--cost-val, #ef4444); font-weight: 400;">0.00</span>
+</div>
+<div style="display: flex; justify-content: space-between; font-size: 0.7rem; margin-top: 6px;">
+<span style="color: var(--text-muted); font-weight: 400;">Total Collections:</span>
+<span id="rep-customers-total-collections" style="color: var(--accent-emerald); font-weight: 400;">0.00</span>
+</div>
 </div>
 </div>
 <div id="repHistoryList" class="report-grid"></div>
@@ -931,10 +946,19 @@ Insufficient formula units available! Please reduce formula units used.
 <input type="text" id="cust-name" list="customer-list" placeholder="Search or type new..."
 oninput="handleUniversalSearch('cust-name', 'customer-search-results', 'customers'); handleCustomerInput(this.value, 'admin')" autocomplete="off">
 <div id="customer-search-results" class="hidden u-search-dropdown" ></div>
-<div id="new-customer-phone-container" class="hidden" style="margin-top: 8px; animation: slideDown 0.3s ease;">
-<div class="field">
-<label style="color: var(--accent-emerald);">Mobile number</label>
-<input type="tel" id="new-cust-phone" placeholder="03XX-XXXXXXX" style="border-color: var(--accent-emerald);">
+<div id="new-customer-phone-container" class="hidden" style="margin-top:10px; animation: slideDown 0.3s ease;">
+<div style="display:flex; gap:10px; align-items:flex-end;">
+<div class="field" style="flex:3; min-width:0; margin:0;">
+<label style="color:var(--accent-emerald);">Mobile number</label>
+<input type="tel" id="new-cust-phone" placeholder="03XX-XXXXXXX"
+style="border-color:var(--accent-emerald); width:100%; box-sizing:border-box;">
+</div>
+<div id="new-customer-price-container" class="field" style="flex:1; min-width:72px; max-width:110px; margin:0;">
+<label style="color:var(--accent);">Rs/kg</label>
+<input type="number" id="new-cust-price" placeholder="—"
+step="1" min="0" maxlength="4"
+style="border-color:var(--accent); width:100%; box-sizing:border-box; font-family:'Geist Mono',monospace; text-align:center; padding:10px 6px;">
+</div>
 </div>
 </div>
 <datalist id="customer-list"></datalist>

@@ -455,9 +455,7 @@ z-index: 9999;
 overflow: hidden;
 animation: fadeOut 0.6s ease-in-out 3s forwards;
 }
-/* ═══════════════════════════════════════════
-   CLOSE FINANCIAL YEAR — PREMIUM UI SYSTEM
-   ═══════════════════════════════════════════ */
+
 
 @keyframes cy-fade-in {
   from { opacity:0; transform:translateY(-6px) scale(0.98); }
@@ -495,7 +493,7 @@ animation: fadeOut 0.6s ease-in-out 3s forwards;
   100% { transform:scale(1) rotate(0deg); opacity:1; }
 }
 
-/* Preview row base */
+
 .cy-row {
   position: relative;
   border-radius: 12px;
@@ -526,7 +524,7 @@ animation: fadeOut 0.6s ease-in-out 3s forwards;
   animation: cy-row-activate 0.35s var(--ease-out-quart);
 }
 
-/* Row header line */
+
 .cy-row-head {
   display: flex;
   align-items: center;
@@ -554,7 +552,7 @@ animation: fadeOut 0.6s ease-in-out 3s forwards;
 }
 .cy-row.cy-skipped .cy-row-label { color: var(--text-secondary); }
 
-/* Pill tags */
+
 .cy-pill {
   font-size: 0.68rem;
   font-weight: 700;
@@ -592,7 +590,7 @@ animation: fadeOut 0.6s ease-in-out 3s forwards;
   flex-shrink: 0;
 }
 
-/* Status badge (✓ done / ⚠ warn) */
+
 .cy-status-badge {
   display: none;
   font-size: 0.6rem;
@@ -615,7 +613,7 @@ animation: fadeOut 0.6s ease-in-out 3s forwards;
   border: 1px solid rgba(255,179,0,0.28);
 }
 
-/* Detail chips row */
+
 .cy-chips {
   margin-top: 5px;
   padding-left: 37px;
@@ -635,7 +633,7 @@ animation: fadeOut 0.6s ease-in-out 3s forwards;
   margin-right: 12px;
 }
 
-/* Result card (appears after each row completes) */
+
 .cy-result-card {
   display: none;
   margin-top: 7px;
@@ -669,7 +667,7 @@ animation: fadeOut 0.6s ease-in-out 3s forwards;
   line-height: 1.45;
 }
 
-/* Progress bar */
+
 .cy-progress-track {
   width: 100%;
   height: 5px;
@@ -691,9 +689,9 @@ animation: fadeOut 0.6s ease-in-out 3s forwards;
   background: linear-gradient(90deg, var(--accent-emerald), var(--accent));
 }
 
-/* Completion card */
 
-/* ── Close Year: Execution Summary Card ─────────────────────────────── */
+
+
 .cy-complete-card {
   margin: 0 0 4px;
   border-radius: var(--radius-base);
@@ -717,7 +715,7 @@ animation: fadeOut 0.6s ease-in-out 3s forwards;
   );
   opacity: 0.7;
 }
-/* Header row: icon + text side-by-side (like section-header in the app) */
+
 .cy-complete-header {
   display: flex;
   align-items: center;
@@ -760,7 +758,7 @@ animation: fadeOut 0.6s ease-in-out 3s forwards;
   letter-spacing: 0.01em;
 }
 
-/* Stat grid — pill-style chips like the app's overview cards */
+
 .cy-stat-grid {
   display: flex;
   gap: 8px;
@@ -795,7 +793,7 @@ animation: fadeOut 0.6s ease-in-out 3s forwards;
   font-weight: 600;
 }
 
-/* Sync warning — matches the app's advisory/info banners */
+
 .cy-sync-warn {
   display: flex;
   align-items: flex-start;
@@ -816,7 +814,7 @@ animation: fadeOut 0.6s ease-in-out 3s forwards;
   line-height: 1.5;
 }
 
-/* Continue button — matches .btn.btn-main style */
+
 .cy-continue-btn {
   display: block;
   width: calc(100% - 28px);
@@ -4249,7 +4247,7 @@ animation: backdropFadeIn 0.2s ease forwards;
 .modal-backdrop-exit {
 animation: backdropFadeOut 0.15s ease forwards;
 }
-/* ── Toast Container ─────────────────────────────────────────────────────── */
+
 .toast-container {
 position: fixed;
 top: calc(env(safe-area-inset-top, 0px) + 6px);
@@ -4266,7 +4264,7 @@ max-width: calc(100vw - 24px);
 isolation: isolate;
 }
 
-/* ── Toast keyframes ─────────────────────────────────────────────────────── */
+
 @keyframes toastSlideDown {
 0%   { opacity: 0; transform: translateY(-22px) scale(0.88); filter: blur(3px); }
 55%  { opacity: 1; transform: translateY(4px)   scale(1.02); filter: blur(0);   }
@@ -4290,7 +4288,7 @@ to   { transform: scaleX(0); }
 100% { background-position:  200% center; }
 }
 
-/* ── Toast capsule ───────────────────────────────────────────────────────── */
+
 .liquid-toast {
 position: relative;
 display: inline-flex;
@@ -4302,7 +4300,7 @@ max-width: 340px;
 min-width: 180px;
 cursor: pointer;
 overflow: hidden;
-/* Layered dark glass pill */
+
 background:
   linear-gradient(135deg, rgba(255,255,255,0.055) 0%, rgba(255,255,255,0) 60%),
   rgba(18, 20, 26, 0.94);
@@ -4312,10 +4310,10 @@ box-shadow:
   0 0  0 1px rgba(0,0,0,0.35),
   0 8px 32px rgba(0,0,0,0.50),
   0 2px  8px rgba(0,0,0,0.30);
-/* Top-edge highlight line */
+
 outline: 0.5px solid rgba(255,255,255,0.06);
 }
-/* Accent glow line at very top of capsule */
+
 .liquid-toast::after {
 content: '';
 position: absolute;
@@ -4337,7 +4335,7 @@ animation: toastSlideDown 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards !importa
 animation: toastSlideUp 0.24s cubic-bezier(0.4, 0, 1, 1) forwards !important;
 }
 
-/* ── Inner layout ────────────────────────────────────────────────────────── */
+
 .toast-inner {
 display: flex;
 align-items: center;
@@ -4350,7 +4348,7 @@ background: transparent;
 .toast-inner::before, .toast-inner::after { display: none !important; }
 .liquid-toast::before { display: none !important; }
 
-/* ── Icon bubble ─────────────────────────────────────────────────────────── */
+
 .toast-icon-wrap {
 width: 26px;
 height: 26px;
@@ -4372,7 +4370,7 @@ z-index: 1;
 line-height: 1;
 }
 
-/* ── Label ───────────────────────────────────────────────────────────────── */
+
 .toast-text {
 flex: 1;
 font-size: 0.75rem;
@@ -4387,7 +4385,7 @@ letter-spacing: 0.012em;
 -webkit-font-smoothing: antialiased;
 }
 
-/* ── Progress bar ────────────────────────────────────────────────────────── */
+
 .toast-progress-bar {
 position: absolute;
 bottom: 0; left: 0;
@@ -4401,7 +4399,7 @@ opacity: 0.50;
 animation: toastProgressShrink linear forwards !important;
 }
 
-/* ── Variant colours ─────────────────────────────────────────────────────── */
+
 .liquid-toast.toast-success {
 border-color: rgba(29,233,182,0.20);
 box-shadow:
@@ -4474,7 +4472,7 @@ box-shadow: 0 0 0 1px rgba(100,181,246,0.25) inset, 0 0 8px rgba(100,181,246,0.1
 }
 .liquid-toast.toast-info .toast-progress-bar { background: linear-gradient(90deg, #64b5f6, #1565c0); }
 
-/* ── Light theme ─────────────────────────────────────────────────────────── */
+
 [data-theme="light"] .liquid-toast {
 background:
   linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(248,250,252,0.96) 100%);
@@ -4496,7 +4494,7 @@ box-shadow:
 [data-theme="light"] .liquid-toast.toast-info { border-color: rgba(21,101,192,0.20); }
 [data-theme="light"] .liquid-toast.toast-info .toast-icon-wrap { background: rgba(21,101,192,0.10); color: #1565c0; box-shadow: 0 0 0 1px rgba(21,101,192,0.18) inset; }
 
-/* ── Mobile ──────────────────────────────────────────────────────────────── */
+
 @media (max-width: 768px) {
 .toast-container { top: calc(env(safe-area-inset-top, 0px) + 4px); }
 .liquid-toast { max-width: calc(100vw - 28px); min-width: 150px; }
@@ -4525,7 +4523,7 @@ to   { opacity:0; transform: scale(0.93) translateY(12px); filter: blur(4px); }
 100% { transform: scale(1)   rotate(0);      opacity: 1; }
 }
 
-/* ── Backdrop ────────────────────────────────────────────────────────────── */
+
 .glass-confirm-backdrop {
 position: fixed;
 inset: 0;
@@ -4543,7 +4541,7 @@ animation: confirmBackdropIn 0.20s ease !important;
 animation: confirmBackdropOut 0.18s ease forwards !important;
 }
 
-/* ── Dialog box ──────────────────────────────────────────────────────────── */
+
 .glass-confirm-box {
 background:
   linear-gradient(160deg, rgba(255,255,255,0.045) 0%, rgba(255,255,255,0) 50%),
@@ -4564,7 +4562,7 @@ animation: confirmBoxIn 0.26s cubic-bezier(0.22,1,0.36,1) forwards !important;
 position: relative;
 overflow: hidden;
 }
-/* Subtle top-edge glow line */
+
 .glass-confirm-box::after {
 content: '';
 position: absolute;
@@ -4590,7 +4588,7 @@ background: linear-gradient(90deg, transparent, rgba(255,77,114,0.28), transpare
 }
 .glass-confirm-box::before { display: none !important; }
 
-/* ── Icon ────────────────────────────────────────────────────────────────── */
+
 .glass-confirm-icon {
 width: 48px;
 height: 48px;
@@ -4615,7 +4613,7 @@ color: #64b5f6;
 box-shadow: 0 0 0 1px rgba(100,181,246,0.28) inset, 0 4px 16px rgba(100,181,246,0.14);
 }
 
-/* ── Title ───────────────────────────────────────────────────────────────── */
+
 .glass-confirm-title {
 font-family: 'Bricolage Grotesque', system-ui, sans-serif;
 font-size: 1.08rem;
@@ -4628,7 +4626,7 @@ position: relative;
 z-index: 1;
 }
 
-/* ── Message ─────────────────────────────────────────────────────────────── */
+
 .glass-confirm-msg {
 font-family: 'Geist', 'SF Pro Text', system-ui, sans-serif;
 font-size: 0.84rem;
@@ -4641,7 +4639,7 @@ z-index: 1;
 -webkit-font-smoothing: antialiased;
 }
 
-/* ── Divider ─────────────────────────────────────────────────────────────── */
+
 .glass-confirm-divider {
 height: 1px;
 background: linear-gradient(90deg, transparent, rgba(255,255,255,0.10), transparent);
@@ -4650,7 +4648,7 @@ position: relative;
 z-index: 1;
 }
 
-/* ── Button row ──────────────────────────────────────────────────────────── */
+
 .glass-confirm-btns {
 display: flex;
 gap: 10px;
@@ -4659,7 +4657,7 @@ position: relative;
 z-index: 1;
 }
 
-/* ── Buttons ─────────────────────────────────────────────────────────────── */
+
 .glass-confirm-btn {
 font-family: 'Geist', 'SF Pro Text', system-ui, sans-serif;
 font-size: 0.84rem;
@@ -4721,7 +4719,7 @@ transform: translateY(-1px);
 box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 6px 18px rgba(239,68,68,0.38);
 }
 
-/* ── Light theme ─────────────────────────────────────────────────────────── */
+
 [data-theme="light"] .glass-confirm-backdrop { background: rgba(0,0,0,0.42); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
 [data-theme="light"] .glass-confirm-box {
 background: linear-gradient(160deg, rgba(255,255,255,1) 0%, rgba(248,250,252,0.99) 100%);
@@ -5637,7 +5635,7 @@ thead { background: var(--glass-raised) !important; background-image: none !impo
 [data-theme="light"] #cy-panel::after {
   background: linear-gradient(90deg, transparent, rgba(0,0,0,0.08), transparent);
 }
-/* ─── Header ─── */
+
 #cy-header {
   padding: 20px 22px 15px;
   display: flex;
@@ -5662,7 +5660,7 @@ thead { background: var(--glass-raised) !important; background-image: none !impo
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 0 0 1px rgba(239,83,80,0.12) inset, 0 4px 14px rgba(239,83,80,0.14);
 }
-/* ─── Data rows ─── */
+
 .cy-data-row {
   display: flex;
   align-items: stretch;
@@ -5752,7 +5750,7 @@ thead { background: var(--glass-raised) !important; background-image: none !impo
 .cy-result-lbl    { font-size: 0.73rem; font-weight: 700; }
 .cy-result-tag    { font-size: 0.62rem; color: var(--text-muted); font-family: 'Geist Mono', monospace; }
 .cy-result-note   { font-size: 0.67rem; color: var(--text-muted); margin-top: 3px; line-height: 1.45; }
-/* ─── Progress ─── */
+
 #cy-progress-inner {
   margin: 14px 22px 0;
   padding: 13px 15px;
@@ -5782,7 +5780,7 @@ thead { background: var(--glass-raised) !important; background-image: none !impo
   background-size: 200% 100%;
   animation: _cyShimmer 1.8s linear infinite;
 }
-/* ─── Password section ─── */
+
 #cy-input-wrap { padding: 14px 22px 20px; }
 #cy-danger-notice {
   display: flex; align-items: flex-start; gap: 12px;
@@ -5876,7 +5874,7 @@ thead { background: var(--glass-raised) !important; background-image: none !impo
   border-color: rgba(255,255,255,0.18);
   color: var(--text-main);
 }
-/* ─── Completion card ─── */
+
 #close-year-complete { display:none; padding: 0 16px 20px; }
 #cy-done-card {
   position: relative; overflow: hidden;
@@ -5939,7 +5937,7 @@ thead { background: var(--glass-raised) !important; background-image: none !impo
   box-shadow: 0 1px 0 rgba(255,255,255,0.20) inset, 0 7px 22px rgba(105,240,174,0.32);
 }
 #cy-continue-btn:active { transform: translateY(0); }
-/* ── SETTLED badge & state ─────────────────────────────────────────────── */
+
 .settled-badge {
   display: inline-flex;
   align-items: center;
@@ -5961,19 +5959,19 @@ thead { background: var(--glass-raised) !important; background-image: none !impo
   border-color: rgba(16, 185, 129, 0.25);
 }
 
-/* Cards / rows that are settled: slightly dimmed, no hover lift */
+
 .is-settled-record {
   opacity: 0.72;
 }
 .is-settled-record:hover {
   transform: none !important;
 }
-/* Settled records push to the bottom of lists */
+
 .is-settled-record {
   order: 999;
 }
 
-/* Archive badge for entities */
+
 .archived-badge {
   display: inline-flex;
   align-items: center;

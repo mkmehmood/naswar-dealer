@@ -1,3 +1,13 @@
+
+function isRepSale(item) {
+  if (!item) return false;
+  return item.isRepModeEntry === true;
+}
+function isDirectSale(item) {
+  return !isRepSale(item);
+}
+
+
 async function toggleDarkMode() {
 const html = document.documentElement;
 const themeToggle = document.getElementById('themeToggle');
@@ -433,7 +443,7 @@ return result;
 window.addEventListener('online', async () => {
 updateOfflineBanner();
 if (typeof firebaseDB !== 'undefined' && firebaseDB) {
-// Retry enableNetwork up to 3 times with back-off for flaky connections
+
 let retries = 0;
 const tryEnable = async () => {
 try {
@@ -480,7 +490,7 @@ isSyncing = false;
 showToast('Offline — changes will be saved locally', 'warning', 4000);
 });
 
-// Re-sync when the tab becomes visible after being backgrounded (mobile resume, tab switch)
+
 document.addEventListener('visibilitychange', async () => {
 if (document.visibilityState !== 'visible') return;
 if (!navigator.onLine) return;
@@ -489,15 +499,15 @@ if (window._firestoreNetworkDisabled) {
 try {
 await firebaseDB.enableNetwork();
 window._firestoreNetworkDisabled = false;
-} catch(e) { /* ignore */ }
+} catch(e) {  }
 }
 setTimeout(() => {
 if (typeof triggerAutoSync === 'function') triggerAutoSync();
 }, 1500);
 });
 
-// Periodic connectivity probe: if browser says online but Firestore is disabled
-// (e.g. after a flaky reconnect) re-enable Firestore every 30 s
+
+
 setInterval(async () => {
 if (!navigator.onLine) return;
 if (typeof firebaseDB === 'undefined' || !firebaseDB) return;
@@ -507,7 +517,7 @@ await firebaseDB.enableNetwork();
 window._firestoreNetworkDisabled = false;
 if (typeof updateOfflineBanner === 'function') updateOfflineBanner();
 if (typeof triggerAutoSync === 'function') triggerAutoSync();
-} catch(e) { /* still offline at Firestore level */ }
+} catch(e) {  }
 }, 30000);
 
 function notifyDataChange(dataType) {
@@ -548,8 +558,27 @@ factoryProductionHistory = ensureArray(results.get('factory_production_history')
 paymentEntities = ensureArray(results.get('payment_entities'));
 paymentTransactions = ensureArray(results.get('payment_transactions'));
 deletionRecordsArray = ensureArray(results.get('deletion_records'));
+
+deletionRecords = deletionRecordsArray;
 const deletedArr = ensureArray(results.get('deleted_records'));
 deletedRecordIds = new Set(deletedArr);
+
+
+if (deletedRecordIds.size > 0) {
+const _notDeleted = r => r && !deletedRecordIds.has(r.id);
+db = db.filter(_notDeleted);
+salesHistory = salesHistory.filter(_notDeleted);
+customerSales = customerSales.filter(_notDeleted);
+repSales = repSales.filter(_notDeleted);
+repCustomers = repCustomers.filter(_notDeleted);
+salesCustomers = salesCustomers.filter(_notDeleted);
+stockReturns = stockReturns.filter(_notDeleted);
+expenseRecords = expenseRecords.filter(_notDeleted);
+factoryInventoryData = factoryInventoryData.filter(_notDeleted);
+factoryProductionHistory = factoryProductionHistory.filter(_notDeleted);
+paymentEntities = paymentEntities.filter(_notDeleted);
+paymentTransactions = paymentTransactions.filter(_notDeleted);
+}
 const freshFormulas = results.get('factory_default_formulas');
 if (freshFormulas && typeof freshFormulas === 'object') factoryDefaultFormulas = freshFormulas;
 const freshCosts = results.get('factory_additional_costs');
@@ -568,14 +597,14 @@ if (Array.isArray(freshCats)) expenseCategories = freshCats;
 console.error('Failed to load expense categories.', e);
 showToast('Failed to load expense categories.', 'error');
 }
-// Backfill: ensure every customer that appears in customerSales is in the salesCustomers registry,
-// and every customer in repSales is in the repCustomers registry.
-// This makes customers survive transaction deletions even for data that existed before this fix.
+
+
+
 try {
 let _bfSalesChanged = false;
 const _bfSalesMap = new Map((Array.isArray(salesCustomers) ? salesCustomers : []).map(c => [c.name.toLowerCase(), c]));
 (Array.isArray(customerSales) ? customerSales : []).forEach(s => {
-const _bfName = s && (s.salesRep && s.salesRep !== 'NONE' && s.salesRep !== 'ADMIN' ? s.salesRep : s.customerName);
+const _bfName = s && s.customerName;
 if (_bfName && _bfName.trim() && !_bfSalesMap.has(_bfName.toLowerCase())) {
 const _bfC = { id: generateUUID(), name: _bfName, phone: s.customerPhone || '', address: '', oldDebit: 0, createdAt: getTimestamp(), updatedAt: getTimestamp(), timestamp: getTimestamp() };
 _bfSalesMap.set(_bfName.toLowerCase(), _bfC);
@@ -645,11 +674,23 @@ if (typeof syncProductionTab === 'function' && !_tabSyncInProgress['production']
 _tabSyncInProgress['production'] = true;
 syncProductionTab().finally(() => { _tabSyncInProgress['production'] = false; });
 }
+if (typeof syncSalesTab === 'function' && !_tabSyncInProgress['sales']) {
+_tabSyncInProgress['sales'] = true;
+syncSalesTab().finally(() => { _tabSyncInProgress['sales'] = false; });
+}
 break;
 case 'sales':
 if (typeof syncSalesTab === 'function' && !_tabSyncInProgress['sales']) {
 _tabSyncInProgress['sales'] = true;
 syncSalesTab().finally(() => { _tabSyncInProgress['sales'] = false; });
+}
+if (typeof syncProductionTab === 'function' && !_tabSyncInProgress['production']) {
+_tabSyncInProgress['production'] = true;
+syncProductionTab().finally(() => { _tabSyncInProgress['production'] = false; });
+}
+if (typeof syncCalculatorTab === 'function' && !_tabSyncInProgress['calculator']) {
+_tabSyncInProgress['calculator'] = true;
+syncCalculatorTab().finally(() => { _tabSyncInProgress['calculator'] = false; });
 }
 break;
 case 'calculator':
@@ -798,14 +839,16 @@ const keys = ['factory_inventory_data', 'factory_production_history',
 const dataMap = await idb.getBatch(keys);
 const freshInv = dataMap.get('factory_inventory_data');
 if (Array.isArray(freshInv)) {
-const map = new Map(freshInv.map(r => [r.id, r]));
-(factoryInventoryData || []).forEach(r => { if (!map.has(r.id)) map.set(r.id, r); });
+
+const map = new Map((factoryInventoryData || []).filter(r => r && r.id).map(r => [r.id, r]));
+freshInv.forEach(r => { if (!map.has(r.id)) map.set(r.id, r); });
 factoryInventoryData = Array.from(map.values()).filter(r => !deletedRecordIds.has(r.id));
 }
 const freshHist = dataMap.get('factory_production_history');
 if (Array.isArray(freshHist)) {
-const map = new Map(freshHist.map(r => [r.id, r]));
-(factoryProductionHistory || []).forEach(r => { if (!map.has(r.id)) map.set(r.id, r); });
+
+const map = new Map((factoryProductionHistory || []).filter(r => r && r.id).map(r => [r.id, r]));
+freshHist.forEach(r => { if (!map.has(r.id)) map.set(r.id, r); });
 factoryProductionHistory = Array.from(map.values()).filter(r => !deletedRecordIds.has(r.id));
 }
 const freshFormulas = dataMap.get('factory_default_formulas');
@@ -834,20 +877,23 @@ await idb.init();
 const dataMap = await idb.getBatch(['expenses', 'payment_entities', 'payment_transactions']);
 const freshExp = dataMap.get('expenses');
 if (Array.isArray(freshExp)) {
-const map = new Map(freshExp.map(r => [r.id, r]));
-(expenseRecords || []).forEach(r => { if (!map.has(r.id)) map.set(r.id, r); });
+
+const map = new Map((expenseRecords || []).filter(r => r && r.id).map(r => [r.id, r]));
+freshExp.forEach(r => { if (!map.has(r.id)) map.set(r.id, r); });
 expenseRecords = Array.from(map.values()).filter(r => !deletedRecordIds.has(r.id));
 }
 const freshEnt = dataMap.get('payment_entities');
 if (Array.isArray(freshEnt)) {
-const map = new Map(freshEnt.map(r => [r.id, r]));
-(paymentEntities || []).forEach(r => { if (!map.has(r.id)) map.set(r.id, r); });
+
+const map = new Map((paymentEntities || []).filter(r => r && r.id).map(r => [r.id, r]));
+freshEnt.forEach(r => { if (!map.has(r.id)) map.set(r.id, r); });
 paymentEntities = Array.from(map.values()).filter(r => !deletedRecordIds.has(r.id));
 }
 const freshTx = dataMap.get('payment_transactions');
 if (Array.isArray(freshTx)) {
-const map = new Map(freshTx.map(r => [r.id, r]));
-(paymentTransactions || []).forEach(r => { if (!map.has(r.id)) map.set(r.id, r); });
+
+const map = new Map((paymentTransactions || []).filter(r => r && r.id).map(r => [r.id, r]));
+freshTx.forEach(r => { if (!map.has(r.id)) map.set(r.id, r); });
 paymentTransactions = Array.from(map.values()).filter(r => !deletedRecordIds.has(r.id));
 }
 if (typeof refreshPaymentTab === 'function') refreshPaymentTab();
@@ -861,7 +907,7 @@ if (typeof refreshPaymentTab === 'function') setTimeout(refreshPaymentTab, 500);
 async function syncProductionTab() {
 try {
 await idb.init();
-const dataMap = await idb.getBatch(['mfg_pro_pkr', 'naswar_default_settings', 'stock_returns']);
+const dataMap = await idb.getBatch(['mfg_pro_pkr', 'naswar_default_settings', 'stock_returns', 'customer_sales']);
 const freshProd = dataMap.get('mfg_pro_pkr');
 if (Array.isArray(freshProd) && freshProd.length > 0) {
 let fixed = 0;
@@ -878,22 +924,27 @@ if (fixed > 0) {
 await idb.set('mfg_pro_pkr', validated);
 }
 validated.sort((a, b) => compareTimestamps(getRecordTimestamp(b), getRecordTimestamp(a)));
-const map = new Map(validated.map(r => [r.id, r]));
-(db || []).forEach(r => { if (!map.has(r.id)) map.set(r.id, r); });
+
+const map = new Map((db || []).filter(r => r && r.id).map(r => [r.id, r]));
+validated.forEach(r => { if (!map.has(r.id)) map.set(r.id, r); });
 db = Array.from(map.values()).filter(r => !deletedRecordIds.has(r.id));
 }
 const freshSettings = dataMap.get('naswar_default_settings');
 if (freshSettings && typeof freshSettings === 'object') defaultSettings = freshSettings;
 const freshReturns = dataMap.get('stock_returns');
 if (Array.isArray(freshReturns)) {
-const map = new Map(freshReturns.map(r => [r.id, r]));
-(stockReturns || []).forEach(r => { if (!map.has(r.id)) map.set(r.id, r); });
+const map = new Map((stockReturns || []).filter(r => r && r.id).map(r => [r.id, r]));
+freshReturns.forEach(r => { if (!map.has(r.id)) map.set(r.id, r); });
 stockReturns = Array.from(map.values()).filter(r => !deletedRecordIds.has(r.id));
+}
+const freshSalesForProd = dataMap.get('customer_sales');
+if (Array.isArray(freshSalesForProd)) {
+const map = new Map((customerSales || []).filter(r => r && r.id).map(r => [r.id, r]));
+freshSalesForProd.forEach(r => { if (!map.has(r.id)) map.set(r.id, r); });
+customerSales = Array.from(map.values()).filter(r => !deletedRecordIds.has(r.id));
 }
 if (typeof refreshUI === 'function') refreshUI();
 if (typeof updateMfgCharts === 'function') updateMfgCharts();
-// Keep the sales tab inventory display in sync: re-evaluate available stock
-// so the data-entry form reflects newly saved production immediately
 if (typeof calculateCustomerSale === 'function') calculateCustomerSale();
 } catch (error) {
 console.error('UI refresh failed.', error);
@@ -904,14 +955,28 @@ if (typeof refreshUI === 'function') setTimeout(refreshUI, 500);
 async function syncSalesTab() {
 try {
 await idb.init();
-const freshSales = await idb.get('customer_sales', []);
+const salesDataMap = await idb.getBatch(['customer_sales', 'mfg_pro_pkr', 'stock_returns']);
+const freshSales = salesDataMap.get('customer_sales');
 if (Array.isArray(freshSales)) {
 const validated = freshSales.map(r => ensureRecordIntegrity(r, false, true));
 validated.sort((a, b) => compareTimestamps(getRecordTimestamp(b), getRecordTimestamp(a)));
-const map = new Map(validated.map(r => [r.id, r]));
-(customerSales || []).forEach(r => { if (!map.has(r.id)) map.set(r.id, r); });
+const map = new Map((customerSales || []).filter(r => r && r.id).map(r => [r.id, r]));
+validated.forEach(r => { if (!map.has(r.id)) map.set(r.id, r); });
 customerSales = Array.from(map.values()).filter(r => !deletedRecordIds.has(r.id));
 }
+const freshProdForSales = salesDataMap.get('mfg_pro_pkr');
+if (Array.isArray(freshProdForSales) && freshProdForSales.length > 0) {
+const map = new Map((db || []).filter(r => r && r.id).map(r => [r.id, r]));
+freshProdForSales.forEach(r => { if (!map.has(r.id)) map.set(r.id, r); });
+db = Array.from(map.values()).filter(r => !deletedRecordIds.has(r.id));
+}
+const freshReturnsForSales = salesDataMap.get('stock_returns');
+if (Array.isArray(freshReturnsForSales)) {
+const map = new Map((stockReturns || []).filter(r => r && r.id).map(r => [r.id, r]));
+freshReturnsForSales.forEach(r => { if (!map.has(r.id)) map.set(r.id, r); });
+stockReturns = Array.from(map.values()).filter(r => !deletedRecordIds.has(r.id));
+}
+if (typeof calculateCustomerSale === 'function') calculateCustomerSale();
 if (typeof refreshCustomerSales === 'function') refreshCustomerSales();
 } catch (error) {
 console.error('Customer data operation failed.', error);
@@ -945,8 +1010,9 @@ if (fixed > 0) {
 await idb.set('rep_sales', validated);
 }
 validated.sort((a, b) => compareTimestamps(getRecordTimestamp(b), getRecordTimestamp(a)));
-const map = new Map(validated.map(r => [r.id, r]));
-(repSales || []).forEach(r => { if (!map.has(r.id)) map.set(r.id, r); });
+
+const map = new Map((repSales || []).filter(r => r && r.id).map(r => [r.id, r]));
+validated.forEach(r => { if (!map.has(r.id)) map.set(r.id, r); });
 repSales = Array.from(map.values()).filter(r => !deletedRecordIds.has(r.id));
 }
 const freshRepCustomers = dataMap.get('rep_customers');
@@ -1077,15 +1143,11 @@ syncState.pendingUpdates.add('all');
 processSync();
 };
 triggerAutoSync();
-const originalShowTab = window.showTab;
-if (typeof originalShowTab === 'function') {
-window.showTab = function(tab) {
-originalShowTab(tab);
+window._notifyOnTabChange = function(tab) {
 setTimeout(() => {
 if (typeof notifyDataChange === 'function') notifyDataChange(tab);
 }, 150);
 };
-}
 window.addEventListener('beforeunload', function() {
 if (typeof stopPeriodicSync === 'function') stopPeriodicSync();
 });
@@ -1709,7 +1771,7 @@ paymentEntities[entityIdx].updatedAt = getTimestamp();
 await saveWithTracking('payment_entities', paymentEntities);
 await saveRecordToFirestore('payment_entities', paymentEntities[entityIdx]);
 }
-// Mark all associated transactions as settled
+
 for (const trans of _entityTxs) {
 if (!trans.isSettled) {
 trans.isSettled = true;
@@ -2171,8 +2233,7 @@ if (!window.jspdf || !window.jspdf.jsPDF) throw new Error("Failed to load PDF li
 let transactions = customerSales.filter(s =>
 s &&
 s.customerName === customerName &&
-s.isRepModeEntry !== true &&
-(!s.salesRep || s.salesRep === 'NONE' || s.salesRep === 'ADMIN' || s.transactionType === 'OLD_DEBT')
+s.isRepModeEntry !== true
 );
 const now = new Date();
 const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -2231,12 +2292,11 @@ doc.setDrawColor(...hdrColor); doc.setLineWidth(0.5);
 doc.line(14, yPos, pageW - 14, yPos);
 yPos += 5;
 if (transactions.length > 0) {
-// Use stored unitPrice (set at save/merge time) or fixed getSalePriceForStore —
-// never divide totalValue/quantity which gives a weighted average that changes
-// after partial payments and differs from the canonical factory setting.
+
+
 const getSalePrice = (t) => {
   if (t.unitPrice && t.unitPrice > 0) return t.unitPrice;
-  return getSalePriceForStore(t.supplyStore || 'STORE_A');
+  return getEffectiveSalePriceForCustomer(t.customerName, t.supplyStore || 'STORE_A');
 };
 const buildSaleRow = (t, runBal) => {
   const pt = t.paymentType || 'CASH';
@@ -2248,19 +2308,19 @@ const buildSaleRow = (t, runBal) => {
     typeLabel = 'OLD DEBT';
     detailLabel = t.notes || 'Brought forward from previous records';
   } else if (pt === 'CASH') {
-    const val = t.totalValue || (t.quantity || 0) * getSalePrice(t);
+    const val = getSaleTransactionValue(t);
     debit = val; credit = val;
     typeLabel = 'CASH';
     detailLabel = `${fmtAmt(t.quantity||0)} kg \xd7 Rs ${fmtAmt(getSalePrice(t))}\n${t.supplyStore?getStoreLabel(t.supplyStore):''}`;
   } else if (pt === 'CREDIT' && !t.creditReceived) {
-    const val = t.totalValue || (t.quantity || 0) * getSalePrice(t);
+    const val = getSaleTransactionValue(t);
     const partial = parseFloat(t.partialPaymentReceived) || 0;
     debit = val; credit = partial;
     typeLabel = partial > 0 ? 'CREDIT\n(PARTIAL)' : 'CREDIT';
     detailLabel = `${fmtAmt(t.quantity||0)} kg \xd7 Rs ${fmtAmt(getSalePrice(t))}`;
     if (partial > 0) detailLabel += `\nPaid: Rs ${fmtAmt(partial)} | Due: Rs ${fmtAmt(val-partial)}`;
   } else if (pt === 'CREDIT' && t.creditReceived) {
-    const val = t.totalValue || (t.quantity || 0) * getSalePrice(t);
+    const val = getSaleTransactionValue(t);
     debit = val; credit = val;
     typeLabel = 'CREDIT\n(PAID)';
     detailLabel = `${fmtAmt(t.quantity||0)} kg \xd7 Rs ${fmtAmt(getSalePrice(t))}`;
@@ -2439,29 +2499,29 @@ showToast("Error generating PDF: " + error.message, "error");
 }
 }
 
-// SRI hashes only for self-hosted / pinned builds where the hash is known-good.
-// Chart.js is loaded WITHOUT an integrity hash — CDN-served JS can vary between
-// patch builds even at the same semver URL, making SRI hashes unreliable on CDNs.
+
+
+
 const SCRIPT_INTEGRITY = {
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js':
     'sha256-4C8gBRoAE0XFxW0C7SsQ+X/TBkHSFM3YMwVaF4F8hk=',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js':
     'sha256-0ZQJSA5vPBL+6L5uyIjovZ/m7VBpAOUGc7BHOH/RBHE='
-  // Chart.js intentionally omitted — no SRI, loaded by URL only
+  
 };
 
-// Track in-flight script loads to prevent duplicate injection
+
 const _scriptLoadPromises = {};
 
 function loadScript(url, integrity) {
-  // If already resolved (script tag present and presumably executed)
+  
   const existing = document.querySelector('script[src="' + url + '"]');
   if (existing && !existing.dataset.failed) {
-    // If it's already in the DOM and not marked failed, wait for it or resolve
+    
     if (_scriptLoadPromises[url]) return _scriptLoadPromises[url];
     return Promise.resolve();
   }
-  // If there's already an in-flight promise for this URL, reuse it
+  
   if (_scriptLoadPromises[url]) return _scriptLoadPromises[url];
 
   _scriptLoadPromises[url] = new Promise((resolve, reject) => {
@@ -2477,12 +2537,12 @@ function loadScript(url, integrity) {
       resolve();
     };
     script.onerror = () => {
-      // Mark failed and remove so a clean retry can be attempted
+      
       script.dataset.failed = '1';
       document.head.removeChild(script);
       delete _scriptLoadPromises[url];
       if (sri) {
-        // SRI mismatch — retry once without the integrity attribute
+        
         const fallback = document.createElement('script');
         fallback.src = url;
         fallback.crossOrigin = 'anonymous';
@@ -2499,7 +2559,7 @@ function loadScript(url, integrity) {
   return _scriptLoadPromises[url];
 }
 
-// Chart.js CDN URLs in priority order — first reachable one wins
+
 const _CHARTJS_URLS = [
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js',
@@ -2510,17 +2570,17 @@ let _chartJsPromise = null;
 function loadChartJs() {
   if (window.Chart) return Promise.resolve();
   if (_chartJsPromise) return _chartJsPromise;
-  // Try each CDN URL in sequence — no SRI on any of them
+  
   _chartJsPromise = (async () => {
     for (const url of _CHARTJS_URLS) {
       try {
         await loadScript(url);
-        if (window.Chart) return; // success
+        if (window.Chart) return; 
       } catch (e) {
         console.warn('Chart.js CDN failed, trying next:', url, e.message);
       }
     }
-    // All CDNs failed
+    
     _chartJsPromise = null;
     throw new Error('Chart.js could not be loaded from any CDN.');
   })();
@@ -2575,7 +2635,7 @@ paymentsIn: 0,
 paymentsOut: 0,
 expenses: 0
 };
-// Production Value = gross value of all manufactured goods in this period (not netted against sales)
+
 db.forEach(item => {
 if (item.isReturn) return; 
 const itemDate = new Date(item.date);
@@ -2584,7 +2644,7 @@ rawData.totalProductionValue += item.totalSale || 0;
 rawData.totalProductionQuantity += item.net || 0;
 }
 });
-// Sales tab cash/credit streams (separate from production)
+
 customerSales.forEach(sale => {
 const saleDate = new Date(sale.date);
 if (saleDate >= startDate && saleDate <= endDate) {
@@ -2596,15 +2656,15 @@ rawData.salesCredits += (ms.unpaidCredit || 0);
 } else if (sale.paymentType === 'CASH' || sale.creditReceived) {
 rawData.salesCash += sale.totalValue || 0;
 } else if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
-// Net of any partial payment already received against this credit sale
+
 const partialPaid = sale.partialPaymentReceived || 0;
 rawData.salesCredits += Math.max(0, (sale.totalValue || 0) - partialPaid);
 } else if (sale.paymentType === 'COLLECTION') {
-// Bulk collection received — reduces outstanding receivables
+
 rawData.salesCash += sale.totalValue || 0;
 rawData.salesCredits -= sale.totalValue || 0;
 } else if (sale.paymentType === 'PARTIAL_PAYMENT') {
-// Standalone partial payment — reduces outstanding receivables
+
 rawData.salesCash += sale.totalValue || 0;
 rawData.salesCredits -= sale.totalValue || 0;
 }
@@ -2644,7 +2704,7 @@ rawData.expenses += (parseFloat(exp.amount) || 0);
 }
 });
 }
-// Production Value is the gross value of goods manufactured — not netted against customer sales
+
 const netSalesCash = rawData.salesCash - rawData.repSalesCash;
 const netSalesCredits = rawData.salesCredits - rawData.repSalesCredits;
 const netCalculatorDebt = rawData.calculatorCredits - rawData.calculatorRecovered;
@@ -2979,13 +3039,13 @@ calculatorTotalRecovered: 0,
 paymentsIn: 0,
 paymentsOut: 0
 };
-// Production Value = gross value of all manufactured goods (not netted against customer sales)
+
 db.forEach(item => {
 if (item.isReturn) return; 
 rawData.totalProductionValue += item.totalSale || 0;
 rawData.totalProductionQuantity += item.net || 0;
 });
-// Sales tab: separate cash/credit streams
+
 customerSales.forEach(sale => {
 if (!isDirectSale(sale)) return; 
 if (sale.isMerged && sale.mergedSummary) {
@@ -2995,15 +3055,15 @@ rawData.salesCredits += (ms.unpaidCredit || 0);
 } else if (sale.paymentType === 'CASH' || sale.creditReceived) {
 rawData.salesCash += sale.totalValue || 0;
 } else if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
-// Net of any partial payment already received against this credit sale
+
 const partialPaid = sale.partialPaymentReceived || 0;
 rawData.salesCredits += Math.max(0, (sale.totalValue || 0) - partialPaid);
 } else if (sale.paymentType === 'COLLECTION') {
-// Bulk collection received — reduces outstanding receivables
+
 rawData.salesCash += sale.totalValue || 0;
 rawData.salesCredits -= sale.totalValue || 0;
 } else if (sale.paymentType === 'PARTIAL_PAYMENT') {
-// Standalone partial payment — reduces outstanding receivables
+
 rawData.salesCash += sale.totalValue || 0;
 rawData.salesCredits -= sale.totalValue || 0;
 }
@@ -3035,7 +3095,7 @@ totalExpenses += (parseFloat(exp.amount) || 0);
 }
 });
 }
-// Production Value flows directly into cash — not netted against customer sales
+
 const netSalesCash = rawData.salesCash - rawData.repSalesCash;
 const netSalesCredits = rawData.salesCredits - rawData.repSalesCredits;
 const combinedMarketDebt = rawData.calculatorTotalIssued - rawData.calculatorTotalRecovered;
@@ -3264,15 +3324,15 @@ const additionalCost = factoryAdditionalCosts[storeType] || 0;
 if (formula && formula.length > 0) {
 let totalMaterialCost = 0;
 formula.forEach(item => {
-// Use live cost from inventory if available, fall back to snapshot cost in formula
+
 const liveItem = Array.isArray(factoryInventoryData) ? factoryInventoryData.find(i => String(i.id) === String(item.id)) : null;
 const unitCost = liveItem ? (liveItem.cost || item.cost || 0) : (item.cost || 0);
 totalMaterialCost += unitCost * (item.quantity || 0);
 });
-// costPerUnit = total raw material cost per unit + additional cost per unit
+
 return totalMaterialCost + additionalCost;
 }
-// Fallback: weighted average cost per unit from actual production history records
+
 const tracking = factoryUnitTracking?.[storeType];
 if (tracking && Array.isArray(tracking.unitCostHistory) && tracking.unitCostHistory.length > 0) {
 let totalWeightedCost = 0, totalUnits = 0;
@@ -3310,8 +3370,8 @@ const stdTracking = factoryUnitTracking?.standard || { available: 0 };
 const asaanTracking = factoryUnitTracking?.asaan || { available: 0 };
 const stdCostPerUnit = getCostPerUnit('standard');
 const asaanCostPerUnit = getCostPerUnit('asaan');
-// Formula Units Inventory = (std available units × std cost/unit) + (asaan available units × asaan cost/unit)
-// where cost/unit = sum(material.cost × material.qty) + additionalCost
+
+
 const formulaUnitsValue = (stdTracking.available * stdCostPerUnit) +
 (asaanTracking.available * asaanCostPerUnit);
 const rawMaterialsEl = document.getElementById('formulaRawMaterials');
@@ -4058,7 +4118,7 @@ GNDVirtualScroll.destroy('vs-scroller-factory-inventory');
 const _invEl = document.getElementById('factoryTotalInventoryValue'); if (_invEl) _invEl.innerText = await formatCurrency(0);
 return;
 }
-// Pre-build all rows (async currency formatting required)
+
 const prebuiltRows = [];
 for (const item of factoryInventoryData) {
 const itemTotalValue = (item.quantity * item.cost) || 0;
@@ -4175,7 +4235,7 @@ kg
 const totalValueStr = await formatCurrency(itemTotalValue);
 const itemId = esc(item.id);
 const itemName = esc(item.name);
-// Build tr element (pre-rendered, handed to scroller as literal elements)
+
 const tr = document.createElement('tr');
 tr.style.borderBottom = '1px solid var(--glass-border)';
 tr.innerHTML = `
@@ -4194,7 +4254,7 @@ ${quantityHtml}
 `;
 prebuiltRows.push(tr);
 }
-// Hand pre-built elements to scroller (identity builder — elements already constructed)
+
 GNDVirtualScroll.mount('vs-scroller-factory-inventory', prebuiltRows, function(el) { return el; }, tbody);
 const _invEl = document.getElementById('factoryTotalInventoryValue'); if (_invEl) _invEl.innerText = await formatCurrency(totalVal);
 }
@@ -4334,6 +4394,38 @@ function getSalePriceForStore(store) {
 	}
 
 	return factorySalePrices.standard || 0;
+}
+
+
+
+
+function getEffectiveSalePriceForCustomer(customerName, store) {
+if (customerName) {
+const _reg = Array.isArray(salesCustomers)
+? salesCustomers.find(c => c && c.name && c.name.toLowerCase() === String(customerName).toLowerCase())
+: null;
+if (_reg && _reg.customSalePrice > 0) return _reg.customSalePrice;
+}
+return getSalePriceForStore(store);
+}
+
+
+
+
+
+function getSaleTransactionValue(t) {
+if (!t) return 0;
+
+if (t.isRepModeEntry === true) return parseFloat(t.totalValue) || 0;
+if (t.isMerged) return parseFloat(t.totalValue) || 0;
+const pt = t.paymentType || 'CASH';
+if (pt === 'COLLECTION' || pt === 'PARTIAL_PAYMENT') return parseFloat(t.totalValue) || 0;
+if (t.transactionType === 'OLD_DEBT') return parseFloat(t.totalValue) || 0;
+
+const qty = parseFloat(t.quantity) || 0;
+if (qty <= 0) return parseFloat(t.totalValue) || 0;
+const effectivePrice = getEffectiveSalePriceForCustomer(t.customerName, t.supplyStore || 'STORE_A');
+return qty * effectivePrice;
 }
 
 function getCostPriceForStore(store) {
@@ -4607,7 +4699,6 @@ if (entry) {
 entry.deletedAt = getTimestamp();
 entry.updatedAt = getTimestamp();
 }
-await registerDeletion(id, 'factory_history');
 let restoredMaterials = [];
 const formula = factoryDefaultFormulas[entry.store];
 if (formula && formula.length > 0) {
@@ -4798,8 +4889,8 @@ const net = parseFloat(document.getElementById('net-wt').value) || 0;
 const store = document.getElementById('storeSelector').value;
 const formulaUnits = parseFloat(document.getElementById('formula-units').value) || 0;
 const costData = calculateDynamicCost(store, formulaUnits, net);
-// getSalePriceForStore handles all three stores:
-// STORE_C → asaan price, STORE_A / STORE_B → standard price
+
+
 const salePrice = getSalePriceForStore(store);
 const _setProd = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
 _setProd('formula-unit-cost-display', `${fmtAmt(safeValue(costData.costPerUnit))}/unit`);
@@ -4817,8 +4908,8 @@ updateUnitsAvailableIndicator();
 function updateProductionCostOnStoreChange() {
 const store = document.getElementById('storeSelector').value;
 currentStore = store;
-// getSalePriceForStore handles all three stores:
-// STORE_C → asaan price, STORE_A / STORE_B → standard price
+
+
 const salePrice = getSalePriceForStore(store);
 const _setStore = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
 _setStore('production-sale-price-display', `${safeValue(salePrice).toFixed(2)}/kg`);
@@ -4934,7 +5025,7 @@ storeSpecificProduction += production.net || 0;
 let storeSpecificSales = 0;
 customerSales.forEach(sale => {
 
-if (isRepSale(sale)) return;
+if (sale.isRepModeEntry === true) return; 
 if (sale.date === date && sale.supplyStore === store) {
 storeSpecificSales += sale.quantity || 0;
 }
@@ -4962,7 +5053,18 @@ return;
 }
 const costData = calculateSalesCost(store, quantity);
 const totalCost = costData.totalCost;
-const totalValue = costData.totalValue;
+
+
+const _phoneContainer = document.getElementById('new-customer-phone-container');
+const _priceInput = document.getElementById('new-cust-price');
+const _customPriceEntered = (_phoneContainer && !_phoneContainer.classList.contains('hidden') && _priceInput && _priceInput.value)
+? (parseFloat(_priceInput.value) || 0) : 0;
+
+
+const _effectiveSalePrice = _customPriceEntered > 0
+? _customPriceEntered
+: getEffectiveSalePriceForCustomer(name, store);
+const totalValue = quantity * _effectiveSalePrice;
 const profit = totalValue - totalCost;
 const existingCustomer = customerSales.find(s => s && s.customerName && name && s.customerName.toLowerCase() === name.toLowerCase());
 let existingCredit = 0;
@@ -4970,12 +5072,12 @@ if (existingCustomer) {
 customerSales.forEach(sale => {
 if (!(sale && sale.customerName && name && sale.customerName.toLowerCase() === name.toLowerCase())) return;
 if (sale.transactionType === 'OLD_DEBT' && !sale.creditReceived) {
-existingCredit += (sale.totalValue || 0) - (sale.partialPaymentReceived || 0);
+existingCredit += getSaleTransactionValue(sale) - (sale.partialPaymentReceived || 0);
 } else if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
 if (sale.isMerged && typeof sale.creditValue === 'number') {
 existingCredit += sale.creditValue;
 } else {
-existingCredit += (sale.totalValue || 0) - (sale.partialPaymentReceived || 0);
+existingCredit += getSaleTransactionValue(sale) - (sale.partialPaymentReceived || 0);
 }
 } else if (sale.paymentType === 'COLLECTION') {
 existingCredit -= (sale.totalValue || 0);
@@ -5028,9 +5130,9 @@ salesRep: salesRep,
 totalCost: totalCost,
 totalValue: totalValue,
 profit: profit,
-// Store the canonical sale price per kg at the time of the transaction.
-// getSalePriceForStore returns the fixed factory setting — not a computed average.
-unitPrice: costData.salePricePerKg || getSalePriceForStore(store),
+
+
+unitPrice: _effectiveSalePrice,
 creditReceived: paymentType === 'CASH' ? true : false,
 syncedAt: new Date().toISOString(),
 isRepModeEntry: false
@@ -5041,18 +5143,25 @@ try {
 customerSales.push(validatedRecord);
 await saveWithTracking('customer_sales', customerSales);
 await saveRecordToFirestore('customer_sales', validatedRecord);
-// Auto-register customer in the sales_customers registry so they persist even if all transactions are deleted
+
 try {
 const _scName = validatedRecord.customerName;
 const _scPhone = validatedRecord.customerPhone || '';
 if (_scName && _scName.trim()) {
-const existsInRegistry = Array.isArray(salesCustomers) && salesCustomers.some(c => c && c.name && c.name.toLowerCase() === _scName.toLowerCase());
-if (!existsInRegistry) {
-const _scContact = { id: generateUUID(), name: _scName, phone: _scPhone, address: '', oldDebit: 0, createdAt: getTimestamp(), updatedAt: getTimestamp(), timestamp: getTimestamp() };
+const _scIdx = Array.isArray(salesCustomers) ? salesCustomers.findIndex(c => c && c.name && c.name.toLowerCase() === _scName.toLowerCase()) : -1;
+if (_scIdx === -1) {
+
+const _scContact = { id: generateUUID(), name: _scName, phone: _scPhone, address: '', oldDebit: 0, customSalePrice: _customPriceEntered > 0 ? _customPriceEntered : 0, createdAt: getTimestamp(), updatedAt: getTimestamp(), timestamp: getTimestamp() };
 if (!Array.isArray(salesCustomers)) salesCustomers = [];
 salesCustomers.push(_scContact);
 await saveWithTracking('sales_customers', salesCustomers);
 await saveRecordToFirestore('sales_customers', _scContact);
+} else if (_customPriceEntered > 0 && salesCustomers[_scIdx].customSalePrice !== _customPriceEntered) {
+
+salesCustomers[_scIdx].customSalePrice = _customPriceEntered;
+salesCustomers[_scIdx].updatedAt = getTimestamp();
+await saveWithTracking('sales_customers', salesCustomers);
+await saveRecordToFirestore('sales_customers', salesCustomers[_scIdx]);
 }
 }
 } catch (_scErr) { console.warn('Auto-register sales customer failed:', _scErr); }
@@ -5063,12 +5172,19 @@ if (typeof calculateNetCash === 'function') calculateNetCash();
 emitSyncUpdate({ customer_sales: customerSales });
 document.getElementById('cust-name').value = '';
 document.getElementById('cust-quantity').value = '';
+
+selectSalesRep(document.querySelector('#sales-rep-toggle-group .toggle-opt'), 'NONE');
 selectPaymentType(document.getElementById('btn-payment-cash'), 'CASH');
 selectSupplyStore(document.getElementById('btn-supply-store-a'), 'STORE_A');
 if (phoneInput) phoneInput.value = '';
 document.getElementById('new-customer-phone-container').classList.add('hidden');
+const _savedPriceInput = document.getElementById('new-cust-price');
+if (_savedPriceInput) _savedPriceInput.value = '';
 if (typeof renderCustomersTable === 'function') {
 renderCustomersTable();
+}
+if (typeof refreshCustomerSales === 'function') {
+refreshCustomerSales();
 }
 refreshEntityList();
 showToast(` Sale recorded successfully! ${name} - ${safeNumber(quantity, 0).toFixed(2)} kg`, "success");
@@ -5147,6 +5263,7 @@ storeReturns += returnEntry.quantity || 0;
 });
 let storeSales = 0;
 customerSales.forEach(sale => {
+if (sale.isRepModeEntry === true) return;
 if (sale.date === date && sale.supplyStore === store) {
 storeSales += sale.quantity || 0;
 }
@@ -5183,6 +5300,13 @@ function selectSupplyStore(btn, value) {
 document.querySelectorAll('#btn-supply-store-a, #btn-supply-store-b, #btn-supply-store-c').forEach(b => b.classList.remove('active'));
 btn.classList.add('active');
 document.getElementById('supply-store-value').value = value;
+
+const _phoneContainer = document.getElementById('new-customer-phone-container');
+const _priceInput = document.getElementById('new-cust-price');
+if (_priceInput && _phoneContainer && !_phoneContainer.classList.contains('hidden')) {
+const _def = getSalePriceForStore(value);
+if (!_priceInput.value) _priceInput.placeholder = _def > 0 ? String(_def) : 'Factory default';
+}
 calculateCustomerSale();
 }
 function selectPaymentType(btn, value) {
@@ -5326,7 +5450,7 @@ if (_discEl) _discEl.innerText = `OVER: ${fmtAmt(safeNumber(diff, 0))}`;
 }
 }
 
-// Firebase Configuration
+
 const firebaseConfig = {
   apiKey: "AIzaSyDYjGQILtrcG2nfKACSfsVtfIPZOAgbr_s",
   authDomain: "calculator-fabd3.firebaseapp.com",
@@ -5915,6 +6039,8 @@ emitSyncUpdate({ noman_history: history });
 if (Array.isArray(salesHistory)) {
 salesHistory.push(entry);
 }
+
+if (typeof renderCustomersTable === 'function') renderCustomersTable();
 document.getElementById('totalSold').value = '';
 document.getElementById('returnedQuantity').value = '';
 document.getElementById('creditSales').value = '';
@@ -5948,7 +6074,7 @@ const salesData = type === 'rep' ? repSales : customerSales;
 let hasMergedEntries = false;
 salesData.forEach(sale => {
 if (type === 'rep' && (sale.salesRep !== currentRepProfile)) return;
-if (type === 'admin' && (sale.isRepModeEntry === true || (sale.salesRep && sale.salesRep !== 'NONE'))) return;
+if (type === 'admin' && sale.isRepModeEntry === true) return;
 const name = sale.customerName;
 if (!name) return;
 if (!customerMap.has(name)) customerMap.set(name, initCust(name));
@@ -6125,6 +6251,7 @@ let remainingQty = quantityToMark;
 const pendingSales = customerSales
 .filter(sale =>
 sale.salesRep === seller &&
+sale.isRepModeEntry !== true &&  
 sale.paymentType === 'CREDIT' &&
 !sale.creditReceived
 )
@@ -6132,10 +6259,16 @@ sale.paymentType === 'CREDIT' &&
 for (const sale of pendingSales) {
 if (remainingQty <= 0) break;
 if (sale.quantity <= remainingQty) {
+
+
+
+
+
+sale.paymentType = 'CASH';
 sale.creditReceived = true;
 sale.creditReceivedDate = new Date().toISOString().split('T')[0];
 sale.creditReceivedTime = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-sale.paymentType = 'CASH';
+sale.updatedAt = getTimestamp();
 linkedIds.push(sale.id);
 remainingQty -= sale.quantity;
 } else {
@@ -6144,12 +6277,15 @@ break;
 }
 if (linkedIds.length > 0) {
 await saveWithTracking('customer_sales', customerSales);
+
+
+
 const modifiedSales = customerSales.filter(s => linkedIds.includes(s.id));
 for (const sale of modifiedSales) {
 await saveRecordToFirestore('customer_sales', sale);
 }
 if (typeof refreshCustomerSales === 'function') {
-refreshCustomerSales(1, true);
+refreshCustomerSales(1, false);
 }
 }
 return linkedIds;
@@ -7614,13 +7750,13 @@ currentBatch.set(factorySettingsRef, sanitizedFactorySettings, { merge: true });
 operationCount++;
 } catch (factorySettingsError) { console.error('Factory settings cloud error', factorySettingsError); }
 if (operationCount > 0) {
-// Commit batches sequentially with event-loop yields — keeps UI responsive during large restores
+
 for (let _bi = 0; _bi < batches.length; _bi++) {
 	await batches[_bi].commit();
 	if (batches.length > 1) {
 		showToast('Uploading to cloud... ' + (_bi + 1) + ' / ' + batches.length + ' batches', 'info');
 	}
-	await new Promise(r => setTimeout(r, 0)); // yield to browser
+	await new Promise(r => setTimeout(r, 0)); 
 }
 for (const [cloudName, config] of Object.entries(collectionMapping)) {
 if (itemsToUpload[cloudName] && itemsToUpload[cloudName].length > 0) {
@@ -7824,10 +7960,9 @@ selectedTab.classList.remove('hidden');
 void selectedTab.offsetHeight;
 }
 const tabButtons = document.querySelectorAll('.tab-btn');
-const tabIndexMap = { 'prod': 0, 'sales': 1, 'calc': 2, 'factory': 3, 'payments': 4, 'rep': 5 };
-const activeIndex = tabIndexMap[tab];
-tabButtons.forEach((btn, i) => {
-btn.classList.toggle('active', i === activeIndex);
+tabButtons.forEach((btn) => {
+const onclickVal = btn.getAttribute('onclick') || '';
+btn.classList.toggle('active', onclickVal.includes("'" + tab + "'") || onclickVal.includes('"' + tab + '"'));
 });
 });
 window.scrollTo({ top: 0, behavior: 'instant' });
@@ -8331,7 +8466,7 @@ const stdProfitPerKg = stdOutputQuantity > 0 ? stdTotalProfit / stdOutputQuantit
 const stdProfitPerUnit = stdUsedUnits > 0 ? stdTotalProfit / stdUsedUnits : 0;
 const stdWeightPerUnit = getWeightPerUnit('standard');
 const stdRawMaterialsUsed = stdWeightPerUnit * stdUsedUnits;
-// Materials = raw formula cost only (formulaCost = costPerUnit×formulaUnits, no additional overhead)
+
 const stdMaterialsValue = stdProductionData.reduce((sum, item) => sum + (item.formulaCost || item.totalCost || 0), 0);
 const _setFac = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
 _setFac('factoryStdUnits', stdAvailableUnits.toFixed(2));
@@ -8359,7 +8494,7 @@ const asaanProfitPerKg = asaanOutputQuantity > 0 ? asaanTotalProfit / asaanOutpu
 const asaanProfitPerUnit = asaanUsedUnits > 0 ? asaanTotalProfit / asaanUsedUnits : 0;
 const asaanWeightPerUnit = getWeightPerUnit('asaan');
 const asaanRawMaterialsUsed = asaanWeightPerUnit * asaanUsedUnits;
-// Materials = raw formula cost only (formulaCost = costPerUnit×formulaUnits, no additional overhead)
+
 const asaanMaterialsValue = asaanProductionData.reduce((sum, item) => sum + (item.formulaCost || item.totalCost || 0), 0);
 _setFac('factoryAsaanUnits', asaanAvailableUnits.toFixed(2));
 _setFac('factoryAsaanUsedUnits', asaanUsedUnits.toFixed(2));
@@ -8379,7 +8514,7 @@ const selectedYear = selectedDate.getFullYear();
 const selectedMonth = selectedDate.getMonth();
 const selectedDay = selectedDate.getDate();
 
-// Helper: check if a date string falls within the selected mode/range
+
 function isInRange(dateStr) {
 const entryDate = new Date(dateStr);
 if (mode === 'daily') return dateStr === selectedDateVal;
@@ -8390,11 +8525,11 @@ return entryDate >= weekStart && entryDate <= selectedDate;
 }
 if (mode === 'monthly') return entryDate.getMonth() === selectedMonth && entryDate.getFullYear() === selectedYear;
 if (mode === 'yearly') return entryDate.getFullYear() === selectedYear;
-return true; // 'all'
+return true; 
 }
 
-// Available units = all-time stock on hand (std + asaan), not filtered by period.
-// This matches what is physically in inventory regardless of the selected date range.
+
+
 const allTimeRecomp = { standard: { produced: 0, consumed: 0 }, asaan: { produced: 0, consumed: 0 } };
 factoryProductionHistory.forEach(entry => {
 const store = entry.store === 'asaan' ? 'asaan' : 'standard';
@@ -8409,7 +8544,7 @@ const stdAvailable = Math.max(0, allTimeRecomp.standard.produced - allTimeRecomp
 const asaanAvailable = Math.max(0, allTimeRecomp.asaan.produced - allTimeRecomp.asaan.consumed);
 const totalAvailable = stdAvailable + asaanAvailable;
 
-// Period-filtered metrics: used, output, cost, profit — scoped to the selected date range
+
 let stdConsumed = 0, asaanConsumed = 0;
 let totalCost = 0, totalOutput = 0, totalProfit = 0;
 let totalSaleValue = 0, totalRawMatCost = 0;
@@ -8426,7 +8561,7 @@ totalOutput += entry.net || 0;
 totalCost += entry.totalCost || 0;
 totalSaleValue += entry.totalSale || 0;
 totalProfit += entry.profit || 0;
-// Raw materials cost = formula cost only (excludes additional/overhead costs)
+
 totalRawMatCost += entry.formulaCost || entry.totalCost || 0;
 const weightPerUnit = getWeightPerUnit(formulaStore);
 totalRawUsed += weightPerUnit * units;
@@ -8434,19 +8569,19 @@ totalRawUsed += weightPerUnit * units;
 
 const totalConsumed = stdConsumed + asaanConsumed;
 
-// Cost per unit: weighted average of live cost-per-unit for each formula type,
-// weighted by how many units of each type were consumed in the period.
+
+
 const stdCostPerUnit = getCostPerUnit('standard');
 const asaanCostPerUnit = getCostPerUnit('asaan');
 const avgCostPerUnit = totalConsumed > 0
 ? (stdConsumed * stdCostPerUnit + asaanConsumed * asaanCostPerUnit) / totalConsumed
 : 0;
 
-// Total cost = sum of actual production costs recorded on each entry (net * dynamicCostPerKg)
-// Materials cost = raw formula cost component (costPerUnit * formulaUnits, without overhead)
+
+
 const totalMatValue = totalRawMatCost;
 
-// Profit per kg = total profit earned over total output weight in the period
+
 const avgProfitPerKg = totalOutput > 0 ? totalProfit / totalOutput : 0;
 const _setSum = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
 _setSum('factorySumUnits', safeNumber(totalAvailable, 0).toFixed(2));
@@ -9163,7 +9298,7 @@ return compareTimestamps(getRecordTimestamp(b), getRecordTimestamp(a));
 });
 sortedSales.forEach(item => {
 if (item.isRepModeEntry === true ||
-(item.salesRep && item.salesRep !== 'NONE') ||
+(item.salesRep && item.salesRep !== 'NONE' && item.salesRep !== 'ADMIN') ||
 item.paymentType === 'PARTIAL_PAYMENT' ||
 item.paymentType === 'COLLECTION') return;
 const rowDate = new Date(item.date);
@@ -9192,7 +9327,6 @@ updatePeriod(stats.all);
 });
 const displayData = sortedSales.filter(item =>
 !item.isRepModeEntry &&
-(!item.salesRep || item.salesRep === 'NONE' || item.salesRep === 'ADMIN') &&
 item.paymentType !== 'PARTIAL_PAYMENT' &&
 item.paymentType !== 'COLLECTION'
 );
@@ -9256,7 +9390,9 @@ if (item.isMerged) {
 mergedBadge = _mergedBadgeHtml(item, {inline:true});
 }
 const card = document.createElement('div');
+const isRepLinked = !item.isRepModeEntry && item.salesRep && item.salesRep !== 'NONE' && item.salesRep !== 'ADMIN';
 card.className = `card liquid-card ${highlightClass}${item.isSettled ? ' is-settled-record' : ''}`.trim();
+if (isRepLinked) card.style.display = 'none';
 if (item.date) card.setAttribute('data-date', item.date);
 let creditSection = '';
 if (!isOldDebtItem) {
@@ -9416,12 +9552,23 @@ return html;
 }
 function calculateTotalSoldForRepresentative(seller) {
 if (!seller || seller === 'COMBINED') return 0;
+
+const reconciledIds = new Set();
+if (Array.isArray(salesHistory)) {
+salesHistory.forEach(entry => {
+if (Array.isArray(entry.linkedSalesIds)) {
+entry.linkedSalesIds.forEach(id => reconciledIds.add(id));
+}
+});
+}
 let totalSold = 0;
 customerSales.forEach(sale => {
 if (sale.salesRep === seller &&
-sale.paymentType === 'CREDIT' &&
-!sale.creditReceived &&
-sale.isRepModeEntry !== true) {
+sale.isRepModeEntry !== true &&
+!reconciledIds.has(sale.id) &&
+sale.paymentType !== 'PARTIAL_PAYMENT' &&
+sale.paymentType !== 'COLLECTION' &&
+sale.transactionType !== 'OLD_DEBT') {
 totalSold += (sale.quantity || 0);
 }
 });
@@ -9454,6 +9601,9 @@ usedRepSaleIds.add(sale.id);
 });
 if (Array.isArray(salesHistory)) {
 salesHistory.forEach(calcEntry => {
+if (calcEntry.linkedSalesIds && Array.isArray(calcEntry.linkedSalesIds)) {
+calcEntry.linkedSalesIds.forEach(id => usedRepSaleIds.add(id));
+}
 if (calcEntry.linkedRepSalesIds && Array.isArray(calcEntry.linkedRepSalesIds)) {
 calcEntry.linkedRepSalesIds.forEach(id => usedRepSaleIds.add(id));
 }
@@ -9461,11 +9611,28 @@ calcEntry.linkedRepSalesIds.forEach(id => usedRepSaleIds.add(id));
 }
 let creditSalesKg = 0;
 let recoveredCash = 0;
+
 repSales.forEach(sale => {
 if (sale.salesRep === seller && sale.date === date && !usedRepSaleIds.has(sale.id)) {
 if (sale.paymentType === 'CREDIT') {
 creditSalesKg += (sale.quantity || 0);
 }
+if (sale.paymentType === 'COLLECTION') {
+recoveredCash += (sale.totalValue || 0);
+}
+}
+});
+
+
+
+
+customerSales.forEach(sale => {
+if (sale.salesRep === seller &&
+sale.isRepModeEntry !== true &&
+sale.date === date &&
+!usedRepSaleIds.has(sale.id)) {
+
+
 if (sale.paymentType === 'COLLECTION') {
 recoveredCash += (sale.totalValue || 0);
 }
@@ -9933,12 +10100,12 @@ document.addEventListener('DOMContentLoaded', async function _appBootstrap() {
     createAuthOverlay();
     showAuthOverlay();
   } else {
-    // ── Persistent session restore ──────────────────────────────────────────
-    // IDBCrypto.preWarm() fired the moment business.js loaded, so PBKDF2 is
-    // already running in the background. We just set the user prefix and await
-    // the pre-warm — near-instant on repeat opens thanks to wrapKeyCache.
+    
+    
+    
+    
     try {
-      // Primary: IDB session store. Fallback: localStorage mirror.
+      
       let loginData = await IDBCrypto.sessionGet('login');
       if (!loginData || !loginData.uid) {
         const lsLogin = localStorage.getItem('persistentLogin');
@@ -9946,7 +10113,7 @@ document.addEventListener('DOMContentLoaded', async function _appBootstrap() {
       }
       if (loginData && loginData.uid) {
         idb.setUserPrefix(loginData.uid);
-        // restoreSessionKeyFromStorage() reuses the preWarm promise — no double PBKDF2
+        
         await IDBCrypto.initialize();
         const keyRestored = await IDBCrypto.restoreSessionKeyFromStorage();
         if (!keyRestored) {
@@ -10017,7 +10184,7 @@ document.addEventListener('DOMContentLoaded', async function _appBootstrap() {
   initSplashScreen();
   setProductionView('store');
 
-  // Defer heavy UI renders until after first paint — splash screen appears immediately
+  
   requestAnimationFrame(async () => {
     syncFactoryProductionStats();
     updateAllTabsWithFactoryCosts();
@@ -10037,10 +10204,10 @@ document.addEventListener('DOMContentLoaded', async function _appBootstrap() {
       if (expIdEl) { const id2 = generateUUID('exp'); expIdEl.textContent = 'ID: ' + id2.split('-').slice(0,2).join('-') + '\u2026'; expIdEl.title = id2; }
     }
   }, 400);
-  }); // end requestAnimationFrame
+  }); 
 
   scheduleAutomaticCleanup();
-  // Defer heavy validation until after first paint (was 2s, now 5s to clear splash first)
+  
   setTimeout(() => validateAllDataOnStartup(), 5000);
 
   if (window._connectionCheckInterval) clearInterval(window._connectionCheckInterval);
@@ -10199,7 +10366,6 @@ if (linkedRepCount > 0) confirmMsg += `\n \u2022 ${linkedRepCount} rep sale${lin
 if (entryToDelete.returned > 0 && entryToDelete.returnStore) confirmMsg += `\n \u2022 ${entryToDelete.returned} kg will be REMOVED from ${getStoreLabel(entryToDelete.returnStore)} inventory (return reversal).`;
 }
 if (await showGlassConfirm(confirmMsg, { title: `Delete ${entryToDelete.seller || "Sales"} Record`, confirmText: "Delete", danger: true })) {
-await registerDeletion(id, 'calculator_history');
 let revertedSalesCount = 0;
 let revertedRepSalesCount = 0;
 let reversedReturnQty = 0;
@@ -10485,8 +10651,8 @@ const _entMO = document.getElementById('entityManagementOverlay'); if (_entMO) _
 async function refreshPaymentTab(force = false) {
 try {
 if (idb && idb.getBatch) {
-// Load ALL data sources that calculateNetCash, calculateCashTracker, and
-// updateEconomicDashboard depend on — not just payment-specific keys.
+
+
 const allKeys = [
 'expenses', 'payment_entities', 'payment_transactions',
 'mfg_pro_pkr', 'customer_sales', 'noman_history',
@@ -10496,7 +10662,7 @@ const allKeys = [
 'factory_sale_prices', 'factory_cost_adjustment_factor'
 ];
 const paymentDataMap = await idb.getBatch(allKeys);
-// --- Payment-specific data (with integrity checks) ---
+
 if (paymentDataMap.get('expenses')) {
 let freshExpenses = paymentDataMap.get('expenses') || [];
 let fixedCount = 0;
@@ -10515,7 +10681,7 @@ await idb.set('expenses', freshExpenses);
 }
 }
 expenses = freshExpenses;
-expenseRecords = freshExpenses; // keep expenseRecords in sync — used by calculateCashTracker & calculateNetCash
+expenseRecords = freshExpenses; 
 }
 if (paymentDataMap.get('payment_entities')) {
 let freshEntities = paymentDataMap.get('payment_entities') || [];
@@ -10555,7 +10721,7 @@ await idb.set('payment_transactions', freshTransactions);
 }
 paymentTransactions = freshTransactions;
 }
-// --- Cross-tab data needed for Production Value, Formula Units, Net Cash ---
+
 const freshDb = paymentDataMap.get('mfg_pro_pkr');
 if (Array.isArray(freshDb)) db = freshDb;
 const freshCustomerSales = paymentDataMap.get('customer_sales');
@@ -10564,7 +10730,7 @@ const freshSalesHistory = paymentDataMap.get('noman_history');
 if (Array.isArray(freshSalesHistory)) salesHistory = freshSalesHistory;
 const freshInventory = paymentDataMap.get('factory_inventory_data');
 if (Array.isArray(freshInventory)) factoryInventoryData = freshInventory;
-// Load authoritative available-unit counts from IDB
+
 const freshTracking = paymentDataMap.get('factory_unit_tracking');
 if (freshTracking && typeof freshTracking === 'object') {
 factoryUnitTracking = {
@@ -10582,7 +10748,7 @@ unitCostHistory: freshTracking.asaan?.unitCostHistory  || []
 }
 };
 }
-// Rebuild unitCostHistory from actual production records so getCostPerUnit has accurate cost data
+
 const freshProdHistory = paymentDataMap.get('factory_production_history');
 if (Array.isArray(freshProdHistory)) {
 factoryProductionHistory = freshProdHistory;
@@ -10592,8 +10758,8 @@ factoryUnitTracking[s].unitCostHistory = freshProdHistory
 .map(e => ({ date: e.date, costPerUnit: e.totalCost / e.units, units: e.units }));
 });
 }
-// Always recompute available units from source data for both standard and asaan formula types
-// to ensure the payment tab reflects accurate live counts rather than potentially stale IDB values
+
+
 if (Array.isArray(factoryProductionHistory)) {
 const recomp = { standard: { produced: 0, consumed: 0 }, asaan: { produced: 0, consumed: 0 } };
 factoryProductionHistory.forEach(e => {
@@ -10602,7 +10768,7 @@ if (e.units > 0) recomp[s].produced += e.units;
 });
 db.forEach(e => {
 if (e.isReturn) return;
-// Use formulaStore when available; fall back to deriving from store field
+
 const s = (e.formulaStore === 'asaan' || e.store === 'STORE_C') ? 'asaan' : 'standard';
 if (e.formulaUnits) recomp[s].consumed += e.formulaUnits;
 });
@@ -10625,7 +10791,7 @@ console.error('calculateNetCash error:', e);
 }
 try {
 if (typeof updateFactoryInventoryDisplay === 'function') {
-// Diagnostic: log what drives Formula Units Inventory
+
 const _std = factoryUnitTracking?.standard || {};
 const _asn = factoryUnitTracking?.asaan || {};
 console.log('[PaymentTab] factoryUnitTracking →', JSON.stringify({ std_avail: _std.available, asn_avail: _asn.available }));
@@ -10776,7 +10942,6 @@ const material = factoryInventoryData.find(i => i.id === editingFactoryInventory
 if (material && material.supplierId) {
 await unlinkSupplierFromMaterial(material);
 }
-await registerDeletion(editingFactoryInventoryId, 'inventory');
 factoryInventoryData = factoryInventoryData.filter(item => item.id !== editingFactoryInventoryId);
 hasChanges = true;
 await unifiedDelete('factory_inventory_data', factoryInventoryData, editingFactoryInventoryId);
@@ -12798,8 +12963,7 @@ async function calculateCustomerStatsForDisplay(name) {
 if (!name) return;
 const sales = customerSales.filter(s =>
 s && s.customerName && s.customerName.toLowerCase() === name.toLowerCase() &&
-s.isRepModeEntry !== true &&
-(!s.salesRep || s.salesRep === 'NONE' || s.salesRep === 'ADMIN')
+s.isRepModeEntry !== true
 );
 if (sales.length === 0) {
 document.getElementById('customer-info-display').classList.add('hidden');
@@ -12810,27 +12974,27 @@ let totalQty = 0;
 sales.forEach(s => {
 totalQty += (s.quantity || 0);
 if (s.transactionType === 'OLD_DEBT') {
-// OLD_DEBT: outstanding = totalValue minus any partial payments already applied
+
 if (!s.creditReceived) {
 const partialPaid = s.partialPaymentReceived || 0;
-totalCredit += ((s.totalValue || 0) - partialPaid);
+totalCredit += (getSaleTransactionValue(s) - partialPaid);
 }
 } else if (s.paymentType === 'CREDIT' && !s.creditReceived) {
 if (s.isMerged && typeof s.creditValue === 'number') {
 totalCredit += s.creditValue;
 } else {
 const partialPaid = s.partialPaymentReceived || 0;
-totalCredit += ((s.totalValue || 0) - partialPaid);
+totalCredit += (getSaleTransactionValue(s) - partialPaid);
 }
 } else if (s.paymentType === 'COLLECTION') {
-// Bulk payments reduce the running debt
+
 totalCredit -= (s.totalValue || 0);
 } else if (s.paymentType === 'PARTIAL_PAYMENT') {
-// Standalone partial payment records reduce the running debt
+
 totalCredit -= (s.totalValue || 0);
 }
 });
-// Clamp to zero — negative balance means overpaid, not a negative debt
+
 totalCredit = Math.max(0, totalCredit);
 const _setCust = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
 _setCust('customer-current-credit', await formatCurrency(totalCredit));
@@ -12859,7 +13023,7 @@ customerSales = Array.from(recordMap.values());
 console.error('UI refresh failed.', error);
 showToast('UI refresh failed.', 'error');
 }
-// Refresh salesCustomers registry separately — never let it fail the sales data load
+
 try {
 const freshSalesCustomers = await idb.get('sales_customers', []);
 if (Array.isArray(freshSalesCustomers) && freshSalesCustomers.length > 0) {
@@ -12877,9 +13041,7 @@ const filterValue = filterInput ? filterInput.value.toLowerCase() : '';
 const customerStats = {};
 customerSales.forEach(sale => {
 if (sale.isRepModeEntry === true) return;
-const name = sale.salesRep && sale.salesRep !== 'NONE' && sale.salesRep !== 'ADMIN'
-? sale.salesRep
-: sale.customerName;
+const name = sale.customerName;
 if (!name || name.trim() === '') return;
 if (!customerStats[name]) {
 customerStats[name] = { name: name, credit: 0, quantity: 0, lastSaleDate: 0 };
@@ -12887,13 +13049,13 @@ customerStats[name] = { name: name, credit: 0, quantity: 0, lastSaleDate: 0 };
 customerStats[name].quantity += (sale.quantity || 0);
 if (sale.transactionType === 'OLD_DEBT' && !sale.creditReceived) {
 const partialPaid = sale.partialPaymentReceived || 0;
-customerStats[name].credit += ((sale.totalValue || 0) - partialPaid);
+customerStats[name].credit += (getSaleTransactionValue(sale) - partialPaid);
 } else if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
 if (sale.isMerged && typeof sale.creditValue === 'number') {
 customerStats[name].credit += sale.creditValue;
 } else {
 const partialPaid = sale.partialPaymentReceived || 0;
-customerStats[name].credit += ((sale.totalValue || 0) - partialPaid);
+customerStats[name].credit += (getSaleTransactionValue(sale) - partialPaid);
 }
 } else if (sale.paymentType === 'COLLECTION') {
 customerStats[name].credit -= (sale.totalValue || 0);
@@ -12915,8 +13077,8 @@ let sortedCustomers = Object.values(customerStats)
 if (b.credit !== a.credit) return b.credit - a.credit;
 return b.lastSaleDate - a.lastSaleDate;
 });
-// Include customers from the salesCustomers registry who have no current transactions,
-// so they remain visible even after all their transactions are deleted.
+
+
 if (Array.isArray(salesCustomers)) {
 const statsNames = new Set(sortedCustomers.map(c => c.name.toLowerCase()));
 salesCustomers.forEach(sc => {
@@ -12981,7 +13143,7 @@ try {
 const contact = salesCustomers.find(ct => ct && ct.name && c && c.name && ct.name.toLowerCase() === c.name.toLowerCase());
 const customerSaleData = customerSales.find(s =>
 s && s.customerName && c && c.name &&
-(s.customerName === c.name || s.salesRep === c.name) &&
+s.customerName === c.name &&
 s.isRepModeEntry !== true &&
 s.customerPhone
 );
@@ -13058,7 +13220,7 @@ const name = currentManagingCustomer;
 const txs = customerSales.filter(s =>
 s && s.customerName === name &&
 s.isRepModeEntry !== true &&
-(!s.salesRep || s.salesRep === 'NONE' || s.salesRep === 'ADMIN' || s.salesRep === name)
+true 
 );
 const totalDebt = txs
 .filter(s => s.paymentType === 'CREDIT' && !s.creditReceived)
@@ -13072,7 +13234,7 @@ msg += `\n\nAll sales history for this customer will be permanently deleted.`;
 msg += `\n\nThis cannot be undone.`;
 if (!(await showGlassConfirm(msg, { title: 'Delete Customer', confirmText: 'Delete Permanently', danger: true }))) return;
 try {
-// Remove contact record
+
 const contactIdx = salesCustomers.findIndex(c => c && c.name && c.name.toLowerCase() === name.toLowerCase());
 if (contactIdx !== -1) {
 const contactId = salesCustomers[contactIdx].id;
@@ -13080,7 +13242,7 @@ salesCustomers.splice(contactIdx, 1);
 await saveWithTracking('sales_customers', salesCustomers);
 await deleteRecordFromFirestore('sales_customers', contactId);
 }
-// Remove all transaction records
+
 const idsToDelete = txs.map(s => s.id);
 customerSales = customerSales.filter(s => !idsToDelete.includes(s.id));
 for (const id of idsToDelete) {
@@ -13118,13 +13280,13 @@ customerSales = Array.from(recordMap.values());
 transactions = customerSales.filter(s =>
 s && s.customerName === name &&
 s.isRepModeEntry !== true &&
-(!s.salesRep || s.salesRep === 'NONE' || s.salesRep === 'ADMIN' || s.salesRep === name)
+true 
 );
 } else {
 transactions = customerSales.filter(s =>
 s && s.customerName === name &&
 s.isRepModeEntry !== true &&
-(!s.salesRep || s.salesRep === 'NONE' || s.salesRep === 'ADMIN' || s.salesRep === name)
+true 
 );
 }
 } catch (error) {
@@ -13133,7 +13295,7 @@ showToast('Customer data operation failed.', 'error');
 transactions = customerSales.filter(s =>
 s && s.customerName === name &&
 s.isRepModeEntry !== true &&
-(!s.salesRep || s.salesRep === 'NONE' || s.salesRep === 'ADMIN' || s.salesRep === name)
+true 
 );
 }
 const rangeSelect = document.getElementById('customerPdfRange');
@@ -13164,7 +13326,7 @@ return true;
 }
 });
 }
-const entity = paymentEntities.find(e => e && e.name && e.name.toLowerCase() === name.toLowerCase());
+const entity = (Array.isArray(salesCustomers) ? salesCustomers : []).find(e => e && e.name && e.name.toLowerCase() === name.toLowerCase());
 const phone = entity?.phone || transactions.find(t => t && t.customerPhone)?.customerPhone || '';
 const address = entity?.address || '';
 const headerTitle = document.getElementById('manageCustomerTitle');
@@ -13182,13 +13344,13 @@ let currentDebt = 0;
 transactions.forEach(t => {
 if (t.transactionType === 'OLD_DEBT' && !t.creditReceived) {
 const partialPaid = t.partialPaymentReceived || 0;
-currentDebt += (t.totalValue || 0) - partialPaid;
+currentDebt += getSaleTransactionValue(t) - partialPaid;
 } else if (t.paymentType === 'CREDIT' && !t.creditReceived) {
 if (t.isMerged && typeof t.creditValue === 'number') {
 currentDebt += t.creditValue;
 } else {
 const partialPaid = t.partialPaymentReceived || 0;
-currentDebt += (t.totalValue - partialPaid);
+currentDebt += (getSaleTransactionValue(t) - partialPaid);
 }
 } else if (t.paymentType === 'COLLECTION') {
 currentDebt -= (t.totalValue || 0);
@@ -13219,7 +13381,8 @@ let btnText = t.creditReceived ? 'PAID' : 'PENDING';
 let toggleBtnHtml = '';
 const partialPaid = t.partialPaymentReceived || 0;
 
-const effectiveDue = (t.isMerged && typeof t.creditValue === 'number') ? t.creditValue : ((t.totalValue || 0) - partialPaid);
+const _txValue = getSaleTransactionValue(t);
+const effectiveDue = (t.isMerged && typeof t.creditValue === 'number') ? t.creditValue : (_txValue - partialPaid);
 const hasPartialPayment = isCredit && !t.creditReceived && partialPaid > 0 && !t.isMerged;
 const isOldDebt = t.transactionType === 'OLD_DEBT';
 if (t.isMerged) {
@@ -13280,19 +13443,19 @@ ${deleteBtnHtml}
 </div>
 `;
 } else {
-// Canonical sale price: use stored unitPrice (set on merge) or the fixed
-// getSalePriceForStore rate for the supply store — never divide totalValue/quantity
-// which produces a weighted average and can differ after partial payments.
+
+
+
 const _displayUnitPrice = (t.unitPrice && t.unitPrice > 0)
   ? t.unitPrice
-  : getSalePriceForStore(t.supplyStore || 'STORE_A');
+  : getEffectiveSalePriceForCustomer(t.customerName, t.supplyStore || 'STORE_A');
 itemContent = `
 <div class="cust-history-info">
 <div class="u-mono-bold" >${formatDisplayDate(t.date)}${_mergedBadgeHtml(t, {inline:true})}</div>
 <div class="u-fs-sm2 u-text-muted" >
-${t.quantity.toFixed(2)} kg @ ${await formatCurrency(_displayUnitPrice)}
+${t.quantity.toFixed(2)} kg @ ${await formatCurrency(_displayUnitPrice)} = ${await formatCurrency(_txValue)}
 </div>
-${hasPartialPayment ? `<div style="font-size:0.7rem; color:var(--accent-emerald); margin-top:2px;">Paid: ${await formatCurrency(partialPaid)}</div>` : ''}
+${hasPartialPayment ? `<div style="font-size:0.7rem; color:var(--accent-emerald); margin-top:2px;">Paid: ${await formatCurrency(partialPaid)} | Due: ${await formatCurrency(Math.max(0, _txValue - partialPaid))}</div>` : ''}
 <div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">
 ${getStoreLabel(t.supplyStore)}
 </div>
@@ -13421,10 +13584,8 @@ if (rel.partialPaymentReceived === 0) { rel.creditReceived = false; delete rel.c
 rel.updatedAt = getTimestamp();
 }
 }
-await registerDeletion(id, 'sales');
 customerSales = customerSales.filter(s => s.id !== id);
 await unifiedDelete('customer_sales', customerSales, id);
-renderCustomerTransactions(currentManagingCustomer);
 refreshAllCalculations();
 if (typeof refreshCustomerSales === 'function') await refreshCustomerSales();
 renderCustomersTable();
@@ -13499,7 +13660,6 @@ if (rel.partialPaymentReceived === 0) { rel.creditReceived = false; delete rel.c
 rel.updatedAt = getTimestamp();
 }
 }
-await registerDeletion(id, 'rep_sales');
 repSales = repSales.filter(s => s.id !== id);
 await unifiedDelete('rep_sales', repSales, id);
 renderRepCustomerTransactions(currentManagingRepCustomer);
@@ -13520,7 +13680,6 @@ let remaining = amount, updatedCount = 0, partialPaymentMade = false;
 const pending = customerSales.filter(s =>
 s.customerName === currentManagingCustomer &&
 s.isRepModeEntry !== true &&
-(!s.salesRep || s.salesRep === 'NONE') &&
 s.paymentType === 'CREDIT' && !s.creditReceived
 ).sort((a, b) => a.timestamp - b.timestamp);
 if (pending.length === 0) { showToast('No pending credit transactions found for this customer.', 'info', 4000); return; }
@@ -13690,8 +13849,8 @@ updateUnitsAvailableIndicator();
 const toastContainer = document.createElement('div');
 toastContainer.className = 'toast-container';
 document.body.appendChild(toastContainer);
-// Re-insert as last child of body each time a toast is shown so it always
-// sits above every overlay, modal, or stacking-context element added later.
+
+
 function _ensureToastOnTop() {
   if (document.body.lastElementChild !== toastContainer) {
     document.body.appendChild(toastContainer);
@@ -13710,7 +13869,7 @@ error: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="curr
 info: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`,
 };
 const msgStr = String(message);
-// Allow wrapping for longer messages, single line for short
+
 const isLong = msgStr.length > 48;
 const toast = document.createElement('div');
 toast.className = `liquid-toast toast-${type}`;
@@ -13813,8 +13972,8 @@ if (btn) btn.focus();
 }
 window.showGlassConfirm = showGlassConfirm;
 function filterCustomers() {
-// Re-render through the virtual scroller so it applies to
-// the full dataset, not just currently-visible DOM rows.
+
+
 renderCustomersTable();
 }
 async function openDataMenu() {
@@ -13996,10 +14155,9 @@ userRef.collection('factorySettings').doc('config').get(),
 userRef.collection('expenseCategories').doc('categories').get(),
 userRef.collection('deletions').get()
 ]);
-for (const collection of ['production', 'sales', 'calculator_history', 'rep_sales', 'transactions',
-'entities', 'inventory', 'factory_history', 'returns']) {
-await DeltaSync.setLastSyncTimestamp(collection);
-}
+
+
+
 const cloudData = {
 mfg_pro_pkr: prodSnap.docs.filter(doc => doc.id !== '_placeholder_' && !doc.data()._placeholder).map(doc => ({ id: doc.id, ...doc.data() })),
 customer_sales: salesSnap.docs.filter(doc => doc.id !== '_placeholder_' && !doc.data()._placeholder).map(doc => ({ id: doc.id, ...doc.data() })),
@@ -14245,14 +14403,14 @@ operationCount++;
 if (operationCount > 0) {
 batches.push(currentBatch);
 }
-// Commit batches one at a time, yielding to the browser between each
-// so the UI stays smooth even with hundreds of records.
+
+
 for (let _bi = 0; _bi < batches.length; _bi++) {
 	await batches[_bi].commit();
 	if (batches.length > 1) {
 		showToast('Uploading... ' + (_bi + 1) + ' / ' + batches.length + ' batches', 'info');
 	}
-	await new Promise(r => setTimeout(r, 0)); // yield to browser
+	await new Promise(r => setTimeout(r, 0)); 
 }
 const counts = {
 production: normalized.mfg_pro_pkr.length,
@@ -14458,7 +14616,7 @@ s.salesRep === currentRepProfile
 let debt = 0;
 history.forEach(h => {
 if (h.transactionType === 'OLD_DEBT') {
-// OLD_DEBT: outstanding = totalValue minus any partial payments already applied
+
 if (!h.creditReceived) {
 const partialPaid = h.partialPaymentReceived || 0;
 debt += ((h.totalValue || 0) - partialPaid);
@@ -14476,7 +14634,7 @@ debt -= (h.totalValue || 0);
 debt -= (h.totalValue || 0);
 }
 });
-// Clamp to zero — negative means overpaid
+
 debt = Math.max(0, debt);
 const _repCred = document.getElementById('rep-customer-current-credit');
 if (_repCred) _repCred.innerText = "" + fmtAmt(safeNumber(debt, 0));
@@ -14560,7 +14718,7 @@ gps: gpsCoords,
 totalCost: qty * costPerKg,
 totalValue: totalValue,
 profit: totalValue - (qty * costPerKg),
-// Store the canonical fixed sale price per kg at transaction time.
+
 unitPrice: salePrice,
 creditReceived: (payType === 'CASH'),
 createdAt: getTimestamp(),
@@ -14609,7 +14767,7 @@ transactionRecord = ensureRecordIntegrity(transactionRecord, false);
 }
 repSales.push(transactionRecord);
 await saveWithTracking('rep_sales', repSales);
-// Auto-register customer in the rep_customers registry so they persist even if all transactions are deleted
+
 try {
 const _rcName = transactionRecord.customerName;
 const _rcPhone = transactionRecord.customerPhone || '';
@@ -14914,7 +15072,7 @@ repSales = Array.from(recordMap.values());
 console.error('Rep sales operation failed.', error);
 showToast('Rep sales operation failed.', 'error');
 }
-// Refresh repCustomers registry separately — never let it fail the rep sales data load
+
 try {
 const freshRepCustomersList = await idb.get('rep_customers', []);
 if (Array.isArray(freshRepCustomersList) && freshRepCustomersList.length > 0) {
@@ -14949,8 +15107,8 @@ custMap[s.customerName].debt -= (s.totalValue || 0);
 }
 });
 const sortedCustomers = Object.keys(custMap).sort();
-// Include customers from the repCustomers registry who have no current transactions,
-// so they remain visible even after all their transactions are deleted.
+
+
 if (Array.isArray(repCustomers)) {
 const custMapNames = new Set(Object.keys(custMap).map(n => n.toLowerCase()));
 repCustomers.forEach(rc => {
@@ -14983,6 +15141,20 @@ renderRepCustomersFromCache(repCustomersData, tbody);
 } else {
 tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px; color:var(--danger);">Failed to load customer data</td></tr>`;
 }
+let repTotalCreditSales = 0;
+let repTotalCollections = 0;
+myData.forEach(s => {
+if (s.paymentType === 'CREDIT') {
+repTotalCreditSales += (s.totalValue || 0);
+} else if (s.paymentType === 'COLLECTION' || s.paymentType === 'PARTIAL_PAYMENT') {
+repTotalCollections += (s.totalValue || 0);
+}
+});
+const totalOutstanding = Object.values(custMap).reduce((sum, c) => sum + (c.debt > 0 ? c.debt : 0), 0);
+const _setRepH = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
+_setRepH('rep-customers-total-credit', fmtAmt(totalOutstanding));
+_setRepH('rep-customers-total-credit-sales', fmtAmt(repTotalCreditSales));
+_setRepH('rep-customers-total-collections', fmtAmt(repTotalCollections));
 }
 function renderRepCustomersFromCache(data, tbody) {
 if (!data) {
@@ -15080,7 +15252,7 @@ msg += `\n\nAll rep sales history for this customer will be permanently deleted.
 msg += `\n\nThis cannot be undone.`;
 if (!(await showGlassConfirm(msg, { title: 'Delete Rep Customer', confirmText: 'Delete Permanently', danger: true }))) return;
 try {
-// Remove contact record
+
 const contactIdx = repCustomers.findIndex(c => c && c.name && c.name.toLowerCase() === name.toLowerCase());
 if (contactIdx !== -1) {
 const contactId = repCustomers[contactIdx].id;
@@ -15088,7 +15260,7 @@ repCustomers.splice(contactIdx, 1);
 await saveWithTracking('rep_customers', repCustomers);
 await deleteRecordFromFirestore('rep_customers', contactId);
 }
-// Remove all transaction records
+
 const idsToDelete = txs.map(s => s.id);
 repSales = repSales.filter(s => !idsToDelete.includes(s.id));
 for (const id of idsToDelete) {
@@ -15242,8 +15414,8 @@ ${toggleBtnHtml}
 ${deleteBtnHtml}
 </div>`;
 } else {
-// Canonical sale price: use stored unitPrice (set on merge) or fixed
-// getSalePriceForStore rate — never divide totalValue/quantity (averaged).
+
+
 const _repDisplayUnitPrice = (t.unitPrice && t.unitPrice > 0)
   ? t.unitPrice
   : getSalePriceForStore(t.supplyStore || 'STORE_A');
@@ -15273,8 +15445,8 @@ s.isRepModeEntry !== true &&
 (!s.salesRep || s.salesRep === 'NONE') &&
 s.customerPhone
 );
-// Read oldDebit from the actual OLD_DEBT transaction so it always reflects truth,
-// even if contact.oldDebit is stale or was never set
+
+
 const existingOldDebtTx = customerSales.find(s =>
 s && s.customerName && s.customerName.toLowerCase() === customerName.toLowerCase() &&
 s.transactionType === 'OLD_DEBT' &&
@@ -15308,14 +15480,14 @@ const oldDebit = parseFloat(document.getElementById('edit-cust-old-debit').value
 if (!name) { showToast('Customer name is required', 'error'); return; }
 try {
 const nameChanged = name.toLowerCase() !== originalName.toLowerCase();
-// Always read fresh contacts from IDB to avoid creating duplicates due to stale in-memory state
+
 const freshContacts = await idb.get('sales_customers', []);
 if (Array.isArray(freshContacts)) {
 const m = new Map(freshContacts.map(c => [c.id, c]));
 if (Array.isArray(salesCustomers)) salesCustomers.forEach(c => { if (!m.has(c.id)) m.set(c.id, c); });
 salesCustomers = Array.from(m.values());
 }
-// Update contact record (find by original name or new name)
+
 let contact = salesCustomers.find(c => c && c.name && c.name.toLowerCase() === originalName.toLowerCase());
 if (!contact) contact = salesCustomers.find(c => c && c.name && c.name.toLowerCase() === name.toLowerCase());
 const previousOldDebit = contact?.oldDebit || 0;
@@ -15326,19 +15498,19 @@ contact = { id: generateUUID(), name, phone, address, oldDebit,
 createdAt: getTimestamp(), updatedAt: getTimestamp(), timestamp: getTimestamp() };
 salesCustomers.push(contact);
 }
-// Save contact record locally and sync to cloud
+
 await saveWithTracking('sales_customers', salesCustomers);
 await saveRecordToFirestore('sales_customers', contact);
 notifyDataChange('sales');
 let salesArray = await idb.get('customer_sales', []);
 if (!Array.isArray(salesArray)) salesArray = [];
-// Merge in-memory customerSales with IDB data to avoid losing unsaved in-memory transactions
+
 if (Array.isArray(customerSales) && customerSales.length > 0) {
 const mSales = new Map(salesArray.map(s => [s.id, s]));
 customerSales.forEach(s => { if (s && s.id && !mSales.has(s.id)) mSales.set(s.id, s); });
 salesArray = Array.from(mSales.values());
 }
-// Rename customerName on all records if name changed
+
 const renamedRecords = [];
 if (nameChanged) {
 salesArray.forEach(s => {
@@ -15361,7 +15533,7 @@ const tx = salesArray[oldDebtIdx];
 const amountChanged = tx.totalValue !== oldDebit;
 tx.totalValue = oldDebit; tx.customerPhone = phone; tx.timestamp = getTimestamp();
 tx.updatedAt = getTimestamp();
-// Only reset payment state when the debt amount itself has changed
+
 if (amountChanged) { tx.creditReceived = false; tx.partialPaymentReceived = 0; }
 if (!tx.time) tx.time = new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
 oldDebtModified = true; oldDebtRecord = tx;
@@ -15384,11 +15556,11 @@ salesArray.forEach(s => { if (s && s.customerName === name && s.customerPhone !=
 customerSales.length = 0; customerSales.push(...salesArray);
 if (nameChanged || oldDebtModified || phoneUpdated) {
 await saveWithTracking('customer_sales', salesArray);
-// Push the OLD_DEBT record to Firestore (create or update)
+
 if (oldDebtRecord) await saveRecordToFirestore('customer_sales', oldDebtRecord);
-// Delete the OLD_DEBT record from Firestore when cleared
+
 if (deletedOldDebtId) await deleteRecordFromFirestore('customer_sales', deletedOldDebtId);
-// Push all renamed records to Firestore so remote devices see the new name
+
 if (nameChanged && renamedRecords.length > 0) {
 const cloudPushes = renamedRecords.map(r => saveRecordToFirestore('customer_sales', r));
 await Promise.allSettled(cloudPushes);
@@ -15401,7 +15573,7 @@ const message = nameChanged ? `Customer renamed to "${name}" and details updated
 showToast(message, 'success');
 closeCustomerEditModal();
 await new Promise(r => setTimeout(r, 350));
-// If name changed, update the managing customer reference
+
 if (nameChanged && currentManagingCustomer && currentManagingCustomer.toLowerCase() === originalName.toLowerCase()) {
 currentManagingCustomer = name;
 }
@@ -15506,8 +15678,8 @@ nameInput.value = customerName;
 nameInput.dataset.originalName = customerName;
 const contact = repCustomers.find(c => c && c.name && c.name.toLowerCase() === customerName.toLowerCase());
 const saleRecord = repSales.find(s => s && s.customerName === customerName && s.salesRep === currentRepProfile && s.customerPhone);
-// Read oldDebit from the actual OLD_DEBT transaction so it always reflects truth,
-// even if contact.oldDebit is stale or was never set
+
+
 const existingOldDebtTx = repSales.find(s =>
 s && s.customerName && s.customerName.toLowerCase() === customerName.toLowerCase() &&
 s.transactionType === 'OLD_DEBT' &&
@@ -15540,7 +15712,7 @@ const oldDebit = parseFloat(document.getElementById('rep-edit-cust-old-debit').v
 if (!name) { showToast('Customer name is required', 'error'); return; }
 try {
 const nameChanged = name.toLowerCase() !== originalName.toLowerCase();
-// Always read fresh contacts from IDB to avoid creating duplicates due to stale in-memory state
+
 const freshRepContacts = await idb.get('rep_customers', []);
 if (Array.isArray(freshRepContacts)) {
 const m = new Map(freshRepContacts.map(c => [c.id, c]));
@@ -15557,18 +15729,18 @@ contact = { id: generateUUID(), name, phone, address, oldDebit,
 createdAt: getTimestamp(), updatedAt: getTimestamp(), timestamp: getTimestamp() };
 repCustomers.push(contact);
 }
-// Save contact record locally and sync to cloud
+
 await saveWithTracking('rep_customers', repCustomers);
 await saveRecordToFirestore('rep_customers', contact);
 let salesArray = await idb.get('rep_sales', []);
 if (!Array.isArray(salesArray)) salesArray = [];
-// Merge in-memory repSales with IDB data to avoid losing unsaved in-memory transactions
+
 if (Array.isArray(repSales) && repSales.length > 0) {
 const mSales = new Map(salesArray.map(s => [s.id, s]));
 repSales.forEach(s => { if (s && s.id && !mSales.has(s.id)) mSales.set(s.id, s); });
 salesArray = Array.from(mSales.values());
 }
-// Rename customerName on all records if name changed
+
 const renamedRecords = [];
 if (nameChanged) {
 salesArray.forEach(s => {
@@ -15587,7 +15759,7 @@ const tx = salesArray[oldDebtIdx];
 const amountChanged = tx.totalValue !== oldDebit;
 tx.totalValue = oldDebit; tx.customerPhone = phone; tx.timestamp = getTimestamp();
 tx.updatedAt = getTimestamp();
-// Only reset payment state when the debt amount itself has changed
+
 if (amountChanged) { tx.creditReceived = false; tx.partialPaymentReceived = 0; }
 if (!tx.time) tx.time = new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
 oldDebtModified = true; oldDebtRecord = tx;
@@ -15610,11 +15782,11 @@ salesArray.forEach(s => { if (s && s.customerName === name && s.customerPhone !=
 repSales.length = 0; repSales.push(...salesArray);
 if (nameChanged || oldDebtModified || phoneUpdated) {
 await saveWithTracking('rep_sales', salesArray);
-// Push the OLD_DEBT record to Firestore (create or update)
+
 if (oldDebtRecord) await saveRecordToFirestore('rep_sales', oldDebtRecord);
-// Delete the OLD_DEBT record from Firestore when cleared
+
 if (deletedOldDebtId) await deleteRecordFromFirestore('rep_sales', deletedOldDebtId);
-// Push all renamed records to Firestore so remote devices see the new name
+
 if (nameChanged && renamedRecords.length > 0) {
 const cloudPushes = renamedRecords.map(r => saveRecordToFirestore('rep_sales', r));
 await Promise.allSettled(cloudPushes);
@@ -15627,7 +15799,7 @@ const message = nameChanged ? `Rep customer renamed to "${name}" and details upd
 showToast(message, 'success');
 closeRepCustomerEditModal();
 await new Promise(r => setTimeout(r, 350));
-// If name changed, update the managing customer reference
+
 if (nameChanged && currentManagingRepCustomer && currentManagingRepCustomer.toLowerCase() === originalName.toLowerCase()) {
 currentManagingRepCustomer = name;
 }
@@ -15788,8 +15960,7 @@ doc.setDrawColor(...hdrColor); doc.setLineWidth(0.5);
 doc.line(14, yPos, pageW - 14, yPos);
 yPos += 5;
 if (transactions.length > 0) {
-// Use stored unitPrice (set at save/merge time) or fixed getSalePriceForStore —
-// never divide totalValue/quantity which gives a weighted/partial-payment average.
+
 const getSalePrice = (t) => {
   if (t.unitPrice && t.unitPrice > 0) return t.unitPrice;
   return getSalePriceForStore(t.supplyStore || 'STORE_A');
@@ -16011,6 +16182,9 @@ return record;
 if (fixedCount > 0) {
 await idb.set('rep_sales', freshRepSales);
 }
+
+
+freshRepSales = freshRepSales.filter(r => !deletedRecordIds.has(r.id));
 freshRepSales.sort((a, b) => compareTimestamps(getRecordTimestamp(b), getRecordTimestamp(a)));
 }
 repSales = freshRepSales;
@@ -16304,11 +16478,11 @@ console.warn('enforceRepModeLock: failed to read mode from IDB, defaulting to ad
 }
 }
 function preventAdminAccess() {
-// Save the true original showTab once so wrapping is never nested across calls
+
 if (!window._originalShowTab && typeof window.showTab === 'function') {
 window._originalShowTab = window.showTab;
 }
-// Always reset to the original before re-applying any wrapper
+
 if (window._originalShowTab) window.showTab = window._originalShowTab;
 if (appMode === 'rep') {
 const originalShowTab = window._originalShowTab || window.showTab;
@@ -16502,29 +16676,45 @@ if (!phoneContainer) return;
 const allSales = isRep ?
 (Array.isArray(repSales) ? repSales : []).filter(s => s && s.salesRep === currentRepProfile) :
 (Array.isArray(customerSales) ? customerSales : []).filter(s => s && s.isRepModeEntry !== true);
-const existingNames = [...new Set(
-allSales
+
+const allRegistryNames = !isRep && Array.isArray(salesCustomers)
+? salesCustomers.filter(c => c && c.name).map(c => String(c.name).trim().toLowerCase())
+: Array.isArray(repCustomers)
+? repCustomers.filter(c => c && c.name).map(c => String(c.name).trim().toLowerCase())
+: [];
+const existingNames = [...new Set([
+...allSales
 .map(s => s && s.customerName ? s.customerName : null)
 .filter(n => n !== null && n !== undefined && n !== '' && typeof n === 'string')
-.map(n => {
-try {
-return String(n).trim().toLowerCase();
-} catch (e) {
-return null;
-}
-})
-.filter(n => n !== null && n !== '')
-)];
+.map(n => { try { return String(n).trim().toLowerCase(); } catch (e) { return null; } })
+.filter(n => n !== null && n !== ''),
+...allRegistryNames
+])];
 let safeQuery = '';
 try {
 safeQuery = query ? String(query).trim().toLowerCase() : '';
 } catch (e) {
 safeQuery = '';
 }
-if (safeQuery.length > 2 && !existingNames.includes(safeQuery)) {
+const isNewCustomer = safeQuery.length > 2 && !existingNames.includes(safeQuery);
+if (isNewCustomer) {
 phoneContainer.classList.remove('hidden');
+
+if (!isRep) {
+const priceInput = document.getElementById('new-cust-price');
+if (priceInput && !priceInput.value) {
+const storeEl = document.getElementById('supply-store-value');
+const defaultPrice = getSalePriceForStore(storeEl ? storeEl.value : 'STORE_A');
+priceInput.placeholder = defaultPrice > 0 ? String(defaultPrice) : 'Factory default';
+}
+}
 } else {
 phoneContainer.classList.add('hidden');
+
+if (!isRep) {
+const priceInput = document.getElementById('new-cust-price');
+if (priceInput) priceInput.value = '';
+}
 }
 }
 async function handleUniversalSearch(inputId, resultsId, dataSource) {
@@ -16540,23 +16730,20 @@ let matches = [];
 let html = '';
 switch(dataSource) {
 case 'customers': {
-// Read registry fresh from IDB so deleted-transaction customers are always found
+
 let _freshSalesReg = [];
-try { _freshSalesReg = await idb.get('sales_customers', []) || []; } catch(e) { console.warn('[SEARCH] sales_customers IDB read failed:', e); }
-console.log('[SEARCH customers] IDB sales_customers count:', _freshSalesReg.length, '| in-memory salesCustomers count:', Array.isArray(salesCustomers) ? salesCustomers.length : 'not array');
-// Merge IDB registry with in-memory (in case IDB write is in-flight)
+try { _freshSalesReg = await idb.get('sales_customers', []) || []; } catch(e) {}
+
 const _salesRegMap = new Map((_freshSalesReg).filter(c => c && c.id).map(c => [c.id, c]));
 if (Array.isArray(salesCustomers)) salesCustomers.forEach(c => { if (c && c.id && !_salesRegMap.has(c.id)) _salesRegMap.set(c.id, c); });
 const _mergedSalesReg = Array.from(_salesRegMap.values());
-console.log('[SEARCH customers] merged registry names:', _mergedSalesReg.map(c => c.name));
 const _custNamesFromSales = customerSales
 .filter(s => s && s.isRepModeEntry !== true)
-.map(s => (s.salesRep && s.salesRep !== 'NONE' && s.salesRep !== 'ADMIN') ? s.salesRep : s.customerName)
+.map(s => s.customerName)
 .filter(n => n && typeof n === 'string');
 const _custNamesFromRegistry = _mergedSalesReg
 .filter(c => c && c.name && typeof c.name === 'string').map(c => c.name);
 const uniqueCustomers = [...new Set([..._custNamesFromSales, ..._custNamesFromRegistry])];
-console.log('[SEARCH customers] uniqueCustomers:', uniqueCustomers, '| query:', query);
 matches = uniqueCustomers.filter(name =>
 name && typeof name === 'string' && name.toLowerCase().includes(query.toLowerCase())
 );
@@ -16633,15 +16820,13 @@ No matching suppliers found
 }
 break;
 case 'repCustomers': {
-// Read registry fresh from IDB so deleted-transaction customers are always found
+
 let _freshRepReg = [];
-try { _freshRepReg = await idb.get('rep_customers', []) || []; } catch(e) { console.warn('[SEARCH] rep_customers IDB read failed:', e); }
-console.log('[SEARCH repCustomers] IDB rep_customers count:', _freshRepReg.length, '| in-memory repCustomers count:', Array.isArray(repCustomers) ? repCustomers.length : 'not array');
-// Merge IDB registry with in-memory (in case IDB write is in-flight)
+try { _freshRepReg = await idb.get('rep_customers', []) || []; } catch(e) {}
+
 const _repRegMap = new Map((_freshRepReg).filter(c => c && c.id).map(c => [c.id, c]));
 if (Array.isArray(repCustomers)) repCustomers.forEach(c => { if (c && c.id && !_repRegMap.has(c.id)) _repRegMap.set(c.id, c); });
 const _mergedRepReg = Array.from(_repRegMap.values());
-console.log('[SEARCH repCustomers] merged registry names:', _mergedRepReg.map(c => c.name));
 const _repNamesFromSales = repSales
 .filter(s => s && s.salesRep === currentRepProfile)
 .map(s => s.customerName)
@@ -16649,7 +16834,6 @@ const _repNamesFromSales = repSales
 const _repNamesFromRegistry = _mergedRepReg
 .filter(c => c && c.name && typeof c.name === 'string').map(c => c.name);
 const repUniqueCustomers = [...new Set([..._repNamesFromSales, ..._repNamesFromRegistry])];
-console.log('[SEARCH repCustomers] repUniqueCustomers:', repUniqueCustomers, '| query:', query);
 matches = repUniqueCustomers.filter(name =>
 name && typeof name === 'string' && name.toLowerCase().includes(query.toLowerCase())
 );
@@ -16692,6 +16876,11 @@ if (type === 'name' && inputId === 'cust-name') {
 if (typeof calculateCustomerStatsForDisplay === 'function') {
 calculateCustomerStatsForDisplay(value);
 }
+
+const _phoneContainer = document.getElementById('new-customer-phone-container');
+if (_phoneContainer) _phoneContainer.classList.add('hidden');
+const _pi = document.getElementById('new-cust-price');
+if (_pi) _pi.value = '';
 } else if (type === 'repName' && inputId === 'rep-cust-name') {
 if (typeof calculateRepCustomerStatsForDisplay === 'function') {
 calculateRepCustomerStatsForDisplay(value);
@@ -16721,6 +16910,8 @@ window.selectCustomer = function(name) {
 originalSelectCustomer(name);
 document.getElementById('new-customer-phone-container').classList.add('hidden');
 document.getElementById('new-cust-phone').value = '';
+const _pi = document.getElementById('new-cust-price');
+if (_pi) _pi.value = '';
 };
 const originalSelectRepCustomer = window.selectRepCustomer || selectRepCustomer;
 window.selectRepCustomer = function(name) {
@@ -18455,7 +18646,7 @@ async function restoreFromBackup(backupTimestamp) {
     await idb.set('stock_returns', stockReturns);
 
 
-    // Run Firestore rollback in the background — do not block local restore returning
+    
     if (firebaseDB && currentUser) {
       Promise.resolve().then(async () => {
         try {
@@ -18486,7 +18677,7 @@ async function restoreFromBackup(backupTimestamp) {
               });
               if (deleteCount > 0) {
                 await batch.commit();
-                await new Promise(r => setTimeout(r, 0)); // yield between collections
+                await new Promise(r => setTimeout(r, 0)); 
               }
             } catch (colErr) {
               console.warn(`Firebase rollback warning for ${col.name}:`, colErr);
@@ -18808,7 +18999,7 @@ if (completeSection) {
   const hasSyncWarnings = document.querySelectorAll('[id^="cy-status-"]') &&
     [...document.querySelectorAll('[id^="cy-status-"]')].some(el => el.textContent.includes('Sync Failed'));
 
-  // Collect stats from all merged data
+  
   const totalMergedRecords = [
     ...(Array.isArray(db) ? db.filter(i=>i.isMerged) : []),
     ...(Array.isArray(customerSales) ? customerSales.filter(i=>i.isMerged) : []),
@@ -18980,14 +19171,7 @@ return {
 };
 }
 
-const isRepSale = (item) => {
-  return item.isRepModeEntry === true || 
-         (item.salesRep && item.salesRep !== 'NONE' && item.salesRep !== 'ADMIN');
-};
 
-const isDirectSale = (item) => {
-  return !isRepSale(item);
-};
 async function mergeProductionData(signal) {
 updateCloseYearProgress('Merging Production Data...', 10);
 if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -19018,11 +19202,11 @@ for (const [store, items] of Object.entries(storeGroups)) {
     acc.formulaCost  += (item.formulaCost  || 0);
     return acc;
   }, { net:0, totalCost:0, totalSale:0, profit:0, formulaUnits:0, formulaCost:0 });
-  // cp: weighted average of actual dynamic cost per kg across all production runs
-  //     (each run may differ as formula costs change) — average is correct here.
+  
+  
   const avgCp = totals.net > 0 ? parseFloat((totals.totalCost / totals.net).toFixed(4)) : (items[0]?.cp || 0);
-  // sp: the fixed canonical sale price for this store from factory settings.
-  //     All items in this store group share the same fixed price — never average.
+  
+  
   const canonicalSp = getSalePriceForStore(store);
   const avgSp = canonicalSp > 0 ? canonicalSp : (items[0]?.sp || 0);
   const allDates = items.map(i => i.date).filter(Boolean).sort();
@@ -19075,7 +19259,7 @@ for (const [, grp] of Object.entries(sellerReturnGroups)) {
     totalProfit += (item.profit    || 0);
   });
   const avgCp = totalNet > 0 ? parseFloat((totalCost / totalNet).toFixed(4)) : (items[0]?.cp || 0);
-  // sp: fixed canonical sale price for this store — not a weighted average.
+  
   const canonicalSpRet = getSalePriceForStore(store);
   const avgSp = canonicalSpRet > 0 ? canonicalSpRet : (items[0]?.sp || 0);
   const allDates = items.map(i => i.date).filter(Boolean).sort();
@@ -19231,10 +19415,10 @@ for (const [customer, b] of Object.entries(customerBuckets)) {
   
 
   
-  // unitPrice: the fixed canonical sale price for the supply store from factory
-  // settings — never divide totalValue/quantity (weighted average from partials).
+  
+  
   const _mergedSupplyStore = supplyStore || firstItem.supplyStore || 'STORE_A';
-  const canonicalUnitPrice = getSalePriceForStore(_mergedSupplyStore);
+  const canonicalUnitPrice = getEffectiveSalePriceForCustomer(customer, _mergedSupplyStore);
   const lastUnitPrice = canonicalUnitPrice > 0
     ? canonicalUnitPrice
     : (firstItem.unitPrice || (firstItem.quantity > 0 ? firstItem.totalValue / firstItem.quantity : 0) || 0);
@@ -19345,15 +19529,15 @@ for (const [seller, items] of Object.entries(repGroups)) {
   }, { totalSold:0, returned:0, netSold:0, creditQty:0, cashQty:0, revenue:0, profit:0, totalCost:0, creditValue:0, prevColl:0, received:0, totalExpected:0, returnsByStore:{} });
 
   const mergedNetSold = sellerTotals.totalSold - sellerTotals.returned;
-  // unitPrice: fixed canonical sale price from factory settings.
-  // Calculator (seller summary) records always use STORE_A (standard price).
-  // Never compute as revenue/qty — that produces a weighted average.
+  
+  
+  
   const _calcCanonicalSp = getSalePriceForStore('STORE_A');
   const avgUnitPrice = _calcCanonicalSp > 0
     ? _calcCanonicalSp
     : (firstItem.unitPrice || 0);
-  // costPrice: weighted average of actual cost per kg is correct here —
-  // formula material costs can change over the year.
+  
+  
   const avgCostPrice = mergedNetSold > 0
     ? parseFloat((sellerTotals.totalCost / mergedNetSold).toFixed(4))
     : (firstItem.costPrice || calculateSalesCostPerKg('standard') || 0);
@@ -19652,8 +19836,8 @@ for (const [, b] of Object.entries(repBuckets)) {
   
 
   
-  // unitPrice: fixed canonical sale price for the supply store from factory
-  // settings — never divide totalValue/quantity (gives averaged/partial price).
+  
+  
   const _repMergedStore = supplyStore || firstItem.supplyStore || 'STORE_A';
   const repCanonicalPrice = getSalePriceForStore(_repMergedStore);
   const lastUnitPrice = repCanonicalPrice > 0
@@ -21220,12 +21404,12 @@ modal.classList.remove('open');
 document.body.style.overflow = '';
 document.documentElement.style.overflow = '';
 }
-// ─── Overlay Stack Manager ────────────────────────────────────────────────────
-// Tracks which overlays are open and in what order, so backdrop clicks and
-// Escape key close exactly ONE layer per action (the topmost one).
+
+
+
 const _overlayStack = (() => {
-  // Registry: id → { isOpen, closeFn, contentSelector }
-  // contentSelector: CSS selector for the inner card/box — clicks inside it are ignored
+  
+  
   const _registry = {
     'factorySettingsOverlay':      { closeFn: () => closeFactorySettings(),          contentSel: '.factory-overlay-card' },
     'factoryInventoryOverlay':     { closeFn: () => closeFactoryInventoryModal(),     contentSel: '.factory-overlay-card' },
@@ -21241,8 +21425,8 @@ const _overlayStack = (() => {
     'manage-reps-modal':           { closeFn: () => closeManageRepsModal(),           contentSel: '#manage-reps-card'     },
   };
 
-  // Returns a list of currently-open overlay entries ordered by DOM position
-  // (later in DOM = higher stacking order = topmost visually).
+  
+  
   function _openLayers() {
     const open = [];
     for (const [id, cfg] of Object.entries(_registry)) {
@@ -21252,7 +21436,7 @@ const _overlayStack = (() => {
                      (el.style.display && el.style.display !== 'none' && el.style.display !== '');
       if (isOpen) open.push({ id, el, ...cfg });
     }
-    // Sort by DOM order so the last one in the document is treated as topmost
+    
     open.sort((a, b) => {
       const pos = a.el.compareDocumentPosition(b.el);
       return (pos & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1;
@@ -21260,7 +21444,7 @@ const _overlayStack = (() => {
     return open;
   }
 
-  // Close only the topmost open overlay. Returns true if something was closed.
+  
   function closeTop() {
     const layers = _openLayers();
     if (layers.length === 0) return false;
@@ -21269,16 +21453,16 @@ const _overlayStack = (() => {
     return true;
   }
 
-  // Backdrop click handler — close top layer only when clicking outside its card
+  
   document.addEventListener('click', function(e) {
     const layers = _openLayers();
     if (layers.length === 0) return;
     const top = layers[layers.length - 1];
-    // If click is inside the card/content area of the topmost overlay, do nothing
+    
     const contentEl = top.el.querySelector(top.contentSel);
     if (contentEl && contentEl.contains(e.target)) return;
-    // Also ignore clicks that are directly on a child overlay's card
-    // (e.g. customerEditOverlay sitting on top of customerManagementOverlay)
+    
+    
     if (layers.length > 1) {
       const secondTop = layers[layers.length - 2];
       const secondContent = secondTop.el.querySelector(secondTop.contentSel);
@@ -21287,10 +21471,10 @@ const _overlayStack = (() => {
     top.closeFn();
   }, true);
 
-  // Escape key — close top layer only
+  
   document.addEventListener('keydown', function(e) {
     if (e.key !== 'Escape') return;
-    // glass-confirm dialogs handle Escape themselves — skip if one is open
+    
     if (document.querySelector('.glass-confirm-backdrop')) return;
     if (closeTop()) e.preventDefault();
   });
