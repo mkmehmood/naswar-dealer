@@ -13465,12 +13465,7 @@ currentDebt -= (t.totalValue || 0);
 });
 currentDebt = Math.max(0, currentDebt);
 const _mcStats = document.getElementById('manageCustomerStats'); if (_mcStats) _mcStats.innerText = `Current Debt: ${await formatCurrency(currentDebt)}`;
-transactions.sort((a,b) => {
-const aPending = (a.paymentType === 'CREDIT' && !a.creditReceived) ? 1 : 0;
-const bPending = (b.paymentType === 'CREDIT' && !b.creditReceived) ? 1 : 0;
-if (bPending !== aPending) return bPending - aPending;
-return b.timestamp - a.timestamp;
-});
+transactions.sort((a, b) => b.timestamp - a.timestamp);
 if(transactions.length === 0) {
 list.innerHTML = '<div class="u-empty-state-sm" >No history found</div>';
 return;
@@ -15762,12 +15757,7 @@ currentDebt -= (t.totalValue || 0);
 });
 currentDebt = Math.max(0, currentDebt);
 const _repMCS = document.getElementById('repManageCustomerStats'); if (_repMCS) _repMCS.innerText = `Current Debt: ${await formatCurrency(currentDebt)}`;
-transactions.sort((a, b) => {
-const ap = (a.paymentType === 'CREDIT' && !a.creditReceived) ? 1 : 0;
-const bp = (b.paymentType === 'CREDIT' && !b.creditReceived) ? 1 : 0;
-if (bp !== ap) return bp - ap;
-return b.timestamp - a.timestamp;
-});
+transactions.sort((a, b) => b.timestamp - a.timestamp);
 if (transactions.length === 0) {
 list.innerHTML = '<div class="u-empty-state-sm" >No history found</div>';
 return;
