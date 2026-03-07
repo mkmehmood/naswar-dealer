@@ -14113,18 +14113,27 @@ document.getElementById('dataMenuOverlay').style.display = 'none';
 async function recoverRecord(deletedId, collectionName) {
   if (!deletedId || !collectionName) return false;
   try {
-    // 1. Try to fetch the original record from Firestore (may still exist there)
+    const idbKey = getIndexedDBKey(collectionName);
+
+    // 1. Get snapshot from local tombstone first (fastest, always has it for recent deletes)
     let recoveredData = null;
-    if (firebaseDB && currentUser) {
+    const localDeletionRecords = await idb.get('deletion_records', []);
+    const localTombstone = Array.isArray(localDeletionRecords)
+      ? localDeletionRecords.find(r => r.id === deletedId)
+      : null;
+    if (localTombstone && localTombstone.snapshot) {
+      recoveredData = localTombstone.snapshot;
+    }
+
+    // Fallback: check Firestore tombstone snapshot, then the original collection doc
+    if (!recoveredData && firebaseDB && currentUser) {
       try {
         const userRef = firebaseDB.collection('users').doc(currentUser.uid);
-        // Check tombstone for an embedded snapshot
         const tombstoneDoc = await userRef.collection('deletions').doc(String(deletedId)).get();
         if (tombstoneDoc.exists) {
           const td = tombstoneDoc.data();
           if (td && td.snapshot) recoveredData = td.snapshot;
         }
-        // Fall back: try the original collection doc
         if (!recoveredData) {
           const origDoc = await userRef.collection(collectionName).doc(String(deletedId)).get();
           if (origDoc.exists) recoveredData = origDoc.data();
@@ -14132,66 +14141,64 @@ async function recoverRecord(deletedId, collectionName) {
       } catch(e) { console.warn('[RecycleBin] Firestore snapshot fetch failed:', e); }
     }
 
-    // 2. Remove from in-memory deletedRecordIds set → un-hides record from all filters
+    // 2. Build clean recovered record (strip all deletion metadata)
+    let cleanRecord = null;
+    if (recoveredData) {
+      cleanRecord = { ...recoveredData };
+      delete cleanRecord.deletedAt;
+      delete cleanRecord.tombstoned_at;
+      delete cleanRecord.deleted_by;
+      delete cleanRecord.deletion_version;
+      cleanRecord.updatedAt = Date.now();
+      cleanRecord.recoveredAt = Date.now();
+    }
+
+    // 3. Remove from in-memory deletedRecordIds set immediately
     deletedRecordIds.delete(deletedId);
 
-    // 3. Remove from local IDB tombstone lists
-    let deletionRecords = await idb.get('deletion_records', []);
-    if (!Array.isArray(deletionRecords)) deletionRecords = [];
-    deletionRecords = deletionRecords.filter(r => r.id !== deletedId);
-    await idb.set('deletion_records', deletionRecords);
+    // 4. Remove from BOTH local IDB tombstone stores
+    const updatedDeletionRecords = Array.isArray(localDeletionRecords)
+      ? localDeletionRecords.filter(r => r.id !== deletedId)
+      : [];
+    await idb.set('deletion_records', updatedDeletionRecords);
     await idb.set('deleted_records', Array.from(deletedRecordIds));
 
-    // 4. Remove cloud tombstone + restore record to Firestore + restore to local IDB array
+    // 5. Restore to local IDB data array — remove stale copy first, then re-insert clean
+    if (cleanRecord && idbKey) {
+      let localArr = await idb.get(idbKey, []);
+      if (!Array.isArray(localArr)) localArr = [];
+      localArr = localArr.filter(r => r.id !== deletedId);
+      localArr.push(cleanRecord);
+      await idb.set(idbKey, localArr);
+    }
+
+    // 6. Delete cloud tombstone + re-write record to Firestore
     if (firebaseDB && currentUser) {
       try {
         const userRef = firebaseDB.collection('users').doc(currentUser.uid);
         const batch = firebaseDB.batch();
-        // Delete the tombstone
         batch.delete(userRef.collection('deletions').doc(String(deletedId)));
-        // If we have data, re-write the record to its collection
-        if (recoveredData) {
-          const cleanRecord = { ...recoveredData };
-          delete cleanRecord.deletedAt;
-          delete cleanRecord.tombstoned_at;
-          cleanRecord.updatedAt = Date.now();
-          cleanRecord.recoveredAt = Date.now();
-          batch.set(userRef.collection(collectionName).doc(String(deletedId)), cleanRecord, { merge: true });
+        if (cleanRecord) {
+          const sanitized = typeof sanitizeForFirestore === 'function'
+            ? sanitizeForFirestore({ ...cleanRecord, syncedAt: new Date().toISOString() })
+            : { ...cleanRecord, syncedAt: new Date().toISOString() };
+          sanitized.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+          batch.set(
+            userRef.collection(collectionName).doc(String(deletedId)),
+            sanitized,
+            { merge: true }
+          );
         }
         await batch.commit();
         trackFirestoreWrite(2);
-      } catch(e) { console.warn('[RecycleBin] Cloud restore partial:', e); }
+      } catch(e) { console.warn('[RecycleBin] Cloud restore failed:', e); }
     }
 
-    // 5. Restore to local IDB data array if we have a snapshot
-    if (recoveredData) {
-      const idbKey = getIndexedDBKey(collectionName);
-      if (idbKey) {
-        const localArr = await idb.get(idbKey, []);
-        if (!localArr.find(r => r.id === deletedId)) {
-          const cleanRecord = { ...recoveredData };
-          delete cleanRecord.deletedAt;
-          delete cleanRecord.tombstoned_at;
-          cleanRecord.updatedAt = Date.now();
-          cleanRecord.recoveredAt = Date.now();
-          localArr.push(cleanRecord);
-          await idb.set(idbKey, localArr);
-          // Sync the in-memory array too
-          const varMap = {
-            'customer_sales': () => { customerSales.push(cleanRecord); },
-            'payment_transactions': () => { paymentTransactions.push(cleanRecord); },
-            'rep_sales': () => { repSales.push(cleanRecord); },
-            'expenses': () => { expenseRecords.push(cleanRecord); },
-            'mfg_pro_pkr': () => { db.push(cleanRecord); },
-            'factory_production_history': () => { factoryProductionHistory.push(cleanRecord); },
-            'stock_returns': () => { stockReturns.push(cleanRecord); },
-            'noman_history': () => { salesHistory.push(cleanRecord); },
-          };
-          if (varMap[idbKey]) {
-            try { varMap[idbKey](); } catch(e) {}
-          }
-        }
-      }
+    // 7. Reload ALL in-memory arrays from IDB — this ensures every tab re-reads IDB
+    //    with the updated deletedRecordIds (no longer contains deletedId) and the
+    //    restored record now present in the IDB data array.
+    if (typeof invalidateAllCaches === 'function') {
+      await invalidateAllCaches();
     }
 
     triggerAutoSync();
@@ -14208,20 +14215,48 @@ window.registerDeletion = registerDeletion;
 // ─────────────────────────────────────────────────────────────────────────────
 // RECYCLE BIN
 // ─────────────────────────────────────────────────────────────────────────────
+// Maps each Firestore collection to its tab group key
+const RECYCLE_COLLECTION_TO_TAB = {
+  'sales':              'tab_sales',
+  'sales_customers':    'tab_sales',
+  'rep_sales':          'tab_rep',
+  'rep_customers':      'tab_rep',
+  'production':         'tab_production',
+  'returns':            'tab_production',
+  'calculator_history': 'tab_calculator',
+  'factory_history':    'tab_factory',
+  'inventory':          'tab_factory',
+  'transactions':       'tab_payments',
+  'expenses':           'tab_payments',
+  'entities':           'tab_payments',
+  'unknown':            'tab_payments',
+};
+
+// Human-readable label per collection (shown inside each row)
 const RECYCLE_BIN_COLLECTION_LABELS = {
-  'sales': 'Customer Sale',
-  'transactions': 'Payment Transaction',
-  'rep_sales': 'Rep Sale',
-  'expenses': 'Expense',
-  'production': 'Production Batch',
-  'factory_history': 'Factory Production',
-  'inventory': 'Factory Inventory',
-  'returns': 'Stock Return',
+  'sales':              'Customer Sale',
+  'sales_customers':    'Customer Contact',
+  'rep_sales':          'Rep Sale',
+  'rep_customers':      'Rep Customer',
+  'production':         'Production Batch',
+  'returns':            'Stock Return',
   'calculator_history': 'Calculator Entry',
-  'entities': 'Payment Entity',
-  'rep_customers': 'Rep Customer',
-  'sales_customers': 'Customer Contact',
-  'unknown': 'Record',
+  'factory_history':    'Factory Production',
+  'inventory':          'Inventory Item',
+  'transactions':       'Transaction',
+  'expenses':           'Expense',
+  'entities':           'Payment Entity',
+  'unknown':            'Record',
+};
+
+// Tab group labels shown in the dropdown
+const RECYCLE_TAB_LABELS = {
+  'tab_sales':       'Sales Tab',
+  'tab_rep':         'Rep Tab',
+  'tab_production':  'Manufacturing Tab',
+  'tab_calculator':  'Calculator Tab',
+  'tab_factory':     'Factory Tab',
+  'tab_payments':    'Payments Tab',
 };
 const RECYCLE_RECOVERABLE_COLLECTIONS = new Set([
   'sales','transactions','rep_sales','expenses','production',
@@ -14288,21 +14323,17 @@ async function renderRecycleBin(filterCollection = 'all') {
       statsEl.textContent = `${deletionRecords.length} deleted record${deletionRecords.length !== 1 ? 's' : ''} (kept for 90 days)`;
     }
 
-    // Populate filter dropdown
+    // Dropdown is static in HTML with 6 tab options — no dynamic population needed.
+    // Sync the select element's displayed value with the current filter.
     const filterSel = document.getElementById('recycleBinFilter');
-    if (filterSel && filterSel.options.length <= 1) {
-      const cols = [...new Set(deletionRecords.map(r => r.collection || 'unknown'))];
-      cols.forEach(col => {
-        const opt = document.createElement('option');
-        opt.value = col;
-        opt.textContent = RECYCLE_BIN_COLLECTION_LABELS[col] || col;
-        filterSel.appendChild(opt);
-      });
-    }
+    if (filterSel && filterSel.value !== filterCollection) filterSel.value = filterCollection;
 
     const filtered = filterCollection === 'all'
       ? deletionRecords
-      : deletionRecords.filter(r => (r.collection || 'unknown') === filterCollection);
+      : deletionRecords.filter(r => {
+          const tab = RECYCLE_COLLECTION_TO_TAB[r.collection || 'unknown'] || 'tab_payments';
+          return tab === filterCollection;
+        });
 
     if (filtered.length === 0) {
       container.innerHTML = `<div style="text-align:center;padding:50px 20px;color:var(--text-muted);">
@@ -14315,7 +14346,9 @@ async function renderRecycleBin(filterCollection = 'all') {
 
     container.innerHTML = filtered.map(rec => {
       const col = rec.collection || 'unknown';
-      const typeLabel = RECYCLE_BIN_COLLECTION_LABELS[col] || col;
+      const tabKey = RECYCLE_COLLECTION_TO_TAB[col] || 'tab_payments';
+      const tabLabel = RECYCLE_TAB_LABELS[tabKey] || tabKey;
+      const typeLabel = `${tabLabel} › ${RECYCLE_BIN_COLLECTION_LABELS[col] || col}`;
       const deletedDate = rec.deletedAt
         ? new Date(rec.deletedAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
         : 'Unknown date';
@@ -14390,7 +14423,9 @@ async function renderRecycleBin(filterCollection = 'all') {
 }
 
 async function attemptRecoverRecord(id, collectionName) {
-  const label = RECYCLE_BIN_COLLECTION_LABELS[collectionName] || collectionName;
+  const tabKey = RECYCLE_COLLECTION_TO_TAB[collectionName] || 'tab_payments';
+  const tabLabel = RECYCLE_TAB_LABELS[tabKey] || tabKey;
+  const label = `${tabLabel} › ${RECYCLE_BIN_COLLECTION_LABELS[collectionName] || collectionName}`;
   if (!(await showGlassConfirm(
     `Recover this ${label}?\n\nIt will be restored to its original collection and become visible again in all views.`,
     { title: '↩ Recover Record', confirmText: 'Recover', danger: false }
@@ -14400,10 +14435,10 @@ async function attemptRecoverRecord(id, collectionName) {
   const ok = await recoverRecord(id, collectionName);
   if (ok) {
     showToast(`${label} recovered successfully!`, 'success');
-    await refreshUI();
-    calculateNetCash();
-    calculateCashTracker();
+    // Trigger all tabs to re-render from the freshly reloaded in-memory arrays
     notifyDataChange('all');
+    if (typeof calculateNetCash === 'function') calculateNetCash();
+    if (typeof calculateCashTracker === 'function') calculateCashTracker();
     // Re-render the current filter
     const filterSel = document.getElementById('recycleBinFilter');
     const current = filterSel ? filterSel.value : 'all';
