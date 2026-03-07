@@ -1347,6 +1347,24 @@ calculateNetCash();
 calculateCashTracker();
 showToast("Production record saved successfully!", "success");
 }
+// Inline dedup — same logic as _dedupDeletionRecords in sync.js
+function _dedupDeletionRecordsLocal(arr) {
+  if (!Array.isArray(arr)) return [];
+  const seen = new Map();
+  arr.forEach(r => {
+    if (!r) return;
+    const key = String(r.id || r.recordId || '');
+    if (!key) return;
+    const existing = seen.get(key);
+    if (!existing
+        || (!existing.displayName && r.displayName)
+        || (!existing.snapshot && r.snapshot)
+        || (r.syncedToCloud && !existing.syncedToCloud)) {
+      seen.set(key, r);
+    }
+  });
+  return Array.from(seen.values());
+}
 async function registerDeletion(id, collectionName = 'unknown') {
 if (!id) {
 return;
@@ -1382,13 +1400,16 @@ deletionRecord.tombstoned_at = now;
 deletedRecordIds.add(id);
 let deletionRecords = await idb.get('deletion_records', []);
 if (!Array.isArray(deletionRecords)) deletionRecords = [];
-const existingIndex = deletionRecords.findIndex(r => r.id === id);
+const _sid = String(id);
+const existingIndex = deletionRecords.findIndex(r => String(r.id) === _sid || String(r.recordId) === _sid);
 if (existingIndex >= 0) {
 deletionRecords[existingIndex] = deletionRecord;
 } else {
 deletionRecords.push(deletionRecord);
 }
-await idb.set('deletion_records', deletionRecords);
+// Dedup before saving — guards against racing writes from onSnapshot / sync paths
+const _deduped = _dedupDeletionRecordsLocal(deletionRecords);
+await idb.set('deletion_records', _deduped);
 await idb.set('deleted_records', Array.from(deletedRecordIds));
 triggerAutoSync();
 await uploadDeletionToCloud(deletionRecord);
@@ -1422,18 +1443,29 @@ function _captureRecordSnapshot(id, collectionName) {
     // --- Build display strings per collection ---
     switch (collectionName) {
       case 'sales':
-        result.displayName   = record.customerName || 'Unknown Customer';
-        result.displayDetail = record.store ? `Store ${record.store}` : (record.supplyStore || '');
+        result.displayName   = record.customerName || record.name || 'Unknown Customer';
+        result.displayDetail = [
+          record.supplyStore || record.store || '',
+          record.paymentType ? (record.paymentType === 'CASH' ? 'Cash' : record.paymentType === 'CREDIT' ? 'Credit' : record.paymentType) : '',
+          record.date || ''
+        ].filter(Boolean).join(' · ');
         result.displayAmount = record.totalValue != null ? `₨${Number(record.totalValue).toLocaleString()}` : (record.quantity ? `${record.quantity} kg` : null);
         break;
       case 'transactions':
-        result.displayName   = record.entityName || record.description || 'Unknown Entity';
-        result.displayDetail = record.type ? (record.type === 'IN' ? '↓ Payment IN' : '↑ Payment OUT') : '';
-        result.displayAmount = record.amount != null ? `₨${Number(record.amount).toLocaleString()}` : null;
+        result.displayName   = record.entityName || record.description || record.name || 'Unknown Entity';
+        result.displayDetail = [
+          record.type === 'IN' ? '↓ IN' : record.type === 'OUT' ? '↑ OUT' : (record.type || ''),
+          record.date || ''
+        ].filter(Boolean).join(' · ');
+        result.displayAmount = record.amount != null ? `₨${Number(record.amount).toLocaleString()}` : (record.totalValue != null ? `₨${Number(record.totalValue).toLocaleString()}` : null);
         break;
       case 'rep_sales':
-        result.displayName   = record.customerName || 'Unknown Rep Customer';
-        result.displayDetail = record.salesRep ? `Rep: ${record.salesRep}` : '';
+        result.displayName   = record.customerName || record.name || 'Unknown Rep Customer';
+        result.displayDetail = [
+          record.salesRep ? `Rep: ${record.salesRep}` : '',
+          record.paymentType === 'COLLECTION' ? 'Collection' : record.paymentType === 'CREDIT' ? 'Credit' : record.paymentType === 'CASH' ? 'Cash' : (record.paymentType || ''),
+          record.date || ''
+        ].filter(Boolean).join(' · ');
         result.displayAmount = record.totalValue != null ? `₨${Number(record.totalValue).toLocaleString()}` : (record.quantity ? `${record.quantity} kg` : null);
         break;
       case 'expenses':
@@ -1466,9 +1498,19 @@ function _captureRecordSnapshot(id, collectionName) {
         result.displayDetail = record.supplierName ? `Supplier: ${record.supplierName}` : '';
         result.displayAmount = record.quantity != null ? `${record.quantity} kg` : null;
         break;
+      case 'sales_customers':
+        result.displayName   = record.name || null;
+        result.displayDetail = record.phone ? `📞 ${record.phone}` : '';
+        result.displayAmount = null;
+        break;
+      case 'rep_customers':
+        result.displayName   = record.name || null;
+        result.displayDetail = [record.salesRep ? `Rep: ${record.salesRep}` : '', record.phone || ''].filter(Boolean).join(' · ');
+        result.displayAmount = null;
+        break;
       case 'entities':
         result.displayName   = record.name || 'Payment Entity';
-        result.displayDetail = record.type || '';
+        result.displayDetail = record.phone ? `📞 ${record.phone}` : (record.type || '');
         result.displayAmount = null;
         break;
       default:
@@ -1479,6 +1521,82 @@ function _captureRecordSnapshot(id, collectionName) {
   } catch(e) { /* silently fail – snapshot is best-effort */ }
   return result;
 }
+// _fromObj: reconstruct display strings from a raw snapshot object (used by renderRecycleBin
+// for cloud tombstones where _captureRecordSnapshot can't find the record in live arrays)
+_captureRecordSnapshot._fromObj = function(snapshotObj, collectionName) {
+  const result = { displayName: null, displayDetail: null, displayAmount: null };
+  if (!snapshotObj) return result;
+  const s = snapshotObj;
+  try {
+    switch (collectionName) {
+      case 'sales':
+        result.displayName   = s.customerName || s.name || null;
+        result.displayDetail = [s.supplyStore || s.store || '', s.paymentType || '', s.date || ''].filter(Boolean).join(' · ');
+        result.displayAmount = s.totalValue != null ? `₨${Number(s.totalValue).toLocaleString()}` : null;
+        break;
+      case 'rep_sales':
+        result.displayName   = s.customerName || s.name || null;
+        result.displayDetail = [s.salesRep ? `Rep: ${s.salesRep}` : '', s.paymentType || '', s.date || ''].filter(Boolean).join(' · ');
+        result.displayAmount = s.totalValue != null ? `₨${Number(s.totalValue).toLocaleString()}` : null;
+        break;
+      case 'transactions':
+        result.displayName   = s.entityName || s.description || s.name || null;
+        result.displayDetail = [s.type === 'IN' ? '↓ IN' : s.type === 'OUT' ? '↑ OUT' : (s.type || ''), s.date || ''].filter(Boolean).join(' · ');
+        result.displayAmount = s.amount != null ? `₨${Number(s.amount).toLocaleString()}` : null;
+        break;
+      case 'expenses':
+        result.displayName   = s.name || s.description || null;
+        result.displayDetail = [s.category || '', s.date || ''].filter(Boolean).join(' · ');
+        result.displayAmount = s.amount != null ? `₨${Number(s.amount).toLocaleString()}` : null;
+        break;
+      case 'production':
+        result.displayName   = s.store ? `Production – ${s.store}` : 'Production Batch';
+        result.displayDetail = s.date || '';
+        result.displayAmount = s.net != null ? `${s.net} kg` : null;
+        break;
+      case 'returns':
+        result.displayName   = s.store ? `Return – ${s.store}` : 'Stock Return';
+        result.displayDetail = s.date || '';
+        result.displayAmount = s.quantity != null ? `${s.quantity} kg` : null;
+        break;
+      case 'factory_history':
+        result.displayName   = s.store ? `Factory – ${s.store}` : 'Factory Production';
+        result.displayDetail = s.date || '';
+        result.displayAmount = s.units != null ? `${s.units} units` : null;
+        break;
+      case 'calculator_history':
+        result.displayName   = s.customerName || s.customer || s.name || 'Calculator Entry';
+        result.displayDetail = s.supplyStore || s.store || '';
+        result.displayAmount = s.totalValue != null ? `₨${Number(s.totalValue).toLocaleString()}` : null;
+        break;
+      case 'inventory':
+        result.displayName   = s.name || 'Inventory Item';
+        result.displayDetail = s.supplierName ? `Supplier: ${s.supplierName}` : '';
+        result.displayAmount = s.quantity != null ? `${s.quantity} kg` : null;
+        break;
+      case 'sales_customers':
+        result.displayName   = s.name || null;
+        result.displayDetail = s.phone ? `📞 ${s.phone}` : '';
+        result.displayAmount = null;
+        break;
+      case 'rep_customers':
+        result.displayName   = s.name || null;
+        result.displayDetail = [s.salesRep ? `Rep: ${s.salesRep}` : '', s.phone || ''].filter(Boolean).join(' · ');
+        result.displayAmount = null;
+        break;
+      case 'entities':
+        result.displayName   = s.name || 'Payment Entity';
+        result.displayDetail = s.phone ? `📞 ${s.phone}` : (s.type || '');
+        result.displayAmount = null;
+        break;
+      default:
+        result.displayName   = s.name || s.customerName || s.entityName || s.description || null;
+        result.displayDetail = s.date || null;
+        result.displayAmount = s.amount != null ? `₨${Number(s.amount).toLocaleString()}` : null;
+    }
+  } catch(e) { /* silently fail */ }
+  return result;
+};
 async function uploadDeletionToCloud(deletionRecord) {
 if (!firebaseDB || typeof currentUser === 'undefined' || !currentUser) {
 return;
@@ -1505,7 +1623,13 @@ recordId: String(deletionRecord.id),
 deletedAt: firebase.firestore.Timestamp.fromMillis(deletionRecord.deletedAt),
 collection: deletionRecord.collection,
 recordType: deletionRecord.collection,
-expiresAt: firebase.firestore.Timestamp.fromMillis(deletionRecord.deletedAt + (90 * 24 * 60 * 60 * 1000))
+expiresAt: firebase.firestore.Timestamp.fromMillis(deletionRecord.deletedAt + (90 * 24 * 60 * 60 * 1000)),
+displayName: deletionRecord.displayName || null,
+displayDetail: deletionRecord.displayDetail || null,
+displayAmount: deletionRecord.displayAmount || null,
+snapshot: deletionRecord.snapshot ? (typeof sanitizeForFirestore === 'function' ? sanitizeForFirestore({...deletionRecord.snapshot}) : deletionRecord.snapshot) : null,
+deleted_by: deletionRecord.deleted_by || 'user',
+deletion_version: deletionRecord.deletion_version || '2.0'
 });
 if (deletionRecord.collection && deletionRecord.collection !== 'unknown') {
 const itemRef = userRef.collection(deletionRecord.collection).doc(String(deletionRecord.id));
@@ -1515,7 +1639,7 @@ await batch.commit();
 trackFirestoreWrite(2);
 let deletionRecords = await idb.get('deletion_records', []);
 if (Array.isArray(deletionRecords)) {
-const index = deletionRecords.findIndex(r => r.id === deletionRecord.id);
+const index = deletionRecords.findIndex(r => String(r.id) === String(deletionRecord.id) || String(r.recordId) === String(deletionRecord.id));
 if (index > -1) {
 deletionRecords[index].syncedToCloud = true;
 await idb.set('deletion_records', deletionRecords);
@@ -13343,6 +13467,7 @@ try {
 const contactIdx = salesCustomers.findIndex(c => c && c.name && c.name.toLowerCase() === name.toLowerCase());
 if (contactIdx !== -1) {
 const contactId = salesCustomers[contactIdx].id;
+await registerDeletion(contactId, 'sales_customers');
 salesCustomers.splice(contactIdx, 1);
 await saveWithTracking('sales_customers', salesCustomers);
 await deleteRecordFromFirestore('sales_customers', contactId);
@@ -14048,10 +14173,12 @@ let settled = false;
 const cleanup = (result) => {
 if (settled) return;
 settled = true;
+window._glassConfirmClosing = true;
 const box = backdrop.querySelector('.glass-confirm-box');
 backdrop.classList.add('closing');
 if (box) box.classList.add('closing');
 setTimeout(() => { backdrop.remove(); resolve(result); }, 200);
+setTimeout(() => { window._glassConfirmClosing = false; }, 400);
 };
 backdrop.querySelector('.gc-confirm').addEventListener('click', () => cleanup(true), { once: true });
 backdrop.querySelector('.gc-cancel').addEventListener('click', () => cleanup(false), { once: true });
@@ -14107,96 +14234,224 @@ document.getElementById('dataMenuOverlay').style.display = 'none';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RECYCLE BIN — RECOVERY ENGINE
-// recoverRecord is defined here (not sync.js) so it has access to all globals:
-// deletedRecordIds, idb, registerDeletion, firebaseDB, currentUser, getIndexedDBKey
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Tracks IDs that have been recovered this session — used by renderRecycleBin
+// to immediately hide them even before Firestore snapshot confirms deletion
+const _recoveredThisSession = new Set();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// purgeRecoveredId — single authoritative function that removes a recovered
+// record ID from EVERY deletion registry: in-memory, IDB, OfflineQueue, and
+// (async) Firestore. Call this before restoring the record to data stores so
+// no subsequent filter or sync can re-hide the recovered item.
+//
+// Registries cleaned:
+//  1. _recoveredThisSession  (in-memory session guard — blocks listener re-add)
+//  2. deletedRecordIds       (in-memory Set — drives all UI filters)
+//  3. deletionRecords        (in-memory global array — drives Recycle Bin list)
+//  4. IDB 'deletion_records' (persisted tombstone list — survives page reload)
+//  5. IDB 'deleted_records'  (persisted ID set — re-read by invalidateAllCaches)
+//  6. OfflineQueue.queue     (cancel any pending delete op for this ID)
+//  6b. OfflineQueue.deadLetterQueue (cancel any failed delete op for this ID)
+//  7. Firestore deletions/{id} (async; OfflineQueue fallback on network fail)
+// ─────────────────────────────────────────────────────────────────────────────
+async function purgeRecoveredId(id, collectionName, cleanRecord, newId) {
+  const sid    = String(id);
+  // newId: the fresh UUID assigned to cleanRecord.id. Tombstone deleted under old id;
+  // record written to Firestore/OfflineQueue under the new id.
+  const newSid = newId ? String(newId) : sid;
+
+  // 1. Session guard — Firestore onSnapshot listener checks this before
+  //    re-adding any tombstone doc to deletedRecordIds
+  _recoveredThisSession.add(sid);
+
+  // 2. In-memory deletedRecordIds
+  deletedRecordIds.delete(sid);
+
+  // 3. In-memory deletionRecords global array
+  if (typeof deletionRecords !== 'undefined' && Array.isArray(deletionRecords)) {
+    deletionRecords = deletionRecords.filter(r =>
+      r.id !== sid && r.recordId !== sid
+    );
+  }
+
+  // 4 + 5. IDB persisted stores — re-read fresh from IDB to avoid stale reference
+  try {
+    const freshDeletionRecords = await idb.get('deletion_records', []);
+    const prunedDeletionRecords = Array.isArray(freshDeletionRecords)
+      ? freshDeletionRecords.filter(r => r.id !== sid && r.recordId !== sid)
+      : [];
+    await idb.set('deletion_records', prunedDeletionRecords);
+  } catch(e) { console.warn('[RecycleBin] purge IDB deletion_records failed:', e); }
+
+  try {
+    await idb.set('deleted_records', Array.from(deletedRecordIds));
+  } catch(e) { console.warn('[RecycleBin] purge IDB deleted_records failed:', e); }
+
+  // 6. OfflineQueue — cancel pending 'delete' and stale 'set data=null' for this ID
+  //    Also scrub the dead-letter queue so failed delete ops can't replay
+  if (typeof OfflineQueue !== 'undefined') {
+    const _isStaleDeleteOp = (item) => {
+      const op = item.operation || {};
+      return (
+        (op.action === 'delete' && op.docId === sid) ||
+        (op.action === 'set'    && op.docId === sid && (op.data === null || op.data === undefined))
+      );
+    };
+    const qBefore = OfflineQueue.queue.length;
+    OfflineQueue.queue = OfflineQueue.queue.filter(item => !_isStaleDeleteOp(item));
+    if (OfflineQueue.queue.length !== qBefore) {
+      try { await OfflineQueue.saveQueue(); } catch(e) {}
+    }
+    const dlBefore = (OfflineQueue.deadLetterQueue || []).length;
+    if (Array.isArray(OfflineQueue.deadLetterQueue)) {
+      OfflineQueue.deadLetterQueue = OfflineQueue.deadLetterQueue.filter(item => !_isStaleDeleteOp(item));
+      if (OfflineQueue.deadLetterQueue.length !== dlBefore) {
+        try { await OfflineQueue.saveDeadLetterQueue(); } catch(e) {}
+      }
+    }
+  }
+
+  // 7. Firestore — delete the tombstone doc and restore the clean record.
+  //    This is async/non-blocking. On network failure both ops are queued
+  //    in OfflineQueue so they survive offline and retry automatically.
+  if (firebaseDB && currentUser) {
+    (async () => {
+      try {
+        const userRef = firebaseDB.collection('users').doc(currentUser.uid);
+        const batch = firebaseDB.batch();
+        // Delete the Firestore tombstone
+        batch.delete(userRef.collection('deletions').doc(sid));
+        // Restore the record in its original collection under the NEW id
+        if (cleanRecord && collectionName) {
+          const sanitized = typeof sanitizeForFirestore === 'function'
+            ? sanitizeForFirestore({ ...cleanRecord, syncedAt: new Date().toISOString() })
+            : { ...cleanRecord, syncedAt: new Date().toISOString() };
+          sanitized.id = newSid;
+          delete sanitized.originalId; // ensure old UUID is not written to Firestore
+          sanitized.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+          batch.set(
+            userRef.collection(collectionName).doc(newSid),
+            sanitized,
+            { merge: true }
+          );
+        }
+        await batch.commit();
+        trackFirestoreWrite(cleanRecord ? 2 : 1);
+      } catch(e) {
+        console.warn('[RecycleBin] Cloud purge failed — queuing for retry:', e);
+        if (typeof OfflineQueue !== 'undefined') {
+          // Delete tombstone under old id
+          await OfflineQueue.add({
+            action: 'delete',
+            collection: 'deletions',
+            docId: sid,
+            data: null
+          });
+          // Restore record under new id
+          if (cleanRecord && collectionName) {
+            const queuedRecord = typeof sanitizeForFirestore === 'function'
+              ? sanitizeForFirestore({ ...cleanRecord, syncedAt: new Date().toISOString() })
+              : { ...cleanRecord, syncedAt: new Date().toISOString() };
+            queuedRecord.id = newSid;
+            delete queuedRecord.originalId; // ensure old UUID is not queued
+            await OfflineQueue.add({
+              action: 'set',
+              collection: collectionName,
+              docId: newSid,
+              data: queuedRecord
+            });
+          }
+        }
+      }
+    })();
+  }
+}
+window.purgeRecoveredId = purgeRecoveredId;
+
 async function recoverRecord(deletedId, collectionName) {
   if (!deletedId || !collectionName) return false;
   try {
     const idbKey = getIndexedDBKey(collectionName);
 
-    // 1. Get snapshot from local tombstone first (fastest, always has it for recent deletes)
+    // ── STEP 1: Get snapshot from local tombstone ──
     let recoveredData = null;
     const localDeletionRecords = await idb.get('deletion_records', []);
-    const localTombstone = Array.isArray(localDeletionRecords)
-      ? localDeletionRecords.find(r => r.id === deletedId)
+    const tombstoneLocal = Array.isArray(localDeletionRecords)
+      ? localDeletionRecords.find(r => r.id === deletedId || r.recordId === deletedId)
       : null;
-    if (localTombstone && localTombstone.snapshot) {
-      recoveredData = localTombstone.snapshot;
+    if (tombstoneLocal && tombstoneLocal.snapshot) {
+      recoveredData = tombstoneLocal.snapshot;
     }
 
-    // Fallback: check Firestore tombstone snapshot, then the original collection doc
+    // Fallback: Firestore tombstone snapshot field, then original collection doc
     if (!recoveredData && firebaseDB && currentUser) {
       try {
         const userRef = firebaseDB.collection('users').doc(currentUser.uid);
-        const tombstoneDoc = await userRef.collection('deletions').doc(String(deletedId)).get();
-        if (tombstoneDoc.exists) {
-          const td = tombstoneDoc.data();
+        const tombDoc = await userRef.collection('deletions').doc(String(deletedId)).get();
+        if (tombDoc.exists) {
+          const td = tombDoc.data();
           if (td && td.snapshot) recoveredData = td.snapshot;
         }
         if (!recoveredData) {
           const origDoc = await userRef.collection(collectionName).doc(String(deletedId)).get();
           if (origDoc.exists) recoveredData = origDoc.data();
         }
-      } catch(e) { console.warn('[RecycleBin] Firestore snapshot fetch failed:', e); }
+      } catch(e) { console.warn('[RecycleBin] snapshot fetch failed:', e); }
     }
 
-    // 2. Build clean recovered record (strip all deletion metadata)
+    // ── STEP 2: Build clean record — strip all deletion metadata ──
     let cleanRecord = null;
     if (recoveredData) {
       cleanRecord = { ...recoveredData };
+      // Strip every deletion-related flag so it's treated as a regular transaction
       delete cleanRecord.deletedAt;
       delete cleanRecord.tombstoned_at;
       delete cleanRecord.deleted_by;
       delete cleanRecord.deletion_version;
-      cleanRecord.updatedAt = Date.now();
+      delete cleanRecord.recoveredAt;
+      delete cleanRecord._placeholder;
+      delete cleanRecord.isDeleted;
+      delete cleanRecord.softDeleted;
+      // Stamp recovery so other devices know this is a live record
+      cleanRecord.updatedAt   = Date.now();
       cleanRecord.recoveredAt = Date.now();
+      cleanRecord.syncedAt    = new Date().toISOString();
     }
 
-    // 3. Remove from in-memory deletedRecordIds set immediately
-    deletedRecordIds.delete(deletedId);
+    // ── STEP 2b: Assign a brand-new UUID so the restored record has a fresh identity ──
+    // The old UUID is permanently retired as the tombstone key in the deletions
+    // collection. Using a new UUID means no sync path, listener, or filter can
+    // ever match this record against the old deletion entry again.
+    const newId = (typeof generateUUID === 'function')
+      ? generateUUID()
+      : String(deletedId);
+    const oldId = String(deletedId);
 
-    // 4. Remove from BOTH local IDB tombstone stores
-    const updatedDeletionRecords = Array.isArray(localDeletionRecords)
-      ? localDeletionRecords.filter(r => r.id !== deletedId)
-      : [];
-    await idb.set('deletion_records', updatedDeletionRecords);
-    await idb.set('deleted_records', Array.from(deletedRecordIds));
+    if (cleanRecord) {
+      cleanRecord.id = newId; // primary key — old UUID is completely retired
+      // oldId intentionally NOT stored on the record — it is the tombstone key only
+      delete cleanRecord.originalId; // remove if it survived in the snapshot
+    }
 
-    // 5. Restore to local IDB data array — remove stale copy first, then re-insert clean
+    // ── STEP 3: Purge the OLD id from all 7 deletion registries and push the
+    //    clean record (carrying newId) to Firestore under the new id ──
+    await purgeRecoveredId(oldId, collectionName, cleanRecord, newId);
+
+    // ── STEP 4: Write the clean record into its IDB data store under the new id ──
     if (cleanRecord && idbKey) {
       let localArr = await idb.get(idbKey, []);
       if (!Array.isArray(localArr)) localArr = [];
-      localArr = localArr.filter(r => r.id !== deletedId);
+      // Remove any copy carrying either the old or the new id to prevent duplicates
+      localArr = localArr.filter(r => r.id !== oldId && r.id !== newId);
       localArr.push(cleanRecord);
       await idb.set(idbKey, localArr);
     }
 
-    // 6. Delete cloud tombstone + re-write record to Firestore
-    if (firebaseDB && currentUser) {
-      try {
-        const userRef = firebaseDB.collection('users').doc(currentUser.uid);
-        const batch = firebaseDB.batch();
-        batch.delete(userRef.collection('deletions').doc(String(deletedId)));
-        if (cleanRecord) {
-          const sanitized = typeof sanitizeForFirestore === 'function'
-            ? sanitizeForFirestore({ ...cleanRecord, syncedAt: new Date().toISOString() })
-            : { ...cleanRecord, syncedAt: new Date().toISOString() };
-          sanitized.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
-          batch.set(
-            userRef.collection(collectionName).doc(String(deletedId)),
-            sanitized,
-            { merge: true }
-          );
-        }
-        await batch.commit();
-        trackFirestoreWrite(2);
-      } catch(e) { console.warn('[RecycleBin] Cloud restore failed:', e); }
-    }
-
-    // 7. Reload ALL in-memory arrays from IDB — this ensures every tab re-reads IDB
-    //    with the updated deletedRecordIds (no longer contains deletedId) and the
-    //    restored record now present in the IDB data array.
+    // ── STEP 5: Reload all in-memory arrays from the now-clean IDB ──
+    // deletedRecordIds was already scrubbed in purgeRecoveredId so the
+    // filter inside invalidateAllCaches will not suppress the record.
     if (typeof invalidateAllCaches === 'function') {
       await invalidateAllCaches();
     }
@@ -14205,6 +14460,8 @@ async function recoverRecord(deletedId, collectionName) {
     return true;
   } catch(e) {
     console.error('[RecycleBin] recoverRecord error:', e);
+    // Roll back the session guard using whichever id was registered
+    _recoveredThisSession.delete(String(deletedId));
     return false;
   }
 }
@@ -14260,7 +14517,8 @@ const RECYCLE_TAB_LABELS = {
 };
 const RECYCLE_RECOVERABLE_COLLECTIONS = new Set([
   'sales','transactions','rep_sales','expenses','production',
-  'factory_history','returns','calculator_history'
+  'factory_history','inventory','returns','calculator_history',
+  'sales_customers','rep_customers','entities'
 ]);
 
 async function openRecycleBin() {
@@ -14294,27 +14552,60 @@ async function renderRecycleBin(filterCollection = 'all') {
     let deletionRecords = await idb.get('deletion_records', []);
     if (!Array.isArray(deletionRecords)) deletionRecords = [];
 
+    // Strip any IDs recovered this session — they may still be in IDB/cloud until snapshot arrives
+    deletionRecords = deletionRecords.filter(r =>
+      !_recoveredThisSession.has(r.id) && !_recoveredThisSession.has(r.recordId)
+    );
+
     // Also try pulling cloud tombstones not yet in local IDB
     if (firebaseDB && currentUser) {
       try {
         const userRef = firebaseDB.collection('users').doc(currentUser.uid);
         const snap = await userRef.collection('deletions').orderBy('deletedAt', 'desc').limit(200).get();
-        const cloudIds = new Set(deletionRecords.map(r => r.id));
+        // Build lookup keyed by canonical string id — covers both numeric and string ids
+        const seenIds = new Set(deletionRecords.map(r => String(r.id)));
+        const seenRecordIds = new Set(deletionRecords.map(r => String(r.recordId || r.id)));
         snap.docs.forEach(doc => {
           const d = doc.data();
-          if (d && d.id && !cloudIds.has(d.id)) {
-            deletionRecords.push({
-              id: d.id,
-              recordId: d.id,
-              collection: d.collection || d.recordType || 'unknown',
-              deletedAt: d.deletedAt?.toMillis ? d.deletedAt.toMillis() : (d.deletedAt || Date.now()),
-              syncedToCloud: true,
-              deleted_by: d.deleted_by || 'user',
-            });
-          }
+          // Skip placeholder docs and any IDs recovered this session
+          if (!d || d._placeholder) return;
+          const docId = String(doc.id);
+          const recId = String(d.recordId || d.id || doc.id);
+          if (_recoveredThisSession.has(docId) || _recoveredThisSession.has(recId)) return;
+          // Skip if already present (by either id or recordId — covers type mismatches)
+          if (seenIds.has(docId) || seenRecordIds.has(docId) ||
+              seenIds.has(recId)  || seenRecordIds.has(recId)) return;
+          seenIds.add(docId);
+          seenRecordIds.add(recId);
+          deletionRecords.push({
+            id: docId,
+            recordId: recId,
+            collection: d.collection || d.recordType || 'unknown',
+            deletedAt: d.deletedAt?.toMillis ? d.deletedAt.toMillis() : (d.deletedAt || Date.now()),
+            syncedToCloud: true,
+            deleted_by: d.deleted_by || 'user',
+            snapshot: d.snapshot || null,
+            displayName: d.displayName || null,
+            displayDetail: d.displayDetail || null,
+            displayAmount: d.displayAmount || null,
+          });
         });
       } catch(e) { /* offline – use local only */ }
     }
+
+    // Deduplicate local IDB list itself — guards against double-writes from
+    // registerDeletion + onSnapshot firing for the same tombstone, and against
+    // id type mismatches (number vs string) that defeat simple equality checks.
+    const _seen = new Map(); // canonical string id → best entry (prefer one with displayName)
+    deletionRecords.forEach(r => {
+      const key = String(r.id || r.recordId);
+      const existing = _seen.get(key);
+      if (!existing || (!existing.displayName && r.displayName) ||
+          (!existing.snapshot && r.snapshot)) {
+        _seen.set(key, r);
+      }
+    });
+    deletionRecords = Array.from(_seen.values());
 
     // Sort newest first
     deletionRecords.sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
@@ -14356,23 +14647,73 @@ async function renderRecycleBin(filterCollection = 'all') {
       const expiresIn = rec.deletedAt ? Math.max(0, 90 - Math.floor((Date.now() - rec.deletedAt) / 86400000)) : '?';
       const canRecover = RECYCLE_RECOVERABLE_COLLECTIONS.has(col);
 
-      // --- Resolve display name: use snapshot if available, else try live arrays ---
+      // --- Resolve display name: 3-tier lookup ---
+      // Tier 1: stored displayName on the tombstone (set at deletion time)
       let displayName = rec.displayName || null;
       let displayDetail = rec.displayDetail || null;
       let displayAmount = rec.displayAmount || null;
 
-      // Fallback: try to find record in live in-memory arrays (handles old tombstones without snapshot)
-      if (!displayName) {
-        const snap = _captureRecordSnapshot(rec.id, col);
-        displayName   = snap.displayName;
-        displayDetail = snap.displayDetail;
-        displayAmount = snap.displayAmount;
+      // Tier 2: extract from rec.snapshot (always saved in tombstone for recent deletes)
+      if (!displayName && rec.snapshot) {
+        const snap = _captureRecordSnapshot._fromObj
+          ? _captureRecordSnapshot._fromObj(rec.snapshot, col)
+          : null;
+        if (snap && snap.displayName) {
+          displayName   = snap.displayName;
+          displayDetail = snap.displayDetail;
+          displayAmount = snap.displayAmount;
+        } else {
+          // Direct field extraction from snapshot for the three key tabs
+          const s = rec.snapshot;
+          if (col === 'sales' || col === 'rep_sales') {
+            displayName   = s.customerName || s.name || null;
+            displayDetail = [s.supplyStore || s.store || '', s.paymentType || '', s.date || ''].filter(Boolean).join(' · ');
+            displayAmount = s.totalValue != null ? `₨${Number(s.totalValue).toLocaleString()}` : null;
+          } else if (col === 'transactions') {
+            displayName   = s.entityName || s.description || s.name || null;
+            displayDetail = [s.type === 'IN' ? '↓ IN' : s.type === 'OUT' ? '↑ OUT' : (s.type || ''), s.date || ''].filter(Boolean).join(' · ');
+            displayAmount = s.amount != null ? `₨${Number(s.amount).toLocaleString()}` : null;
+          } else if (col === 'expenses') {
+            displayName   = s.name || s.description || null;
+            displayDetail = [s.category || '', s.date || ''].filter(Boolean).join(' · ');
+            displayAmount = s.amount != null ? `₨${Number(s.amount).toLocaleString()}` : null;
+          } else if (col === 'production') {
+            displayName   = s.supplyStore || s.store ? `Production – ${s.supplyStore || s.store}` : 'Production Batch';
+            displayDetail = s.date || '';
+            displayAmount = s.net != null ? `${s.net} kg` : null;
+          } else if (col === 'returns') {
+            displayName   = s.store ? `Return – ${s.store}` : 'Stock Return';
+            displayDetail = s.date || '';
+            displayAmount = s.quantity != null ? `${s.quantity} kg` : null;
+          } else if (col === 'factory_history') {
+            displayName   = s.store ? `Factory – ${s.store}` : 'Factory Production';
+            displayDetail = s.date || '';
+            displayAmount = s.units != null ? `${s.units} units` : null;
+          } else if (col === 'calculator_history') {
+            displayName   = s.customerName || s.customer || s.name || 'Calculator Entry';
+            displayDetail = s.supplyStore || s.store || '';
+            displayAmount = s.totalValue != null ? `₨${Number(s.totalValue).toLocaleString()}` : null;
+          } else {
+            displayName = s.customerName || s.entityName || s.name || s.description || null;
+            displayAmount = (s.amount ?? s.totalValue) != null ? `₨${Number(s.amount ?? s.totalValue).toLocaleString()}` : null;
+          }
+        }
       }
 
-      // Last resort: use short UUID
+      // Tier 3: try live in-memory arrays (works right after deletion before page reload)
+      if (!displayName) {
+        const snap = _captureRecordSnapshot(rec.id, col);
+        if (snap.displayName) {
+          displayName   = snap.displayName;
+          displayDetail = snap.displayDetail;
+          displayAmount = snap.displayAmount;
+        }
+      }
+
+      // Never show raw UUID — show a meaningful fallback instead
       const nameHtml = displayName
         ? `<span style="font-size:0.88rem;font-weight:700;color:var(--text-main);">${esc(displayName)}</span>`
-        : `<span style="font-size:0.75rem;font-weight:600;color:var(--text-muted);font-family:monospace;">${esc(rec.id.substring(0,14))}…</span>`;
+        : `<span style="font-size:0.82rem;font-weight:600;color:var(--text-muted);">${esc(RECYCLE_BIN_COLLECTION_LABELS[col] || col)} (no name)</span>`;
 
       const detailHtml = displayDetail
         ? `<span style="font-size:0.72rem;color:var(--text-muted);">${esc(displayDetail)}</span>`
@@ -15704,6 +16045,7 @@ try {
 const contactIdx = repCustomers.findIndex(c => c && c.name && c.name.toLowerCase() === name.toLowerCase());
 if (contactIdx !== -1) {
 const contactId = repCustomers[contactIdx].id;
+await registerDeletion(contactId, 'rep_customers');
 repCustomers.splice(contactIdx, 1);
 await saveWithTracking('rep_customers', repCustomers);
 await deleteRecordFromFirestore('rep_customers', contactId);
@@ -21891,6 +22233,7 @@ const _overlayStack = (() => {
 
   
   document.addEventListener('click', function(e) {
+    if (document.querySelector('.glass-confirm-backdrop') || window._glassConfirmClosing) return;
     const layers = _openLayers();
     if (layers.length === 0) return;
     const top = layers[layers.length - 1];
@@ -21911,7 +22254,7 @@ const _overlayStack = (() => {
   document.addEventListener('keydown', function(e) {
     if (e.key !== 'Escape') return;
     
-    if (document.querySelector('.glass-confirm-backdrop')) return;
+    if (document.querySelector('.glass-confirm-backdrop') || window._glassConfirmClosing) return;
     if (closeTop()) e.preventDefault();
   });
 

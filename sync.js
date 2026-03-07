@@ -1249,10 +1249,10 @@ try {
 const docData = { id: change.doc.id, ...change.doc.data() };
 if (change.type === 'added' || change.type === 'modified') {
 
-if (!deletedRecordIds.has(change.doc.id)) {
+// Record present in Firestore — un-delete if previously marked deleted (e.g. after recovery)
+deletedRecordIds.delete(change.doc.id);
 db = updateArray(db, docData);
 hasChanges = true;
-}
 } else if (change.type === 'removed') {
 // BUG2 FIX: always remove — Firestore removed means the doc is gone, regardless of who deleted it
 deletedRecordIds.add(change.doc.id);
@@ -1301,10 +1301,10 @@ for (const change of changes) {
 try {
 const docData = { id: change.doc.id, ...change.doc.data() };
 if (change.type === 'added' || change.type === 'modified') {
-if (!deletedRecordIds.has(change.doc.id)) {
+// Record present in Firestore — un-delete if previously marked deleted (e.g. after recovery)
+deletedRecordIds.delete(change.doc.id);
 customerSales = updateArray(customerSales, docData);
 hasChanges = true;
-}
 } else if (change.type === 'removed') {
 deletedRecordIds.add(change.doc.id);
 customerSales = customerSales.filter(item => item.id !== change.doc.id);
@@ -1350,10 +1350,10 @@ for (const change of snapshot.docChanges()) {
 try {
 const docData = { id: change.doc.id, ...change.doc.data() };
 if (change.type === 'added' || change.type === 'modified') {
-if (!deletedRecordIds.has(change.doc.id)) {
+// Record present in Firestore — un-delete if previously marked deleted (e.g. after recovery)
+deletedRecordIds.delete(change.doc.id);
 repSales = updateArray(repSales, docData);
 hasChanges = true;
-}
 } else if (change.type === 'removed') {
 deletedRecordIds.add(change.doc.id);
 repSales = repSales.filter(item => item.id !== change.doc.id);
@@ -1395,10 +1395,10 @@ for (const change of snapshot.docChanges()) {
 try {
 const docData = { id: change.doc.id, ...change.doc.data() };
 if (change.type === 'added' || change.type === 'modified') {
-if (!deletedRecordIds.has(change.doc.id)) {
+// Record present in Firestore — un-delete if previously marked deleted (e.g. after recovery)
+deletedRecordIds.delete(change.doc.id);
 repCustomers = updateArray(repCustomers, docData);
 hasChanges = true;
-}
 } else if (change.type === 'removed') {
 deletedRecordIds.add(change.doc.id);
 repCustomers = repCustomers.filter(item => item.id !== change.doc.id);
@@ -1441,10 +1441,10 @@ for (const change of snapshot.docChanges()) {
 try {
 const docData = { id: change.doc.id, ...change.doc.data() };
 if (change.type === 'added' || change.type === 'modified') {
-if (!deletedRecordIds.has(change.doc.id)) {
+// Record present in Firestore — un-delete if previously marked deleted (e.g. after recovery)
+deletedRecordIds.delete(change.doc.id);
 salesCustomers = updateArray(salesCustomers, docData);
 hasChanges = true;
-}
 } else if (change.type === 'removed') {
 deletedRecordIds.add(change.doc.id);
 salesCustomers = salesCustomers.filter(item => item.id !== change.doc.id);
@@ -1488,10 +1488,10 @@ for (const change of changes) {
 try {
 const docData = { id: change.doc.id, ...change.doc.data() };
 if (change.type === 'added' || change.type === 'modified') {
-if (!deletedRecordIds.has(change.doc.id)) {
+// Record present in Firestore — un-delete if previously marked deleted (e.g. after recovery)
+deletedRecordIds.delete(change.doc.id);
 paymentTransactions = updateArray(paymentTransactions, docData);
 hasChanges = true;
-}
 } else if (change.type === 'removed') {
 deletedRecordIds.add(change.doc.id);
 paymentTransactions = paymentTransactions.filter(item => item.id !== change.doc.id);
@@ -1536,10 +1536,10 @@ for (const change of snapshot.docChanges()) {
 try {
 const docData = { id: change.doc.id, ...change.doc.data() };
 if (change.type === 'added' || change.type === 'modified') {
-if (!deletedRecordIds.has(change.doc.id)) {
+// Record present in Firestore — un-delete if previously marked deleted (e.g. after recovery)
+deletedRecordIds.delete(change.doc.id);
 paymentEntities = updateArray(paymentEntities, docData);
 hasChanges = true;
-}
 } else if (change.type === 'removed') {
 deletedRecordIds.add(change.doc.id);
 paymentEntities = paymentEntities.filter(item => item.id !== change.doc.id);
@@ -1582,10 +1582,10 @@ for (const change of snapshot.docChanges()) {
 try {
 const docData = { id: change.doc.id, ...change.doc.data() };
 if (change.type === 'added' || change.type === 'modified') {
-if (!deletedRecordIds.has(change.doc.id)) {
+// Record present in Firestore — un-delete if previously marked deleted (e.g. after recovery)
+deletedRecordIds.delete(change.doc.id);
 factoryInventoryData = updateArray(factoryInventoryData, docData);
 hasChanges = true;
-}
 } else if (change.type === 'removed') {
 deletedRecordIds.add(change.doc.id);
 factoryInventoryData = factoryInventoryData.filter(item => item.id !== change.doc.id);
@@ -1628,10 +1628,10 @@ for (const change of snapshot.docChanges()) {
 try {
 const docData = { id: change.doc.id, ...change.doc.data() };
 if (change.type === 'added' || change.type === 'modified') {
-if (!deletedRecordIds.has(change.doc.id)) {
+// Record present in Firestore — un-delete if previously marked deleted (e.g. after recovery)
+deletedRecordIds.delete(change.doc.id);
 factoryProductionHistory = updateArray(factoryProductionHistory, docData);
 hasChanges = true;
-}
 } else if (change.type === 'removed') {
 deletedRecordIds.add(change.doc.id);
 factoryProductionHistory = factoryProductionHistory.filter(item => item.id !== change.doc.id);
@@ -1674,10 +1674,10 @@ for (const change of snapshot.docChanges()) {
 try {
 const docData = { id: change.doc.id, ...change.doc.data() };
 if (change.type === 'added' || change.type === 'modified') {
-if (!deletedRecordIds.has(change.doc.id)) {
+// Record present in Firestore — un-delete if previously marked deleted (e.g. after recovery)
+deletedRecordIds.delete(change.doc.id);
 stockReturns = updateArray(stockReturns, docData);
 hasChanges = true;
-}
 } else if (change.type === 'removed') {
 deletedRecordIds.add(change.doc.id);
 stockReturns = stockReturns.filter(item => item.id !== change.doc.id);
@@ -1720,10 +1720,10 @@ for (const change of snapshot.docChanges()) {
 try {
 const docData = { id: change.doc.id, ...change.doc.data() };
 if (change.type === 'added' || change.type === 'modified') {
-if (!deletedRecordIds.has(change.doc.id)) {
+// Record present in Firestore — un-delete if previously marked deleted (e.g. after recovery)
+deletedRecordIds.delete(change.doc.id);
 expenseRecords = updateArray(expenseRecords, docData);
 hasExpenseChanges = true;
-}
 } else if (change.type === 'removed') {
 deletedRecordIds.add(change.doc.id);
 expenseRecords = expenseRecords.filter(item => item.id !== change.doc.id);
@@ -1768,10 +1768,10 @@ for (const change of changes) {
 try {
 const docData = { id: change.doc.id, ...change.doc.data() };
 if (change.type === 'added' || change.type === 'modified') {
-if (!deletedRecordIds.has(change.doc.id)) {
+// Record present in Firestore — un-delete if previously marked deleted (e.g. after recovery)
+deletedRecordIds.delete(change.doc.id);
 salesHistory = updateArray(salesHistory, docData);
 hasChanges = true;
-}
 } else if (change.type === 'removed') {
 deletedRecordIds.add(change.doc.id);
 salesHistory = salesHistory.filter(item => item.id !== change.doc.id);
@@ -2036,6 +2036,27 @@ await _handleExpenseCategoriesSnapshot(doc);
 updateSignalUI('error');
 scheduleListenerReconnect();
 });
+// ── Canonical dedup for deletion_records ─────────────────────────────────────
+// Collapses entries that share the same id or recordId (as strings) keeping the
+// richest entry (displayName / snapshot wins). Call before every IDB write.
+function _dedupDeletionRecords(arr) {
+  if (!Array.isArray(arr)) return [];
+  const seen = new Map();
+  arr.forEach(r => {
+    if (!r) return;
+    const key = String(r.id || r.recordId || '');
+    if (!key) return;
+    const existing = seen.get(key);
+    if (!existing
+        || (!existing.displayName && r.displayName)
+        || (!existing.snapshot && r.snapshot)
+        || (r.syncedToCloud && !existing.syncedToCloud)) {
+      seen.set(key, r);
+    }
+  });
+  return Array.from(seen.values());
+}
+
 const _handleDeletionsSnapshot = async (snapshot) => {
 try {
 if (snapshot.metadata.hasPendingWrites) return;
@@ -2049,14 +2070,30 @@ try {
 const docData = { id: change.doc.id, ...change.doc.data() };
 if (change.type === 'added' || change.type === 'modified') {
 if (docData.recordId || docData.id) {
-deletedRecordIds.add(docData.recordId || docData.id);
+// Do NOT re-add IDs that were recovered this session — the tombstone
+// delete may not have propagated yet, so we'd re-filter the record out.
+const _rid = docData.recordId || docData.id;
+const _recoveredSet = typeof _recoveredThisSession !== 'undefined' ? _recoveredThisSession : null;
+if (_recoveredSet && (_recoveredSet.has(_rid) || _recoveredSet.has(docData.id))) {
+// Tombstone still arriving after recovery — skip it entirely
+hasChanges = false;
+continue;
 }
+deletedRecordIds.add(_rid);
+}
+const _docSid = String(docData.id || doc.id);
+const _docRid = String(docData.recordId || docData.id || doc.id);
 const normalizedDoc = {
 ...docData,
+id: _docSid,
+recordId: _docRid,
 syncedToCloud: true,
 deletedAt: docData.deletedAt?.toMillis ? docData.deletedAt.toMillis() : (typeof docData.deletedAt === 'number' ? docData.deletedAt : Date.now())
 };
-const existingIndex = deletionRecords.findIndex(item => item.id === docData.id);
+const existingIndex = deletionRecords.findIndex(item =>
+  String(item.id) === _docSid || String(item.recordId) === _docSid ||
+  String(item.id) === _docRid || String(item.recordId) === _docRid
+);
 if (existingIndex === -1) {
 deletionRecords.push(normalizedDoc);
 } else {
@@ -2104,7 +2141,13 @@ console.warn('Failed to apply deletion to collection', collectionError);
 }
 hasChanges = true;
 } else if (change.type === 'removed') {
-deletionRecords = deletionRecords.filter(item => item.id !== change.doc.id);
+// Tombstone deleted from Firestore (e.g. recovery) — remove from ALL delete registers
+const _removedRecordId = change.doc.data()?.recordId || change.doc.id;
+deletionRecords = deletionRecords.filter(item => item.id !== change.doc.id && item.id !== _removedRecordId);
+deletedRecordIds.delete(_removedRecordId);
+deletedRecordIds.delete(change.doc.id);
+// Persist immediately so IDB is consistent with the recovered state
+try { await idb.set('deleted_records', Array.from(deletedRecordIds)); } catch(_e) {}
 hasChanges = true;
 }
 } catch (docError) {
@@ -2112,6 +2155,7 @@ console.warn('Failed to save data locally.', docError);
 }
 }
 if (hasChanges) {
+deletionRecords = _dedupDeletionRecords(deletionRecords);
 await idb.set('deletion_records', deletionRecords);
 emitSyncUpdate({ deletion_records: deletionRecords });
 flashLivePulse();
@@ -2672,12 +2716,26 @@ try {
   if (!Array.isArray(localDels)) localDels = [];
   const mergedDels = [...localDels];
   cloudDels.forEach(cd => {
-    if (!mergedDels.find(ld => ld.id === cd.id)) mergedDels.push(cd);
+    const _cdSid = String(cd.id);
+    const _cdRid = String(cd.recordId || cd.id);
+    const _dup = mergedDels.find(ld =>
+      String(ld.id) === _cdSid || String(ld.recordId) === _cdSid ||
+      String(ld.id) === _cdRid || String(ld.recordId) === _cdRid
+    );
+    if (!_dup) mergedDels.push(cd);
   });
   const validDels = mergedDels.filter(r => r.deletedAt > threeMonthsAgo);
-  await idb.set('deletion_records', validDels);
+  // Strip any IDs recovered this session — the Firestore tombstone may still
+  // exist because the deletion hasn't propagated yet; re-adding would re-hide
+  // the just-recovered record.
+  const _recoveredSet = typeof _recoveredThisSession !== 'undefined' ? _recoveredThisSession : null;
+  const safeDels = _recoveredSet
+    ? validDels.filter(r => !_recoveredSet.has(String(r.id)) && !_recoveredSet.has(String(r.recordId)))
+    : validDels;
+  const _dedupedDels = _dedupDeletionRecords(safeDels);
+  await idb.set('deletion_records', _dedupedDels);
   deletedRecordIds.clear();
-  validDels.forEach(r => deletedRecordIds.add(r.id));
+  _dedupedDels.forEach(r => deletedRecordIds.add(r.id));
   await idb.set('deleted_records', Array.from(deletedRecordIds));
   trackFirestoreRead(deletionsSnap.docs.length);
 } catch (_delErr) {
@@ -3495,15 +3553,25 @@ syncedToCloud: true
 let localDeletionRecords = await idb.get('deletion_records', []);
 const allDeletions = [...localDeletionRecords];
 cloudDeletions.forEach(cloudDel => {
-if (!allDeletions.find(d => d.id === cloudDel.id)) {
-allDeletions.push(cloudDel);
-}
+const _cSid = String(cloudDel.id);
+const _cRid = String(cloudDel.recordId || cloudDel.id);
+const _cDup = allDeletions.find(d =>
+  String(d.id) === _cSid || String(d.recordId) === _cSid ||
+  String(d.id) === _cRid || String(d.recordId) === _cRid
+);
+if (!_cDup) allDeletions.push(cloudDel);
 });
 const threeMonthsAgo = Date.now() - (90 * 24 * 60 * 60 * 1000);
 const validDeletions = allDeletions.filter(record => record.deletedAt > threeMonthsAgo);
-await idb.set('deletion_records', validDeletions);
+// Strip any IDs recovered this session so sync doesn't re-hide recovered records
+const _rSet = typeof _recoveredThisSession !== 'undefined' ? _recoveredThisSession : null;
+const safeDeletions = _rSet
+  ? validDeletions.filter(r => !_rSet.has(String(r.id)) && !_rSet.has(String(r.recordId)))
+  : validDeletions;
+const _dedupedSafeDels = _dedupDeletionRecords(safeDeletions);
+await idb.set('deletion_records', _dedupedSafeDels);
 deletedRecordIds.clear();
-validDeletions.forEach(record => deletedRecordIds.add(record.id));
+_dedupedSafeDels.forEach(record => deletedRecordIds.add(record.id));
 await idb.set('deleted_records', Array.from(deletedRecordIds));
 const filterDeletedItems = (items) => items.filter(item => !deletedRecordIds.has(item.id));
 const filteredCloudProduction = filterDeletedItems(cloudProduction);
