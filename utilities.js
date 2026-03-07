@@ -16579,7 +16579,6 @@ ${qtyAmount}
 <div class="u-fs-sm u-text-muted" >
 ${esc(item.time || '')}
 </div>
-${item.isMerged ? '' : `<button class="tbl-action-btn danger" onclick="(async () => { await deleteRepTransaction('${esc(item.id)}') })()">Delete</button>`}
 </div>
 </div>
 `;
