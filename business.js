@@ -2216,33 +2216,337 @@ unitCostHistory: []
 }
 };
 
-function generateUUID(prefix = '', retryCount = 0) {
-const MAX_RETRIES = 3;
-if (retryCount >= MAX_RETRIES) {
-const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-const r = Math.random() * 16 | 0;
-const v = c === 'x' ? r : (r & 0x3 | 0x8);
-return v.toString(16);
-});
-return prefix ? `${prefix}-${uuid}` : uuid;
+// ─── Enriched Device-Stamped UUID Generation ─────────────────────────────────
+// Every UUID now embeds three traceable segments in the 12-char node field:
+//
+//   Structure:  xxxxxxxx-xxxx-4xxx-yxxx-[DDDD][TTTTTT][MM]
+//                                        ││││  ││││││  ││
+//                                        ││││  ││││││  └┴── App-mode tag (2 hex chars)
+//                                        ││││  └┴┴┴┴┴───── Timestamp shard (6 hex = Unix seconds, 24-bit)
+//                                        └┴┴┴──────────── Device shard (4 hex, FNV-1a hash of device ID)
+//
+//   Mode codes (2 hex chars):
+//     00 = admin    01 = rep    02 = production    03 = factory    04 = userrole
+//
+// The result is still a valid RFC-4122 v4 UUID and passes validateUUID.
+// Old UUIDs (no enrichment) continue to work — migration stamps them on access.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// In-memory cache so UUID generation stays synchronous after first load.
+let _cachedDeviceShard = null;
+
+// Mode → 2-char hex tag
+const _MODE_CODES = {
+  'admin':      '00',
+  'rep':        '01',
+  'production': '02',
+  'factory':    '03',
+  'userrole':   '04',
+};
+// Reverse map for decoding
+const _MODE_LABELS = { '00':'admin', '01':'rep', '02':'production', '03':'factory', '04':'userrole' };
+
+/**
+ * Derive a stable 4-char hex shard from a device ID string.
+ * Uses FNV-1a 32-bit for even distribution.
+ */
+function _deriveDeviceShard(did) {
+  if (!did || typeof did !== 'string') return '0000';
+  let h = 0x811c9dc5;
+  for (let i = 0; i < did.length; i++) {
+    h ^= did.charCodeAt(i);
+    h = (h * 0x01000193) >>> 0;
+  }
+  return (h & 0xffff).toString(16).padStart(4, '0');
 }
-const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-const r = Math.random() * 16 | 0;
-const v = c === 'x' ? r : (r & 0x3 | 0x8);
-return v.toString(16);
-});
-const finalUUID = prefix ? `${prefix}-${uuid}` : uuid;
-if (!validateUUID(finalUUID)) {
-return generateUUID(prefix, retryCount + 1);
+
+/**
+ * Encode a Unix-ms timestamp as 6 hex chars (24-bit seconds since epoch).
+ * Covers ~194 days at second precision, but wraps gracefully — enough to
+ * distinguish recent records. For longer ranges use extractUUIDMeta() which
+ * reconstructs the full year by combining with current time context.
+ */
+function _encodeTimestampShard(ms) {
+  const secs = Math.floor((ms || Date.now()) / 1000);
+  return (secs & 0xffffff).toString(16).padStart(6, '0'); // 24-bit wrap
 }
-return finalUUID;
+
+/**
+ * Encode current app mode as 2 hex chars.
+ */
+function _encodeModeTag() {
+  const mode = (typeof appMode !== 'undefined' ? appMode : 'admin') || 'admin';
+  return _MODE_CODES[mode] || '00';
 }
+
+/**
+ * Warm the device shard cache. Called once at app boot.
+ */
+async function initDeviceShard() {
+  try {
+    const did = await getDeviceId();
+    _cachedDeviceShard = _deriveDeviceShard(did);
+  } catch (e) {
+    _cachedDeviceShard = '0000';
+  }
+}
+
+/**
+ * Generate an enriched RFC-4122 v4 UUID.
+ * Node field encodes: [device-shard:4][timestamp:6][mode:2]
+ *
+ * @param {string} prefix     - Optional label prepended as "prefix-<uuid>"
+ * @param {number} retryCount - Internal retry counter (do not pass manually)
+ * @param {number} [tsMs]     - Override timestamp in ms (used by migration)
+ * @param {string} [modeOverride] - Override mode tag (used by migration)
+ * @returns {string}
+ */
+function generateUUID(prefix = '', retryCount = 0, tsMs = null, modeOverride = null) {
+  const MAX_RETRIES = 3;
+  const shard  = _cachedDeviceShard || '0000';
+  const tsPart = _encodeTimestampShard(tsMs || Date.now());
+  const mode   = modeOverride != null ? modeOverride : _encodeModeTag();
+
+  function _rh(len) {
+    let s = '';
+    for (let i = 0; i < len; i++) s += (Math.random() * 16 | 0).toString(16);
+    return s;
+  }
+
+  function _build() {
+    const p1  = _rh(8);
+    const p2  = _rh(4);
+    const p3  = '4' + _rh(3);
+    const p4v = (Math.random() * 16 | 0) & 0x3 | 0x8;
+    const p4  = p4v.toString(16) + _rh(3);
+    // Node = [device:4][ts:6][mode:2]  → exactly 12 hex chars
+    const node = shard + tsPart + mode;
+    return `${p1}-${p2}-${p3}-${p4}-${node}`;
+  }
+
+  if (retryCount >= MAX_RETRIES) {
+    const uuid = _build();
+    return prefix ? `${prefix}-${uuid}` : uuid;
+  }
+  const uuid = _build();
+  const finalUUID = prefix ? `${prefix}-${uuid}` : uuid;
+  if (!validateUUID(finalUUID)) {
+    return generateUUID(prefix, retryCount + 1, tsMs, modeOverride);
+  }
+  return finalUUID;
+}
+
+/**
+ * Validate a UUID (standard or prefix-stamped).
+ */
 function validateUUID(uuid) {
-if (!uuid || typeof uuid !== 'string') return false;
-const standardRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const prefixedRegex = /^[a-z0-9_]+-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-return standardRegex.test(uuid) || prefixedRegex.test(uuid);
+  if (!uuid || typeof uuid !== 'string') return false;
+  const standardRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const prefixedRegex = /^[a-z0-9_]+-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return standardRegex.test(uuid) || prefixedRegex.test(uuid);
 }
+
+/**
+ * Decode all embedded metadata from an enriched UUID.
+ * Returns null for UUIDs that pre-date enrichment.
+ *
+ * @param {string} uuid
+ * @returns {{ deviceShard: string, timestamp: Date|null, appMode: string, isEnriched: boolean }}
+ */
+function extractUUIDMeta(uuid) {
+  if (!validateUUID(uuid)) return null;
+  const parts = uuid.split('-');
+  const node  = parts[parts.length - 1]; // 12 hex chars
+  const deviceShard = node.slice(0, 4);
+  const tsPart      = node.slice(4, 10); // 6 hex = 24-bit seconds
+  const modeTag     = node.slice(10, 12);
+  const appModeLabel = _MODE_LABELS[modeTag] || null;
+
+  // Detect enrichment: mode tag must be a known code and ts must look like seconds
+  const isEnriched = appModeLabel !== null;
+
+  let timestamp = null;
+  if (isEnriched) {
+    const secsFrag = parseInt(tsPart, 16); // 24-bit fragment
+    // Reconstruct full 32-bit seconds by taking high bits from current time
+    const nowSecs  = Math.floor(Date.now() / 1000);
+    const highBits = nowSecs & ~0xffffff;         // top 8 bits
+    let secs       = highBits | secsFrag;
+    // Handle 24-bit wrap: if result is more than ~24 days in future, subtract one cycle
+    if (secs > nowSecs + 86400) secs -= 0x1000000;
+    timestamp = new Date(secs * 1000);
+  }
+
+  return { deviceShard, timestamp, appMode: appModeLabel || 'unknown', isEnriched };
+}
+
+/**
+ * Re-stamp an old UUID with the enriched node while keeping the RFC-4122 body.
+ * Used exclusively by the migration pass — preserves the record's original ts.
+ *
+ * @param {string} oldUUID        - The UUID to re-stamp
+ * @param {number} createdAtMs    - Original createdAt timestamp in ms
+ * @param {string} [modeOverride] - App mode at creation time (default 'admin')
+ * @returns {string} New enriched UUID with same prefix (if any)
+ */
+function migrateUUID(oldUUID, createdAtMs, modeOverride = 'admin') {
+  if (!validateUUID(oldUUID)) return oldUUID; // leave corrupt IDs alone
+  const meta = extractUUIDMeta(oldUUID);
+  if (meta && meta.isEnriched) return oldUUID; // already enriched, skip
+
+  // Extract prefix if present
+  const parts = oldUUID.split('-');
+  // A prefixed UUID has more than 5 segments
+  let prefix = '';
+  let coreUUID = oldUUID;
+  if (parts.length > 5) {
+    prefix = parts.slice(0, parts.length - 5).join('-');
+    coreUUID = parts.slice(parts.length - 5).join('-');
+  }
+
+  const modeCode = _MODE_CODES[modeOverride] || '00';
+  const newUUID  = generateUUID(prefix, 0, createdAtMs, modeCode);
+  return newUUID;
+}
+
+/**
+ * Run a one-time migration pass over all stored records.
+ * Re-stamps every old UUID with the enriched format.
+ * Safe to call multiple times — already-enriched UUIDs are skipped.
+ */
+async function migrateAllUUIDs() {
+  const DATA_STORES = [
+    'mfg_pro_pkr', 'customer_sales', 'noman_history', 'rep_sales',
+    'rep_customers', 'sales_customers', 'payment_transactions',
+    'payment_entities', 'factory_inventory_data',
+    'factory_production_history', 'expenses', 'stock_returns',
+  ];
+
+  // We also need to update cross-references (entityId, supplierId, etc.)
+  // Build an old→new ID map first so we can patch FK references after.
+  const idMap = new Map(); // oldId → newId
+
+  // Pass 1: collect all IDs, generate new enriched IDs
+  const storeData = {};
+  for (const store of DATA_STORES) {
+    const records = await idb.get(store, []);
+    storeData[store] = Array.isArray(records) ? records : [];
+  }
+
+  let totalMigrated = 0;
+
+  // Build the id map (must be done before patching so FKs can be resolved)
+  for (const store of DATA_STORES) {
+    for (const rec of storeData[store]) {
+      if (!rec || !rec.id) continue;
+      const meta = extractUUIDMeta(rec.id);
+      if (meta && meta.isEnriched) continue; // already enriched
+
+      // Detect mode from record fields
+      let recMode = 'admin';
+      if (rec.isRepModeEntry === true || rec.salesRep) recMode = 'rep';
+      else if (store === 'mfg_pro_pkr') recMode = 'production';
+      else if (store === 'factory_production_history') recMode = 'factory';
+
+      const ts  = rec.createdAt || rec.timestamp || Date.now();
+      const newId = migrateUUID(rec.id, ts, recMode);
+      if (newId !== rec.id) {
+        idMap.set(rec.id, newId);
+        totalMigrated++;
+      }
+    }
+  }
+
+  if (idMap.size === 0) {
+    console.log('[UUID Migration] All records already enriched — nothing to do.');
+    return { migrated: 0, stores: DATA_STORES.length };
+  }
+
+  // Pass 2: apply new IDs and patch FK references in all stores
+  for (const store of DATA_STORES) {
+    let changed = false;
+    for (const rec of storeData[store]) {
+      if (!rec) continue;
+
+      // Patch the record's own ID
+      if (idMap.has(rec.id)) {
+        rec.id = idMap.get(rec.id);
+        changed = true;
+      }
+
+      // Patch known FK fields
+      const fkFields = ['entityId', 'supplierId', 'expenseId', 'materialId', 'relatedId'];
+      for (const fk of fkFields) {
+        if (rec[fk] && idMap.has(rec[fk])) {
+          rec[fk] = idMap.get(rec[fk]);
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      await idb.set(store, storeData[store]);
+    }
+  }
+
+  // Pass 3: patch deletion_records so recycle bin still resolves correctly
+  try {
+    let deletionRecs = await idb.get('deletion_records', []);
+    let drChanged = false;
+    for (const dr of deletionRecs) {
+      if (!dr) continue;
+      if (idMap.has(dr.id)) { dr.id = idMap.get(dr.id); drChanged = true; }
+      if (idMap.has(dr.recordId)) { dr.recordId = idMap.get(dr.recordId); drChanged = true; }
+    }
+    // Also rebuild deleted_records set
+    const newDeletedIds = new Set(Array.from(deletedRecordIds).map(id => idMap.get(id) || id));
+    deletedRecordIds.clear();
+    newDeletedIds.forEach(id => deletedRecordIds.add(id));
+    if (drChanged) {
+      await idb.set('deletion_records', deletionRecs);
+      await idb.set('deleted_records', Array.from(deletedRecordIds));
+    }
+  } catch(e) { console.warn('[UUID Migration] deletion_records patch failed:', e); }
+
+  // Pass 4: patch in-memory arrays so current session is consistent
+  const liveArrays = {
+    'mfg_pro_pkr':               () => db,
+    'customer_sales':            () => customerSales,
+    'noman_history':             () => salesHistory,
+    'rep_sales':                 () => repSales,
+    'rep_customers':             () => repCustomers,
+    'sales_customers':           () => salesCustomers,
+    'payment_transactions':      () => paymentTransactions,
+    'payment_entities':          () => paymentEntities,
+    'factory_inventory_data':    () => factoryInventoryData,
+    'factory_production_history':() => factoryProductionHistory,
+    'expenses':                  () => expenseRecords,
+    'stock_returns':             () => stockReturns,
+  };
+  for (const [store, getArr] of Object.entries(liveArrays)) {
+    try {
+      const arr = getArr();
+      if (!Array.isArray(arr)) continue;
+      for (const rec of arr) {
+        if (!rec) continue;
+        if (idMap.has(rec.id)) rec.id = idMap.get(rec.id);
+        const fkFields = ['entityId', 'supplierId', 'expenseId', 'materialId', 'relatedId'];
+        for (const fk of fkFields) {
+          if (rec[fk] && idMap.has(rec[fk])) rec[fk] = idMap.get(rec[fk]);
+        }
+      }
+    } catch(e) {}
+  }
+
+  console.log(`[UUID Migration] Complete — ${totalMigrated} records migrated.`);
+  return { migrated: totalMigrated, stores: DATA_STORES.length, idMap };
+}
+
+window.generateUUID   = generateUUID;
+window.validateUUID   = validateUUID;
+window.extractUUIDMeta = extractUUIDMeta;
+window.migrateUUID    = migrateUUID;
+window.migrateAllUUIDs = migrateAllUUIDs;
+
 function getTimestamp() {
 return Date.now();
 }

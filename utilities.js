@@ -308,10 +308,17 @@ throw new Error('Database or user not available');
 const { collection, docId, data, action } = operation;
 const userRef = firebaseDB.collection('users').doc(currentUser.uid);
 switch (action) {
-case 'set':
-await userRef.collection(collection).doc(docId).set(data, { merge: true });
+case 'set': {
+// Ensure updatedAt is a Firestore Timestamp so delta queries work correctly.
+// Records queued offline have an integer ms updatedAt; replace it here on replay.
+const setData = (data && typeof data === 'object') ? { ...data } : data;
+if (setData && !setData.isMerged) {
+setData.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+}
+await userRef.collection(collection).doc(docId).set(setData, { merge: true });
 trackFirestoreWrite(1);
 break;
+}
 case 'update':
 await userRef.collection(collection).doc(docId).update(data);
 trackFirestoreWrite(1);
@@ -1348,14 +1355,25 @@ if (!validateUUID(id)) {
 return;
 }
 const now = getTimestamp();
+
+// --- Capture a human-readable snapshot of the record before it's removed ---
+const _snapshot = _captureRecordSnapshot(id, collectionName);
+
 const deletionRecord = {
 id: id,
+recordId: id,        // BUG4 FIX: required by _handleDeletionsSnapshot to add to deletedRecordIds
+recordType: collectionName, // BUG4 FIX: required for collection routing in _handleDeletionsSnapshot
 deletedAt: now,
 collection: collectionName,
 syncedToCloud: false,
 tombstoned_at: now,
 deleted_by: 'user',
-deletion_version: '2.0'
+deletion_version: '2.0',
+// Display snapshot so Recycle Bin can show meaningful names
+displayName: _snapshot.displayName || null,
+displayDetail: _snapshot.displayDetail || null,
+displayAmount: _snapshot.displayAmount || null,
+snapshot: _snapshot.record || null,
 };
 if (!validateTimestamp(deletionRecord.deletedAt, false)) {
 deletionRecord.deletedAt = now;
@@ -1375,6 +1393,91 @@ await idb.set('deleted_records', Array.from(deletedRecordIds));
 triggerAutoSync();
 await uploadDeletionToCloud(deletionRecord);
 await cleanupOldDeletions();
+}
+
+// Extract a display-friendly name/amount from a record before deletion
+function _captureRecordSnapshot(id, collectionName) {
+  const result = { displayName: null, displayDetail: null, displayAmount: null, record: null };
+  try {
+    let record = null;
+    // Look up in every relevant in-memory array
+    const searches = [
+      [customerSales,            r => r.id === id],
+      [paymentTransactions,      r => r.id === id],
+      [repSales,                 r => r.id === id],
+      [expenseRecords,           r => r.id === id],
+      [db,                       r => r.id === id],
+      [factoryProductionHistory, r => r.id === id],
+      [stockReturns,             r => r.id === id],
+      [salesHistory,             r => r.id === id],
+      [paymentEntities,          r => r.id === id],
+      [factoryInventoryData,     r => r.id === id],
+    ];
+    for (const [arr, pred] of searches) {
+      if (Array.isArray(arr)) { record = arr.find(pred); if (record) break; }
+    }
+    if (!record) return result;
+    result.record = record;
+
+    // --- Build display strings per collection ---
+    switch (collectionName) {
+      case 'sales':
+        result.displayName   = record.customerName || 'Unknown Customer';
+        result.displayDetail = record.store ? `Store ${record.store}` : (record.supplyStore || '');
+        result.displayAmount = record.totalValue != null ? `₨${Number(record.totalValue).toLocaleString()}` : (record.quantity ? `${record.quantity} kg` : null);
+        break;
+      case 'transactions':
+        result.displayName   = record.entityName || record.description || 'Unknown Entity';
+        result.displayDetail = record.type ? (record.type === 'IN' ? '↓ Payment IN' : '↑ Payment OUT') : '';
+        result.displayAmount = record.amount != null ? `₨${Number(record.amount).toLocaleString()}` : null;
+        break;
+      case 'rep_sales':
+        result.displayName   = record.customerName || 'Unknown Rep Customer';
+        result.displayDetail = record.salesRep ? `Rep: ${record.salesRep}` : '';
+        result.displayAmount = record.totalValue != null ? `₨${Number(record.totalValue).toLocaleString()}` : (record.quantity ? `${record.quantity} kg` : null);
+        break;
+      case 'expenses':
+        result.displayName   = record.name || 'Unknown Expense';
+        result.displayDetail = record.category || '';
+        result.displayAmount = record.amount != null ? `₨${Number(record.amount).toLocaleString()}` : null;
+        break;
+      case 'production':
+        result.displayName   = record.store ? `Store ${record.store}` : 'Production Batch';
+        result.displayDetail = record.date || '';
+        result.displayAmount = record.net != null ? `${record.net} kg net` : null;
+        break;
+      case 'factory_history':
+        result.displayName   = record.store ? `Factory – ${record.store}` : 'Factory Production';
+        result.displayDetail = record.date || '';
+        result.displayAmount = record.units != null ? `${record.units} units` : null;
+        break;
+      case 'returns':
+        result.displayName   = record.store ? `Return – ${record.store}` : 'Stock Return';
+        result.displayDetail = record.date || '';
+        result.displayAmount = record.quantity != null ? `${record.quantity} kg` : null;
+        break;
+      case 'calculator_history':
+        result.displayName   = record.customerName || record.customer || 'Calculator Entry';
+        result.displayDetail = record.store || record.supplyStore || '';
+        result.displayAmount = record.totalValue != null ? `₨${Number(record.totalValue).toLocaleString()}` : null;
+        break;
+      case 'inventory':
+        result.displayName   = record.name || 'Inventory Item';
+        result.displayDetail = record.supplierName ? `Supplier: ${record.supplierName}` : '';
+        result.displayAmount = record.quantity != null ? `${record.quantity} kg` : null;
+        break;
+      case 'entities':
+        result.displayName   = record.name || 'Payment Entity';
+        result.displayDetail = record.type || '';
+        result.displayAmount = null;
+        break;
+      default:
+        result.displayName   = record.name || record.customerName || record.entityName || record.description || null;
+        result.displayDetail = record.date || null;
+        result.displayAmount = record.amount != null ? `₨${Number(record.amount).toLocaleString()}` : null;
+    }
+  } catch(e) { /* silently fail – snapshot is best-effort */ }
+  return result;
 }
 async function uploadDeletionToCloud(deletionRecord) {
 if (!firebaseDB || typeof currentUser === 'undefined' || !currentUser) {
@@ -1437,9 +1540,13 @@ const threeMonthsAgo = Date.now() - (90 * 24 * 60 * 60 * 1000);
 let deletionRecords = await idb.get('deletion_records', []);
 const validDeletions = deletionRecords.filter(record => record.deletedAt > threeMonthsAgo);
 if (validDeletions.length !== deletionRecords.length) {
+// BUG3 FIX: never clear() the whole deletedRecordIds set — that forgets in-flight deletions.
+// Only delete IDs whose tombstones actually expired, leave all others intact.
+const expiredIds = new Set(
+  deletionRecords.filter(r => r.deletedAt <= threeMonthsAgo).map(r => r.id)
+);
+expiredIds.forEach(id => deletedRecordIds.delete(id));
 await idb.set('deletion_records', validDeletions);
-deletedRecordIds.clear();
-validDeletions.forEach(record => deletedRecordIds.add(record.id));
 await idb.set('deleted_records', Array.from(deletedRecordIds));
 }
 if (firebaseDB && typeof currentUser !== 'undefined' && currentUser) {
@@ -1726,7 +1833,7 @@ _dtMsg += `\n\nThis cannot be undone.`;
 if (await showGlassConfirm(_dtMsg, { title: `Delete ${_dt.type === 'IN' ? 'Payment IN' : 'Payment OUT'}`, confirmText: "Delete", danger: true })) {
 try {
 paymentTransactions = paymentTransactions.filter(t => t.id !== id);
-await unifiedDelete('payment_transactions', paymentTransactions, id);
+await unifiedDelete('payment_transactions', paymentTransactions, id, { strict: true });
 notifyDataChange('payments');
 triggerAutoSync();
 const entity = paymentEntities.find(e => String(e.id) === String(currentEntityId));
@@ -2999,7 +3106,7 @@ if (typeof calculateNetCash === 'function') calculateNetCash();
 return;
 }
 paymentTransactions = paymentTransactions.filter(t => t.id !== id);
-await unifiedDelete('payment_transactions', paymentTransactions, id);
+await unifiedDelete('payment_transactions', paymentTransactions, id, { strict: true });
 notifyDataChange('payments');
 if (typeof refreshPaymentTab === 'function') await refreshPaymentTab();
 if (typeof calculateNetCash === 'function') calculateNetCash();
@@ -4058,6 +4165,8 @@ paymentTransactions = paymentTransactions.filter(t => t.id !== transaction.id);
 });
 await saveWithTracking('payment_transactions', paymentTransactions);
 for (const removedTx of linkedTransactions) {
+// STRICT FLAG: register soft-delete tombstone so record appears in Recycle Bin
+await registerDeletion(removedTx.id, 'transactions');
 await deleteRecordFromFirestore('payment_transactions', removedTx.id);
 }
 }
@@ -4720,7 +4829,7 @@ quantity: materialToRestore
 }
 factoryProductionHistory.splice(entryIndex, 1);
 await Promise.all([
-unifiedDelete('factory_production_history', factoryProductionHistory, id),
+unifiedDelete('factory_production_history', factoryProductionHistory, id, { strict: true }),
 saveWithTracking('factory_inventory_data', factoryInventoryData)
 ]);
 await refreshFactoryTab();
@@ -4968,7 +5077,7 @@ record.deletedAt = getTimestamp();
 record.updatedAt = getTimestamp();
 }
 db = db.filter(item => item.id !== id);
-await unifiedDelete('mfg_pro_pkr', db, id);
+await unifiedDelete('mfg_pro_pkr', db, id, { strict: true });
 notifyDataChange('production');
 syncFactoryProductionStats();
 await refreshUI();
@@ -5055,15 +5164,7 @@ const costData = calculateSalesCost(store, quantity);
 const totalCost = costData.totalCost;
 
 
-const _phoneContainer = document.getElementById('new-customer-phone-container');
-const _priceInput = document.getElementById('new-cust-price');
-const _customPriceEntered = (_phoneContainer && !_phoneContainer.classList.contains('hidden') && _priceInput && _priceInput.value)
-? (parseFloat(_priceInput.value) || 0) : 0;
-
-
-const _effectiveSalePrice = _customPriceEntered > 0
-? _customPriceEntered
-: getEffectiveSalePriceForCustomer(name, store);
+const _effectiveSalePrice = getEffectiveSalePriceForCustomer(name, store);
 const totalValue = quantity * _effectiveSalePrice;
 const profit = totalValue - totalCost;
 const existingCustomer = customerSales.find(s => s && s.customerName && name && s.customerName.toLowerCase() === name.toLowerCase());
@@ -5151,17 +5252,13 @@ if (_scName && _scName.trim()) {
 const _scIdx = Array.isArray(salesCustomers) ? salesCustomers.findIndex(c => c && c.name && c.name.toLowerCase() === _scName.toLowerCase()) : -1;
 if (_scIdx === -1) {
 
-const _scContact = { id: generateUUID(), name: _scName, phone: _scPhone, address: '', oldDebit: 0, customSalePrice: _customPriceEntered > 0 ? _customPriceEntered : 0, createdAt: getTimestamp(), updatedAt: getTimestamp(), timestamp: getTimestamp() };
+const _scContact = { id: generateUUID(), name: _scName, phone: _scPhone, address: '', oldDebit: 0, customSalePrice: 0, createdAt: getTimestamp(), updatedAt: getTimestamp(), timestamp: getTimestamp() };
 if (!Array.isArray(salesCustomers)) salesCustomers = [];
 salesCustomers.push(_scContact);
 await saveWithTracking('sales_customers', salesCustomers);
 await saveRecordToFirestore('sales_customers', _scContact);
-} else if (_customPriceEntered > 0 && salesCustomers[_scIdx].customSalePrice !== _customPriceEntered) {
+} else {
 
-salesCustomers[_scIdx].customSalePrice = _customPriceEntered;
-salesCustomers[_scIdx].updatedAt = getTimestamp();
-await saveWithTracking('sales_customers', salesCustomers);
-await saveRecordToFirestore('sales_customers', salesCustomers[_scIdx]);
 }
 }
 } catch (_scErr) { console.warn('Auto-register sales customer failed:', _scErr); }
@@ -5178,8 +5275,6 @@ selectPaymentType(document.getElementById('btn-payment-cash'), 'CASH');
 selectSupplyStore(document.getElementById('btn-supply-store-a'), 'STORE_A');
 if (phoneInput) phoneInput.value = '';
 document.getElementById('new-customer-phone-container').classList.add('hidden');
-const _savedPriceInput = document.getElementById('new-cust-price');
-if (_savedPriceInput) _savedPriceInput.value = '';
 if (typeof renderCustomersTable === 'function') {
 renderCustomersTable();
 }
@@ -5244,10 +5339,14 @@ function calculateCustomerSale() {
 const quantity = parseFloat(document.getElementById('cust-quantity').value) || 0;
 const date = document.getElementById('cust-date').value;
 const store = document.getElementById('supply-store-value').value;
+const customerName = (document.getElementById('cust-name')?.value || '').trim();
 const costData = calculateSalesCost(store, quantity);
-document.getElementById('cust-total-cost').textContent = fmtAmt(safeNumber(costData?.totalCost, 0));
-document.getElementById('cust-total-value').textContent = fmtAmt(safeNumber(costData?.totalValue, 0));
-document.getElementById('cust-profit').textContent = fmtAmt(safeNumber((costData?.totalValue || 0) - (costData?.totalCost || 0), 0));
+const effectiveSalePrice = getEffectiveSalePriceForCustomer(customerName, store);
+const totalValue = quantity * effectiveSalePrice;
+const totalCost = costData?.totalCost || 0;
+document.getElementById('cust-total-cost').textContent = fmtAmt(safeNumber(totalCost, 0));
+document.getElementById('cust-total-value').textContent = fmtAmt(safeNumber(totalValue, 0));
+document.getElementById('cust-profit').textContent = fmtAmt(safeNumber(totalValue - totalCost, 0));
 if (date) {
 let storeProduction = 0;
 db.forEach(production => {
@@ -5300,13 +5399,6 @@ function selectSupplyStore(btn, value) {
 document.querySelectorAll('#btn-supply-store-a, #btn-supply-store-b, #btn-supply-store-c').forEach(b => b.classList.remove('active'));
 btn.classList.add('active');
 document.getElementById('supply-store-value').value = value;
-
-const _phoneContainer = document.getElementById('new-customer-phone-container');
-const _priceInput = document.getElementById('new-cust-price');
-if (_priceInput && _phoneContainer && !_phoneContainer.classList.contains('hidden')) {
-const _def = getSalePriceForStore(value);
-if (!_priceInput.value) _priceInput.placeholder = _def > 0 ? String(_def) : 'Factory default';
-}
 calculateCustomerSale();
 }
 function selectPaymentType(btn, value) {
@@ -7587,7 +7679,7 @@ let totalSkipped = 0;
 const mergedData = {};
 for (const [key, backupArray] of Object.entries(cleanBackupData)) {
 const localArray = currentLocalData[key] || [];
-const merged = mergeArraysByTimestamp(localArray, backupArray);
+const merged = mergeArrays(localArray, backupArray); // backup restore uses additive union (mergeArrays: local takes priority, backup fills gaps)
 const localIds = new Set(localArray.map(item => item.id));
 backupArray.forEach(backupItem => {
 if (!localIds.has(backupItem.id)) {
@@ -9974,7 +10066,7 @@ item.isReturn === true
 );
 if (returnEntry) {
 db = db.filter(item => item.id !== returnEntry.id);
-await unifiedDelete('mfg_pro_pkr', db, returnEntry.id);
+await unifiedDelete('mfg_pro_pkr', db, returnEntry.id, { strict: true });
 }
 const returnLogEntry = stockReturns.find(r =>
 r.store === storeKey &&
@@ -9983,7 +10075,7 @@ r.date === date
 );
 if (returnLogEntry) {
 stockReturns = stockReturns.filter(r => r.id !== returnLogEntry.id);
-await unifiedDelete('stock_returns', stockReturns, returnLogEntry.id);
+await unifiedDelete('stock_returns', stockReturns, returnLogEntry.id, { strict: true });
 }
 }
 async function formatCurrency(num) {
@@ -10210,6 +10302,19 @@ document.addEventListener('DOMContentLoaded', async function _appBootstrap() {
   
   setTimeout(() => validateAllDataOnStartup(), 5000);
 
+  // UUID enrichment migration — runs once after startup, silently re-stamps
+  // old plain UUIDs with the enriched [device][timestamp][mode] node format.
+  setTimeout(async () => {
+    try {
+      const result = await migrateAllUUIDs();
+      if (result && result.migrated > 0) {
+        console.log(`[UUID Migration] Migrated ${result.migrated} records to enriched format.`);
+      }
+    } catch(e) {
+      console.warn('[UUID Migration] Migration error (non-fatal):', e);
+    }
+  }, 8000);
+
   if (window._connectionCheckInterval) clearInterval(window._connectionCheckInterval);
   window._connectionCheckInterval = setInterval(() => {
     if (isConnectionStale()) {
@@ -10380,7 +10485,7 @@ reversedReturnQty = entryToDelete.returned;
 await reverseReturnFromProduction(entryToDelete.returnStore, entryToDelete.returned, entryToDelete.date);
 }
 const newHistory = history.filter(h => h.id !== id);
-await unifiedDelete('noman_history', newHistory, id);
+await unifiedDelete('noman_history', newHistory, id, { strict: true });
 if (Array.isArray(salesHistory)) {
 const idx = salesHistory.findIndex(h => h.id === id);
 if (idx !== -1) salesHistory.splice(idx, 1);
@@ -10944,7 +11049,7 @@ await unlinkSupplierFromMaterial(material);
 }
 factoryInventoryData = factoryInventoryData.filter(item => item.id !== editingFactoryInventoryId);
 hasChanges = true;
-await unifiedDelete('factory_inventory_data', factoryInventoryData, editingFactoryInventoryId);
+await unifiedDelete('factory_inventory_data', factoryInventoryData, editingFactoryInventoryId, { strict: true });
 notifyDataChange('inventory');
 triggerAutoSync();
 closeFactoryInventoryModal();
@@ -12605,12 +12710,12 @@ if (!(await showGlassConfirm(_daeMsg, { title: `Delete All "${expenseName}" Reco
 try {
 for (const exp of toDelete) {
 expenseRecords = expenseRecords.filter(e => e.id !== exp.id);
-await unifiedDelete('expenses', expenseRecords, exp.id);
+await unifiedDelete('expenses', expenseRecords, exp.id, { strict: true });
 const linked = paymentTransactions.filter(t => t.expenseId === exp.id);
 if (linked.length > 0) {
 paymentTransactions = paymentTransactions.filter(t => t.expenseId !== exp.id);
 for (const tx of linked) {
-await unifiedDelete('payment_transactions', paymentTransactions, tx.id);
+await unifiedDelete('payment_transactions', paymentTransactions, tx.id, { strict: true });
 }
 }
 }
@@ -12809,7 +12914,7 @@ const orphans = paymentTransactions.filter(t => t.expenseId === expenseId);
 if (orphans.length > 0) {
 paymentTransactions = paymentTransactions.filter(t => t.expenseId !== expenseId);
 for (const tx of orphans) {
-await unifiedDelete('payment_transactions', paymentTransactions, tx.id);
+await unifiedDelete('payment_transactions', paymentTransactions, tx.id, { strict: true });
 }
 }
 renderRecentExpenses();
@@ -12894,11 +12999,11 @@ await unifiedSave('factory_inventory_data', factoryInventoryData, mat);
 if (txToDelete.length > 0) {
 paymentTransactions = paymentTransactions.filter(t => t.expenseId !== expenseId);
 for (const trans of txToDelete) {
-await unifiedDelete('payment_transactions', paymentTransactions, trans.id);
+await unifiedDelete('payment_transactions', paymentTransactions, trans.id, { strict: true });
 }
 }
 expenseRecords = expenseRecords.filter(e => e.id !== expenseId);
-await unifiedDelete('expenses', expenseRecords, expenseId);
+await unifiedDelete('expenses', expenseRecords, expenseId, { strict: true });
 notifyDataChange('expenses');
 renderRecentExpenses();
 if (typeof refreshPaymentTab === 'function') await refreshPaymentTab();
@@ -13585,7 +13690,7 @@ rel.updatedAt = getTimestamp();
 }
 }
 customerSales = customerSales.filter(s => s.id !== id);
-await unifiedDelete('customer_sales', customerSales, id);
+await unifiedDelete('customer_sales', customerSales, id, { strict: true });
 refreshAllCalculations();
 if (typeof refreshCustomerSales === 'function') await refreshCustomerSales();
 renderCustomersTable();
@@ -13661,7 +13766,7 @@ rel.updatedAt = getTimestamp();
 }
 }
 repSales = repSales.filter(s => s.id !== id);
-await unifiedDelete('rep_sales', repSales, id);
+await unifiedDelete('rep_sales', repSales, id, { strict: true });
 renderRepCustomerTransactions(currentManagingRepCustomer);
 renderRepCustomerTable();
 notifyDataChange('rep');
@@ -14004,6 +14109,319 @@ document.documentElement.style.overflow = '';
 document.getElementById('dataMenuOverlay').style.display = 'none';
 });
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RECYCLE BIN — RECOVERY ENGINE
+// recoverRecord is defined here (not sync.js) so it has access to all globals:
+// deletedRecordIds, idb, registerDeletion, firebaseDB, currentUser, getIndexedDBKey
+// ─────────────────────────────────────────────────────────────────────────────
+async function recoverRecord(deletedId, collectionName) {
+  if (!deletedId || !collectionName) return false;
+  try {
+    // 1. Try to fetch the original record from Firestore (may still exist there)
+    let recoveredData = null;
+    if (firebaseDB && currentUser) {
+      try {
+        const userRef = firebaseDB.collection('users').doc(currentUser.uid);
+        // Check tombstone for an embedded snapshot
+        const tombstoneDoc = await userRef.collection('deletions').doc(String(deletedId)).get();
+        if (tombstoneDoc.exists) {
+          const td = tombstoneDoc.data();
+          if (td && td.snapshot) recoveredData = td.snapshot;
+        }
+        // Fall back: try the original collection doc
+        if (!recoveredData) {
+          const origDoc = await userRef.collection(collectionName).doc(String(deletedId)).get();
+          if (origDoc.exists) recoveredData = origDoc.data();
+        }
+      } catch(e) { console.warn('[RecycleBin] Firestore snapshot fetch failed:', e); }
+    }
+
+    // 2. Remove from in-memory deletedRecordIds set → un-hides record from all filters
+    deletedRecordIds.delete(deletedId);
+
+    // 3. Remove from local IDB tombstone lists
+    let deletionRecords = await idb.get('deletion_records', []);
+    if (!Array.isArray(deletionRecords)) deletionRecords = [];
+    deletionRecords = deletionRecords.filter(r => r.id !== deletedId);
+    await idb.set('deletion_records', deletionRecords);
+    await idb.set('deleted_records', Array.from(deletedRecordIds));
+
+    // 4. Remove cloud tombstone + restore record to Firestore + restore to local IDB array
+    if (firebaseDB && currentUser) {
+      try {
+        const userRef = firebaseDB.collection('users').doc(currentUser.uid);
+        const batch = firebaseDB.batch();
+        // Delete the tombstone
+        batch.delete(userRef.collection('deletions').doc(String(deletedId)));
+        // If we have data, re-write the record to its collection
+        if (recoveredData) {
+          const cleanRecord = { ...recoveredData };
+          delete cleanRecord.deletedAt;
+          delete cleanRecord.tombstoned_at;
+          cleanRecord.updatedAt = Date.now();
+          cleanRecord.recoveredAt = Date.now();
+          batch.set(userRef.collection(collectionName).doc(String(deletedId)), cleanRecord, { merge: true });
+        }
+        await batch.commit();
+        trackFirestoreWrite(2);
+      } catch(e) { console.warn('[RecycleBin] Cloud restore partial:', e); }
+    }
+
+    // 5. Restore to local IDB data array if we have a snapshot
+    if (recoveredData) {
+      const idbKey = getIndexedDBKey(collectionName);
+      if (idbKey) {
+        const localArr = await idb.get(idbKey, []);
+        if (!localArr.find(r => r.id === deletedId)) {
+          const cleanRecord = { ...recoveredData };
+          delete cleanRecord.deletedAt;
+          delete cleanRecord.tombstoned_at;
+          cleanRecord.updatedAt = Date.now();
+          cleanRecord.recoveredAt = Date.now();
+          localArr.push(cleanRecord);
+          await idb.set(idbKey, localArr);
+          // Sync the in-memory array too
+          const varMap = {
+            'customer_sales': () => { customerSales.push(cleanRecord); },
+            'payment_transactions': () => { paymentTransactions.push(cleanRecord); },
+            'rep_sales': () => { repSales.push(cleanRecord); },
+            'expenses': () => { expenseRecords.push(cleanRecord); },
+            'mfg_pro_pkr': () => { db.push(cleanRecord); },
+            'factory_production_history': () => { factoryProductionHistory.push(cleanRecord); },
+            'stock_returns': () => { stockReturns.push(cleanRecord); },
+            'noman_history': () => { salesHistory.push(cleanRecord); },
+          };
+          if (varMap[idbKey]) {
+            try { varMap[idbKey](); } catch(e) {}
+          }
+        }
+      }
+    }
+
+    triggerAutoSync();
+    return true;
+  } catch(e) {
+    console.error('[RecycleBin] recoverRecord error:', e);
+    return false;
+  }
+}
+window.recoverRecord = recoverRecord;
+// Export registerDeletion to window so sync.js can call it via window.registerDeletion
+window.registerDeletion = registerDeletion;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RECYCLE BIN
+// ─────────────────────────────────────────────────────────────────────────────
+const RECYCLE_BIN_COLLECTION_LABELS = {
+  'sales': 'Customer Sale',
+  'transactions': 'Payment Transaction',
+  'rep_sales': 'Rep Sale',
+  'expenses': 'Expense',
+  'production': 'Production Batch',
+  'factory_history': 'Factory Production',
+  'inventory': 'Factory Inventory',
+  'returns': 'Stock Return',
+  'calculator_history': 'Calculator Entry',
+  'entities': 'Payment Entity',
+  'rep_customers': 'Rep Customer',
+  'sales_customers': 'Customer Contact',
+  'unknown': 'Record',
+};
+const RECYCLE_RECOVERABLE_COLLECTIONS = new Set([
+  'sales','transactions','rep_sales','expenses','production',
+  'factory_history','returns','calculator_history'
+]);
+
+async function openRecycleBin() {
+  closeDataMenu();
+  requestAnimationFrame(() => {
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    const overlay = document.getElementById('recycleBinOverlay');
+    if (overlay) overlay.style.display = 'flex';
+  });
+  await renderRecycleBin();
+}
+
+function closeRecycleBin() {
+  requestAnimationFrame(() => {
+    document.body.style.overflow = '';
+    document.documentElement.style.overflow = '';
+    const overlay = document.getElementById('recycleBinOverlay');
+    if (overlay) overlay.style.display = 'none';
+  });
+}
+
+async function renderRecycleBin(filterCollection = 'all') {
+  const container = document.getElementById('recycleBinList');
+  const statsEl   = document.getElementById('recycleBinStats');
+  if (!container) return;
+
+  container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">Loading...</div>';
+
+  try {
+    let deletionRecords = await idb.get('deletion_records', []);
+    if (!Array.isArray(deletionRecords)) deletionRecords = [];
+
+    // Also try pulling cloud tombstones not yet in local IDB
+    if (firebaseDB && currentUser) {
+      try {
+        const userRef = firebaseDB.collection('users').doc(currentUser.uid);
+        const snap = await userRef.collection('deletions').orderBy('deletedAt', 'desc').limit(200).get();
+        const cloudIds = new Set(deletionRecords.map(r => r.id));
+        snap.docs.forEach(doc => {
+          const d = doc.data();
+          if (d && d.id && !cloudIds.has(d.id)) {
+            deletionRecords.push({
+              id: d.id,
+              recordId: d.id,
+              collection: d.collection || d.recordType || 'unknown',
+              deletedAt: d.deletedAt?.toMillis ? d.deletedAt.toMillis() : (d.deletedAt || Date.now()),
+              syncedToCloud: true,
+              deleted_by: d.deleted_by || 'user',
+            });
+          }
+        });
+      } catch(e) { /* offline – use local only */ }
+    }
+
+    // Sort newest first
+    deletionRecords.sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
+
+    if (statsEl) {
+      statsEl.textContent = `${deletionRecords.length} deleted record${deletionRecords.length !== 1 ? 's' : ''} (kept for 90 days)`;
+    }
+
+    // Populate filter dropdown
+    const filterSel = document.getElementById('recycleBinFilter');
+    if (filterSel && filterSel.options.length <= 1) {
+      const cols = [...new Set(deletionRecords.map(r => r.collection || 'unknown'))];
+      cols.forEach(col => {
+        const opt = document.createElement('option');
+        opt.value = col;
+        opt.textContent = RECYCLE_BIN_COLLECTION_LABELS[col] || col;
+        filterSel.appendChild(opt);
+      });
+    }
+
+    const filtered = filterCollection === 'all'
+      ? deletionRecords
+      : deletionRecords.filter(r => (r.collection || 'unknown') === filterCollection);
+
+    if (filtered.length === 0) {
+      container.innerHTML = `<div style="text-align:center;padding:50px 20px;color:var(--text-muted);">
+        <div style="font-size:2.5rem;margin-bottom:12px;">🗑️</div>
+        <div style="font-size:1rem;font-weight:600;">Recycle Bin is empty</div>
+        <div style="font-size:0.78rem;margin-top:6px;">Deleted transactions will appear here and can be recovered within 90 days.</div>
+      </div>`;
+      return;
+    }
+
+    container.innerHTML = filtered.map(rec => {
+      const col = rec.collection || 'unknown';
+      const typeLabel = RECYCLE_BIN_COLLECTION_LABELS[col] || col;
+      const deletedDate = rec.deletedAt
+        ? new Date(rec.deletedAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+        : 'Unknown date';
+      const daysAgo = rec.deletedAt ? Math.floor((Date.now() - rec.deletedAt) / 86400000) : '?';
+      const expiresIn = rec.deletedAt ? Math.max(0, 90 - Math.floor((Date.now() - rec.deletedAt) / 86400000)) : '?';
+      const canRecover = RECYCLE_RECOVERABLE_COLLECTIONS.has(col);
+
+      // --- Resolve display name: use snapshot if available, else try live arrays ---
+      let displayName = rec.displayName || null;
+      let displayDetail = rec.displayDetail || null;
+      let displayAmount = rec.displayAmount || null;
+
+      // Fallback: try to find record in live in-memory arrays (handles old tombstones without snapshot)
+      if (!displayName) {
+        const snap = _captureRecordSnapshot(rec.id, col);
+        displayName   = snap.displayName;
+        displayDetail = snap.displayDetail;
+        displayAmount = snap.displayAmount;
+      }
+
+      // Last resort: use short UUID
+      const nameHtml = displayName
+        ? `<span style="font-size:0.88rem;font-weight:700;color:var(--text-main);">${esc(displayName)}</span>`
+        : `<span style="font-size:0.75rem;font-weight:600;color:var(--text-muted);font-family:monospace;">${esc(rec.id.substring(0,14))}…</span>`;
+
+      const detailHtml = displayDetail
+        ? `<span style="font-size:0.72rem;color:var(--text-muted);">${esc(displayDetail)}</span>`
+        : '';
+
+      const amountHtml = displayAmount
+        ? `<span style="font-size:0.78rem;font-weight:700;color:var(--accent);">${esc(displayAmount)}</span>`
+        : '';
+
+      const syncBadge = rec.syncedToCloud
+        ? `<span style="font-size:0.62rem;background:rgba(16,185,129,0.15);color:#10b981;padding:2px 6px;border-radius:999px;white-space:nowrap;">☁ synced</span>`
+        : `<span style="font-size:0.62rem;background:rgba(239,68,68,0.12);color:#ef4444;padding:2px 6px;border-radius:999px;white-space:nowrap;">⚠ local</span>`;
+
+      const colDot = {
+        'sales':'#10b981','transactions':'#3b82f6','rep_sales':'#8b5cf6',
+        'expenses':'#f59e0b','production':'#ec4899','factory_history':'#14b8a6',
+        'returns':'#f97316','unknown':'#9ca3af'
+      }[col] || '#9ca3af';
+
+      const typeTag = `<span style="font-size:0.62rem;background:rgba(255,255,255,0.06);color:var(--text-muted);padding:2px 7px;border-radius:999px;border:1px solid var(--glass-border);white-space:nowrap;">${esc(typeLabel)}</span>`;
+
+      return `<div style="background:var(--input-bg);border:1px solid var(--glass-border);border-radius:12px;padding:12px 14px;margin-bottom:9px;display:flex;align-items:center;gap:11px;">
+        <div style="width:9px;height:9px;min-width:9px;border-radius:50%;background:${colDot};flex-shrink:0;"></div>
+        <div style="flex:1;min-width:0;overflow:hidden;">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px;">
+            ${nameHtml}
+            ${amountHtml}
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px;">
+            ${typeTag}
+            ${detailHtml}
+            ${syncBadge}
+          </div>
+          <div style="font-size:0.68rem;color:var(--text-muted);">
+            Deleted ${daysAgo === 0 ? 'today' : daysAgo + 'd ago'} · ${deletedDate} · expires in ${expiresIn}d
+          </div>
+        </div>
+        ${canRecover
+          ? `<button onclick="attemptRecoverRecord('${esc(rec.id)}','${esc(col)}')" style="flex-shrink:0;padding:7px 13px;background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);border-radius:999px;font-size:0.78rem;font-weight:700;cursor:pointer;">↩ Recover</button>`
+          : `<span style="flex-shrink:0;font-size:0.7rem;color:var(--text-muted);padding:4px 8px;">—</span>`}
+      </div>`;
+    }).join('');
+
+  } catch(e) {
+    container.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted);">Failed to load recycle bin.</div>`;
+    console.error('[RecycleBin] render error', e);
+  }
+}
+
+async function attemptRecoverRecord(id, collectionName) {
+  const label = RECYCLE_BIN_COLLECTION_LABELS[collectionName] || collectionName;
+  if (!(await showGlassConfirm(
+    `Recover this ${label}?\n\nIt will be restored to its original collection and become visible again in all views.`,
+    { title: '↩ Recover Record', confirmText: 'Recover', danger: false }
+  ))) return;
+
+  showToast('Recovering record…', 'info', 1500);
+  const ok = await recoverRecord(id, collectionName);
+  if (ok) {
+    showToast(`${label} recovered successfully!`, 'success');
+    await refreshUI();
+    calculateNetCash();
+    calculateCashTracker();
+    notifyDataChange('all');
+    // Re-render the current filter
+    const filterSel = document.getElementById('recycleBinFilter');
+    const current = filterSel ? filterSel.value : 'all';
+    await renderRecycleBin(current);
+  } else {
+    showToast('Recovery failed. The record may have been permanently purged from cloud.', 'error');
+  }
+}
+
+window.openRecycleBin = openRecycleBin;
+window.closeRecycleBin = closeRecycleBin;
+window.renderRecycleBin = renderRecycleBin;
+window.attemptRecoverRecord = attemptRecoverRecord;
 async function triggerLocalBackup() {
 closeDataMenu();
 if (!currentUser) {
@@ -15457,6 +15875,10 @@ const oldDebitValue = existingOldDebtTx ? (existingOldDebtTx.totalValue || 0) : 
 document.getElementById('edit-cust-phone').value = contact?.phone || saleRecord?.customerPhone || '';
 document.getElementById('edit-cust-address').value = contact?.address || '';
 document.getElementById('edit-cust-old-debit').value = oldDebitValue;
+const editPriceInput = document.getElementById('edit-cust-custom-price');
+if (editPriceInput) {
+editPriceInput.value = (contact?.customSalePrice > 0) ? contact.customSalePrice : '';
+}
 requestAnimationFrame(() => {
 document.body.style.overflow = 'hidden';
 document.documentElement.style.overflow = 'hidden';
@@ -15477,6 +15899,7 @@ const originalName = nameInput.dataset.originalName || name;
 const phone = document.getElementById('edit-cust-phone').value.trim();
 const address = document.getElementById('edit-cust-address').value.trim();
 const oldDebit = parseFloat(document.getElementById('edit-cust-old-debit').value) || 0;
+const customSalePrice = parseFloat(document.getElementById('edit-cust-custom-price').value) || 0;
 if (!name) { showToast('Customer name is required', 'error'); return; }
 try {
 const nameChanged = name.toLowerCase() !== originalName.toLowerCase();
@@ -15492,9 +15915,9 @@ let contact = salesCustomers.find(c => c && c.name && c.name.toLowerCase() === o
 if (!contact) contact = salesCustomers.find(c => c && c.name && c.name.toLowerCase() === name.toLowerCase());
 const previousOldDebit = contact?.oldDebit || 0;
 if (contact) {
-contact.name = name; contact.phone = phone; contact.address = address; contact.oldDebit = oldDebit; contact.updatedAt = getTimestamp();
+contact.name = name; contact.phone = phone; contact.address = address; contact.oldDebit = oldDebit; contact.customSalePrice = customSalePrice; contact.updatedAt = getTimestamp();
 } else {
-contact = { id: generateUUID(), name, phone, address, oldDebit,
+contact = { id: generateUUID(), name, phone, address, oldDebit, customSalePrice,
 createdAt: getTimestamp(), updatedAt: getTimestamp(), timestamp: getTimestamp() };
 salesCustomers.push(contact);
 }
@@ -15559,7 +15982,10 @@ await saveWithTracking('customer_sales', salesArray);
 
 if (oldDebtRecord) await saveRecordToFirestore('customer_sales', oldDebtRecord);
 
-if (deletedOldDebtId) await deleteRecordFromFirestore('customer_sales', deletedOldDebtId);
+if (deletedOldDebtId) {
+await registerDeletion(deletedOldDebtId, 'sales');
+await deleteRecordFromFirestore('customer_sales', deletedOldDebtId);
+}
 
 if (nameChanged && renamedRecords.length > 0) {
 const cloudPushes = renamedRecords.map(r => saveRecordToFirestore('customer_sales', r));
@@ -15785,7 +16211,10 @@ await saveWithTracking('rep_sales', salesArray);
 
 if (oldDebtRecord) await saveRecordToFirestore('rep_sales', oldDebtRecord);
 
-if (deletedOldDebtId) await deleteRecordFromFirestore('rep_sales', deletedOldDebtId);
+if (deletedOldDebtId) {
+await registerDeletion(deletedOldDebtId, 'rep_sales');
+await deleteRecordFromFirestore('rep_sales', deletedOldDebtId);
+}
 
 if (nameChanged && renamedRecords.length > 0) {
 const cloudPushes = renamedRecords.map(r => saveRecordToFirestore('rep_sales', r));
@@ -16644,7 +17073,7 @@ relatedSale.updatedAt = getTimestamp();
 }
 }
 repSales = repSales.filter(t => t.id !== id);
-await unifiedDelete('rep_sales', repSales, id);
+await unifiedDelete('rep_sales', repSales, id, { strict: true });
 if (wasPartialPayment && relatedSaleId) {
 const relatedSale = repSales.find(s => s.id === relatedSaleId);
 if (relatedSale) await saveRecordToFirestore('rep_sales', relatedSale);
@@ -16699,22 +17128,8 @@ safeQuery = '';
 const isNewCustomer = safeQuery.length > 2 && !existingNames.includes(safeQuery);
 if (isNewCustomer) {
 phoneContainer.classList.remove('hidden');
-
-if (!isRep) {
-const priceInput = document.getElementById('new-cust-price');
-if (priceInput && !priceInput.value) {
-const storeEl = document.getElementById('supply-store-value');
-const defaultPrice = getSalePriceForStore(storeEl ? storeEl.value : 'STORE_A');
-priceInput.placeholder = defaultPrice > 0 ? String(defaultPrice) : 'Factory default';
-}
-}
 } else {
 phoneContainer.classList.add('hidden');
-
-if (!isRep) {
-const priceInput = document.getElementById('new-cust-price');
-if (priceInput) priceInput.value = '';
-}
 }
 }
 async function handleUniversalSearch(inputId, resultsId, dataSource) {
@@ -16879,8 +17294,6 @@ calculateCustomerStatsForDisplay(value);
 
 const _phoneContainer = document.getElementById('new-customer-phone-container');
 if (_phoneContainer) _phoneContainer.classList.add('hidden');
-const _pi = document.getElementById('new-cust-price');
-if (_pi) _pi.value = '';
 } else if (type === 'repName' && inputId === 'rep-cust-name') {
 if (typeof calculateRepCustomerStatsForDisplay === 'function') {
 calculateRepCustomerStatsForDisplay(value);
@@ -16910,8 +17323,6 @@ window.selectCustomer = function(name) {
 originalSelectCustomer(name);
 document.getElementById('new-customer-phone-container').classList.add('hidden');
 document.getElementById('new-cust-phone').value = '';
-const _pi = document.getElementById('new-cust-price');
-if (_pi) _pi.value = '';
 };
 const originalSelectRepCustomer = window.selectRepCustomer || selectRepCustomer;
 window.selectRepCustomer = function(name) {
@@ -21421,6 +21832,7 @@ const _overlayStack = (() => {
     'repCustomerManagementOverlay':{ closeFn: () => closeRepCustomerManagement(),     contentSel: '.factory-overlay-card' },
     'repCustomerEditOverlay':      { closeFn: () => closeRepCustomerEditModal(),      contentSel: '.factory-overlay-card' },
     'dataMenuOverlay':             { closeFn: () => closeDataMenu(),                  contentSel: '.factory-overlay-card' },
+    'recycleBinOverlay':           { closeFn: () => closeRecycleBin(),                contentSel: '.factory-overlay-card' },
     'entityTransactionsOverlay':   { closeFn: () => closeEntityTransactions(),        contentSel: '.factory-overlay-card' },
     'manage-reps-modal':           { closeFn: () => closeManageRepsModal(),           contentSel: '#manage-reps-card'     },
   };
