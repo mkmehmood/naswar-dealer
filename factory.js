@@ -643,7 +643,7 @@ const newSupplierId = supplierInput.getAttribute('data-supplier-id') || supplier
 const isSupplierChanging = (supplierType === 'none' && oldSupplierId) ||
 (supplierType === 'existing' && oldSupplierId && String(oldSupplierId) !== String(newSupplierId));
 if (isSupplierChanging) {
-await unlinkSupplierFromMaterial(existingMaterial);
+await unlinkSupplierFromMaterial(existingMaterial, false, true);
 }
 factoryInventoryData[idx] = ensureRecordIntegrity({
 ...factoryInventoryData[idx],
@@ -659,7 +659,15 @@ purchaseUnitName: unitName,
 updatedAt: getTimestamp()
 }, true);
 }
-} else {
+}
+const _supplierUnchanged = editingFactoryInventoryId && supplierType === 'existing' &&
+(() => {
+const _m = factoryInventoryData.find(m => m.id === materialId);
+const _inp = document.getElementById('factoryExistingSupplier');
+const _newId = _inp && (_inp.getAttribute('data-supplier-id') || _inp.value);
+return _m && _m.supplierId && _newId && String(_m.supplierId) === String(_newId);
+})();
+if (!editingFactoryInventoryId) {
 const _matNow = getTimestamp();
 let _newMaterial = {
 id: materialId,
@@ -693,10 +701,12 @@ delete material.totalPayable;
 }
 }
 else if (supplierType === 'existing') {
+if (!_supplierUnchanged) {
 const supplierInput = document.getElementById('factoryExistingSupplier');
 const existingSupplierId = supplierInput.getAttribute('data-supplier-id') || supplierInput.value;
 if (existingSupplierId) {
-await linkMaterialToSupplier(materialId, existingSupplierId, totalValue);
+await linkMaterialToSupplier(materialId, existingSupplierId, totalValue, true);
+}
 }
 }
 else if (supplierType === 'new') {
@@ -711,7 +721,7 @@ materialName: name,
 materialTotal: totalValue
 });
 if (newSupplier && newSupplier.id) {
-await linkMaterialToSupplier(materialId, newSupplier.id, totalValue);
+await linkMaterialToSupplier(materialId, newSupplier.id, totalValue, true);
 }
 }
 }
@@ -727,7 +737,7 @@ showToast("Material saved successfully!", 'success');
 showToast('Failed to save material. Please try again.', 'error');
 }
 }
-async function unlinkSupplierFromMaterial(material, showToastOnNoSupplier = false) {
+async function unlinkSupplierFromMaterial(material, showToastOnNoSupplier = false, skipSideEffects = false) {
 if (!material) {
 showToast('Invalid material data', 'error');
 return;
@@ -766,6 +776,7 @@ delete material.totalPayable;
 delete material.paidDate;
 material.updatedAt = getTimestamp();
 ensureRecordIntegrity(material, true);
+if (!skipSideEffects) {
 await unifiedSave('factory_inventory_data', factoryInventoryData, material);
 notifyDataChange('all');
 triggerAutoSync();
@@ -773,6 +784,7 @@ await renderFactoryInventory();
 await refreshPaymentTab();
 calculateNetCash();
 showToast(`Unlinked from ${esc(material.name)}`, 'success');
+}
 }
 async function createSupplierFromMaterial(supplierData) {
 const existingSupplier = paymentEntities.find(e =>
@@ -1021,7 +1033,7 @@ option.disabled = true;
 selectElement.appendChild(option);
 }
 }
-async function linkMaterialToSupplier(materialId, supplierId, totalCost) {
+async function linkMaterialToSupplier(materialId, supplierId, totalCost, skipSideEffects = false) {
 let material = factoryInventoryData.find(m => m.id === materialId);
 if (!material) {
 const reloadedData = await idb.get('factory_inventory_data');
@@ -1057,7 +1069,7 @@ return;
 }
 }
 if (material.supplierId && String(material.supplierId) !== String(supplierIdToMatch)) {
-await unlinkSupplierFromMaterial(material);
+await unlinkSupplierFromMaterial(material, false, true);
 }
 material.supplierId = supplier.id;
 material.supplierName = supplier.name;
@@ -1067,6 +1079,7 @@ material.paymentStatus = 'pending';
 material.totalPayable = totalCost;
 material.updatedAt = getTimestamp();
 ensureRecordIntegrity(material, true);
+if (!skipSideEffects) {
 await unifiedSave('factory_inventory_data', factoryInventoryData, material);
 notifyDataChange('all');
 triggerAutoSync();
@@ -1074,6 +1087,7 @@ await renderFactoryInventory();
 await refreshPaymentTab();
 calculateNetCash();
 showToast(`Linked to ${esc(supplier.name)}`, 'success');
+}
 }
 function selectFactoryEntryStore(store, el) {
 currentFactoryEntryStore = store;
