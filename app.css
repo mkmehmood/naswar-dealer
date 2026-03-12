@@ -456,7 +456,6 @@ overflow: hidden;
 animation: fadeOut 0.6s ease-in-out 3s forwards;
 }
 
-
 @keyframes cy-fade-in {
   from { opacity:0; transform:translateY(-6px) scale(0.98); }
   to   { opacity:1; transform:translateY(0) scale(1); }
@@ -493,7 +492,6 @@ animation: fadeOut 0.6s ease-in-out 3s forwards;
   100% { transform:scale(1) rotate(0deg); opacity:1; }
 }
 
-
 .cy-row {
   position: relative;
   border-radius: 12px;
@@ -524,7 +522,6 @@ animation: fadeOut 0.6s ease-in-out 3s forwards;
   animation: cy-row-activate 0.35s var(--ease-out-quart);
 }
 
-
 .cy-row-head {
   display: flex;
   align-items: center;
@@ -551,7 +548,6 @@ animation: fadeOut 0.6s ease-in-out 3s forwards;
   text-overflow: ellipsis;
 }
 .cy-row.cy-skipped .cy-row-label { color: var(--text-secondary); }
-
 
 .cy-pill {
   font-size: 0.68rem;
@@ -590,7 +586,6 @@ animation: fadeOut 0.6s ease-in-out 3s forwards;
   flex-shrink: 0;
 }
 
-
 .cy-status-badge {
   display: none;
   font-size: 0.6rem;
@@ -613,7 +608,6 @@ animation: fadeOut 0.6s ease-in-out 3s forwards;
   border: 1px solid rgba(255,179,0,0.28);
 }
 
-
 .cy-chips {
   margin-top: 5px;
   padding-left: 37px;
@@ -632,7 +626,6 @@ animation: fadeOut 0.6s ease-in-out 3s forwards;
   color: var(--text-main);
   margin-right: 12px;
 }
-
 
 .cy-result-card {
   display: none;
@@ -667,7 +660,6 @@ animation: fadeOut 0.6s ease-in-out 3s forwards;
   line-height: 1.45;
 }
 
-
 .cy-progress-track {
   width: 100%;
   height: 5px;
@@ -688,9 +680,6 @@ animation: fadeOut 0.6s ease-in-out 3s forwards;
   animation: none;
   background: linear-gradient(90deg, var(--accent-emerald), var(--accent));
 }
-
-
-
 
 .cy-complete-card {
   margin: 0 0 4px;
@@ -758,7 +747,6 @@ animation: fadeOut 0.6s ease-in-out 3s forwards;
   letter-spacing: 0.01em;
 }
 
-
 .cy-stat-grid {
   display: flex;
   gap: 8px;
@@ -793,7 +781,6 @@ animation: fadeOut 0.6s ease-in-out 3s forwards;
   font-weight: 600;
 }
 
-
 .cy-sync-warn {
   display: flex;
   align-items: flex-start;
@@ -813,7 +800,6 @@ animation: fadeOut 0.6s ease-in-out 3s forwards;
   color: var(--text-muted);
   line-height: 1.5;
 }
-
 
 .cy-continue-btn {
   display: block;
@@ -4264,7 +4250,6 @@ max-width: calc(100vw - 24px);
 isolation: isolate;
 }
 
-
 @keyframes toastSlideDown {
 0%   { opacity: 0; transform: translateY(-22px) scale(0.88); filter: blur(3px); }
 55%  { opacity: 1; transform: translateY(4px)   scale(1.02); filter: blur(0);   }
@@ -4287,7 +4272,6 @@ to   { transform: scaleX(0); }
 0%   { background-position: -200% center; }
 100% { background-position:  200% center; }
 }
-
 
 .liquid-toast {
 position: relative;
@@ -4335,7 +4319,6 @@ animation: toastSlideDown 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards !importa
 animation: toastSlideUp 0.24s cubic-bezier(0.4, 0, 1, 1) forwards !important;
 }
 
-
 .toast-inner {
 display: flex;
 align-items: center;
@@ -4347,7 +4330,6 @@ background: transparent;
 }
 .toast-inner::before, .toast-inner::after { display: none !important; }
 .liquid-toast::before { display: none !important; }
-
 
 .toast-icon-wrap {
 width: 26px;
@@ -4370,7 +4352,6 @@ z-index: 1;
 line-height: 1;
 }
 
-
 .toast-text {
 flex: 1;
 font-size: 0.75rem;
@@ -4385,7 +4366,6 @@ letter-spacing: 0.012em;
 -webkit-font-smoothing: antialiased;
 }
 
-
 .toast-progress-bar {
 position: absolute;
 bottom: 0; left: 0;
@@ -4398,7 +4378,6 @@ opacity: 0.50;
 .toast-progress-bar.animating {
 animation: toastProgressShrink linear forwards !important;
 }
-
 
 .liquid-toast.toast-success {
 border-color: rgba(29,233,182,0.20);
@@ -4472,7 +4451,6 @@ box-shadow: 0 0 0 1px rgba(100,181,246,0.25) inset, 0 0 8px rgba(100,181,246,0.1
 }
 .liquid-toast.toast-info .toast-progress-bar { background: linear-gradient(90deg, #64b5f6, #1565c0); }
 
-
 [data-theme="light"] .liquid-toast {
 background:
   linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(248,250,252,0.96) 100%);
@@ -4493,7 +4471,6 @@ box-shadow:
 [data-theme="light"] .liquid-toast.toast-error .toast-icon-wrap { background: rgba(211,47,47,0.12); color: #d32f2f; box-shadow: 0 0 0 1px rgba(211,47,47,0.20) inset; }
 [data-theme="light"] .liquid-toast.toast-info { border-color: rgba(21,101,192,0.20); }
 [data-theme="light"] .liquid-toast.toast-info .toast-icon-wrap { background: rgba(21,101,192,0.10); color: #1565c0; box-shadow: 0 0 0 1px rgba(21,101,192,0.18) inset; }
-
 
 @media (max-width: 768px) {
 .toast-container { top: calc(env(safe-area-inset-top, 0px) + 4px); }
@@ -4523,7 +4500,6 @@ to   { opacity:0; transform: scale(0.93) translateY(12px); filter: blur(4px); }
 100% { transform: scale(1)   rotate(0);      opacity: 1; }
 }
 
-
 .glass-confirm-backdrop {
 position: fixed;
 inset: 0;
@@ -4540,7 +4516,6 @@ animation: confirmBackdropIn 0.20s ease !important;
 .glass-confirm-backdrop.closing {
 animation: confirmBackdropOut 0.18s ease forwards !important;
 }
-
 
 .glass-confirm-box {
 background:
@@ -4588,7 +4563,6 @@ background: linear-gradient(90deg, transparent, rgba(255,77,114,0.28), transpare
 }
 .glass-confirm-box::before { display: none !important; }
 
-
 .glass-confirm-icon {
 width: 48px;
 height: 48px;
@@ -4613,7 +4587,6 @@ color: #64b5f6;
 box-shadow: 0 0 0 1px rgba(100,181,246,0.28) inset, 0 4px 16px rgba(100,181,246,0.14);
 }
 
-
 .glass-confirm-title {
 font-family: 'Bricolage Grotesque', system-ui, sans-serif;
 font-size: 1.08rem;
@@ -4625,7 +4598,6 @@ letter-spacing: -0.025em;
 position: relative;
 z-index: 1;
 }
-
 
 .glass-confirm-msg {
 font-family: 'Geist', 'SF Pro Text', system-ui, sans-serif;
@@ -4639,7 +4611,6 @@ z-index: 1;
 -webkit-font-smoothing: antialiased;
 }
 
-
 .glass-confirm-divider {
 height: 1px;
 background: linear-gradient(90deg, transparent, rgba(255,255,255,0.10), transparent);
@@ -4648,7 +4619,6 @@ position: relative;
 z-index: 1;
 }
 
-
 .glass-confirm-btns {
 display: flex;
 gap: 10px;
@@ -4656,7 +4626,6 @@ justify-content: flex-end;
 position: relative;
 z-index: 1;
 }
-
 
 .glass-confirm-btn {
 font-family: 'Geist', 'SF Pro Text', system-ui, sans-serif;
@@ -4718,7 +4687,6 @@ filter: brightness(1.08);
 transform: translateY(-1px);
 box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 6px 18px rgba(239,68,68,0.38);
 }
-
 
 [data-theme="light"] .glass-confirm-backdrop { background: rgba(0,0,0,0.42); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
 [data-theme="light"] .glass-confirm-box {
@@ -5959,7 +5927,6 @@ thead { background: var(--glass-raised) !important; background-image: none !impo
   border-color: rgba(16, 185, 129, 0.25);
 }
 
-
 .is-settled-record {
   opacity: 0.72;
 }
@@ -5970,7 +5937,6 @@ thead { background: var(--glass-raised) !important; background-image: none !impo
 .is-settled-record {
   order: 999;
 }
-
 
 .archived-badge {
   display: inline-flex;
