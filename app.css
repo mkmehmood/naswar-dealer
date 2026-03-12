@@ -5951,3 +5951,25 @@ thead { background: var(--glass-raised) !important; background-image: none !impo
   text-transform: uppercase;
   margin-left: 6px;
 }
+
+/* ── Auto-fit font-size for all tables ── */
+table {
+  font-size: clamp(0.55rem, 1.4vw, 0.82rem);
+  width: 100%;
+}
+table td,
+table th {
+  font-size: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 0;
+}
+table th {
+  font-size: clamp(0.5rem, 1.2vw, 0.72rem);
+}
+@media (max-width: 480px) {
+  table {
+    font-size: clamp(0.48rem, 2.8vw, 0.65rem);
+  }
+}

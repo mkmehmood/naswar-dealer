@@ -639,9 +639,12 @@ if(idx !== -1) {
 existingMaterial = factoryInventoryData[idx];
 const oldSupplierId = existingMaterial.supplierId;
 const supplierInput = document.getElementById('factoryExistingSupplier');
-const newSupplierId = supplierInput.getAttribute('data-supplier-id') || supplierInput.value;
-const isSupplierChanging = (supplierType === 'none' && oldSupplierId) ||
-(supplierType === 'existing' && oldSupplierId && String(oldSupplierId) !== String(newSupplierId));
+const newSupplierId = (supplierInput && (supplierInput.getAttribute('data-supplier-id') || supplierInput.value)) || '';
+const isSupplierSame = supplierType === 'existing' && oldSupplierId && newSupplierId && String(oldSupplierId) === String(newSupplierId);
+const isSupplierChanging = !isSupplierSame && (
+  (supplierType === 'none' && oldSupplierId) ||
+  (supplierType === 'existing' && oldSupplierId && newSupplierId && String(oldSupplierId) !== String(newSupplierId))
+);
 if (isSupplierChanging) {
 await unlinkSupplierFromMaterial(existingMaterial, false, true);
 }
@@ -837,24 +840,16 @@ if (item.supplierName) {
 const originalAmount = item.totalValue || (item.purchaseCost && item.purchaseQuantity ? item.purchaseCost * item.purchaseQuantity : item.quantity * item.cost) || 0;
 const remainingPayable = item.totalPayable || 0;
 const isFullyPaid = item.paymentStatus === 'paid' || remainingPayable <= 0;
-const isPartial = !isFullyPaid && remainingPayable < originalAmount && remainingPayable > 0;
-const paymentStatus = isFullyPaid
-? '<span style="color:var(--accent-emerald); font-weight:600;"> PAID</span>'
-: isPartial
-? '<span style="color:var(--accent); font-weight:600;">PARTIAL</span>'
-: '<span class="u-text-warning u-fw-600" >PENDING</span>';
 const payableDisplay = isFullyPaid
 ? `<span class="u-text-emerald" >0.00</span>`
-: isPartial
-? `<span style="font-weight:600; color:var(--accent);">${safeNumber(remainingPayable, 0).toFixed(2)}</span>`
-: `<span style="font-weight:600;">${safeNumber(remainingPayable, 0).toFixed(2)}</span>`;
+: `<span style="font-weight:600; color:var(--accent);">${safeNumber(remainingPayable, 0).toFixed(2)}</span>`;
 supplierHtml = `
 <div style="font-size:0.65rem; color:var(--text-muted); margin-top:4px;">
 <div style="background:rgba(0, 122, 255, 0.1); color:var(--accent); padding:3px 8px; border-radius:4px; display:inline-block; margin-bottom:3px; font-weight:600;">
-SUPPLIER: ${String(item.supplierName).replace(/'/g, "&#39;").replace(/"/g, "&quot;")}
+${String(item.supplierName).replace(/'/g, "&#39;").replace(/"/g, "&quot;")}
 </div>
 <div style="margin-top:3px; font-size:0.7rem;">
-${paymentStatus} | ${payableDisplay}
+${payableDisplay}
 </div>
 </div>
 `;
