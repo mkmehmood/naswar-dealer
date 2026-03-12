@@ -1,4 +1,6 @@
-const CACHE_NAME = 'naswar-dealer-v13';
+const BUILD_HASH = 'naswar-dealer-v14';
+const CACHE_NAME = 'app-' + BUILD_HASH;
+
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

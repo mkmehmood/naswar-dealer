@@ -58,6 +58,7 @@ window._swConfirmed = false;
 
 function _showUpdateDialog(reg) {
   if (window._swDialogShown) return;
+  if (sessionStorage.getItem('_swJustUpdated')) { sessionStorage.removeItem('_swJustUpdated'); return; }
   if (typeof showGlassConfirm !== 'function') {
     window._swPendingReg = reg;
     return;
@@ -79,6 +80,7 @@ function _showUpdateDialog(reg) {
     if (waiting) {
       waiting.postMessage({ type: 'SKIP_WAITING' });
     }
+    sessionStorage.setItem('_swJustUpdated', '1');
     setTimeout(function() { window.location.reload(); }, 500);
   });
 }
