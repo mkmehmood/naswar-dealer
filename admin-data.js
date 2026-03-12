@@ -44,7 +44,7 @@ document.body.appendChild(loadingModal);
 try {
 const userRef = firebaseDB.collection('users').doc(currentUser.uid);
 const [
-productionSnap, salesSnap, customerSalesLegacySnap, calcHistorySnap, repSalesSnap, repCustomersSnap,
+productionSnap, salesSnap, calcHistorySnap, repSalesSnap, repCustomersSnap,
 salesCustomersSnap,
 transactionsSnap, entitiesSnap, inventorySnap, factoryHistorySnap,
 returnsSnap, expensesSnap, deletionsSnap,
@@ -52,7 +52,6 @@ settingsDoc, factorySettingsDoc, expenseCategoriesDoc, teamDoc
 ] = await Promise.all([
 userRef.collection('production').get(),
 userRef.collection('sales').get(),
-userRef.collection('customer_sales').get(),
 userRef.collection('calculator_history').get(),
 userRef.collection('rep_sales').get(),
 userRef.collection('rep_customers').get(),
@@ -75,7 +74,6 @@ const myDeviceShard = uuidStats._myDeviceShard || '—';
 const collections = [
 { name: 'production',         snap: productionSnap,            idbKey: 'mfg_pro_pkr',               jsVar: 'db',                       description: 'Factory production records' },
 { name: 'sales',              snap: salesSnap,                  idbKey: 'customer_sales',             jsVar: 'customerSales',            description: 'Direct customer sales' },
-{ name: 'customer_sales',     snap: customerSalesLegacySnap,    idbKey: 'customer_sales',             jsVar: 'customerSales',            description: 'Legacy alias for sales collection (placeholder only)' },
 { name: 'rep_sales',          snap: repSalesSnap,               idbKey: 'rep_sales',                  jsVar: 'repSales',                 description: 'Rep sales to customers' },
 { name: 'rep_customers',      snap: repCustomersSnap,           idbKey: 'rep_customers',              jsVar: 'repCustomers',             description: 'Rep customer contact registry' },
 { name: 'sales_customers',    snap: salesCustomersSnap,         idbKey: 'sales_customers',            jsVar: 'salesCustomers',           description: 'Sales tab customer contact registry' },
@@ -141,7 +139,12 @@ Loading devices...
 </div>
 </div>
 <div class="u-mb-20" >
-<h4 style="margin: 0 0 10px 0; color: var(--text); font-size: 0.9rem;"> Collections (${collections.length})</h4>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+<h4 style="margin: 0; color: var(--text); font-size: 0.9rem;"> Collections (${collections.length})</h4>
+<div style="font-size: 0.65rem; color: var(--text-muted); font-family:'Geist Mono','Courier New',monospace;" title="This device's FNV-1a 32-bit shard encoded in every UUID generated here">
+This device shard: <span style="color: var(--accent); font-weight: 600;">${myDeviceShard}</span>
+</div>
+</div>
 `;
 let totalDocs = 0;
 const actualReads = firestoreStats.reads || 0;
@@ -151,38 +154,42 @@ const count = col.snap.size;
 totalDocs += count;
 const stat = stats[col.name] || { syncCount: 0, totalReads: 0, totalWrites: 0, lastSync: null };
 const lastSync = stat.lastSync ? new Date(stat.lastSync).toLocaleString() : 'Never';
-const hasListener = col.name !== 'deletions' && col.name !== 'customer_sales';
+const hasListener = col.name !== 'deletions';
 const uuidColStat = uuidStats[col.name] || {};
 const uploadedCount = uuidColStat.uploaded || 0;
 const downloadedCount = uuidColStat.downloaded || 0;
 const isDirty = DeltaSync.isDirty(col.name);
-const isLegacy = col.name === 'customer_sales';
+const dirtyColor = isDirty ? '#f59e0b' : '#30d158';
+const dirtyLabel = isDirty ? '⚠ pending' : '✔ clean';
 html += `
-<div style="margin-bottom: 10px; padding: 12px; background: var(--input-bg); border-radius: 16px; border: 1px solid ${isLegacy ? 'rgba(255,159,10,0.3)' : 'var(--glass-border)'};">
+<div style="margin-bottom: 10px; padding: 12px; background: var(--input-bg); border-radius: 16px; border: 1px solid var(--glass-border);">
 <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
 <div style="flex:1; min-width:0;">
-<div style="font-weight: 600; font-size: 0.85rem; color: ${isLegacy ? 'var(--warning)' : 'var(--text)'}; font-family:'Geist Mono','Courier New',monospace;">
-${col.name}${isLegacy ? ' ⚠ legacy' : ''}
-</div>
+<div style="font-weight: 600; font-size: 0.85rem; color: var(--text); font-family:'Geist Mono','Courier New',monospace;">${col.name}</div>
 <div style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">${col.description}</div>
 <div style="font-size: 0.62rem; color: var(--text-muted); margin-top: 2px; font-family:'Geist Mono','Courier New',monospace;">
 IDB: <span style="color:var(--accent)">${col.idbKey}</span> → JS: <span style="color:var(--accent)">${col.jsVar}</span>
 </div>
 </div>
 <div style="text-align: right; flex-shrink:0; margin-left:8px;">
-<div style="font-size: 0.75rem; font-weight: 600; color: var(--accent);">
-${count} docs
-</div>
+<div style="font-size: 0.75rem; font-weight: 600; color: var(--accent);">${count} docs</div>
 ${hasListener ? '<div style="font-size: 0.65rem; color: #30d158;">● Live</div>' : '<div style="font-size: 0.65rem; color: var(--text-muted);">○ Polling</div>'}
 </div>
 </div>
-<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; font-size: 0.65rem; color: var(--text-muted);">
-<div title="Times this collection was synced">Syncs: ${stat.syncCount || 0}</div>
-<div title="Last sync timestamp">Last: ${lastSync}</div>
-<div title="Pending local changes" style="color:${isDirty ? '#f59e0b' : 'inherit'}">${isDirty ? '⚠ pending' : '✔ clean'}</div>
-<div title="UUIDs confirmed uploaded this session (UUID-v2 gate)">↑ ${uploadedCount} uploaded</div>
-<div title="UUIDs confirmed downloaded this session (UUID-v2 gate)">↓ ${downloadedCount} downloaded</div>
-<div title="This device shard encoded in UUIDs created here" style="font-family:monospace">shard: ${myDeviceShard}</div>
+<div style="border-top: 1px solid var(--glass-border); padding-top: 7px; margin-top: 2px;">
+<div style="display: grid; grid-template-columns: auto auto auto; gap: 4px 14px; font-size: 0.64rem; color: var(--text-muted); margin-bottom: 5px;">
+<div title="Number of times this collection completed a sync cycle">Syncs: <span style="color:var(--text)">${stat.syncCount || 0}</span></div>
+<div title="Timestamp of last completed sync">Last: <span style="color:var(--text)">${lastSync}</span></div>
+<div title="Local changes not yet pushed to Firestore" style="color:${dirtyColor};">${dirtyLabel}</div>
+</div>
+<div style="display: flex; gap: 12px; font-size: 0.64rem;">
+<div title="Records pushed to Firestore this session" style="color: var(--text-muted);">
+↑ <span style="color: #30d158; font-weight: 600;">${uploadedCount}</span> uploaded
+</div>
+<div title="Records pulled from Firestore this session" style="color: var(--text-muted);">
+↓ <span style="color: #007aff; font-weight: 600;">${downloadedCount}</span> downloaded
+</div>
+</div>
 </div>
 </div>
 `;
@@ -716,7 +723,6 @@ modal.innerHTML = `
 #cy-continue-btn:active { transform: translateY(0); }
 </style>
 <div id="cy-panel">
-  <!-- Header -->
   <div id="cy-header">
     <div id="cy-header-icon">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
@@ -729,11 +735,9 @@ modal.innerHTML = `
       <p style="margin:4px 0 0;color:var(--text-muted);font-size:0.72rem;line-height:1.4;font-family:'Geist',sans-serif;" id="cy-panel-subtitle">Compact all records into opening balances — encrypted backup created automatically</p>
     </div>
   </div>
-  <!-- Data preview grid -->
   <div style="padding:15px 22px 0;">
     <div id="cy-preview-grid" style="display:grid;gap:6px;">${summary.rowsHtml}</div>
   </div>
-  <!-- Progress bar (revealed on execution) -->
   <div id="close-year-progress-container" style="display:none;">
     <div id="cy-progress-inner">
       <div id="cy-progress-meta">
@@ -745,7 +749,6 @@ modal.innerHTML = `
       </div>
     </div>
   </div>
-  <!-- Password / confirm -->
   <div id="close-year-input-section">
     <div id="cy-input-wrap">
       <div id="cy-danger-notice">
@@ -774,7 +777,6 @@ modal.innerHTML = `
       </div>
     </div>
   </div>
-  <!-- Completion card — injected dynamically -->
   <div id="close-year-complete"></div>
 </div>
 `;

@@ -162,7 +162,7 @@ let gpsCoords = null;
 try {
 gpsCoords = await Promise.race([
 getPosition(),
-new Promise(resolve => setTimeout(() => resolve(null), 3000))
+new Promise(resolve => setTimeout(() => resolve(null), 10000))
 ]);
 } catch (e) {
 console.error('An unexpected error occurred.', _safeErr(e));
@@ -317,29 +317,46 @@ c => c && c.name && c.name.toLowerCase() === customerName.toLowerCase()
 );
 if (contactIndex === -1) return;
 const contact = repCustomers[contactIndex];
+if (contact.locationConfirmed) return;
 const isManualAddress = contact.address && contact.address.length > 5 && !contact.address.startsWith('GPS:');
 if (isManualAddress) return;
-const matchFound = repSales.some(sale => {
-if (sale.timestamp > Date.now() - 2000) return false;
-if (sale && sale.customerName && sale.customerName.toLowerCase() === customerName.toLowerCase() && sale.gps) {
-return getDistanceFromLatLonInMeters(
-currentGps.lat, currentGps.lng,
-sale.gps.lat, sale.gps.lng
-) < 100;
+const pastTransactions = repSales.filter(sale =>
+sale &&
+sale.customerName &&
+sale.customerName.toLowerCase() === customerName.toLowerCase() &&
+sale.gps &&
+sale.gps.lat &&
+sale.gps.lng &&
+sale.timestamp < Date.now() - 2000
+).sort((a, b) => b.timestamp - a.timestamp);
+if (pastTransactions.length < 3) return;
+const CLUSTER_RADIUS_M = 150;
+let clusterCount = 0;
+let clusterLat = 0;
+let clusterLng = 0;
+for (const sale of pastTransactions) {
+if (getDistanceFromLatLonInMeters(currentGps.lat, currentGps.lng, sale.gps.lat, sale.gps.lng) <= CLUSTER_RADIUS_M) {
+clusterCount++;
+clusterLat += sale.gps.lat;
+clusterLng += sale.gps.lng;
 }
-return false;
-});
-if (matchFound) {
-const coordsString = `GPS: ${safeNumber(currentGps.lat, 0).toFixed(2)}, ${safeNumber(currentGps.lng, 0).toFixed(2)}`;
-const isNewLocation = contact.address !== coordsString;
+if (clusterCount >= 3) break;
+}
+if (clusterCount < 3) return;
+const avgLat = ((clusterLat + currentGps.lat) / (clusterCount + 1));
+const avgLng = ((clusterLng + currentGps.lng) / (clusterCount + 1));
+const coordsString = `GPS: ${safeNumber(avgLat, 0).toFixed(6)}, ${safeNumber(avgLng, 0).toFixed(6)}`;
 repCustomers[contactIndex].address = coordsString;
+repCustomers[contactIndex].locationConfirmed = true;
 repCustomers[contactIndex].updatedAt = getTimestamp();
 ensureRecordIntegrity(repCustomers[contactIndex], true);
-await idb.set('rep_customers', repCustomers);
-notifyDataChange('rep');
-if (typeof showToast === 'function' && isNewLocation) {
-showToast(`Location confirmed! Saved as default for ${customerName}.`, "success");
+await saveWithTracking('rep_customers', repCustomers, repCustomers[contactIndex]);
+if (firebaseDB && currentUser) {
+saveRecordToFirestore('rep_customers', repCustomers[contactIndex]).catch(e => {});
 }
+notifyDataChange('rep');
+if (typeof showToast === 'function') {
+showToast(`Location confirmed for ${customerName} after 3 consistent visits.`, 'success');
 }
 }
 let repMap = null;
@@ -360,7 +377,7 @@ accuracy: position.coords.accuracy
 (error) => {
 resolve(null);
 },
-{ enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+{ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
 );
 });
 }

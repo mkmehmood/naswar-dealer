@@ -1100,14 +1100,20 @@ function _makeSnapshotHandler(col) {
           const docData = { id: change.doc.id, ...change.doc.data() };
           if (change.type === 'added' || change.type === 'modified') {
             deletedRecordIds.delete(change.doc.id);
-
-            DeltaSync.markDownloaded(col.firestoreId, change.doc.id);
+            if (typeof UUIDSyncRegistry !== 'undefined') {
+              UUIDSyncRegistry.markDownloaded(col.firestoreId, change.doc.id);
+            } else {
+              DeltaSync.markDownloaded(col.firestoreId, change.doc.id);
+            }
             arr = _updateArray(arr, docData, col.firestoreId);
             hasChanges = true;
           } else if (change.type === 'removed') {
             deletedRecordIds.add(change.doc.id);
-            DeltaSync.markDownloaded(col.firestoreId, change.doc.id);
-
+            if (typeof UUIDSyncRegistry !== 'undefined') {
+              UUIDSyncRegistry.markDownloaded(col.firestoreId, change.doc.id);
+            } else {
+              DeltaSync.markDownloaded(col.firestoreId, change.doc.id);
+            }
             _ensureLocalTombstone(change.doc.id, col.firestoreId);
             arr = arr.filter(item => item.id !== change.doc.id);
             hasChanges = true;
@@ -1931,6 +1937,8 @@ function sanitizeForFirestore(obj, depth = 0, seen = new WeakSet()) {
         } else {
           sanitized[cleanKey] = sanitizedValue;
         }
+      } else if (cleanKey === 'gps') {
+        sanitized[cleanKey] = null;
       }
     }
   } catch (e) { return {}; }

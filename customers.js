@@ -1057,6 +1057,9 @@ if (btn) btn.focus();
 });
 }
 window.showGlassConfirm = showGlassConfirm;
+if (typeof window._onShowGlassConfirmReady === 'function') {
+window._onShowGlassConfirmReady();
+}
 function filterCustomers() {
 renderCustomersTable();
 }

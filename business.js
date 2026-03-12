@@ -1682,8 +1682,12 @@ if (!deviceId) {
 try { deviceId = await idb.get('device_id'); } catch (e) {  }
 }
 if (!deviceId) deviceId = await _readCacheAnchor();
-if (!deviceId) deviceId = await _recoverDeviceIdByToken();
-if (!deviceId) deviceId = await _recoverDeviceIdByFingerprint();
+if (!deviceId && firebaseDB && currentUser) {
+deviceId = await _recoverDeviceIdByToken();
+}
+if (!deviceId && firebaseDB && currentUser) {
+deviceId = await _recoverDeviceIdByFingerprint();
+}
 if (!deviceId) deviceId = _generateUUID();
 await _persistDeviceId(deviceId);
 const existingToken = _readCookie(INSTALL_TOKEN_COOKIE) || _readSession('gz_itk_session');
@@ -1699,6 +1703,11 @@ return deviceId;
 }
 async function refreshDeviceIdAnchors() {
 try {
+if (firebaseDB && currentUser) {
+try { _writeCookie(DEVICE_ID_COOKIE, ''); } catch(e) {}
+try { localStorage.removeItem('persistent_device_id'); } catch(e) {}
+try { await idb.set('device_id', null); } catch(e) {}
+}
 const deviceId = await getDeviceId();
 await _persistDeviceId(deviceId);
 } catch (e) {  }
@@ -1804,6 +1813,19 @@ try { await idb.set('device_name', deviceName); } catch(e) {
 console.warn('Failed to save data locally.', e);
 }
 const userRef = firebaseDB.collection('users').doc(currentUser.uid);
+try {
+const dupSnap = await userRef.collection('devices')
+.where('fingerprint.stableHash', '==', fp.stableHash)
+.get();
+const deleteOps = dupSnap.docs
+.filter(doc => doc.id !== deviceId && doc.id !== 'default_device')
+.map(doc => doc.ref.delete());
+if (deleteOps.length > 0) {
+await Promise.all(deleteOps);
+}
+} catch (dupErr) {
+console.warn('Duplicate cleanup failed:', dupErr);
+}
 const userAgent = navigator.userAgent;
 const deviceType = /Mobile|Android|iPhone/.test(userAgent)
 ? 'mobile'

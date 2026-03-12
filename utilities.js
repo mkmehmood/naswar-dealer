@@ -11979,7 +11979,6 @@ async function renderRecycleBin(filterCollection = 'all') {
         });
     if (filtered.length === 0) {
       container.innerHTML = `<div style="text-align:center;padding:50px 20px;color:var(--text-muted);">
-        <div style="font-size:2.5rem;margin-bottom:12px;">🗑️</div>
         <div style="font-size:1rem;font-weight:600;">Recycle Bin is empty</div>
         <div style="font-size:0.78rem;margin-top:6px;">Deleted transactions will appear here and can be recovered within 90 days.</div>
       </div>`;
@@ -14468,16 +14467,19 @@ showToast('An unexpected error occurred.', 'error');
 }
 const seenIds = new Set();
 const uniqueDocs = devicesSnap.docs.filter(doc => {
-const id = doc.data().deviceId;
+const data = doc.data();
+const id = data.deviceId;
 if (!id || id === 'default_device' || doc.id === 'default_device') return false;
-if (seenIds.has(id)) return false;
+if (id === currentDeviceId || doc.id === currentDeviceId) return false;
+if (seenIds.has(id) || seenIds.has(doc.id)) return false;
 seenIds.add(id);
+seenIds.add(doc.id);
 return true;
 });
 if (uniqueDocs.length === 0) {
 container.innerHTML = `
 <div class="u-empty-state-sm" >
-No devices registered yet
+No other devices registered
 </div>
 `;
 return;
@@ -14497,7 +14499,6 @@ return (now - ls) < 60000;
 `;
 uniqueDocs.forEach(doc => {
 const device = doc.data();
-const isCurrentDevice = device.deviceId === currentDeviceId;
 const lastSeen = device.lastSeen?.toMillis() || 0;
 const isOnline = (now - lastSeen) < 60000;
 const totalCommands = device.totalCommands || 0;
@@ -14523,16 +14524,12 @@ const modeColor = deviceMode === 'admin' ? '#007aff'
 : deviceMode === 'factory' ? '#ce93d8'
 : '#ff9f0a';
 const modeIcon = '';
-const devBorder = isCurrentDevice ? 'var(--accent)' : 'var(--glass-border)';
 const onlineColor = isOnline ? '#30d158' : '#ff453a';
 const onlineDot = isOnline ? '● Online' : '○ Offline';
 const shortId = device.deviceId ? device.deviceId.substring(0, 20) + '…' : 'N/A';
-const thisDeviceBadge = isCurrentDevice
-? '<span style="margin-left:6px;font-size:0.6rem;color:var(--accent);font-family:Geist,sans-serif;font-weight:700;">(This Device)</span>'
-: '';
-let cardHtml = '<div style="margin-bottom:12px;padding:14px;background:var(--glass);border-radius:14px;border:2px solid ' + devBorder + ';">';
+let cardHtml = '<div style="margin-bottom:12px;padding:14px;background:var(--glass);border-radius:14px;border:2px solid var(--glass-border);">';
 cardHtml += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;gap:8px;">';
-cardHtml += '<div style="font-size:0.65rem;font-family:\'Geist Mono\',monospace;color:var(--text-muted);word-break:break-all;flex:1;min-width:0;line-height:1.4;">' + shortId + thisDeviceBadge + '</div>';
+cardHtml += '<div style="font-size:0.65rem;font-family:\'Geist Mono\',monospace;color:var(--text-muted);word-break:break-all;flex:1;min-width:0;line-height:1.4;">' + shortId + '</div>';
 cardHtml += '<div style="text-align:right;flex-shrink:0;">';
 cardHtml += '<div style="font-size:0.8rem;font-weight:800;color:' + modeColor + ';white-space:nowrap;">' + modeLabel + '</div>';
 cardHtml += '<div style="font-size:0.6rem;color:' + onlineColor + ';margin-top:2px;">' + onlineDot + '</div>';
@@ -14562,7 +14559,6 @@ cardHtml += '</div>';
 } else {
 cardHtml += '<div style="margin-bottom:11px;padding:7px 10px;background:rgba(255,255,255,0.03);border-radius:8px;border:1px solid var(--glass-border);font-size:0.6rem;color:var(--text-secondary);">No commands sent yet</div>';
 }
-if (!isCurrentDevice) {
 const isAdmin = deviceMode === 'admin';
 const adminBg = isAdmin ? 'rgba(0,122,255,0.18)' : 'rgba(0,122,255,0.08)';
 const adminBord = isAdmin ? '2px solid rgba(0,122,255,0.55)' : '1px solid rgba(0,122,255,0.25)';
@@ -14612,10 +14608,6 @@ cardHtml += '</div>';
 }
 cardHtml += '<button onclick="removeDevice(\'' + device.deviceId + '\')"';
 cardHtml += ' style="width:100%;padding:7px;background:rgba(255,69,58,0.07);border:1px solid rgba(255,69,58,0.28);border-radius:99px;color:#ff453a;cursor:pointer;font-size:0.65rem;">Remove Device</button>';
-} else {
-const thisDeviceModeColor = modeColor;
-cardHtml += '<div style="padding:8px 10px;background:rgba(0,122,255,0.05);border:1px solid rgba(0,122,255,0.2);border-radius:8px;color:var(--text-muted);text-align:center;font-size:0.7rem;">This Device — <span style="color:' + thisDeviceModeColor + ';font-weight:700;">' + modeLabel + '</span></div>';
-}
 cardHtml += '</div>';
 html += cardHtml;
 });
