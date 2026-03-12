@@ -150,7 +150,7 @@ collection: collectionName,
 recordType: collectionName,
 deletedAt: firebase.firestore.FieldValue.serverTimestamp(),
 expiresAt: firebase.firestore.Timestamp.fromMillis(Date.now() + APP_CONFIG.TOMBSTONE_EXPIRY_MS)
-});
+}, { merge: true });
 await batch.commit();
 trackFirestoreWrite(2);
 return true;
@@ -1704,8 +1704,18 @@ async function subscribeToRealtime() {
                 String(item.id) === _docSid || String(item.recordId) === _docSid ||
                 String(item.id) === _docRid || String(item.recordId) === _docRid
               );
-              if (existingIndex === -1) deletionRecords.push(normalizedDoc);
-              else deletionRecords[existingIndex] = normalizedDoc;
+              if (existingIndex === -1) {
+                deletionRecords.push(normalizedDoc);
+              } else {
+                const existing = deletionRecords[existingIndex];
+                deletionRecords[existingIndex] = {
+                  ...normalizedDoc,
+                  displayName:   normalizedDoc.displayName   || existing.displayName   || null,
+                  displayDetail: normalizedDoc.displayDetail || existing.displayDetail || null,
+                  displayAmount: normalizedDoc.displayAmount || existing.displayAmount || null,
+                  snapshot:      normalizedDoc.snapshot      || existing.snapshot      || null,
+                };
+              }
 
               try {
                 const rt = docData.recordType;
@@ -2151,6 +2161,11 @@ async function _mergeAndPersist(cloudData) {
           collection: data.collection || data.recordType || 'unknown',
           deletedAt: data.deletedAt?.toMillis ? data.deletedAt.toMillis() : (data.deletedAt || Date.now()),
           syncedToCloud: true,
+          displayName:   data.displayName   || null,
+          displayDetail: data.displayDetail || null,
+          displayAmount: data.displayAmount || null,
+          snapshot:      data.snapshot      || null,
+          deleted_by:    data.deleted_by    || 'user',
         };
       })
       .filter(r => r.deletedAt > threeMonthsAgo);
@@ -2159,10 +2174,22 @@ async function _mergeAndPersist(cloudData) {
     if (!Array.isArray(localDels)) localDels = [];
     const mergedDels = [...localDels];
     cloudDels.forEach(cd => {
-      const dup = mergedDels.find(ld =>
+      const dupIdx = mergedDels.findIndex(ld =>
         String(ld.id) === String(cd.id) || String(ld.recordId) === String(cd.id)
       );
-      if (!dup) mergedDels.push(cd);
+      if (dupIdx === -1) {
+        mergedDels.push(cd);
+      } else {
+        const local = mergedDels[dupIdx];
+        mergedDels[dupIdx] = {
+          ...local,
+          syncedToCloud: true,
+          displayName:   local.displayName   || cd.displayName   || null,
+          displayDetail: local.displayDetail || cd.displayDetail || null,
+          displayAmount: local.displayAmount || cd.displayAmount || null,
+          snapshot:      local.snapshot      || cd.snapshot      || null,
+        };
+      }
     });
     const _rSet = typeof _recoveredThisSession !== 'undefined' ? _recoveredThisSession : null;
     const safeDels = (_rSet

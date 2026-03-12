@@ -2408,10 +2408,8 @@ background: rgba(0, 0, 0, 0.65);
 z-index: 1000;
 align-items: center;
 justify-content: center;
-overflow-y: auto;
--webkit-overflow-scrolling: touch;
+overflow: hidden;
 overscroll-behavior: contain;
-touch-action: pan-y;
 }
 .factory-overlay-card {
 background: var(--glass);

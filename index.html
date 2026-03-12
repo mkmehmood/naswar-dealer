@@ -653,7 +653,7 @@ Backup to Phone
 Restore from Phone
 </button>
 <button class="btn" style="background: rgba(239,68,68,0.08); color: #ef4444; border: 1px solid rgba(239,68,68,0.25); display:flex; align-items:center; justify-content:center; gap:8px; font-weight:700;" onclick="openRecycleBin()">
-🗑️ Recycle Bin
+ Recycle Bin
 </button>
 </div>
 <div id="lastSyncDisplay" style="margin-top: 15px; font-size: 0.7rem; color: var(--text-muted);">
@@ -670,10 +670,10 @@ View Database Structure
 </div>
 
 <div id="recycleBinOverlay" class="factory-overlay" style="display:none;">
-  <div class="factory-overlay-card liquid-card" style="max-width:520px;width:100%;max-height:88vh;display:flex;flex-direction:column;">
+  <div class="factory-overlay-card liquid-card" style="max-width:520px;width:100%;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;">
     
     <div class="section-header" style="flex-shrink:0;">
-      <h3 class="u-heading-main" style="display:flex;align-items:center;gap:8px;">🗑️ Recycle Bin</h3>
+      <h3 class="u-heading-main" style="display:flex;align-items:center;gap:8px;"> Recycle Bin</h3>
       <button class="btn-theme" onclick="closeRecycleBin()">✕</button>
     </div>
     <hr style="width:100%;border:0;border-top:1px solid var(--glass-border);margin:4px 0;flex-shrink:0;">
@@ -699,7 +699,7 @@ View Database Structure
       All records expire after <strong style="color:var(--text-main);">90 days</strong>.
     </div>
     
-    <div id="recycleBinList" style="flex:1;overflow-y:auto;padding-right:4px;min-height:120px;"></div>
+    <div id="recycleBinList" style="flex:1;min-height:0;overflow-y:auto;padding-right:4px;"></div>
     
     <div style="flex-shrink:0;padding-top:12px;border-top:1px solid var(--glass-border);margin-top:8px;display:flex;justify-content:flex-end;">
       <button onclick="closeRecycleBin()" style="padding:9px 22px;border-radius:999px;background:var(--input-bg);border:1px solid var(--glass-border);color:var(--text-main);font-size:0.85rem;cursor:pointer;">Close</button>
