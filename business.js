@@ -988,6 +988,7 @@ _initPromise: null,
 _prefix: '',
 _quotaToastShown: false,
 _DEVICE_GLOBAL: new Set(['device_id', 'device_name', 'theme', 'appMode', 'appMode_timestamp', 'repProfile', 'repProfile_timestamp', 'assignedManager', 'assignedUserTabs']),
+_PLAINTEXT_KEYS: new Set(['appMode', 'appMode_timestamp', 'repProfile', 'repProfile_timestamp', 'assignedManager', 'assignedUserTabs', 'device_name', 'theme', 'last_synced', 'firestore_initialized', 'firestore_init_timestamp']),
 setUserPrefix(uid) {
   const newPrefix = uid ? 'u_' + uid + '_' : '';
   if (this._prefix !== newPrefix) {
@@ -1126,6 +1127,19 @@ resolve(defaultValue);
 const rawData = this._unwrapValue(wrapped);
 if (rawData === null || rawData === undefined) { resolve(defaultValue); return; }
 try {
+const isPlaintext = this._PLAINTEXT_KEYS && this._PLAINTEXT_KEYS.has(key);
+if (isPlaintext) {
+if (typeof rawData === 'string' && rawData.startsWith('GZND_ENC_')) {
+// Stale encrypted value for a now-plaintext key — clear it and return default
+this.remove(key).catch(() => {});
+resolve(defaultValue);
+return;
+}
+if (typeof rawData === 'string') {
+try { resolve(JSON.parse(rawData)); } catch(e) { resolve(rawData); }
+} else { resolve(rawData); }
+return;
+}
 const decrypted = await IDBCrypto.decrypt(rawData);
 if (decrypted === null) {
 console.warn('IDB: Decryption returned null for key:', key);
@@ -1179,14 +1193,15 @@ return record;
 value = ensureRecordIntegrity(value);
 }
 const serialized = typeof value === 'string' ? value : JSON.stringify(value);
-const encryptedData = await IDBCrypto.encrypt(serialized);
+const isPlaintext = this._PLAINTEXT_KEYS && this._PLAINTEXT_KEYS.has(key);
+const encryptedData = isPlaintext ? serialized : await IDBCrypto.encrypt(serialized);
 try {
 return await new Promise((resolve, reject) => {
 const transaction = this.db.transaction(IDB_CONFIG.store, 'readwrite');
 const store = transaction.objectStore(IDB_CONFIG.store);
 const wrapped = this._wrapValue(key, value);
 wrapped.data = encryptedData;
-wrapped.metadata.encrypted = IDBCrypto.isReady();
+wrapped.metadata.encrypted = isPlaintext ? false : IDBCrypto.isReady();
 const request = store.put(wrapped, this._k(key));
 request.onsuccess = () => {
 resolve();
@@ -1224,11 +1239,12 @@ const encryptedEntries = await Promise.all(
 validatedEntries.map(async ([key, value]) => {
 try {
 const serialized = typeof value === 'string' ? value : JSON.stringify(value);
-const encryptedData = await IDBCrypto.encrypt(serialized);
-return [key, value, encryptedData];
+const isPlaintext = this._PLAINTEXT_KEYS && this._PLAINTEXT_KEYS.has(key);
+const encryptedData = isPlaintext ? serialized : await IDBCrypto.encrypt(serialized);
+return [key, value, encryptedData, isPlaintext];
 } catch (encErr) {
 console.error('IDB: Encryption failed for key:', key, _safeErr(encErr));
-return [key, value, typeof value === 'string' ? value : JSON.stringify(value)];
+return [key, value, typeof value === 'string' ? value : JSON.stringify(value), false];
 }
 })
 );
@@ -1241,10 +1257,10 @@ for (const batch of batches) {
 await new Promise((resolve, reject) => {
 const transaction = this.db.transaction(IDB_CONFIG.store, 'readwrite');
 const store = transaction.objectStore(IDB_CONFIG.store);
-batch.forEach(([key, value, encryptedData]) => {
+batch.forEach(([key, value, encryptedData, isPlaintext]) => {
 const wrapped = this._wrapValue(key, value);
 wrapped.data = encryptedData;
-wrapped.metadata.encrypted = IDBCrypto.isReady();
+wrapped.metadata.encrypted = isPlaintext ? false : IDBCrypto.isReady();
 const putReq = store.put(wrapped, this._k(key));
 putReq.onerror = () => reject(putReq.error || new Error("IDB setBatch put failed for key: " + key));
 });
@@ -1291,6 +1307,22 @@ await Promise.all(keys.map(async key => {
 const rawData = rawMap.get(key);
 if (rawData === null || rawData === undefined) { results.set(key, null); return; }
 try {
+const isPlaintext = this._PLAINTEXT_KEYS && this._PLAINTEXT_KEYS.has(key);
+if (isPlaintext) {
+// Plaintext keys: parse directly, no decryption needed.
+// If a stale encrypted value exists (GZND_ENC_ prefix), treat as missing
+// so it gets written fresh (unencrypted) on next save.
+if (typeof rawData === 'string' && rawData.startsWith('GZND_ENC_')) {
+results.set(key, null);
+// Schedule async deletion of stale encrypted value
+this.remove(key).catch(() => {});
+return;
+}
+if (typeof rawData === 'string') {
+try { results.set(key, JSON.parse(rawData)); } catch(e) { results.set(key, rawData); }
+} else { results.set(key, rawData); }
+return;
+}
 const decrypted = await IDBCrypto.decrypt(rawData);
 if (decrypted === null) {
 const wasEncrypted = typeof rawData === 'string' && rawData.startsWith('GZND_ENC_');
@@ -1500,28 +1532,31 @@ const loadedDefaultSettings = batchResults.get('naswar_default_settings');
 if (loadedDefaultSettings && typeof loadedDefaultSettings === 'object') {
 defaultSettings = loadedDefaultSettings;
 }
+const _notFailed = v => v !== null && v !== undefined && v !== idb.DECRYPT_FAILED;
 const loadedAppMode = batchResults.get('appMode');
-if (loadedAppMode) {
+if (_notFailed(loadedAppMode) && typeof loadedAppMode === 'string') {
 appMode = loadedAppMode;
 }
 const loadedRepProfile = batchResults.get('repProfile');
-if (loadedRepProfile) {
+if (_notFailed(loadedRepProfile) && typeof loadedRepProfile === 'string') {
 currentRepProfile = loadedRepProfile;
+} else if (loadedRepProfile === idb.DECRYPT_FAILED) {
+console.warn('loadAllData: repProfile decryption failed — will re-acquire from Firestore on registerDevice');
 }
 const loadedExpenseCategories = batchResults.get('expense_categories');
-if (loadedExpenseCategories && Array.isArray(loadedExpenseCategories)) {
+if (_notFailed(loadedExpenseCategories) && Array.isArray(loadedExpenseCategories)) {
 expenseCategories = loadedExpenseCategories;
 }
 const loadedSalesRepsList = batchResults.get('sales_reps_list');
-if (loadedSalesRepsList && Array.isArray(loadedSalesRepsList) && loadedSalesRepsList.length > 0) {
+if (_notFailed(loadedSalesRepsList) && Array.isArray(loadedSalesRepsList) && loadedSalesRepsList.length > 0) {
 salesRepsList = loadedSalesRepsList;
 }
 const loadedAssignedManager = batchResults.get('assignedManager');
-if (loadedAssignedManager) {
+if (_notFailed(loadedAssignedManager) && typeof loadedAssignedManager === 'string') {
 window._assignedManagerName = loadedAssignedManager;
 }
 const loadedAssignedUserTabs = batchResults.get('assignedUserTabs');
-if (Array.isArray(loadedAssignedUserTabs)) {
+if (_notFailed(loadedAssignedUserTabs) && Array.isArray(loadedAssignedUserTabs)) {
 window._assignedUserTabs = loadedAssignedUserTabs;
 window._userRoleAllowedTabs = loadedAssignedUserTabs;
 }
@@ -1923,7 +1958,12 @@ language: navigator.language || 'en',
 theme: document.documentElement.getAttribute('data-theme') || 'dark'
 }, { merge: true });
 startDeviceHeartbeat(deviceRef);
-await listenForDeviceCommands();
+// Defer the device command listener by one tick to ensure the Firestore SDK
+// has fully settled after the preceding .set() writes — avoids the
+// "INTERNAL ASSERTION FAILED: Unexpected state" error on cold start.
+setTimeout(() => {
+listenForDeviceCommands().catch(e => console.warn('Device command listener failed.', e));
+}, 2000);
 listenForTeamChanges();
 await logDeviceActivity('device_registered', {
 deviceId: deviceId,
@@ -1997,7 +2037,9 @@ console.warn('Firebase operation failed.', error);
 window.logDeviceActivity = logDeviceActivity;
 async function initializeDeviceListeners() {
 try {
-await listenForDeviceCommands();
+setTimeout(() => {
+listenForDeviceCommands().catch(e => console.warn('Device command listener failed.', e));
+}, 2000);
 listenForTeamChanges();
 } catch (error) {
 console.error('Device command listener failed.', _safeErr(error));
@@ -2308,6 +2350,8 @@ window.validateUUID       = validateUUID;
 window.extractUUIDMeta    = extractUUIDMeta;
 window.initUUIDSalts      = initUUIDSalts;
 window.deriveDeviceShard  = _deriveDeviceShard;
+window._creatorBadgeHtml  = _creatorBadgeHtml;
+window._mergedBadgeHtml   = _mergedBadgeHtml;
 function compareRecordVersions(a, b) {
   if (!a && !b) return 0;
   if (!a) return -1;
@@ -2367,6 +2411,12 @@ if (opts.inline) {
   return ` <span style="background:rgba(175, 82, 222, 0.15); color:#af52de; padding:2px 6px; border-radius:4px; font-size:0.65rem; margin-left:6px; font-weight:600;">MERGED</span>`;
 }
 return `<span style="font-size:0.6rem; background:rgba(175, 82, 222, 0.15); color:#af52de; padding:1px 5px; border-radius:3px; border:1px solid rgba(175, 82, 222, 0.3); display:inline-block; margin-top:3px;">MERGED</span>`;
+}
+function _creatorBadgeHtml(record) {
+if (!record || !record.createdBy) return '';
+const name = String(record.createdBy).trim();
+if (!name) return '';
+return `<span class="creator-badge" title="Created by ${esc(name)}">${esc(name)}</span>`;
 }
 function compareTimestamps(timestamp1, timestamp2) {
 if (!validateTimestamp(timestamp1) || !validateTimestamp(timestamp2)) {

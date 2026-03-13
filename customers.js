@@ -62,6 +62,9 @@ const _setCust = (id, val) => { const el = document.getElementById(id); if (el) 
 _setCust('customer-current-credit', await formatCurrency(totalCredit));
 _setCust('customer-total-quantity', safeNumber(totalQty, 0).toFixed(2) + ' kg');
 document.getElementById('customer-info-display').classList.remove('hidden');
+if (typeof custTransactionMode !== 'undefined' && custTransactionMode === 'collection' && typeof updateCollectionPreview === 'function') {
+updateCollectionPreview();
+}
 }
 async function renderCustomersTable(page = 1) {
 const tbody = document.getElementById('customers-table-body');
@@ -481,7 +484,7 @@ let itemContent = '';
 if (isPartialPayment || isCollection) {
 itemContent = `
 <div class="cust-history-info">
-<div class="u-mono-bold" >${formatDisplayDate(t.date)}${_mergedBadgeHtml(t, {inline:true})}</div>
+<div class="u-mono-bold" >${formatDisplayDate(t.date)}${_mergedBadgeHtml(t, {inline:true})}${(typeof _creatorBadgeHtml === 'function') ? _creatorBadgeHtml(t) : ''}</div>
 <div style="font-size:0.75rem; color:var(--accent-emerald);">
 Payment: ${await formatCurrency(t.totalValue)}
 </div>
@@ -499,7 +502,7 @@ itemContent = `
 <div class="cust-history-info">
 <div class="u-mono-bold" >
 ${formatDisplayDate(t.date)}
-<span style="background:rgba(255, 159, 10, 0.15); color:var(--warning); padding:2px 6px; border-radius:4px; font-size:0.65rem; margin-left:6px; font-weight:600;">OLD DEBT</span>${_mergedBadgeHtml(t, {inline:true})}
+<span style="background:rgba(255, 159, 10, 0.15); color:var(--warning); padding:2px 6px; border-radius:4px; font-size:0.65rem; margin-left:6px; font-weight:600;">OLD DEBT</span>${_mergedBadgeHtml(t, {inline:true})}${(typeof _creatorBadgeHtml === 'function') ? _creatorBadgeHtml(t) : ''}
 </div>
 <div style="font-size:0.75rem; color:var(--warning);">
 Previous Balance: ${await formatCurrency(t.totalValue)}
@@ -519,7 +522,7 @@ const _displayUnitPrice = (t.unitPrice && t.unitPrice > 0)
   : getEffectiveSalePriceForCustomer(t.customerName, t.supplyStore || 'STORE_A');
 itemContent = `
 <div class="cust-history-info">
-<div class="u-mono-bold" >${formatDisplayDate(t.date)}${_mergedBadgeHtml(t, {inline:true})}</div>
+<div class="u-mono-bold" >${formatDisplayDate(t.date)}${_mergedBadgeHtml(t, {inline:true})}${(typeof _creatorBadgeHtml === 'function') ? _creatorBadgeHtml(t) : ''}</div>
 <div class="u-fs-sm2 u-text-muted" >
 ${safeToFixed(t.quantity, 2)} kg @ ${await formatCurrency(_displayUnitPrice)} = ${await formatCurrency(_txValue)}
 </div>

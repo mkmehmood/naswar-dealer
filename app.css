@@ -5952,6 +5952,37 @@ thead { background: var(--glass-raised) !important; background-image: none !impo
   margin-left: 6px;
 }
 
+/* ── User creator badge ── */
+.creator-badge {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(6, 182, 212, 0.12);
+  color: #06b6d4;
+  border: 1px solid rgba(6, 182, 212, 0.30);
+  border-radius: 999px;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  text-transform: none;
+  margin-left: 6px;
+  vertical-align: middle;
+  white-space: nowrap;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+[data-theme="light"] .creator-badge {
+  background: rgba(6, 182, 212, 0.09);
+  border-color: rgba(6, 182, 212, 0.25);
+  color: #0891b2;
+}
+body.dark-mode .creator-badge {
+  background: rgba(34, 211, 238, 0.10);
+  border-color: rgba(34, 211, 238, 0.28);
+  color: #22d3ee;
+}
+
 /* ── Auto-fit font-size for all tables ── */
 table {
   font-size: clamp(0.55rem, 1.4vw, 0.82rem);

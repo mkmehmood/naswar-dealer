@@ -1020,7 +1020,13 @@ Insufficient formula units available! Please reduce formula units used.
 <div class="section liquid-card">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
 <h3 class="u-text-accent" style="margin:0;">New Sale</h3>
+<div style="display:flex;align-items:center;gap:8px;">
 <span id="new-sale-id-display" style="font-size:0.62rem;color:var(--text-secondary);font-family:'Geist Mono',monospace;background:var(--glass-raised);border:1px solid var(--glass-border);border-radius:var(--radius-full);padding:2px 8px;letter-spacing:0.03em;display:none;">ID: —</span>
+<div class="toggle-group" style="margin:0;">
+<button id="btn-cust-mode-sale" class="toggle-opt active" onclick="setSaleMode('sale')">Sale</button>
+<button id="btn-cust-mode-coll" class="toggle-opt" onclick="setSaleMode('collection')">Collection</button>
+</div>
+</div>
 </div>
 <div class="grid-inputs">
 <div class="field"><label>Date</label><input type="date" id="cust-date" onchange="refreshCustomerSales(); setSalesSummaryMode(currentSalesSummaryMode || 'day'); calculateCustomerSale();"></div>
@@ -1041,6 +1047,7 @@ style="border-color:var(--accent-emerald); width:100%; box-sizing:border-box;">
 <datalist id="customer-list"></datalist>
 </div>
 </div>
+<div id="cust-sale-inputs">
 <div class="field u-mb-15" >
 <label>Sales Representative (For Calculator Link)</label>
 <div class="toggle-group" id="sales-rep-toggle-group">
@@ -1051,16 +1058,24 @@ style="border-color:var(--accent-emerald); width:100%; box-sizing:border-box;">
 <div class="grid-inputs">
 <div class="field"><label>Quantity (kg)</label><input type="number" id="cust-quantity" step="0.001" oninput="calculateCustomerSale()"></div>
 </div>
+</div>
+<div id="cust-coll-inputs" class="hidden">
+<div class="field">
+<label>Amount Collected (₨)</label>
+<input type="number" id="cust-amount-collected" step="1" placeholder="Enter amount received" oninput="updateCollectionPreview()">
+</div>
+</div>
 <div id="customer-info-display" class="hidden" style="margin: 10px 0; padding: 12px; background: rgba(37, 99, 235, 0.05); border-radius: 10px; border: 1px solid var(--glass-border);">
 <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
 <span class="u-fs-sm2 u-text-muted u-fw-400" >Current Credit:</span>
 <span id="customer-current-credit" style="color: var(--warning); font-weight: 400;">0.00</span>
 </div>
-<div style="display: flex; justify-content: space-between;">
+<div id="customer-qty-row" style="display: flex; justify-content: space-between;">
 <span class="u-fs-sm2 u-text-muted u-fw-400" >Total Quantity:</span>
 <span id="customer-total-quantity" style="color: var(--accent); font-weight: 400;">0.00</span>
 </div>
 </div>
+<div id="cust-sale-supply-payment">
 <div class="field u-mb-15" >
 <label>Supply</label>
 <div class="toggle-group">
@@ -1087,7 +1102,11 @@ Total Value: <span id="cust-total-value">0.00</span>
 <div class="result-box" id="sale-result-profit">
 Profit: <span id="cust-profit">0.00</span>
 </div>
-<button class="btn btn-main" onclick="(async () => { await saveCustomerSale() })()">Save Transaction</button>
+</div>
+<div class="result-box" id="cust-coll-result" style="display:none;">
+<span id="cust-coll-result-label">Balance After Collection:</span> <span id="cust-coll-balance">—</span>
+</div>
+<button class="btn btn-main" id="btn-save-cust-transaction" onclick="(async () => { await saveCustomerTransaction() })()">Save Transaction</button>
 </div>
 <div class="section liquid-card" id="customers-card">
 <div class="section-header" style="flex-wrap: nowrap; gap: 10px; align-items: center;">

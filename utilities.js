@@ -1280,7 +1280,8 @@ paymentStatus: paymentStatus,
 timestamp: prodCreatedAt,
 recordDate: new Date(inputDate).getTime(),
 syncedAt: new Date().toISOString(),
-managedBy: (appMode === 'production' && window._assignedManagerName) ? window._assignedManagerName : null
+managedBy: (appMode === 'production' && window._assignedManagerName) ? window._assignedManagerName : null,
+createdBy: (appMode === 'userrole' && window._assignedManagerName) ? window._assignedManagerName : null
 };
 newEntry = ensureRecordIntegrity(newEntry, false);
 try {
@@ -1845,7 +1846,7 @@ item.className = `cust-history-item${t.isSettled ? ' is-settled-record' : ''}`;
 item.innerHTML = `
 <div class="cust-history-info">
 <div class="u-mono-bold" >${formatDisplayDate(t.date)}</div>
-<div class="u-fs-sm2 u-text-muted" >${esc(t.description || 'No description')}</div>
+<div class="u-fs-sm2 u-text-muted" >${esc(t.description || 'No description')}${(typeof _creatorBadgeHtml === 'function') ? _creatorBadgeHtml(t) : ''}</div>
 ${t.isMerged ? _mergedBadgeHtml(t) : ''}
 </div>
 <div style="text-align:right; margin-right:10px;">
@@ -1900,7 +1901,8 @@ isPayable: false,
 createdAt: now.getTime(),
 updatedAt: now.getTime(),
 timestamp: now.getTime(),
-syncedAt: new Date().toISOString()
+syncedAt: new Date().toISOString(),
+createdBy: (appMode === 'userrole' && window._assignedManagerName) ? window._assignedManagerName : null
 };
 if (currentQuickType === 'OUT') {
 const pendingMaterials = factoryInventoryData
@@ -3037,6 +3039,7 @@ const badgeClass = transaction.type === 'IN' ? 'transaction-in' : 'transaction-o
 const badgeText = transaction.type === 'IN' ? 'IN' : 'OUT';
 const amountClass = transaction.type === 'IN' ? 'profit-val' : 'cost-val';
 const safeAmount = parseFloat(transaction.amount) || 0;
+const etCreatorBadge = (typeof _creatorBadgeHtml === 'function') ? _creatorBadgeHtml(transaction) : '';
 transactionCard.innerHTML = `
 <span class="transaction-badge ${badgeClass}" style="position: absolute; top: 10px; right: 10px;">${badgeText}</span>
 <div style="margin-bottom: 8px;">
@@ -3044,7 +3047,7 @@ transactionCard.innerHTML = `
 <span style="color: var(--text-muted); font-size: 0.75rem; margin-left: 10px;">${esc(transaction.time || '')}</span>
 </div>
 <div style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 8px;">
-${esc(transaction.description || 'No description')}
+${esc(transaction.description || 'No description')}${etCreatorBadge}
 </div>
 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--glass-border);">
 <span class="u-fs-sm2 u-text-muted" >Amount:</span>
@@ -3174,7 +3177,8 @@ type: type,
 materialId: materialId,
 isPayable: isPayable,
 timestamp: payCreatedAt,
-syncedAt: new Date().toISOString()
+syncedAt: new Date().toISOString(),
+createdBy: (appMode === 'userrole' && window._assignedManagerName) ? window._assignedManagerName : null
 };
 payment = ensureRecordIntegrity(payment, false);
 paymentTransactions.push(payment);
@@ -3687,6 +3691,7 @@ profit: profit,
 unitPrice: _effectiveSalePrice,
 creditReceived: paymentType === 'CASH' ? true : false,
 syncedAt: new Date().toISOString(),
+createdBy: (appMode === 'userrole' && window._assignedManagerName) ? window._assignedManagerName : null,
 };
 const validatedRecord = ensureRecordIntegrity(saleRecord);
 const salesSnapshot = [...customerSales];
@@ -3739,6 +3744,157 @@ showToast('UI refresh failed.', 'error');
 showToast(' Failed to save sale. Please try again.', 'error');
 }
 }
+// ── Sales tab: Sale / Collection mode ────────────────────────────────────
+let custTransactionMode = 'sale';
+function setSaleMode(mode) {
+custTransactionMode = mode;
+const isSale = mode === 'sale';
+const _el = id => document.getElementById(id);
+// toggle buttons
+const btnSale = _el('btn-cust-mode-sale');
+const btnColl = _el('btn-cust-mode-coll');
+if (btnSale) btnSale.className = `toggle-opt${isSale ? ' active' : ''}`;
+if (btnColl) btnColl.className = `toggle-opt${!isSale ? ' active' : ''}`;
+// show/hide input sections
+const saleIn  = _el('cust-sale-inputs');
+const collIn  = _el('cust-coll-inputs');
+const supPay  = _el('cust-sale-supply-payment');
+const collRes = _el('cust-coll-result');
+if (saleIn)  isSale ? saleIn.classList.remove('hidden')  : saleIn.classList.add('hidden');
+if (collIn)  isSale ? collIn.classList.add('hidden')     : collIn.classList.remove('hidden');
+if (supPay)  { supPay.style.display = isSale ? '' : 'none'; }
+if (collRes) { collRes.style.display = isSale ? 'none' : ''; }
+// qty row in customer-info-display
+const qtyRow = _el('customer-qty-row');
+if (qtyRow) { qtyRow.style.display = isSale ? '' : 'none'; }
+// button label
+const btn = _el('btn-save-cust-transaction');
+if (btn) btn.textContent = isSale ? 'Save Transaction' : 'Save Collection';
+// reset collection amount and update preview
+if (!isSale) {
+const amtEl = _el('cust-amount-collected');
+if (amtEl) amtEl.value = '';
+updateCollectionPreview();
+} else {
+calculateCustomerSale();
+}
+}
+function updateCollectionPreview() {
+if (custTransactionMode !== 'collection') return;
+const creditEl = document.getElementById('customer-current-credit');
+const collRes  = document.getElementById('cust-coll-result');
+const balEl    = document.getElementById('cust-coll-balance');
+const amtEl    = document.getElementById('cust-amount-collected');
+const currentDebt = creditEl
+? parseFloat((creditEl.innerText || '0').replace(/[^0-9.-]/g, '')) || 0
+: 0;
+const collected = parseFloat(amtEl?.value) || 0;
+const remaining = Math.max(0, currentDebt - collected);
+if (collRes) collRes.style.display = '';
+if (balEl) {
+balEl.textContent = fmtAmt(remaining);
+balEl.style.color = remaining === 0 ? 'var(--accent-emerald)' : 'var(--warning)';
+}
+}
+async function saveCustomerCollection() {
+if (appMode === 'userrole' && !(window._userRoleAllowedTabs || []).includes('sales')) {
+showToast('Access Denied — Sales not in your assigned tabs', 'warning', 3000); return;
+}
+const date = document.getElementById('cust-date').value;
+const name = document.getElementById('cust-name').value.trim();
+const amountEl = document.getElementById('cust-amount-collected');
+const amount = parseFloat(amountEl?.value) || 0;
+const phoneInput = document.getElementById('new-cust-phone');
+const phoneNumber = (!document.getElementById('new-customer-phone-container').classList.contains('hidden'))
+? phoneInput.value.trim()
+: '';
+if (!date) { showToast('Please select a date.', 'warning', 3000); return; }
+if (!name) { showToast('Please enter customer name.', 'warning', 3000); return; }
+if (amount <= 0) { showToast('Please enter a valid amount.', 'warning', 3000); return; }
+const btn = document.getElementById('btn-save-cust-transaction');
+if (btn) { if (btn.disabled) return; btn.disabled = true; }
+const restoreBtn = () => { if (btn) btn.disabled = false; };
+try {
+let gpsCoords = null;
+try {
+gpsCoords = await Promise.race([
+getPosition(),
+new Promise(resolve => setTimeout(() => resolve(null), 10000))
+]);
+} catch (e) {}
+const now = new Date();
+const hours = now.getHours(), mins = now.getMinutes(), secs = now.getSeconds();
+const ampm = hours >= 12 ? 'PM' : 'AM';
+const h12 = hours % 12 || 12;
+const timeString = `${String(h12).padStart(2,'0')}:${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')} ${ampm}`;
+const recordId = generateUUID('sale');
+if (!validateUUID(recordId)) {
+showToast('Error generating transaction ID. Please try again.', 'error');
+restoreBtn(); return;
+}
+const recordTimestamp = getTimestamp();
+const collRecord = {
+id: recordId,
+timestamp: recordTimestamp,
+createdAt: recordTimestamp,
+updatedAt: recordTimestamp,
+date: date,
+time: timeString,
+customerName: name,
+customerPhone: phoneNumber,
+quantity: 0,
+supplyStore: null,
+paymentType: 'COLLECTION',
+salesRep: 'NONE',
+currentRepProfile: 'admin',
+totalCost: 0,
+totalValue: amount,
+profit: amount,
+creditReceived: true,
+isCollection: true,
+gps: gpsCoords,
+syncedAt: new Date().toISOString(),
+createdBy: (appMode === 'userrole' && window._assignedManagerName) ? window._assignedManagerName : null,
+};
+const validated = ensureRecordIntegrity(collRecord);
+const snapshot = [...customerSales];
+try {
+customerSales.push(validated);
+await saveWithTracking('customer_sales', customerSales, validated);
+await saveRecordToFirestore('customer_sales', validated);
+notifyDataChange('sales');
+triggerAutoSync();
+if (typeof calculateCashTracker === 'function') calculateCashTracker();
+if (typeof calculateNetCash === 'function') calculateNetCash();
+emitSyncUpdate({ customer_sales: customerSales });
+// keep name so user can collect again; refresh credit display
+const savedName = name;
+if (amountEl) amountEl.value = '';
+document.getElementById('new-customer-phone-container').classList.add('hidden');
+if (phoneInput) phoneInput.value = '';
+if (typeof renderCustomersTable === 'function') renderCustomersTable();
+if (typeof refreshCustomerSales === 'function') refreshCustomerSales();
+if (typeof calculateCustomerStatsForDisplay === 'function') calculateCustomerStatsForDisplay(savedName);
+updateCollectionPreview();
+showToast(` Collection of ${fmtAmt(amount)} recorded for ${name}`, 'success');
+} catch (error) {
+customerSales.length = 0;
+customerSales.push(...snapshot);
+try { await saveWithTracking('customer_sales', customerSales); } catch (_) {}
+showToast('Failed to save collection. Please try again.', 'error');
+}
+} finally {
+restoreBtn();
+}
+}
+async function saveCustomerTransaction() {
+if (custTransactionMode === 'collection') {
+await saveCustomerCollection();
+} else {
+await saveCustomerSale();
+}
+}
+// ── End Sales tab collection mode ─────────────────────────────────────────
 function getStoreLabel(storeCode) {
 switch(storeCode) {
 case 'STORE_A': return 'ZUBAIR';
@@ -3780,6 +3936,7 @@ totalValue: totalValue
 };
 }
 function calculateCustomerSale() {
+if (typeof custTransactionMode !== 'undefined' && custTransactionMode === 'collection') return;
 const quantity = parseFloat(document.getElementById('cust-quantity').value) || 0;
 const date = document.getElementById('cust-date').value;
 const store = document.getElementById('supply-store-value').value;
@@ -3915,13 +4072,18 @@ return;
 }
 const recordDate = recordToDelete.date || 'Unknown date';
 const _dcStoreLabel = recordToDelete.supplyStore ? getStoreLabel(recordToDelete.supplyStore) : '';
+const _dcIsCollection = recordToDelete.paymentType === 'COLLECTION' && recordToDelete.currentRepProfile === 'admin';
 const _dcIsCredit = recordToDelete.paymentType === 'CREDIT';
 const _dcIsPaid = _dcIsCredit && recordToDelete.creditReceived;
 const _dcPartialPaid = recordToDelete.partialPaymentReceived || 0;
-const _dcPayLabel = _dcIsCredit ? 'Credit Sale' : 'Cash Sale';
+const _dcPayLabel = _dcIsCollection ? 'Collection' : (_dcIsCredit ? 'Credit Sale' : 'Cash Sale');
 let _dcMsg = `Permanently delete this ${_dcPayLabel}?`;
 _dcMsg += `\nCustomer: ${recordToDelete.customerName || 'Unknown'}`;
 _dcMsg += `\nDate: ${recordDate}`;
+if (_dcIsCollection) {
+_dcMsg += `\nAmount: ${fmtAmt(recordToDelete.totalValue||0)}`;
+_dcMsg += `\n\n⚠ Deleting this collection will restore the credit balance to this customer.`;
+} else {
 _dcMsg += `\nQty: ${recordToDelete.quantity || 0} kg`;
 if (recordToDelete.totalValue) _dcMsg += `\nValue: ${fmtAmt(recordToDelete.totalValue||0)}`;
 if (_dcStoreLabel) _dcMsg += `\nStore: ${_dcStoreLabel}`;
@@ -3931,6 +4093,7 @@ else if (_dcPartialPaid > 0) _dcMsg += `\n\n\u26a0 ${fmtAmt(_dcPartialPaid)} par
 else _dcMsg += `\n\n\u26a0 This credit sale is UNPAID. Deleting removes the outstanding balance of ${fmtAmt(recordToDelete.totalValue||0)}.`;
 } else {
 _dcMsg += `\n\n\u21a9 ${(recordToDelete.quantity||0).toFixed(2)} kg will be restored to ${recordDate} inventory.`;
+}
 }
 _dcMsg += `\n\nThis cannot be undone.`;
 if (await showGlassConfirm(_dcMsg, { title: `Delete ${_dcPayLabel}`, confirmText: "Delete", danger: true })) {
@@ -3951,7 +4114,10 @@ await renderCustomerTransactions(currentManagingCustomer);
 notifyDataChange('sales');
 triggerAutoSync();
 emitSyncUpdate({ customer_sales: customerSales });
-showToast(` Sale deleted! ${recordToDelete.quantity} kg restored to ${recordDate} inventory.`, "success");
+const _delToast = _dcIsCollection
+? ` Collection of ${fmtAmt(recordToDelete.totalValue||0)} deleted.`
+: ` Sale deleted! ${recordToDelete.quantity} kg restored to ${recordDate} inventory.`;
+showToast(_delToast, "success");
 } catch (error) {
 showToast(" Failed to delete sale. Please try again.", "error");
 }
@@ -5534,6 +5700,7 @@ ${returnBadge}
 ${item.isMerged ? '' : paymentBadge}
 <h4>${dateDisplay} @ ${esc(item.time || '')}${mergedBadge}</h4>
 ${item.managedBy ? `<span style="display:inline-flex;align-items:center;gap:4px;margin:2px 0 5px;padding:2px 9px;font-size:0.65rem;font-weight:700;letter-spacing:0.04em;color:var(--warning);background:rgba(255,179,0,0.10);border:1px solid rgba(255,179,0,0.28);border-radius:999px;">${esc(item.managedBy)}</span><br>` : ''}
+${item.createdBy ? `${(typeof _creatorBadgeHtml === 'function') ? _creatorBadgeHtml(item) : ''}<br>` : ''}
 ${item.isReturn ? `<p style="color:var(--accent-emerald); font-size:0.75rem; font-style:italic;">${item.isMerged ? 'Merged returns by' : 'Returned by'} ${esc(item.returnedBy || 'Representative')}</p>` : ''}
 <p><span>Net Weight:</span> <span class="qty-val">${safeValue(item.net).toFixed(2)} kg</span></p>
 <p><span>Cost Price:</span> <span class="cost-val">${safeValue(item.cp).toFixed(2)}/kg</span></p>
@@ -7932,8 +8099,9 @@ return compareTimestamps(getRecordTimestamp(b), getRecordTimestamp(a));
 });
 sortedSales.forEach(item => {
 const isRepLinked = item.salesRep && item.salesRep !== 'NONE';
+const isAdminCollection = !isRepLinked && item.paymentType === 'COLLECTION' && item.currentRepProfile === 'admin';
 
-if (!isRepLinked && (item.paymentType === 'PARTIAL_PAYMENT' ||
+if (!isRepLinked && !isAdminCollection && (item.paymentType === 'PARTIAL_PAYMENT' ||
 item.paymentType === 'COLLECTION')) return;
 
 const rowDate = new Date(item.date);
@@ -7941,6 +8109,10 @@ const rowYear = rowDate.getFullYear();
 const rowMonth = rowDate.getMonth();
 const rowDay = rowDate.getDate();
 const updatePeriod = (period) => {
+if (isAdminCollection) {
+// Admin collections don't add to quantity/value/profit totals — they just clear credit
+return;
+}
 period.q += item.quantity;
 period.v += item.totalValue;
 period.profit += item.profit;
@@ -7965,10 +8137,12 @@ if(rowYear === selectedYear && rowMonth === selectedMonth) updatePeriod(stats.mo
 if(rowYear === selectedYear) updatePeriod(stats.year);
 updatePeriod(stats.all);
 });
-const displayData = sortedSales.filter(item =>
-item.paymentType !== 'PARTIAL_PAYMENT' &&
-item.paymentType !== 'COLLECTION'
-);
+const displayData = sortedSales.filter(item => {
+const _isRepLinked = item.salesRep && item.salesRep !== 'NONE';
+const _isAdminColl = !_isRepLinked && item.paymentType === 'COLLECTION' && item.currentRepProfile === 'admin';
+if (_isAdminColl) return true; // always show admin collections
+return item.paymentType !== 'PARTIAL_PAYMENT' && item.paymentType !== 'COLLECTION';
+});
 const pageData = displayData;
 const validPage = 1;
 const totalPages = 1;
@@ -8015,6 +8189,7 @@ const paymentType = item.paymentType || 'CASH';
 const badgeClass = creditReceived ? 'received' : (paymentType ? paymentType.toLowerCase() : 'cash');
 const badgeText = creditReceived ? 'RECEIVED' : paymentType;
 const isOldDebtItem = item.transactionType === 'OLD_DEBT';
+const isAdminCollItem = !((item.salesRep && item.salesRep !== 'NONE')) && paymentType === 'COLLECTION' && item.currentRepProfile === 'admin';
 const supplyTagClass = item.supplyStore === 'STORE_A' ? 'store-a' :
 item.supplyStore === 'STORE_B' ? 'store-b' : 'store-c';
 const supplyTagText = item.supplyStore === 'STORE_A' ? 'ZUBAIR' :
@@ -8048,7 +8223,7 @@ if (isOldDebtItem) {
 card.innerHTML = `
 <div class="payment-badge credit">CREDIT</div>
 <div class="customer-name" style="margin-top: 12px;">${esc(item.customerName)}
-<span style="background:rgba(255,159,10,0.15);color:var(--warning);padding:2px 6px;border-radius:4px;font-size:0.65rem;margin-left:6px;font-weight:600;">OLD DEBT</span>${item.isMerged ? _mergedBadgeHtml(item, {inline:true}) : ''}
+<span style="background:rgba(255,159,10,0.15);color:var(--warning);padding:2px 6px;border-radius:4px;font-size:0.65rem;margin-left:6px;font-weight:600;">OLD DEBT</span>${item.isMerged ? _mergedBadgeHtml(item, {inline:true}) : ''}${(typeof _creatorBadgeHtml === 'function') ? _creatorBadgeHtml(item) : ''}
 </div>
 <h4 style="margin-top: 5px; font-size: 0.85rem; color: var(--text-muted);">${dateDisplay}</h4>
 <hr>
@@ -8056,10 +8231,19 @@ card.innerHTML = `
 <p class="u-fs-sm u-text-muted" >${esc(item.notes || 'Brought forward from previous records')}</p>
 ${deleteBtnHtml}
 `;
+} else if (isAdminCollItem) {
+card.innerHTML = `
+<div class="payment-badge collection" style="background:rgba(5,150,105,0.15);color:var(--accent-emerald);border:1px solid rgba(5,150,105,0.3);">COLLECTION</div>
+<div class="customer-name" style="margin-top:12px;">${esc(item.customerName)} ${mergedBadge}${(typeof _creatorBadgeHtml === 'function') ? _creatorBadgeHtml(item) : ''}</div>
+<h4 style="margin-top:5px;font-size:0.85rem;color:var(--text-muted);">${dateDisplay}</h4>
+<hr>
+<p><span>Amount Collected:</span> <span class="profit-val">${fmtAmt(safeValue(item.totalValue))}</span></p>
+${deleteBtnHtml}
+`;
 } else {
 card.innerHTML = `
 <div class="payment-badge ${badgeClass}">${esc(badgeText)}</div>
-<div class="customer-name" style="margin-top: 12px;">${esc(item.customerName)} ${repBadge} ${mergedBadge}</div>
+<div class="customer-name" style="margin-top: 12px;">${esc(item.customerName)} ${repBadge} ${mergedBadge}${(typeof _creatorBadgeHtml === 'function') ? _creatorBadgeHtml(item) : ''}</div>
 <h4 style="margin-top: 5px; font-size: 0.85rem; color: var(--text-muted);">${dateDisplay}</h4>
 <div class="supply-tag ${supplyTagClass}">Supply: ${supplyTagText}</div>
 <hr>
@@ -9476,6 +9660,7 @@ const isMerged = transaction.isMerged === true;
 const isSettled = transaction.isSettled === true;
 const mergedBadge = isMerged ? _mergedBadgeHtml(transaction, {inline:true}) : '';
 const settledBadge = isSettled ? `<span class="settled-badge">✓ Settled</span>` : '';
+const creatorBadge = (typeof _creatorBadgeHtml === 'function') ? _creatorBadgeHtml(transaction) : '';
 const deleteButton = isMerged ? '' : `<button class="tbl-action-btn danger u-w-full u-mt-8" onclick="(async () => { await deletePaymentTransaction('${esc(transaction.id)}') })()">Delete</button>`;
 const card = document.createElement('div');
 card.className = `card liquid-card${isSettled ? ' is-settled-record' : ''}`;
@@ -9483,7 +9668,7 @@ if (transaction.date) card.setAttribute('data-date', transaction.date);
 card.innerHTML = `
 <span class="transaction-badge ${badgeClass}">${badgeText}</span>
 <h4>${formatDisplayDate(transaction.date)} @ ${esc(transaction.time || 'N/A')}</h4>
-<div class="customer-name">${esc(entityName)}${mergedBadge}${settledBadge}</div>
+<div class="customer-name">${esc(entityName)}${mergedBadge}${settledBadge}${creatorBadge}</div>
 <p><span>Type:</span> <span>${esc(entityType)}</span></p>
 <p><span>Description:</span> <span>${esc(transaction.description || 'No description')}</span></p>
 <hr>
@@ -9985,7 +10170,8 @@ date: date,
 description: description || `Payment ${transactionType}: ${name}`,
 isPayable: false,
 isExpense: false,
-expenseId: payExpenseId
+expenseId: payExpenseId,
+createdBy: (appMode === 'userrole' && window._assignedManagerName) ? window._assignedManagerName : null
 };
 if (transactionType === 'OUT') {
 const pendingMaterials = factoryInventoryData
@@ -10148,7 +10334,8 @@ description: expense.description || `Expense: ${esc(expense.name)}`,
 category: expense.category,
 isPayable: false,
 isExpense: true,
-expenseId: expense.id
+expenseId: expense.id,
+createdBy: (appMode === 'userrole' && window._assignedManagerName) ? window._assignedManagerName : null
 };
 transaction = ensureRecordIntegrity(transaction, false);
 paymentTransactions.push(transaction);
@@ -14787,14 +14974,20 @@ showToast('Failed to save data locally.', 'error');
 window.restoreDeviceModeOnLogin = restoreDeviceModeOnLogin;
 async function listenForDeviceCommands() {
 if (!firebaseDB || !currentUser) return;
+// Unsubscribe any existing listener first to avoid duplicates
+if (typeof window.deviceCommandsUnsubscribe === 'function') {
+try { window.deviceCommandsUnsubscribe(); } catch (_) {}
+window.deviceCommandsUnsubscribe = null;
+}
 try {
 const deviceId = await getDeviceId();
 const userRef = firebaseDB.collection('users').doc(currentUser.uid);
 const deviceRef = userRef.collection('devices').doc(deviceId);
 const unsubscribe = deviceRef.onSnapshot((doc) => {
+try {
 if (!doc.exists) return;
 const data = doc.data();
-if (data.targetMode && data.targetModeTimestamp) {
+if (!data || !data.targetMode || !data.targetModeTimestamp) return;
 const targetMode = data.targetMode;
 let resolvedName = null;
 const roleType = data.assignedRoleType || targetMode;
@@ -14807,15 +15000,23 @@ const effectiveMode = data.assignedRoleType || targetMode;
 const resolvedUserTabs = Array.isArray(data.assignedUserTabs) ? data.assignedUserTabs : [];
 const commandTimestamp = data.targetModeTimestamp.toMillis
 ? data.targetModeTimestamp.toMillis()
-: data.targetModeTimestamp;
+: (typeof data.targetModeTimestamp === 'number' ? data.targetModeTimestamp : 0);
+if (!commandTimestamp) return;
 const lastProcessed = window.lastProcessedCommandTimestamp || 0;
 if (commandTimestamp > lastProcessed) {
 applyRemoteModeChange(effectiveMode, data.commandSource || 'remote', resolvedName, resolvedUserTabs);
 window.lastProcessedCommandTimestamp = commandTimestamp;
 }
+} catch (snapErr) {
+console.warn('Device command snapshot handler error:', snapErr);
 }
 }, (error) => {
-console.warn('Device command listener error:', error);
+console.warn('Device command listener error — will retry in 15s:', error);
+// Retry listener after a delay if it fails due to transient Firestore state
+window.deviceCommandsUnsubscribe = null;
+setTimeout(() => {
+if (firebaseDB && currentUser) listenForDeviceCommands();
+}, 15000);
 });
 window.deviceCommandsUnsubscribe = unsubscribe;
 } catch (error) {

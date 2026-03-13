@@ -1213,7 +1213,8 @@ createdAt: factProdCreatedAt,
 updatedAt: factProdCreatedAt,
 timestamp: factProdCreatedAt,
 syncedAt: new Date().toISOString(),
-managedBy: (appMode === 'factory' && window._assignedManagerName) ? window._assignedManagerName : null
+managedBy: (appMode === 'factory' && window._assignedManagerName) ? window._assignedManagerName : null,
+createdBy: (appMode === 'userrole' && window._assignedManagerName) ? window._assignedManagerName : null
 };
 const validatedRecord = ensureRecordIntegrity(productionRecord);
 factoryProductionHistory.unshift(validatedRecord);
@@ -1319,6 +1320,7 @@ ${_mergedBadgeHtml(entry)}
 </div>
 </div>
 ${entry.managedBy ? `<div style="margin-bottom:8px;"><span style="display:inline-flex;align-items:center;gap:4px;padding:2px 9px;font-size:0.65rem;font-weight:700;letter-spacing:0.04em;color:var(--accent-purple);background:rgba(206,147,216,0.10);border:1px solid rgba(206,147,216,0.28);border-radius:999px;">${esc(entry.managedBy)}</span></div>` : ''}
+${entry.createdBy ? `<div style="margin-bottom:8px;">${(typeof _creatorBadgeHtml === 'function') ? _creatorBadgeHtml(entry) : ''}</div>` : ''}
 <div class="factory-summary-row">
 <span class="factory-summary-label">Units Produced</span>
 <span class="qty-val">${entry.units}</span>
