@@ -202,7 +202,31 @@ if (container) container.style.opacity = '1';
 async function refreshFactorySettingsOverlay() {
 const overlay = document.getElementById('factorySettingsOverlay');
 if (overlay && overlay.style.display === 'flex') {
+// Snapshot any unsaved live selections so a sync re-render doesn't wipe them
+const container = document.getElementById('factoryRawMaterialsContainer');
+const liveRows = container ? Array.from(container.querySelectorAll('.factory-formula-grid')) : [];
+const liveState = liveRows.map(row => ({
+id: row.querySelector('.factory-mat-select')?.value || '',
+qty: row.querySelector('.factory-mat-qty')?.value || ''
+}));
+const hasUnsavedWork = liveState.some(r => r.id !== '');
 await renderFactorySettingsRows();
+// Restore live selections if the user had unsaved work in progress
+if (hasUnsavedWork) {
+const newRows = container ? Array.from(container.querySelectorAll('.factory-formula-grid')) : [];
+liveState.forEach((state, idx) => {
+if (!state.id) return;
+const row = newRows[idx];
+if (!row) return;
+const sel = row.querySelector('.factory-mat-select');
+const qty = row.querySelector('.factory-mat-qty');
+if (sel && state.id) {
+sel.value = state.id;
+updateFactoryRowCost(sel);
+}
+if (qty && state.qty) qty.value = state.qty;
+});
+}
 }
 }
 async function renderFactorySettingsRows() {
@@ -302,7 +326,7 @@ const div = document.createElement('div');
 div.className = 'factory-formula-grid';
 let options = '<option value="">Select Material</option>';
 factoryInventoryData.forEach((i, index) => {
-options += `<option value="${esc(String(i.id))}" ${i.id == selectedId ? 'selected' : ''} data-cost="${i.cost}">${esc(i.name)}</option>`;
+options += `<option value="${esc(String(i.id))}" ${String(i.id) === String(selectedId) ? 'selected' : ''} data-cost="${i.cost}">${esc(i.name)}</option>`;
 });
 let currentCost = 0;
 if(selectedId) {
