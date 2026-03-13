@@ -14526,10 +14526,18 @@ const modeColor = deviceMode === 'admin' ? '#007aff'
 const modeIcon = '';
 const onlineColor = isOnline ? '#30d158' : '#ff453a';
 const onlineDot = isOnline ? '● Online' : '○ Offline';
-const shortId = device.deviceId ? device.deviceId.substring(0, 20) + '…' : 'N/A';
+let deviceShard = 'N/A';
+if (device.deviceId && typeof extractUUIDMeta === 'function') {
+try {
+const meta = extractUUIDMeta(device.deviceId);
+deviceShard = (meta && meta.deviceShard) ? meta.deviceShard.toUpperCase() : device.deviceId.substring(0, 8);
+} catch (_) { deviceShard = device.deviceId.substring(0, 8); }
+} else if (device.deviceId) {
+deviceShard = device.deviceId.substring(0, 8);
+}
 let cardHtml = '<div style="margin-bottom:12px;padding:14px;background:var(--glass);border-radius:14px;border:2px solid var(--glass-border);">';
 cardHtml += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;gap:8px;">';
-cardHtml += '<div style="font-size:0.65rem;font-family:\'Geist Mono\',monospace;color:var(--text-muted);word-break:break-all;flex:1;min-width:0;line-height:1.4;">' + shortId + '</div>';
+cardHtml += '<div style="font-size:0.65rem;font-family:\'Geist Mono\',monospace;color:var(--text-muted);flex:1;min-width:0;line-height:1.4;" title="Device shard: ' + deviceShard + '">Shard: <span style="color:var(--accent);font-weight:700;letter-spacing:0.08em;">' + deviceShard + '</span></div>';
 cardHtml += '<div style="text-align:right;flex-shrink:0;">';
 cardHtml += '<div style="font-size:0.8rem;font-weight:800;color:' + modeColor + ';white-space:nowrap;">' + modeLabel + '</div>';
 cardHtml += '<div style="font-size:0.6rem;color:' + onlineColor + ';margin-top:2px;">' + onlineDot + '</div>';
