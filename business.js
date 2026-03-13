@@ -2303,10 +2303,11 @@ function extractUUIDMeta(uuid) {
   }
   return null;
 }
-window.generateUUID    = generateUUID;
-window.validateUUID    = validateUUID;
-window.extractUUIDMeta = extractUUIDMeta;
-window.initUUIDSalts   = initUUIDSalts;
+window.generateUUID       = generateUUID;
+window.validateUUID       = validateUUID;
+window.extractUUIDMeta    = extractUUIDMeta;
+window.initUUIDSalts      = initUUIDSalts;
+window.deriveDeviceShard  = _deriveDeviceShard;
 function compareRecordVersions(a, b) {
   if (!a && !b) return 0;
   if (!a) return -1;

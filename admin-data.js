@@ -70,7 +70,7 @@ userRef.collection('settings').doc('team').get()
 ]);
 const stats = await DeltaSync.getSyncStats();
 const uuidStats = (typeof UUIDSyncRegistry !== 'undefined') ? UUIDSyncRegistry.stats() : {};
-const myDeviceShard = uuidStats._myDeviceShard || '—';
+const myDeviceShard = uuidStats._myDeviceShard ? uuidStats._myDeviceShard.toUpperCase() : '—';
 const collections = [
 { name: 'production',         snap: productionSnap,            idbKey: 'mfg_pro_pkr',               jsVar: 'db',                       description: 'Factory production records' },
 { name: 'sales',              snap: salesSnap,                  idbKey: 'customer_sales',             jsVar: 'customerSales',            description: 'Direct customer sales' },
@@ -142,7 +142,7 @@ Loading devices...
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
 <h4 style="margin: 0; color: var(--text); font-size: 0.9rem;"> Collections (${collections.length})</h4>
 <div style="font-size: 0.65rem; color: var(--text-muted); font-family:'Geist Mono','Courier New',monospace;" title="This device's FNV-1a 32-bit shard encoded in every UUID generated here">
-This device shard: <span style="color: var(--accent); font-weight: 600;">${myDeviceShard}</span>
+Shard: <span style="color: var(--accent); font-weight: 700; letter-spacing: 0.08em;">${myDeviceShard}</span>
 </div>
 </div>
 `;

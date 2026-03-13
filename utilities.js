@@ -14527,13 +14527,10 @@ const modeIcon = '';
 const onlineColor = isOnline ? '#30d158' : '#ff453a';
 const onlineDot = isOnline ? '● Online' : '○ Offline';
 let deviceShard = 'N/A';
-if (device.deviceId && typeof extractUUIDMeta === 'function') {
+if (device.deviceId && typeof deriveDeviceShard === 'function') {
 try {
-const meta = extractUUIDMeta(device.deviceId);
-deviceShard = (meta && meta.deviceShard) ? meta.deviceShard.toUpperCase() : device.deviceId.substring(0, 8);
-} catch (_) { deviceShard = device.deviceId.substring(0, 8); }
-} else if (device.deviceId) {
-deviceShard = device.deviceId.substring(0, 8);
+deviceShard = deriveDeviceShard(device.deviceId).toUpperCase();
+} catch (_) { deviceShard = 'N/A'; }
 }
 let cardHtml = '<div style="margin-bottom:12px;padding:14px;background:var(--glass);border-radius:14px;border:2px solid var(--glass-border);">';
 cardHtml += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;gap:8px;">';
