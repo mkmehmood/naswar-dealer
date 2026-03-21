@@ -105,13 +105,18 @@ const GNDVirtualScroll = (() => {
     }
     _setSpacerHeight(topSpacer, firstVis * rowH);
     _setSpacerHeight(botSpacer, (items.length - 1 - lastVis) * rowH);
-    let child = topSpacer.nextSibling;
-    while (child && child !== botSpacer) {
-      const next = child.nextSibling;
-      tbody.removeChild(child);
-      child = next;
+    try {
+      let child = topSpacer.nextSibling;
+      while (child && child !== botSpacer) {
+        const next = child.nextSibling;
+        tbody.removeChild(child);
+        child = next;
+      }
+      tbody.insertBefore(frag, botSpacer);
+    } catch (_domErr) {
+      if (_domErr instanceof DOMException) return;
+      throw _domErr;
     }
-    tbody.insertBefore(frag, botSpacer);
   }
   function _measureRowHeight(inst) {
     const first = Array.from(inst.tbody.rows).find(r => !r.hasAttribute('aria-hidden'));
@@ -156,33 +161,46 @@ const GNDVirtualScroll = (() => {
     _instances.set(scrollerId, inst);
     _render(inst);
     requestAnimationFrame(() => {
-      _measureRowHeight(inst);
-      _render(inst);
+      try {
+        _measureRowHeight(inst);
+        _render(inst);
+      } catch (_rafErr) {
+        if (!(_rafErr instanceof DOMException)) throw _rafErr;
+      }
     });
     inst.scrollHandler = () => {
       if (inst.rafId) return;
       inst.rafId = requestAnimationFrame(() => {
         inst.rafId = null;
-        _render(inst);
+        try { _render(inst); }
+        catch (_scrollErr) { if (!(_scrollErr instanceof DOMException)) throw _scrollErr; }
       });
     };
     scroller.addEventListener('scroll', inst.scrollHandler, { passive: true });
     if (typeof ResizeObserver !== 'undefined') {
       inst.resizeObs = new ResizeObserver(() => {
-        inst.renderedFirst = -1;
-        inst.renderedLast  = -1;
-        _measureRowHeight(inst);
-        _render(inst);
+        try {
+          inst.renderedFirst = -1;
+          inst.renderedLast  = -1;
+          _measureRowHeight(inst);
+          _render(inst);
+        } catch (_resizeErr) {
+          if (!(_resizeErr instanceof DOMException)) throw _resizeErr;
+        }
       });
       inst.resizeObs.observe(scroller);
     }
     if (typeof IntersectionObserver !== 'undefined') {
       inst.intersectionObs = new IntersectionObserver(entries => {
         if (entries[0].isIntersecting) {
-          inst.renderedFirst = -1;
-          inst.renderedLast  = -1;
-          _measureRowHeight(inst);
-          _render(inst);
+          try {
+            inst.renderedFirst = -1;
+            inst.renderedLast  = -1;
+            _measureRowHeight(inst);
+            _render(inst);
+          } catch (_intErr) {
+            if (!(_intErr instanceof DOMException)) throw _intErr;
+          }
         }
       }, { threshold: 0 });
       inst.intersectionObs.observe(scroller);
@@ -210,154 +228,200 @@ if (window.trustedTypes && window.trustedTypes.createPolicy) {
   window.setHTML = (el, html) => { el.innerHTML = html; };
 }
 const CryptoEngine = (() => {
-const MAGIC = new Uint8Array([0x47,0x5A,0x4E,0x44,0x5F,0x45,0x4E,0x43,0x5F,0x56,0x32]);
+
+const MAGIC_V2 = new Uint8Array([0x47,0x5A,0x4E,0x44,0x5F,0x45,0x4E,0x43,0x5F,0x56,0x32]);
+
+const MAGIC_V4 = new Uint8Array([0x47,0x5A,0x4E,0x44,0x5F,0x45,0x4E,0x43,0x5F,0x56,0x34]);
 const SALT_LEN = 32;
 const IV_LEN = 12;
-const PBKDF2_ITERS = 100000;
-async function deriveKey(email, password, salt) {
-const enc = new TextEncoder();
-const keyMaterial = await crypto.subtle.importKey(
-'raw',
-enc.encode(email.toLowerCase().trim() + ':' + password),
-'PBKDF2',
-false,
-['deriveKey']
-);
-return crypto.subtle.deriveKey(
-{ name: 'PBKDF2', salt: salt, iterations: PBKDF2_ITERS, hash: 'SHA-256' },
-keyMaterial,
-{ name: 'AES-GCM', length: 256 },
-false,
-['encrypt', 'decrypt']
-);
+const UID_HASH_LEN = 32;
+const PBKDF2_ITERS_V4 = 210000;
+const PBKDF2_ITERS_V2 = 100000;
+
+async function deriveKeyV4(email, password, uid, salt) {
+  const enc = new TextEncoder();
+
+  const ikm = enc.encode(email.toLowerCase().trim() + ':' + password + ':' + (uid || ''));
+  const keyMaterial = await crypto.subtle.importKey('raw', ikm, 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERS_V4, hash: 'SHA-512' },
+    keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+  );
 }
-async function deriveKeyHash(email, password) {
-const enc = new TextEncoder();
-const keyMaterial = await crypto.subtle.importKey(
-'raw', enc.encode(email.toLowerCase().trim() + ':' + password),
-'PBKDF2', false, ['deriveKey']
-);
-const fixedSalt = enc.encode('GZND_LOCAL_AUTH_SALT_v2_' + email.toLowerCase().trim());
-const key = await crypto.subtle.deriveKey(
-{ name: 'PBKDF2', salt: fixedSalt, iterations: PBKDF2_ITERS, hash: 'SHA-256' },
-keyMaterial, { name: 'AES-GCM', length: 256 }, true, ['encrypt']
-);
-const raw = await crypto.subtle.exportKey('raw', key);
-const hashBuf = await crypto.subtle.digest('SHA-256', raw);
-return Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2,'0')).join('');
+
+async function deriveKeyV2(email, password, salt) {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw', enc.encode(email.toLowerCase().trim() + ':' + password), 'PBKDF2', false, ['deriveKey']
+  );
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERS_V2, hash: 'SHA-256' },
+    keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+  );
 }
+
+async function _hashUID(uid) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(uid || ''));
+  return new Uint8Array(buf);
+}
+
+async function deriveKeyHashV4(email, password, salt) {
+  const enc = new TextEncoder();
+  const ikm = enc.encode(email.toLowerCase().trim() + ':' + password);
+  const keyMaterial = await crypto.subtle.importKey('raw', ikm, 'PBKDF2', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERS_V4, hash: 'SHA-512' },
+    keyMaterial, { name: 'AES-GCM', length: 256 }, true, ['encrypt']
+  );
+  const raw = await crypto.subtle.exportKey('raw', key);
+  const hashBuf = await crypto.subtle.digest('SHA-512', raw);
+  return Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
 return {
-async encrypt(dataObj, email, password) {
-const salt = crypto.getRandomValues(new Uint8Array(SALT_LEN));
-const iv = crypto.getRandomValues(new Uint8Array(IV_LEN));
-const key = await deriveKey(email, password, salt);
-const plaintext = new TextEncoder().encode(JSON.stringify(dataObj));
-const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext);
-const ctBytes = new Uint8Array(ciphertext);
-const out = new Uint8Array(MAGIC.length + SALT_LEN + IV_LEN + ctBytes.length);
-let offset = 0;
-out.set(MAGIC, offset); offset += MAGIC.length;
-out.set(salt, offset); offset += SALT_LEN;
-out.set(iv, offset); offset += IV_LEN;
-out.set(ctBytes, offset);
-return new Blob([out], { type: 'application/octet-stream' });
-},
-async decrypt(arrayBuffer, email, password) {
-const bytes = new Uint8Array(arrayBuffer);
-const magic = bytes.slice(0, MAGIC.length);
-for (let i = 0; i < MAGIC.length; i++) {
-if (magic[i] !== MAGIC[i]) throw new Error('INVALID_FORMAT');
-}
-let offset = MAGIC.length;
-const salt = bytes.slice(offset, offset + SALT_LEN); offset += SALT_LEN;
-const iv = bytes.slice(offset, offset + IV_LEN); offset += IV_LEN;
-const ciphertext = bytes.slice(offset);
-const key = await deriveKey(email, password, salt);
-let plaintext;
-try {
-plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
-} catch(e) {
-throw new Error('WRONG_CREDENTIALS');
-}
-return JSON.parse(new TextDecoder().decode(plaintext));
-},
-async hashCredentials(email, password) {
-return deriveKeyHash(email, password);
-}
+
+  async encrypt(dataObj, email, password, uid) {
+    const _uid = uid || (typeof currentUser !== 'undefined' && currentUser ? (currentUser.uid || currentUser.email || '') : '');
+    const salt = crypto.getRandomValues(new Uint8Array(SALT_LEN));
+    const iv = crypto.getRandomValues(new Uint8Array(IV_LEN));
+    const uidHash = await _hashUID(_uid);
+    const key = await deriveKeyV4(email, password, _uid, salt);
+    const plaintext = new TextEncoder().encode(JSON.stringify(dataObj));
+    const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext);
+    const ctBytes = new Uint8Array(ciphertext);
+
+    const out = new Uint8Array(MAGIC_V4.length + UID_HASH_LEN + SALT_LEN + IV_LEN + ctBytes.length);
+    let offset = 0;
+    out.set(MAGIC_V4, offset); offset += MAGIC_V4.length;
+    out.set(uidHash, offset); offset += UID_HASH_LEN;
+    out.set(salt, offset);    offset += SALT_LEN;
+    out.set(iv, offset);      offset += IV_LEN;
+    out.set(ctBytes, offset);
+    return new Blob([out], { type: 'application/octet-stream' });
+  },
+
+  async decrypt(arrayBuffer, email, password, uid) {
+    const bytes = new Uint8Array(arrayBuffer);
+    const magicLen = MAGIC_V4.length;
+
+    const isV4 = bytes.length >= magicLen && MAGIC_V4.every((b, i) => bytes[i] === b);
+    const isV2 = !isV4 && bytes.length >= magicLen && MAGIC_V2.every((b, i) => bytes[i] === b);
+    if (!isV4 && !isV2) throw new Error('INVALID_FORMAT');
+
+    let offset = magicLen;
+    if (isV4) {
+
+      const storedUidHash = bytes.slice(offset, offset + UID_HASH_LEN); offset += UID_HASH_LEN;
+      const _uid = uid || (typeof currentUser !== 'undefined' && currentUser ? (currentUser.uid || currentUser.email || '') : '');
+      const actualUidHash = await _hashUID(_uid);
+      const uidMatch = storedUidHash.every((b, i) => b === actualUidHash[i]);
+      if (!uidMatch) throw new Error('WRONG_ACCOUNT');
+      const salt = bytes.slice(offset, offset + SALT_LEN); offset += SALT_LEN;
+      const iv  = bytes.slice(offset, offset + IV_LEN);   offset += IV_LEN;
+      const ciphertext = bytes.slice(offset);
+      const key = await deriveKeyV4(email, password, _uid, salt);
+      try {
+        const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+        return JSON.parse(new TextDecoder().decode(plaintext));
+      } catch(e) { throw new Error('WRONG_CREDENTIALS'); }
+    } else {
+
+      const salt = bytes.slice(offset, offset + SALT_LEN); offset += SALT_LEN;
+      const iv  = bytes.slice(offset, offset + IV_LEN);   offset += IV_LEN;
+      const ciphertext = bytes.slice(offset);
+      const key = await deriveKeyV2(email, password, salt);
+      try {
+        const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+        return JSON.parse(new TextDecoder().decode(plaintext));
+      } catch(e) { throw new Error('WRONG_CREDENTIALS'); }
+    }
+  },
+
+  async hashCredentials(email, password, existingSaltHex) {
+    let salt;
+    if (existingSaltHex) {
+      salt = new Uint8Array(existingSaltHex.match(/.{2}/g).map(h => parseInt(h, 16)));
+    } else {
+      salt = crypto.getRandomValues(new Uint8Array(32));
+    }
+    const hash = await deriveKeyHashV4(email, password, salt);
+    const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2,'0')).join('');
+    return { hash, saltHex };
+  }
 };
 })();
+const _OPFSStore = (() => {
+  const _SUPPORTED = typeof navigator !== 'undefined' &&
+                     !!navigator.storage &&
+                     typeof navigator.storage.getDirectory === 'function';
+  async function read(filename, lsKey) {
+    if (_SUPPORTED) {
+      try {
+        const root = await navigator.storage.getDirectory();
+        const fh   = await root.getFileHandle(filename);
+        return JSON.parse(await (await fh.getFile()).text());
+      } catch { /* fall through to localStorage */ }
+    }
+    try { const r = localStorage.getItem(lsKey); return r ? JSON.parse(r) : {}; } catch { return {}; }
+  }
+  async function write(filename, lsKey, data) {
+    const json = JSON.stringify(data);
+    if (_SUPPORTED) {
+      try {
+        const root = await navigator.storage.getDirectory();
+        const fh   = await root.getFileHandle(filename, { create: true });
+        const wr   = await fh.createWritable();
+        await wr.write(json);
+        await wr.close();
+      } catch (e) { console.warn('[OPFSStore] write failed for', filename, _safeErr(e)); }
+    }
+    try { localStorage.setItem(lsKey, json); } catch {}
+  }
+  async function remove(filename, lsKey) {
+    if (_SUPPORTED) {
+      try {
+        const root = await navigator.storage.getDirectory();
+        await root.removeEntry(filename).catch(() => {});
+      } catch {}
+    }
+    try { localStorage.removeItem(lsKey); } catch {}
+  }
+  return { read, write, remove };
+})();
+
 const OfflineAuth = {
-IDB_NAME: 'GZND_AuthDB',
-STORE: 'credentials',
-async _getDB() {
-return new Promise((res, rej) => {
-const req = indexedDB.open(this.IDB_NAME, 1);
-req.onupgradeneeded = e => {
-e.target.result.createObjectStore(this.STORE);
-};
-req.onsuccess = e => res(e.target.result);
-req.onerror = e => rej(e.target.error || new Error('OfflineAuth: IDB open failed'));
-});
-},
-async saveCredentials(email, password) {
-const hash = await CryptoEngine.hashCredentials(email, password);
-const db = await this._getDB();
-return new Promise((res, rej) => {
-const tx = db.transaction(this.STORE, 'readwrite');
-tx.objectStore(this.STORE).put({ hash, email, savedAt: Date.now() }, 'active');
-tx.oncomplete = () => res(true);
-tx.onerror = e => rej(e.target.error || new Error('OfflineAuth: saveCredentials failed'));
-});
-},
-async verifyCredentials(email, password) {
-const db = await this._getDB();
-const record = await new Promise((res, rej) => {
-const tx = db.transaction(this.STORE, 'readonly');
-const req = tx.objectStore(this.STORE).get('active');
-req.onsuccess = e => res(e.target.result);
-req.onerror = e => rej(e.target.error || new Error('OfflineAuth: verifyCredentials read failed'));
-});
-if (!record) return false;
-if (record.email.toLowerCase().trim() !== email.toLowerCase().trim()) return false;
-const hash = await CryptoEngine.hashCredentials(email, password);
-return hash === record.hash;
-},
-async getSavedEmail() {
-const db = await this._getDB();
-const record = await new Promise((res, rej) => {
-const tx = db.transaction(this.STORE, 'readonly');
-const req = tx.objectStore(this.STORE).get('active');
-req.onsuccess = e => res(e.target.result);
-req.onerror = () => res(null);
-});
-return record ? record.email : null;
-},
-async hasStoredCredentials() {
-const email = await this.getSavedEmail();
-return !!email;
-},
-async clearCredentials() {
-const db = await this._getDB();
-return new Promise((res, rej) => {
-const tx = db.transaction(this.STORE, 'readwrite');
-tx.objectStore(this.STORE).delete('active');
-tx.oncomplete = () => res(true);
-tx.onerror = e => rej(e.target.error || new Error('OfflineAuth: clearCredentials failed'));
-});
-}
+  _FILE: 'gznd_auth.json',
+  _LS:   '_gznd_auth_data',
+  async saveCredentials(email, password) {
+    const { hash, saltHex } = await CryptoEngine.hashCredentials(email, password);
+    await _OPFSStore.write(this._FILE, this._LS, { hash, saltHex, email, savedAt: Date.now(), version: 4 });
+    return true;
+  },
+  async verifyCredentials(email, password) {
+    const record = await _OPFSStore.read(this._FILE, this._LS);
+    if (!record || !record.email) return false;
+    if (record.email.toLowerCase().trim() !== email.toLowerCase().trim()) return false;
+    if (!record.saltHex) {
+      console.warn('OfflineAuth: legacy credential record — re-authentication required');
+      return false;
+    }
+    const { hash } = await CryptoEngine.hashCredentials(email, password, record.saltHex);
+    return hash === record.hash;
+  },
+  async getSavedEmail() {
+    const record = await _OPFSStore.read(this._FILE, this._LS);
+    return (record && record.email) ? record.email : null;
+  },
+  async hasStoredCredentials() {
+    return !!(await this.getSavedEmail());
+  },
+  async clearCredentials() {
+    await _OPFSStore.remove(this._FILE, this._LS);
+    return true;
+  }
 };
 async function _checkFirebaseSessionExists() {
 try {
-if ('databases' in indexedDB) {
-const dbs = await indexedDB.databases();
-const hasFirebaseDB = dbs.some(d =>
-d.name && (d.name.includes('firebaseLocalStorage') || d.name.includes('firebase'))
-);
-if (hasFirebaseDB) {
-const tokenExists = await _readFirebaseTokenFromIDB();
-if (tokenExists) return true;
-}
-}
 const sessionFlag = sessionStorage.getItem('_gznd_session_active');
 if (sessionFlag === '1') return true;
 try {
@@ -374,152 +438,43 @@ return false;
 return false;
 }
 }
-async function _readFirebaseTokenFromIDB() {
-try {
-const dbs = await indexedDB.databases();
-const firebaseDB_name = dbs.find(d => d.name && d.name.includes('firebaseLocalStorage'));
-if (!firebaseDB_name) return false;
-return new Promise((resolve) => {
-const req = indexedDB.open(firebaseDB_name.name);
-req.onsuccess = (e) => {
-const db = e.target.result;
-const stores = Array.from(db.objectStoreNames);
-if (stores.length === 0) { db.close(); resolve(false); return; }
-try {
-const tx = db.transaction(stores[0], 'readonly');
-const store = tx.objectStore(stores[0]);
-const getAllReq = store.getAll();
-getAllReq.onsuccess = () => {
-db.close();
-const results = getAllReq.result || [];
-const hasUser = results.some(r => r && r.value && (r.value.uid || r.value.email));
-resolve(hasUser);
-};
-getAllReq.onerror = () => { db.close(); resolve(false); };
-} catch(txErr) { db.close(); resolve(false); }
-};
-req.onerror = () => resolve(false);
-});
-} catch(e) { return false; }
-}
-const IDBCrypto = (() => {
+const SQLiteCrypto = (() => {
   let _sessionKey = null;
   let _keyEmail = null;
-  let _db = null;
-  let _initPromise = null;
+  let _keyUid = null;
   let _preWarmPromise = null;
-  const PBKDF2_ITERS = 100000;
-  const DB_NAME = 'GZND_SecureStorage';
-  const DB_VERSION = 3;
-  const KEY_STORE = 'encryptedKeys';
-  const ENTROPY_STORE = 'deviceEntropy';
-  const SESSION_STORE = 'userSession';
-  const WRAPKEY_CACHE_STORE = 'wrapKeyCache';
-  const IDB_KDF_SALT = new Uint8Array([
-    0x47,0x5A,0x4E,0x44,0x49,0x44,0x42,0x4B,
-    0x45,0x59,0x53,0x41,0x4C,0x54,0x76,0x31,
-    0x32,0x30,0x32,0x34,0x41,0x45,0x53,0x32,
-    0x35,0x36,0x47,0x43,0x4D,0x45,0x4E,0x43
-  ]);
+
+  const _wrapKeyMemCache = new Map();
+  const PBKDF2_ITERS = 210000;
+  const PBKDF2_HASH  = 'SHA-512';
+
+  const _KEY_FILE      = 'gznd_keystore.json';
+  const _KEY_LS        = '_gznd_keystore';
+  const _ENTROPY_FILE  = 'gznd_entropy.json';
+  const _ENTROPY_LS    = '_gznd_entropy';
+  const _SESSION_FILE  = 'gznd_session.json';
+  const _SESSION_LS    = '_gznd_session_store';
+
   const IV_LEN = 12;
   const ENC_PREFIX = 'GZND_ENC_';
-  const KEY_VERSION = '3';
-  const LEGACY_LS_KEY = '_gznd_idbk_v2';
-  const LEGACY_LS_SECRET = '_gznd_wksec_v2';
-  const LEGACY_LS_EMAIL = '_gznd_key_email';
-  async function _initDB() {
-    if (_db) return _db;
-    if (_initPromise) return _initPromise;
-    _initPromise = new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, DB_VERSION);
-      request.onerror = () => {
-        _initPromise = null;
-        reject(request.error || new Error("IDB request failed"));
-      };
-      request.onsuccess = () => {
-        _db = request.result;
-        resolve(_db);
-      };
-      request.onupgradeneeded = (event) => {
-        const db = event.target.result;
-        if (!db.objectStoreNames.contains(KEY_STORE)) {
-          const keyStore = db.createObjectStore(KEY_STORE, { keyPath: 'id' });
-          keyStore.createIndex('email', 'email', { unique: false });
-          keyStore.createIndex('version', 'version', { unique: false });
-        }
-        if (!db.objectStoreNames.contains(ENTROPY_STORE)) {
-          db.createObjectStore(ENTROPY_STORE, { keyPath: 'id' });
-        }
-        if (!db.objectStoreNames.contains(SESSION_STORE)) {
-          db.createObjectStore(SESSION_STORE, { keyPath: 'id' });
-        }
-        if (!db.objectStoreNames.contains(WRAPKEY_CACHE_STORE)) {
-          db.createObjectStore(WRAPKEY_CACHE_STORE, { keyPath: 'id' });
-        }
-      };
-    });
-    return _initPromise;
-  }
+  const KEY_VERSION = '4';
+
   async function _getDeviceEntropy() {
-    const db = await _initDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(ENTROPY_STORE, 'readonly');
-      const store = tx.objectStore(ENTROPY_STORE);
-      const request = store.get('primary');
-      request.onsuccess = async () => {
-        if (request.result) {
-          const entropyHex = request.result.entropy;
-          const entropy = new Uint8Array(entropyHex.match(/.{2}/g).map(h => parseInt(h, 16)));
-          resolve(entropy);
-        } else {
-          const newEntropy = crypto.getRandomValues(new Uint8Array(32));
-          const entropyHex = Array.from(newEntropy).map(b => b.toString(16).padStart(2, '0')).join('');
-          try {
-            const writeTx = db.transaction(ENTROPY_STORE, 'readwrite');
-            const writeStore = writeTx.objectStore(ENTROPY_STORE);
-            await new Promise((res, rej) => {
-              const writeReq = writeStore.put({ id: 'primary', entropy: entropyHex });
-              writeReq.onsuccess = () => res();
-              writeReq.onerror = () => rej(writeReq.error);
-            });
-          } catch (e) {
-            console.warn('IDBCrypto: Could not persist device entropy, using memory-only');
-          }
-          resolve(newEntropy);
-        }
-      };
-      request.onerror = () => reject(request.error || new Error("IDB request failed"));
-    });
+    const stored = await _OPFSStore.read(_ENTROPY_FILE, _ENTROPY_LS);
+    if (stored && stored.entropy) {
+      return new Uint8Array(stored.entropy.match(/.{2}/g).map(h => parseInt(h, 16)));
+    }
+    const newEntropy = crypto.getRandomValues(new Uint8Array(32));
+    const entropyHex = Array.from(newEntropy).map(b => b.toString(16).padStart(2, '0')).join('');
+    await _OPFSStore.write(_ENTROPY_FILE, _ENTROPY_LS, { entropy: entropyHex });
+    return newEntropy;
   }
-  async function _getCachedWrapKeyBytes(saltHex) {
+
+  async function _sqliteSessionSet(id, value) {
     try {
-      const db = await _initDB();
-      const result = await new Promise((res, rej) => {
-        const tx = db.transaction(WRAPKEY_CACHE_STORE, 'readonly');
-        const req = tx.objectStore(WRAPKEY_CACHE_STORE).get('primary');
-        req.onsuccess = () => res(req.result);
-        req.onerror = () => res(null);
-      });
-      if (result && result.saltHex === saltHex && result.keyBytes) return result.keyBytes;
-    } catch (e) {}
-    return null;
-  }
-  async function _setCachedWrapKeyBytes(saltHex, keyBytes) {
-    try {
-      const db = await _initDB();
-      const tx = db.transaction(WRAPKEY_CACHE_STORE, 'readwrite');
-      tx.objectStore(WRAPKEY_CACHE_STORE).put({ id: 'primary', saltHex, keyBytes, ts: Date.now() });
-    } catch (e) {}
-  }
-  async function _idbSessionSet(id, value) {
-    try {
-      const db = await _initDB();
-      await new Promise((res, rej) => {
-        const tx = db.transaction(SESSION_STORE, 'readwrite');
-        const req = tx.objectStore(SESSION_STORE).put({ id, ...value });
-        tx.oncomplete = () => res();
-        tx.onerror = () => rej(tx.error);
-      });
+      const all = await _OPFSStore.read(_SESSION_FILE, _SESSION_LS) || {};
+      all[id] = value;
+      await _OPFSStore.write(_SESSION_FILE, _SESSION_LS, all);
       if (id === 'active') {
         try { localStorage.setItem('_gznd_session_active', '1'); } catch(e) {}
       }
@@ -528,256 +483,141 @@ const IDBCrypto = (() => {
       }
     } catch (e) {}
   }
-  async function _idbSessionGet(id) {
+
+  async function _sqliteSessionGet(id) {
     try {
-      const db = await _initDB();
-      return await new Promise((res) => {
-        const tx = db.transaction(SESSION_STORE, 'readonly');
-        const req = tx.objectStore(SESSION_STORE).get(id);
-        req.onsuccess = () => res(req.result || null);
-        req.onerror = () => res(null);
-      });
+      const all = await _OPFSStore.read(_SESSION_FILE, _SESSION_LS) || {};
+      return all[id] || null;
     } catch (e) { return null; }
   }
-  async function _idbSessionDelete(id) {
+
+  async function _sqliteSessionDelete(id) {
     try {
-      const db = await _initDB();
-      await new Promise((res) => {
-        const tx = db.transaction(SESSION_STORE, 'readwrite');
-        tx.objectStore(SESSION_STORE).delete(id);
-        tx.oncomplete = () => res();
-        tx.onerror = () => res();
-      });
+      const all = await _OPFSStore.read(_SESSION_FILE, _SESSION_LS) || {};
+      delete all[id];
+      await _OPFSStore.write(_SESSION_FILE, _SESSION_LS, all);
     } catch(e) {}
   }
-  async function deriveSessionKey(email, password) {
+
+  function _getCachedWrapKey(saltHex) { return _wrapKeyMemCache.get(saltHex) || null; }
+  function _setCachedWrapKey(saltHex, cryptoKey) { _wrapKeyMemCache.set(saltHex, cryptoKey); }
+
+  async function deriveSessionKey(email, password, kdfSalt) {
     const enc = new TextEncoder();
-    const keyMaterial = await crypto.subtle.importKey(
-      'raw',
-      enc.encode(email.toLowerCase().trim() + ':' + password),
-      'PBKDF2',
-      false,
-      ['deriveKey']
-    );
+    const ikm = enc.encode(email.toLowerCase().trim() + ':' + password);
+    const keyMaterial = await crypto.subtle.importKey('raw', ikm, 'PBKDF2', false, ['deriveKey']);
     return crypto.subtle.deriveKey(
-      {
-        name: 'PBKDF2',
-        salt: IDB_KDF_SALT,
-        iterations: PBKDF2_ITERS,
-        hash: 'SHA-256'
-      },
+      { name: 'PBKDF2', salt: kdfSalt, iterations: PBKDF2_ITERS, hash: PBKDF2_HASH },
       keyMaterial,
       { name: 'AES-GCM', length: 256 },
       true,
       ['encrypt', 'decrypt']
     );
   }
-  async function deriveWrappingKey(wrapSalt) {
+
+  async function deriveWrappingKey(wrapSalt, uid) {
     const saltHex = Array.from(wrapSalt).map(b => b.toString(16).padStart(2, '0')).join('');
-    const cachedBytes = await _getCachedWrapKeyBytes(saltHex);
-    if (cachedBytes) {
-      try {
-        return await crypto.subtle.importKey(
-          'raw',
-          new Uint8Array(cachedBytes),
-          { name: 'AES-KW' },
-          false,
-          ['wrapKey', 'unwrapKey']
-        );
-      } catch (e) {
-      }
-    }
+    const cacheKey = saltHex + ':' + (uid || '');
+    const cached = _getCachedWrapKey(cacheKey);
+    if (cached) return cached;
     const deviceEntropy = await _getDeviceEntropy();
-    const combined = new Uint8Array(deviceEntropy.length + wrapSalt.length);
+    const enc = new TextEncoder();
+    const uidBytes = enc.encode(uid || '');
+    const combined = new Uint8Array(deviceEntropy.length + wrapSalt.length + uidBytes.length);
     combined.set(deviceEntropy, 0);
     combined.set(wrapSalt, deviceEntropy.length);
-    const keyMaterial = await crypto.subtle.importKey(
-      'raw',
-      combined,
-      'PBKDF2',
-      false,
-      ['deriveKey']
-    );
+    combined.set(uidBytes, deviceEntropy.length + wrapSalt.length);
+    const wkSalt = enc.encode('GZND_WK_SALT_v4:' + (uid || 'anon'));
+    const keyMaterial = await crypto.subtle.importKey('raw', combined, 'PBKDF2', false, ['deriveKey']);
     const wrapKey = await crypto.subtle.deriveKey(
-      {
-        name: 'PBKDF2',
-        salt: IDB_KDF_SALT,
-        iterations: PBKDF2_ITERS,
-        hash: 'SHA-256'
-      },
+      { name: 'PBKDF2', salt: wkSalt, iterations: PBKDF2_ITERS, hash: PBKDF2_HASH },
       keyMaterial,
       { name: 'AES-KW', length: 256 },
-      true,
+      false,
       ['wrapKey', 'unwrapKey']
     );
-    try {
-      const rawBuf = await crypto.subtle.exportKey('raw', wrapKey);
-      await _setCachedWrapKeyBytes(saltHex, Array.from(new Uint8Array(rawBuf)));
-      return await crypto.subtle.importKey(
-        'raw',
-        new Uint8Array(rawBuf),
-        { name: 'AES-KW' },
-        false,
-        ['wrapKey', 'unwrapKey']
-      );
-    } catch (e) {
-      return wrapKey;
-    }
+    _setCachedWrapKey(cacheKey, wrapKey);
+    return wrapKey;
   }
-  async function _persistKey(key, email) {
+
+  async function _persistKey(key, email, uid, kdfSalt) {
     try {
-      const db = await _initDB();
       const wrapSalt = crypto.getRandomValues(new Uint8Array(16));
-      const wrapKey = await deriveWrappingKey(wrapSalt);
-      const wrapped = await crypto.subtle.wrapKey('raw', key, wrapKey, 'AES-KW');
-      const wrappedBytes = new Uint8Array(wrapped);
-      const saltHex = Array.from(wrapSalt).map(b => b.toString(16).padStart(2, '0')).join('');
-      const keyHex = Array.from(wrappedBytes).map(b => b.toString(16).padStart(2, '0')).join('');
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction(KEY_STORE, 'readwrite');
-        const store = tx.objectStore(KEY_STORE);
-        const request = store.put({
-          id: 'primary',
-          email: email,
-          salt: saltHex,
-          wrappedKey: keyHex,
-          version: KEY_VERSION,
-          createdAt: Date.now()
-        });
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error || new Error("IDB request failed"));
-      });
+      const wrapKey  = await deriveWrappingKey(wrapSalt, uid);
+      const wrapped  = await crypto.subtle.wrapKey('raw', key, wrapKey, 'AES-KW');
+      const wrappedBytes   = new Uint8Array(wrapped);
+      const wrapSaltHex    = Array.from(wrapSalt).map(b => b.toString(16).padStart(2, '0')).join('');
+      const keyHex         = Array.from(wrappedBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+      const kdfSaltHex     = kdfSalt
+        ? Array.from(kdfSalt).map(b => b.toString(16).padStart(2, '0')).join('')
+        : null;
+      const record = { id: 'primary', email, uid: uid || null, salt: wrapSaltHex, kdfSalt: kdfSaltHex, wrappedKey: keyHex, version: KEY_VERSION, createdAt: Date.now() };
+      await _OPFSStore.write(_KEY_FILE, _KEY_LS, record);
       try {
-        const keyBackup = { email, salt: saltHex, wrappedKey: keyHex, version: KEY_VERSION, ts: Date.now() };
-        await _idbSessionSet('keyBackup', keyBackup);
-        localStorage.setItem('_gznd_session_key_backup', JSON.stringify(keyBackup));
-        sessionStorage.setItem('_gznd_session_key_backup', JSON.stringify(keyBackup));
+        const keyBackup = { email, uid: uid || null, salt: wrapSaltHex, kdfSalt: kdfSaltHex, wrappedKey: keyHex, version: KEY_VERSION, ts: Date.now() };
+        await _sqliteSessionSet('keyBackup', keyBackup);
       } catch (e) {}
       _keyEmail = email;
-      _clearLegacyStorage();
+      _keyUid   = uid || null;
     } catch (e) {
-      console.error('IDBCrypto: Failed to persist key:', _safeErr(e));
+      console.error('SQLiteCrypto: Failed to persist key:', _safeErr(e));
       throw e;
     }
   }
+
   async function _restoreKey() {
     try {
-      const db = await _initDB();
-      const stored = await new Promise((resolve, reject) => {
-        const tx = db.transaction(KEY_STORE, 'readonly');
-        const store = tx.objectStore(KEY_STORE);
-        const request = store.get('primary');
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error || new Error("IDB request failed"));
-      });
+      const stored = await _OPFSStore.read(_KEY_FILE, _KEY_LS);
       if (stored && stored.salt && stored.wrappedKey) {
-        const wrapSalt = new Uint8Array(stored.salt.match(/.{2}/g).map(h => parseInt(h, 16)));
+        const wrapSalt     = new Uint8Array(stored.salt.match(/.{2}/g).map(h => parseInt(h, 16)));
         const wrappedBytes = new Uint8Array(stored.wrappedKey.match(/.{2}/g).map(h => parseInt(h, 16)));
-        const wrapKey = await deriveWrappingKey(wrapSalt);
-        const key = await crypto.subtle.unwrapKey(
-          'raw',
-          wrappedBytes,
-          wrapKey,
-          'AES-KW',
-          { name: 'AES-GCM', length: 256 },
-          false,
-          ['encrypt', 'decrypt']
-        );
-        _keyEmail = stored.email;
-        return key;
-      }
-      const idbBackup = await _idbSessionGet('keyBackup');
-      if (idbBackup && idbBackup.salt && idbBackup.wrappedKey) {
-        const wrapSalt = new Uint8Array(idbBackup.salt.match(/.{2}/g).map(h => parseInt(h, 16)));
-        const wrappedBytes = new Uint8Array(idbBackup.wrappedKey.match(/.{2}/g).map(h => parseInt(h, 16)));
-        const wrapKey = await deriveWrappingKey(wrapSalt);
-        const key = await crypto.subtle.unwrapKey(
-          'raw', wrappedBytes, wrapKey, 'AES-KW',
-          { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
-        );
-        _keyEmail = idbBackup.email;
-        await _persistKey(key, idbBackup.email);
-        return key;
-      }
-      const sessionBackup = sessionStorage.getItem('_gznd_session_key_backup') || localStorage.getItem('_gznd_session_key_backup');
-      if (sessionBackup) {
-        const backup = JSON.parse(sessionBackup);
-        if (backup.salt && backup.wrappedKey) {
-          const wrapSalt = new Uint8Array(backup.salt.match(/.{2}/g).map(h => parseInt(h, 16)));
-          const wrappedBytes = new Uint8Array(backup.wrappedKey.match(/.{2}/g).map(h => parseInt(h, 16)));
-          const wrapKey = await deriveWrappingKey(wrapSalt);
+        const uid = stored.uid || null;
+        const wrapKey = await deriveWrappingKey(wrapSalt, uid);
+        try {
           const key = await crypto.subtle.unwrapKey(
-            'raw',
-            wrappedBytes,
-            wrapKey,
-            'AES-KW',
-            { name: 'AES-GCM', length: 256 },
-            false,
-            ['encrypt', 'decrypt']
+            'raw', wrappedBytes, wrapKey, 'AES-KW',
+            { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
           );
-          _keyEmail = backup.email;
-          await _persistKey(key, backup.email);
+          _keyEmail = stored.email;
+          _keyUid   = uid;
           return key;
+        } catch(unwrapErr) {
+          console.warn('SQLiteCrypto: Primary key unwrap failed, trying backup', _safeErr(unwrapErr));
         }
       }
-      return await _migrateFromLegacy();
+      const sqliteKeyBackup = await _sqliteSessionGet('keyBackup');
+      if (sqliteKeyBackup && sqliteKeyBackup.salt && sqliteKeyBackup.wrappedKey) {
+        const wrapSalt     = new Uint8Array(sqliteKeyBackup.salt.match(/.{2}/g).map(h => parseInt(h, 16)));
+        const wrappedBytes = new Uint8Array(sqliteKeyBackup.wrappedKey.match(/.{2}/g).map(h => parseInt(h, 16)));
+        const uid = sqliteKeyBackup.uid || null;
+        const wrapKey = await deriveWrappingKey(wrapSalt, uid);
+        try {
+          const key = await crypto.subtle.unwrapKey(
+            'raw', wrappedBytes, wrapKey, 'AES-KW',
+            { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+          );
+          _keyEmail = sqliteKeyBackup.email;
+          _keyUid   = uid;
+          const kdfSalt = sqliteKeyBackup.kdfSalt
+            ? new Uint8Array(sqliteKeyBackup.kdfSalt.match(/.{2}/g).map(h => parseInt(h, 16)))
+            : null;
+          await _persistKey(key, sqliteKeyBackup.email, uid, kdfSalt);
+          return key;
+        } catch(e) {
+          console.warn('SQLiteCrypto: Backup key unwrap failed', _safeErr(e));
+        }
+      }
+      return null;
     } catch (e) {
-      console.error('IDBCrypto: Failed to restore key:', _safeErr(e));
+      console.error('SQLiteCrypto: Failed to restore key:', _safeErr(e));
       return null;
     }
   }
-  async function _migrateFromLegacy() {
-    try {
-      const stored = localStorage.getItem(LEGACY_LS_KEY);
-      const wrapSecret = localStorage.getItem(LEGACY_LS_SECRET);
-      const email = localStorage.getItem(LEGACY_LS_EMAIL);
-      if (!stored || !wrapSecret || !email) return null;
-      const [saltHex, keyHex] = stored.split(':');
-      if (!saltHex || !keyHex) return null;
-      const wrapSalt = new Uint8Array(saltHex.match(/.{2}/g).map(h => parseInt(h, 16)));
-      const wrappedBytes = new Uint8Array(keyHex.match(/.{2}/g).map(h => parseInt(h, 16)));
-      const enc = new TextEncoder();
-      const wkMaterial = await crypto.subtle.importKey('raw', enc.encode(wrapSecret), 'PBKDF2', false, ['deriveKey']);
-      const wrapKey = await crypto.subtle.deriveKey(
-        { name: 'PBKDF2', salt: wrapSalt, iterations: APP_CONFIG.PBKDF2_ITERATIONS_LEGACY, hash: 'SHA-256' },
-        wkMaterial,
-        { name: 'AES-KW', length: 256 },
-        false,
-        ['unwrapKey']
-      );
-      const key = await crypto.subtle.unwrapKey(
-        'raw',
-        wrappedBytes,
-        wrapKey,
-        'AES-KW',
-        { name: 'AES-GCM', length: 256 },
-        false,
-        ['encrypt', 'decrypt']
-      );
-      await _persistKey(key, email);
-      _keyEmail = email;
-      return key;
-    } catch (e) {
-      console.error('IDBCrypto: Legacy migration failed:', _safeErr(e));
-      return null;
-    }
-  }
-  function _clearLegacyStorage() {
-    try {
-      localStorage.removeItem(LEGACY_LS_KEY);
-      localStorage.removeItem(LEGACY_LS_SECRET);
-      localStorage.removeItem(LEGACY_LS_EMAIL);
-      localStorage.removeItem('_gznd_key_version');
-    } catch (e) {
-    }
-  }
+
   return {
     async initialize() {
-      try {
-        await _initDB();
-        return true;
-      } catch (e) {
-        console.error('IDBCrypto: Initialization failed:', _safeErr(e));
+      try { return true; } catch (e) {
+        console.error('SQLiteCrypto: Initialization failed:', _safeErr(e));
         return false;
       }
     },
@@ -791,20 +631,20 @@ const IDBCrypto = (() => {
       }
       return _preWarmPromise;
     },
-    async setSessionKey(email, password) {
-      _sessionKey = await deriveSessionKey(email, password);
-      await _persistKey(_sessionKey, email);
+
+    async setSessionKey(email, password, uid) {
+      const _uid = uid || null;
+      const kdfSalt = crypto.getRandomValues(new Uint8Array(32));
+      _sessionKey = await deriveSessionKey(email, password, kdfSalt);
+      await _persistKey(_sessionKey, email, _uid, kdfSalt);
       _keyEmail = email;
-      await _idbSessionSet('login', {
-        uid: null,
-        email,
-        lastLogin: new Date().toISOString()
-      });
-      await _idbSessionSet('active', { value: '1', ts: Date.now() });
+      _keyUid   = _uid;
+      await _sqliteSessionSet('login',  { uid: _uid, email, lastLogin: new Date().toISOString() });
+      await _sqliteSessionSet('active', { value: '1', ts: Date.now() });
     },
-    async sessionSet(id, value) { return _idbSessionSet(id, value); },
-    async sessionGet(id) { return _idbSessionGet(id); },
-    async sessionDelete(id) { return _idbSessionDelete(id); },
+    async sessionSet(id, value)  { return _sqliteSessionSet(id, value); },
+    async sessionGet(id)          { return _sqliteSessionGet(id); },
+    async sessionDelete(id)       { return _sqliteSessionDelete(id); },
     async restoreSessionKeyFromStorage() {
       if (_sessionKey) return true;
       if (_preWarmPromise) return _preWarmPromise;
@@ -817,45 +657,47 @@ const IDBCrypto = (() => {
       }
       return this._restorePromise;
     },
-    async rederiveKey(email, password) {
+
+    async rederiveKey(email, password, uid) {
       try {
-        _sessionKey = await deriveSessionKey(email, password);
-        await _persistKey(_sessionKey, email);
+        const _uid = uid || _keyUid || null;
+        let kdfSalt = null;
+        try {
+          const stored = await _OPFSStore.read(_KEY_FILE, _KEY_LS);
+          if (stored && stored.kdfSalt) {
+            kdfSalt = new Uint8Array(stored.kdfSalt.match(/.{2}/g).map(h => parseInt(h, 16)));
+          }
+        } catch(e) {}
+        if (!kdfSalt) kdfSalt = crypto.getRandomValues(new Uint8Array(32));
+        _sessionKey = await deriveSessionKey(email, password, kdfSalt);
+        await _persistKey(_sessionKey, email, _uid, kdfSalt);
         _keyEmail = email;
+        _keyUid   = _uid;
         return true;
       } catch (e) {
-        console.error('IDBCrypto: Failed to re-derive key:', _safeErr(e));
+        console.error('SQLiteCrypto: Failed to re-derive key:', _safeErr(e));
         return false;
       }
     },
-    getStoredEmail() {
-      return _keyEmail;
-    },
+    getStoredEmail() { return _keyEmail; },
+    getStoredUid()   { return _keyUid; },
     clearSessionKey() {
       _sessionKey = null;
-      _keyEmail = null;
-      _initDB().then(db => {
-        const tx = db.transaction([KEY_STORE, ENTROPY_STORE, SESSION_STORE, WRAPKEY_CACHE_STORE], 'readwrite');
-        tx.objectStore(KEY_STORE).delete('primary');
-        tx.objectStore(ENTROPY_STORE).delete('primary');
-        tx.objectStore(SESSION_STORE).clear();
-        tx.objectStore(WRAPKEY_CACHE_STORE).clear();
-      }).catch(() => {});
+      _keyEmail   = null;
+      _keyUid     = null;
+      _wrapKeyMemCache.clear();
+      _OPFSStore.remove(_KEY_FILE, _KEY_LS).catch(() => {});
+      _OPFSStore.remove(_ENTROPY_FILE, _ENTROPY_LS).catch(() => {});
+      _OPFSStore.remove(_SESSION_FILE, _SESSION_LS).catch(() => {});
       try {
-        sessionStorage.removeItem('_gznd_session_key_backup');
         sessionStorage.removeItem('_gznd_session_active');
-        localStorage.removeItem('_gznd_session_key_backup');
         localStorage.removeItem('_gznd_session_active');
         localStorage.removeItem('persistentLogin');
       } catch (e) {}
-      _clearLegacyStorage();
     },
-    isReady() {
-      return _sessionKey !== null;
-    },
+    isReady() { return _sessionKey !== null; },
     async encrypt(plainValue) {
       if (!_sessionKey) {
-        console.warn('IDBCrypto: Cannot encrypt - no session key');
         return plainValue;
       }
       try {
@@ -863,12 +705,8 @@ const IDBCrypto = (() => {
         const plaintext = new TextEncoder().encode(
           typeof plainValue === 'string' ? plainValue : JSON.stringify(plainValue)
         );
-        const ciphertext = await crypto.subtle.encrypt(
-          { name: 'AES-GCM', iv },
-          _sessionKey,
-          plaintext
-        );
-        const ctBytes = new Uint8Array(ciphertext);
+        const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, _sessionKey, plaintext);
+        const ctBytes  = new Uint8Array(ciphertext);
         const combined = new Uint8Array(IV_LEN + ctBytes.length);
         combined.set(iv, 0);
         combined.set(ctBytes, IV_LEN);
@@ -876,43 +714,29 @@ const IDBCrypto = (() => {
         combined.forEach(b => { binary += String.fromCharCode(b); });
         return ENC_PREFIX + btoa(binary);
       } catch (e) {
-        console.error('IDBCrypto: Encryption failed:', _safeErr(e));
+        console.error('SQLiteCrypto: Encryption failed:', _safeErr(e));
         return plainValue;
       }
     },
     async decrypt(encValue) {
+      if (!_sessionKey) { await this.restoreSessionKeyFromStorage(); }
       if (!_sessionKey) {
-        await this.restoreSessionKeyFromStorage();
-      }
-      if (!_sessionKey) {
-        console.warn('IDBCrypto: Cannot decrypt - no session key available');
+        console.warn('SQLiteCrypto: Cannot decrypt - no session key available');
         return null;
       }
-      if (typeof encValue !== 'string' || !encValue.startsWith(ENC_PREFIX)) {
-        return encValue;
-      }
+      if (typeof encValue !== 'string' || !encValue.startsWith(ENC_PREFIX)) return encValue;
       try {
         const b64 = encValue.slice(ENC_PREFIX.length);
         const binary = atob(b64);
         const combined = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) {
-          combined[i] = binary.charCodeAt(i);
-        }
-        const iv = combined.slice(0, IV_LEN);
+        for (let i = 0; i < binary.length; i++) combined[i] = binary.charCodeAt(i);
+        const iv         = combined.slice(0, IV_LEN);
         const ciphertext = combined.slice(IV_LEN);
-        const plaintext = await crypto.subtle.decrypt(
-          { name: 'AES-GCM', iv },
-          _sessionKey,
-          ciphertext
-        );
+        const plaintext  = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, _sessionKey, ciphertext);
         const decoded = new TextDecoder().decode(plaintext);
-        try {
-          return JSON.parse(decoded);
-        } catch (e) {
-          return decoded;
-        }
+        try { return JSON.parse(decoded); } catch (e) { return decoded; }
       } catch (decErr) {
-        console.error('IDBCrypto: Decryption failed:', _safeErr(decErr));
+        console.error('SQLiteCrypto: Decryption failed:', _safeErr(decErr));
         return null;
       }
     },
@@ -924,14 +748,13 @@ const IDBCrypto = (() => {
         if (encrypted === testValue) return false;
         const decrypted = await this.decrypt(encrypted);
         return decrypted === testValue;
-      } catch (e) {
-        return false;
-      }
+      } catch (e) { return false; }
     }
   };
 })();
-IDBCrypto.preWarm();
-let currentActiveTab = 'prod';
+
+SQLiteCrypto.preWarm();
+
 const USE_IDB_ONLY = true;
 function safeNumber(value, defaultValue = 0) {
 const num = Number(value);
@@ -967,497 +790,984 @@ return String(value);
 function safeReplace(value, searchValue, replaceValue) {
 return safeString(value).replace(searchValue, replaceValue);
 }
-const IDB_CONFIG = {
-name: 'NaswarDealersDB',
-version: 2,
-store: 'app_data',
-indexes: {
-timestamp: 'timestamp',
-type: 'type',
-userId: 'userId',
-composite: 'type_timestamp'
-},
-performance: {
-batchSize: 100,
-compressThreshold: 10240
-}
-};
-const idb = {
-db: null,
-_initPromise: null,
-_prefix: '',
-_quotaToastShown: false,
-_DEVICE_GLOBAL: new Set(['device_id', 'device_name', 'theme', 'appMode', 'appMode_timestamp', 'repProfile', 'repProfile_timestamp', 'assignedManager', 'assignedUserTabs']),
-_PLAINTEXT_KEYS: new Set(['appMode', 'appMode_timestamp', 'repProfile', 'repProfile_timestamp', 'assignedManager', 'assignedUserTabs', 'device_name', 'theme', 'last_synced', 'firestore_initialized', 'firestore_init_timestamp']),
-setUserPrefix(uid) {
-  const newPrefix = uid ? 'u_' + uid + '_' : '';
-  if (this._prefix !== newPrefix) {
-    this._prefix = newPrefix;
-    if (typeof DeltaSync !== 'undefined') {
-      DeltaSync._cache = {};
-      DeltaSync._dirty = new Map();
+
+const SQLITE_DB_NAME      = 'naswar_dealers.sqlite';
+
+const SQLITE_JS_LOCAL      = './sql-wasm.js';
+const SQLITE_WASM_LOCAL    = './sql-wasm.wasm';
+const SQLITE_ASMJS_LOCAL   = './sql.js';
+const SQLITE_CDN           = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.13.0/sql-wasm.js';
+const SQLITE_WASM_CDN      = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.13.0/sql-wasm.wasm';
+const SQLITE_ASMJS_CDN     = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.13.0/sql.js';
+const SQLITE_MAGIC        = 'SQLite format 3\0';
+const SQLITE_SCHEMA_VERSION = 2;
+
+const PERSIST_URGENT_MS   = 0;
+const PERSIST_NORMAL_MS   = 3000;
+const PERSIST_LAZY_MS     = 8000;
+
+const sqliteStore = (() => {
+
+  let _sqlDB           = null;
+  let _SQL             = null;
+  let _initPromise     = null;
+  let _prefix          = '';
+  let _uid             = '';
+  let _quotaToastShown = false;
+  let _pendingWrites   = 0;
+  let _persistTimer    = null;
+  let _persistUrgency  = PERSIST_LAZY_MS;
+  let _lastPersistAt   = 0;
+  let _hasOPFS         = false;
+  let _persistChannel  = null;
+
+  const _DEVICE_GLOBAL = new Set([
+    'device_id', 'device_name', 'theme',
+    'appMode', 'appMode_timestamp',
+    'repProfile', 'repProfile_timestamp',
+    'assignedManager', 'assignedUserTabs',
+  ]);
+
+  const _PLAINTEXT_KEYS = new Set([
+    'appMode', 'appMode_timestamp',
+    'repProfile', 'repProfile_timestamp',
+    'assignedManager', 'assignedUserTabs',
+    'device_name', 'theme', 'app_theme',
+    'last_synced', 'firestore_initialized', 'firestore_init_timestamp',
+    'ui_state', 'firestore_stats', 'session_start',
+  ]);
+
+  const _IDB_KEY_TO_COLLECTION = {
+    'mfg_pro_pkr':                'production',
+    'customer_sales':             'sales',
+    'noman_history':              'calculator_history',
+    'rep_sales':                  'rep_sales',
+    'rep_customers':              'rep_customers',
+    'sales_customers':            'sales_customers',
+    'payment_transactions':       'transactions',
+    'payment_entities':           'entities',
+    'factory_inventory_data':     'inventory',
+    'factory_production_history': 'factory_history',
+    'stock_returns':              'returns',
+    'expenses':                   'expenses',
+    'deletion_records':           'deletions',
+    'deleted_records':            'deleted_ids',
+  };
+
+  const _SETTINGS_KEYS = new Set([
+    'factory_default_formulas', 'factory_additional_costs',
+    'factory_sale_prices', 'factory_cost_adjustment_factor',
+    'factory_unit_tracking', 'naswar_default_settings',
+    'expense_categories', 'sales_reps_list', 'user_roles_list',
+    'offline_operation_queue', 'offline_dead_letter_queue',
+    'ui_state', 'app_theme', 'firestore_stats', 'session_start',
+  ]);
+
+  function _rowType(key) {
+    if (_DEVICE_GLOBAL.has(key))                                  return 'device';
+    if (_IDB_KEY_TO_COLLECTION[key])                              return 'collection';
+    if (_SETTINGS_KEYS.has(key))                                  return 'settings';
+    if (key.startsWith('lastSync_'))                              return 'sync_meta';
+    if (key.startsWith('lastLocalMod_'))                          return 'sync_meta';
+    if (key.startsWith('uploadedIds_'))                           return 'sync_meta';
+    if (key.startsWith('factory_') && key.endsWith('_timestamp')) return 'sync_meta';
+    if (key.endsWith('_timestamp'))                               return 'sync_meta';
+    if (key === 'last_synced' || key === 'deltaSyncStats'
+      || key === 'firestore_initialized' || key === 'firestore_init_timestamp'
+      || key === 'pendingFirestoreYearClose' || key === 'team_list_timestamp'
+      || key === 'user_state')                                    return 'sync_meta';
+    return 'config';
+  }
+
+  function _persistUrgencyFor(key) {
+    const rt = _rowType(key);
+    if (rt === 'collection') return PERSIST_URGENT_MS;
+    if (rt === 'settings')   return PERSIST_NORMAL_MS;
+    return PERSIST_LAZY_MS;
+  }
+
+  function _isValidSQLite(bytes) {
+    if (!bytes || bytes.length < 16) return false;
+    for (let i = 0; i < 16; i++) {
+      if (bytes[i] !== SQLITE_MAGIC.charCodeAt(i)) return false;
     }
+    return true;
   }
-},
-clearUserPrefix() {
-  this._prefix = '';
-  if (typeof DeltaSync !== 'undefined') {
-    DeltaSync._cache = {};
-    DeltaSync._dirty = new Map();
-  }
-},
-_k(key) {
-  if (!this._prefix) return key;
-  if (this._DEVICE_GLOBAL.has(key)) return key;
-  return this._prefix + key;
-},
-async init() {
-if (this.db) return this.db;
-if (this._initPromise) return this._initPromise;
-this._initPromise = new Promise((resolve, reject) => {
-const request = indexedDB.open(IDB_CONFIG.name, IDB_CONFIG.version);
-request.onupgradeneeded = (e) => {
-const db = e.target.result;
-const oldVersion = e.oldVersion;
-if (!db.objectStoreNames.contains(IDB_CONFIG.store)) {
-const objectStore = db.createObjectStore(IDB_CONFIG.store);
-try {
-objectStore.createIndex(IDB_CONFIG.indexes.timestamp, 'metadata.timestamp', { unique: false });
-objectStore.createIndex(IDB_CONFIG.indexes.type, 'metadata.type', { unique: false });
-objectStore.createIndex(IDB_CONFIG.indexes.userId, 'metadata.userId', { unique: false });
-objectStore.createIndex(IDB_CONFIG.indexes.composite, ['metadata.type', 'metadata.timestamp'], { unique: false });
-} catch (e) {
-console.error('An unexpected error occurred.', _safeErr(e));
-showToast('An unexpected error occurred.', 'error');
-}
-} else if (oldVersion < 2) {
-}
-};
-request.onsuccess = (e) => {
-this.db = e.target.result;
-this.db.onerror = (event) => {
-const err = event.target.error;
-if (err) console.error('IDB: Uncaught database error:', err.name, err.message);
-};
-this.db.onversionchange = () => {
-this.db.close();
-this.db = null;
-this._initPromise = null;
-if (typeof showToast === 'function') {
-  showToast('App updated in another tab — please reload to continue.', 'warning', 0);
-}
-};
-resolve(this.db);
-};
-request.onerror = (e) => {
-this._initPromise = null;
-reject(e.target.error || new Error("IDB open failed"));
-};
-request.onblocked = () => {
-  console.warn('IDB: open blocked by another tab holding the DB connection. Reload required.');
-  if (typeof showToast === 'function') {
-    showToast('App update pending — please close other tabs and reload.', 'warning', 8000);
-  }
-};
-});
-return this._initPromise;
-},
-_wrapValue(key, value) {
-let recordIds = [];
-let recordCount = 0;
-const isCollectionString = typeof value === 'string' && (value.trimStart()[0] === '[' || value.trimStart()[0] === '{');
-if (isCollectionString || (typeof value !== 'string')) {
-try {
-const parsedData = typeof value === 'string' ? JSON.parse(value) : value;
-if (Array.isArray(parsedData)) {
-recordCount = parsedData.length;
-recordIds = parsedData.slice(0, 10).map(item => item.id).filter(Boolean);
-}
-} catch (e) {
-console.warn('IDB record parsing error', e);
-}
-}
-const serialized = typeof value === 'string' ? value : JSON.stringify(value);
-const wrapped = {
-data: serialized,
-metadata: {
-timestamp: Date.now(),
-type: this._inferType(key),
-userId: 'default_user',
-key: key,
-compressed: false,
-encrypted: false,
-recordCount: recordCount,
-sampleIds: [],
-version: 2
-}
-};
-return wrapped;
-},
-_unwrapValue(wrapped) {
-if (!wrapped) return null;
-if (!wrapped.metadata) {
-try {
-return JSON.parse(wrapped);
-} catch (e) {
-return wrapped;
-}
-}
-return wrapped.data;
-},
-_inferType(key) {
-if (key.includes('payment')) return 'payment';
-if (key.includes('expense')) return 'expense';
-if (key.includes('factory')) return 'factory';
-if (key.includes('customer') || key.includes('sales')) return 'sales';
-if (key.includes('mfg') || key.includes('production')) return 'production';
-return 'other';
-},
-async get(key, defaultValue = null) {
-await this.init();
-return new Promise((resolve, reject) => {
-const transaction = this.db.transaction(IDB_CONFIG.store, 'readonly');
-const store = transaction.objectStore(IDB_CONFIG.store);
-const request = store.get(this._k(key));
-request.onsuccess = async () => {
-const wrapped = request.result;
-if (wrapped === undefined) {
-resolve(defaultValue);
-} else {
-const rawData = this._unwrapValue(wrapped);
-if (rawData === null || rawData === undefined) { resolve(defaultValue); return; }
-try {
-const isPlaintext = this._PLAINTEXT_KEYS && this._PLAINTEXT_KEYS.has(key);
-if (isPlaintext) {
-if (typeof rawData === 'string' && rawData.startsWith('GZND_ENC_')) {
-// Stale encrypted value for a now-plaintext key — clear it and return default
-this.remove(key).catch(() => {});
-resolve(defaultValue);
-return;
-}
-if (typeof rawData === 'string') {
-try { resolve(JSON.parse(rawData)); } catch(e) { resolve(rawData); }
-} else { resolve(rawData); }
-return;
-}
-const decrypted = await IDBCrypto.decrypt(rawData);
-if (decrypted === null) {
-console.warn('IDB: Decryption returned null for key:', key);
-resolve(defaultValue);
-return;
-}
-if (typeof decrypted === 'string') {
-try { resolve(JSON.parse(decrypted)); } catch(e) { resolve(decrypted); }
-} else {
-resolve(decrypted);
-}
-} catch(decErr) {
-console.warn('IDB: Decryption error for key:', key, decErr);
-try { resolve(JSON.parse(rawData)); } catch(e) { resolve(rawData); }
-}
-}
-};
-request.onerror = () => reject(request.error || new Error("IDB get request failed for key: " + key));
-transaction.onerror = () => reject(transaction.error || new Error("IDB get transaction failed for key: " + key));
-transaction.onabort = () => resolve(defaultValue);
-});
-},
-_handleWriteError(err, context) {
-  if (err && (err.name === 'QuotaExceededError' || err.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
-    console.error('IDB: QuotaExceededError on', context, _safeErr(err));
-    if (!this._quotaToastShown) {
-      this._quotaToastShown = true;
-      if (typeof showToast === 'function') {
-        showToast(
-          'Storage full — data could not be saved. Free up device storage and try again.',
-          'error', 8000
-        );
+
+  function _integrityCheck(db) {
+    try {
+      const rows = db.exec('PRAGMA integrity_check');
+      const val  = rows.length && rows[0].values.length
+        ? rows[0].values[0][0] : 'error';
+      if (val !== 'ok') {
+        console.error('[SQLite] integrity_check failed:', val);
+        return false;
       }
-      setTimeout(() => { this._quotaToastShown = false; }, 10000);
+      return true;
+    } catch (e) {
+      console.error('[SQLite] integrity_check threw:', _safeErr(e));
+      return false;
     }
-  } else {
-    console.error('IDB: Write error on', context, _safeErr(err));
   }
-  throw err;
-},
-async set(key, value) {
-await this.init();
-if (Array.isArray(value)) {
-value = value.map(record => {
-if (typeof record === 'object' && record !== null) {
-return ensureRecordIntegrity(record);
-}
-return record;
-});
-} else if (typeof value === 'object' && value !== null) {
-value = ensureRecordIntegrity(value);
-}
-const serialized = typeof value === 'string' ? value : JSON.stringify(value);
-const isPlaintext = this._PLAINTEXT_KEYS && this._PLAINTEXT_KEYS.has(key);
-const encryptedData = isPlaintext ? serialized : await IDBCrypto.encrypt(serialized);
-try {
-return await new Promise((resolve, reject) => {
-const transaction = this.db.transaction(IDB_CONFIG.store, 'readwrite');
-const store = transaction.objectStore(IDB_CONFIG.store);
-const wrapped = this._wrapValue(key, value);
-wrapped.data = encryptedData;
-wrapped.metadata.encrypted = isPlaintext ? false : IDBCrypto.isReady();
-const request = store.put(wrapped, this._k(key));
-request.onsuccess = () => {
-resolve();
-};
-request.onerror = () => {
-reject(request.error || new Error("IDB set request failed for key: " + key));
-};
-transaction.onerror = () => {
-reject(transaction.error || request.error || new Error("IDB set transaction failed for key: " + key));
-};
-transaction.onabort = () => {
-reject(transaction.error || request.error || new Error("IDB set transaction aborted for key: " + key));
-};
-});
-} catch (err) {
-this._handleWriteError(err, key);
-}
-},
-async setBatch(entries) {
-await this.init();
-const validatedEntries = entries.map(([key, value]) => {
-if (Array.isArray(value)) {
-value = value.map(record => {
-if (typeof record === 'object' && record !== null) {
-return ensureRecordIntegrity(record);
-}
-return record;
-});
-} else if (typeof value === 'object' && value !== null) {
-value = ensureRecordIntegrity(value);
-}
-return [key, value];
-});
-const encryptedEntries = await Promise.all(
-validatedEntries.map(async ([key, value]) => {
-try {
-const serialized = typeof value === 'string' ? value : JSON.stringify(value);
-const isPlaintext = this._PLAINTEXT_KEYS && this._PLAINTEXT_KEYS.has(key);
-const encryptedData = isPlaintext ? serialized : await IDBCrypto.encrypt(serialized);
-return [key, value, encryptedData, isPlaintext];
-} catch (encErr) {
-console.error('IDB: Encryption failed for key:', key, _safeErr(encErr));
-return [key, value, typeof value === 'string' ? value : JSON.stringify(value), false];
-}
-})
-);
-const batches = [];
-for (let i = 0; i < encryptedEntries.length; i += IDB_CONFIG.performance.batchSize) {
-batches.push(encryptedEntries.slice(i, i + IDB_CONFIG.performance.batchSize));
-}
-try {
-for (const batch of batches) {
-await new Promise((resolve, reject) => {
-const transaction = this.db.transaction(IDB_CONFIG.store, 'readwrite');
-const store = transaction.objectStore(IDB_CONFIG.store);
-batch.forEach(([key, value, encryptedData, isPlaintext]) => {
-const wrapped = this._wrapValue(key, value);
-wrapped.data = encryptedData;
-wrapped.metadata.encrypted = isPlaintext ? false : IDBCrypto.isReady();
-const putReq = store.put(wrapped, this._k(key));
-putReq.onerror = () => reject(putReq.error || new Error("IDB setBatch put failed for key: " + key));
-});
-transaction.oncomplete = () => {
-resolve();
-};
-transaction.onerror = () => reject(transaction.error || new Error("IDB setBatch transaction failed"));
-transaction.onabort = () => reject(transaction.error || new Error("IDB setBatch transaction aborted"));
-});
-}
-} catch (err) {
-this._handleWriteError(err, 'setBatch[' + entries.map(([k]) => k).join(',') + ']');
-}
-},
-DECRYPT_FAILED: Symbol('DECRYPT_FAILED'),
-async getBatch(keys) {
-await this.init();
-const results = new Map();
-if (keys.length === 0) return results;
-await IDBCrypto.restoreSessionKeyFromStorage();
-const rawMap = new Map();
-await new Promise((resolve, reject) => {
-const transaction = this.db.transaction(IDB_CONFIG.store, 'readonly');
-const store = transaction.objectStore(IDB_CONFIG.store);
-let completed = 0;
-keys.forEach(key => {
-const request = store.get(this._k(key));
-request.onsuccess = () => {
-rawMap.set(key, this._unwrapValue(request.result));
-if (++completed === keys.length) resolve();
-};
-request.onerror = () => { rawMap.set(key, null); if (++completed === keys.length) resolve(); };
-});
-transaction.onerror = () => {
-keys.forEach(k => { if (!rawMap.has(k)) rawMap.set(k, null); });
-resolve();
-};
-transaction.onabort = () => {
-keys.forEach(k => { if (!rawMap.has(k)) rawMap.set(k, null); });
-resolve();
-};
-});
-await Promise.all(keys.map(async key => {
-const rawData = rawMap.get(key);
-if (rawData === null || rawData === undefined) { results.set(key, null); return; }
-try {
-const isPlaintext = this._PLAINTEXT_KEYS && this._PLAINTEXT_KEYS.has(key);
-if (isPlaintext) {
-// Plaintext keys: parse directly, no decryption needed.
-// If a stale encrypted value exists (GZND_ENC_ prefix), treat as missing
-// so it gets written fresh (unencrypted) on next save.
-if (typeof rawData === 'string' && rawData.startsWith('GZND_ENC_')) {
-results.set(key, null);
-// Schedule async deletion of stale encrypted value
-this.remove(key).catch(() => {});
-return;
-}
-if (typeof rawData === 'string') {
-try { results.set(key, JSON.parse(rawData)); } catch(e) { results.set(key, rawData); }
-} else { results.set(key, rawData); }
-return;
-}
-const decrypted = await IDBCrypto.decrypt(rawData);
-if (decrypted === null) {
-const wasEncrypted = typeof rawData === 'string' && rawData.startsWith('GZND_ENC_');
-if (wasEncrypted) {
-console.warn('IDB: Decryption returned null for encrypted key in batch:', key);
-results.set(key, idb.DECRYPT_FAILED);
-} else {
-console.warn('IDB: Decryption returned null for key in batch:', key);
-results.set(key, null);
-}
-} else if (typeof decrypted === 'string') {
-try { results.set(key, JSON.parse(decrypted)); } catch(e) { results.set(key, decrypted); }
-} else {
-results.set(key, decrypted);
-}
-} catch(e) {
-const wasEncrypted = typeof rawData === 'string' && rawData.startsWith('GZND_ENC_');
-if (wasEncrypted) {
-console.warn('IDB: Decryption exception for encrypted key in batch:', key, e);
-results.set(key, idb.DECRYPT_FAILED);
-} else {
-console.warn('IDB: Decryption error for key in batch:', key, e);
-try { results.set(key, JSON.parse(rawData)); } catch(e2) { results.set(key, rawData); }
-}
-}
-}));
-return results;
-},
-async remove(key) {
-await this.init();
-return new Promise((resolve, reject) => {
-const transaction = this.db.transaction(IDB_CONFIG.store, 'readwrite');
-const store = transaction.objectStore(IDB_CONFIG.store);
-const request = store.delete(this._k(key));
-request.onsuccess = () => resolve();
-request.onerror = () => reject(request.error || new Error("IDB remove request failed for key: " + key));
-transaction.onerror = () => reject(transaction.error || request.error || new Error("IDB remove transaction failed for key: " + key));
-transaction.onabort = () => reject(transaction.error || new Error("IDB remove transaction aborted for key: " + key));
-});
-},
-async queryByType(type, options = {}) {
-await this.init();
-return new Promise((resolve, reject) => {
-const transaction = this.db.transaction(IDB_CONFIG.store, 'readonly');
-const store = transaction.objectStore(IDB_CONFIG.store);
-try {
-const index = store.index(IDB_CONFIG.indexes.type);
-const range = IDBKeyRange.only(type);
-const request = index.openCursor(range);
-const results = [];
-const limit = options.limit || Infinity;
-let count = 0;
-request.onsuccess = (e) => {
-const cursor = e.target.result;
-if (cursor && count < limit) {
-const value = this._unwrapValue(cursor.value);
-results.push({
-key: cursor.primaryKey,
-value: value,
-metadata: cursor.value.metadata
-});
-count++;
-cursor.continue();
-} else {
-resolve(results);
-}
-};
-request.onerror = () => reject(request.error || new Error("IDB request failed"));
-} catch (e) {
-resolve([]);
-}
-});
-},
-async queryByTimeRange(type, startTime, endTime, options = {}) {
-await this.init();
-return new Promise((resolve, reject) => {
-const transaction = this.db.transaction(IDB_CONFIG.store, 'readonly');
-const store = transaction.objectStore(IDB_CONFIG.store);
-try {
-const index = store.index(IDB_CONFIG.indexes.composite);
-const range = IDBKeyRange.bound([type, startTime], [type, endTime]);
-const request = index.openCursor(range);
-const results = [];
-const limit = options.limit || Infinity;
-let count = 0;
-request.onsuccess = (e) => {
-const cursor = e.target.result;
-if (cursor && count < limit) {
-const value = this._unwrapValue(cursor.value);
-results.push({
-key: cursor.primaryKey,
-value: value,
-metadata: cursor.value.metadata
-});
-count++;
-cursor.continue();
-} else {
-resolve(results);
-}
-};
-request.onerror = () => reject(request.error || new Error("IDB request failed"));
-} catch (e) {
-console.error('An unexpected error occurred.', _safeErr(e));
-showToast('An unexpected error occurred.', 'error');
-this.queryByType(type, options).then(resolve).catch(reject);
-}
-});
-},
-async count(options = {}) {
-await this.init();
-return new Promise((resolve, reject) => {
-const transaction = this.db.transaction(IDB_CONFIG.store, 'readonly');
-const store = transaction.objectStore(IDB_CONFIG.store);
-if (options.type) {
-try {
-const index = store.index(IDB_CONFIG.indexes.type);
-const range = IDBKeyRange.only(options.type);
-const request = index.count(range);
-request.onsuccess = () => resolve(request.result);
-request.onerror = () => reject(request.error || new Error("IDB request failed"));
-} catch (e) {
-console.error('An unexpected error occurred.', _safeErr(e));
-showToast('An unexpected error occurred.', 'error');
-const request = store.count();
-request.onsuccess = () => resolve(request.result);
-request.onerror = () => reject(request.error || new Error("IDB request failed"));
-}
-} else {
-const request = store.count();
-request.onsuccess = () => resolve(request.result);
-request.onerror = () => reject(request.error || new Error("IDB request failed"));
-}
-});
-}
-};
+
+  async function _checkQuota(requiredBytes = 0) {
+    try {
+      if (!navigator.storage || !navigator.storage.estimate) return true;
+      const { usage, quota } = await navigator.storage.estimate();
+      const available = quota - usage;
+      if (available < requiredBytes + 512 * 1024) {
+        if (!_quotaToastShown) {
+          _quotaToastShown = true;
+          const mbFree = Math.round(available / 1024 / 1024);
+          if (typeof showToast === 'function')
+            showToast(`Storage nearly full (${mbFree} MB free) — free space to keep saving data.`, 'warning', 10000);
+          setTimeout(() => { _quotaToastShown = false; }, 30000);
+        }
+        return false;
+      }
+      return true;
+    } catch { return true; }
+  }
+
+  async function _opfsWrite(filename, data) {
+    const root = await navigator.storage.getDirectory();
+    const fh   = await root.getFileHandle(filename, { create: true });
+    const wr   = await fh.createWritable();
+    await wr.write(data);
+    await wr.close();
+  }
+  async function _opfsRead(filename) {
+    try {
+      const root = await navigator.storage.getDirectory();
+      const fh   = await root.getFileHandle(filename);
+      return new Uint8Array(await (await fh.getFile()).arrayBuffer());
+    } catch { return null; }
+  }
+  async function _opfsDelete(filename) {
+    try {
+      const root = await navigator.storage.getDirectory();
+      await root.removeEntry(filename);
+    } catch {}
+  }
+
+  async function _opfsShadowWrite(data) {
+    await _opfsWrite(SQLITE_DB_NAME, data);
+  }
+
+  const _LS_BLOB_KEY     = '_gznd_sqlite_db';
+  const _LS_BLOB_KEY_BAK = '_gznd_sqlite_db_bak';
+
+  async function _lsBlobWrite(lsKey, data) {
+    try {
+      const CHUNK = 0x8000;
+      let binary = '';
+      for (let i = 0; i < data.length; i += CHUNK) {
+        binary += String.fromCharCode.apply(null, data.subarray(i, i + CHUNK));
+      }
+      localStorage.setItem(lsKey, btoa(binary));
+    } catch(e) {
+      console.warn('[SQLite] localStorage blob write failed (storage full?):', _safeErr(e));
+    }
+  }
+  function _lsBlobRead(lsKey) {
+    try {
+      const b64 = localStorage.getItem(lsKey);
+      if (!b64) return null;
+      const binary = atob(b64);
+      const bytes  = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return bytes;
+    } catch { return null; }
+  }
+
+  async function _dualPersist() {
+    if (!_sqlDB) return;
+    const data     = _sqlDB.export();
+    const required = data.byteLength * 2 + 1024 * 1024;
+    await _checkQuota(required);
+    const writes = [];
+    if (_hasOPFS) {
+      writes.push(
+        _opfsShadowWrite(data)
+          .then(() => _opfsWrite(SQLITE_DB_NAME + '.bak', data))
+          .catch(e => console.warn('[SQLite] OPFS write failed:', _safeErr(e)))
+      );
+    } else {
+      writes.push(
+        Promise.resolve()
+          .then(() => _lsBlobWrite(_LS_BLOB_KEY, data))
+          .then(() => _lsBlobWrite(_LS_BLOB_KEY_BAK, data))
+          .catch(e => console.warn('[SQLite] localStorage blob write failed:', _safeErr(e)))
+      );
+    }
+    await Promise.allSettled(writes);
+    _pendingWrites = 0;
+    _lastPersistAt = Date.now();
+  }
+
+  function _schedulePersist(urgencyMs) {
+    _pendingWrites++;
+    if (urgencyMs < _persistUrgency || _persistTimer === null) {
+      _persistUrgency = urgencyMs;
+      if (_persistTimer) clearTimeout(_persistTimer);
+      _persistTimer = setTimeout(() => {
+        _persistTimer   = null;
+        _persistUrgency = PERSIST_LAZY_MS;
+        _dualPersist()
+          .then(() => _notifyPersisted())
+          .catch(e => console.warn('[SQLite] persist error:', _safeErr(e)));
+      }, urgencyMs);
+    }
+  }
+
+  async function _flushPersist() {
+    if (_persistTimer) { clearTimeout(_persistTimer); _persistTimer = null; }
+    _persistUrgency = PERSIST_LAZY_MS;
+    if (_pendingWrites > 0) await _dualPersist();
+  }
+
+  function _notifyPersisted() {
+    if (!_persistChannel) return;
+    try { _persistChannel.postMessage({ type: 'sqlite-persisted', uid: _uid, ts: Date.now() }); }
+    catch {}
+  }
+
+  async function _loadBestDB() {
+    const sources = [];
+    if (_hasOPFS) {
+      sources.push({ name: 'OPFS primary', load: () => _opfsRead(SQLITE_DB_NAME) });
+      sources.push({ name: 'OPFS backup',  load: () => _opfsRead(SQLITE_DB_NAME + '.bak') });
+    } else {
+      sources.push({ name: 'localStorage primary', load: async () => _lsBlobRead(_LS_BLOB_KEY)     });
+      sources.push({ name: 'localStorage backup',  load: async () => _lsBlobRead(_LS_BLOB_KEY_BAK) });
+    }
+    for (const src of sources) {
+      try {
+        const bytes = await src.load();
+        if (bytes && _isValidSQLite(bytes)) {
+          return bytes;
+        }
+        if (bytes) console.warn(`[SQLite] ${src.name} failed integrity check — trying next`);
+      } catch (e) {
+        console.warn(`[SQLite] ${src.name} error:`, _safeErr(e));
+      }
+    }
+    return null;
+  }
+
+  async function _canFetch(url) {
+    try {
+      const r = await fetch(url, { method: 'HEAD', cache: 'no-cache' });
+      return r.ok;
+    } catch { return false; }
+  }
+
+  function _injectScript(src) {
+    return new Promise((resolve, reject) => {
+
+      if (document.querySelector('script[src="' + src + '"]')) { resolve(); return; }
+      const s   = document.createElement('script');
+      s.src     = src;
+      s.onload  = () => resolve();
+      s.onerror = () => reject(new Error('[SQLite] script load failed: ' + src));
+      document.head.appendChild(s);
+    });
+  }
+
+  async function _tryLoadWasm() {
+
+    const wasmUrl = (await _canFetch(SQLITE_WASM_LOCAL))
+      ? SQLITE_WASM_LOCAL
+      : SQLITE_WASM_CDN;
+
+    if (typeof window.initSqlJs !== 'function') {
+      const jsUrl = (await _canFetch(SQLITE_JS_LOCAL)) ? SQLITE_JS_LOCAL : SQLITE_CDN;
+      await _injectScript(jsUrl);
+    }
+
+    if (typeof window.initSqlJs !== 'function') {
+      throw new Error('[SQLite] initSqlJs not available after script load');
+    }
+
+    const resp   = await fetch(wasmUrl);
+    if (!resp.ok) throw new Error('[SQLite] WASM fetch failed: ' + resp.status);
+    const buffer = await resp.arrayBuffer();
+    return window.initSqlJs({ wasmBinary: buffer });
+  }
+
+  async function _tryLoadAsmJs() {
+
+    delete window.initSqlJs;
+    delete window.SQL;
+
+    const jsUrl = (await _canFetch(SQLITE_ASMJS_LOCAL))
+      ? SQLITE_ASMJS_LOCAL
+      : SQLITE_ASMJS_CDN;
+
+    await _injectScript(jsUrl);
+
+    if (typeof window.initSqlJs !== 'function') {
+      throw new Error('[SQLite] asm.js initSqlJs not available after script load');
+    }
+
+    return window.initSqlJs();
+  }
+
+  async function _loadSqlJs() {
+    if (window.SQL) return window.SQL;
+
+    try {
+      const SQL = await _tryLoadWasm();
+      return (window.SQL = SQL);
+    } catch (e1) {
+      console.warn('[SQLite] WASM build failed, falling back to asm.js:', _safeErr(e1));
+    }
+
+    try {
+      const SQL = await _tryLoadAsmJs();
+      return (window.SQL = SQL);
+    } catch (e2) {
+
+      const msg = '[SQLite] Both WASM and asm.js builds failed. '
+        + 'Run: node download-sqljs.js to install local files. '
+        + 'Details: ' + e2.message;
+      console.error(msg);
+      throw new Error(msg);
+    }
+  }
+
+  let _stmtGet = null;
+  function _clearStmtCache() {
+    if (_stmtGet) { try { _stmtGet.free(); } catch {} _stmtGet = null; }
+  }
+
+  function _bootstrapSchema(db) {
+
+    db.run('PRAGMA journal_mode=WAL');
+    db.run('PRAGMA synchronous=NORMAL');
+    db.run('PRAGMA temp_store=MEMORY');
+    db.run('PRAGMA cache_size=-8000');
+
+    db.run(`CREATE TABLE IF NOT EXISTS schema_version (
+      version     INTEGER NOT NULL,
+      upgraded_at INTEGER NOT NULL
+    )`);
+    const vRows          = db.exec('SELECT version FROM schema_version LIMIT 1');
+    const currentVersion = (vRows.length && vRows[0].values.length)
+      ? vRows[0].values[0][0] : 0;
+
+    db.run(`CREATE TABLE IF NOT EXISTS kv_store (
+      full_key   TEXT    NOT NULL PRIMARY KEY,
+      user_key   TEXT    NOT NULL,
+      uid        TEXT    NOT NULL DEFAULT '',
+      collection TEXT    NOT NULL DEFAULT '',
+      row_type   TEXT    NOT NULL DEFAULT 'config',
+      encrypted  INTEGER NOT NULL DEFAULT 0,
+      value      TEXT,
+      ts         INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL DEFAULT 0
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS ndapp_outbox (
+      id           TEXT    NOT NULL PRIMARY KEY,
+      uid          TEXT    NOT NULL DEFAULT '',
+      action       TEXT    NOT NULL,
+      collection   TEXT    NOT NULL DEFAULT '',
+      doc_id       TEXT    NOT NULL DEFAULT '',
+      payload      TEXT,
+      created_at   INTEGER NOT NULL DEFAULT 0,
+      attempts     INTEGER NOT NULL DEFAULT 0,
+      last_attempt INTEGER NOT NULL DEFAULT 0
+    )`);
+
+    db.run(`CREATE INDEX IF NOT EXISTS idx_kv_uid_key
+            ON kv_store (uid, user_key)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_kv_collection
+            ON kv_store (uid, collection) WHERE collection != ''`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_kv_row_type
+            ON kv_store (uid, row_type)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_kv_ts
+            ON kv_store (ts)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_kv_device
+            ON kv_store (row_type) WHERE row_type = 'device'`);
+
+    db.run(`CREATE INDEX IF NOT EXISTS idx_outbox_uid
+            ON ndapp_outbox (uid, created_at)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_outbox_col
+            ON ndapp_outbox (uid, collection)`);
+
+  }
+
+  function _fullKey(key) {
+    if (!_prefix || _DEVICE_GLOBAL.has(key)) return key;
+    return _prefix + key;
+  }
+
+  function _rawGet(fullKey) {
+    try {
+      if (!_stmtGet) _stmtGet = _sqlDB.prepare('SELECT value, encrypted FROM kv_store WHERE full_key = ?');
+      _stmtGet.bind([fullKey]);
+      let row = null;
+      if (_stmtGet.step()) row = _stmtGet.getAsObject();
+      _stmtGet.reset();
+      return row;
+    } catch (e) {
+      _stmtGet = null;
+      const stmt = _sqlDB.prepare('SELECT value, encrypted FROM kv_store WHERE full_key = ?');
+      stmt.bind([fullKey]);
+      let row = null;
+      if (stmt.step()) row = stmt.getAsObject();
+      stmt.free();
+      return row;
+    }
+  }
+
+  function _rawSet(key, serialized, isEncrypted) {
+    const now        = Date.now();
+    const fk         = _fullKey(key);
+    const uid        = _DEVICE_GLOBAL.has(key) ? '' : _uid;
+    const collection = _IDB_KEY_TO_COLLECTION[key] || '';
+    const rowType    = _rowType(key);
+    _sqlDB.run(`
+      INSERT INTO kv_store
+        (full_key, user_key, uid, collection, row_type, encrypted, value, ts, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(full_key) DO UPDATE SET
+        value      = excluded.value,
+        encrypted  = excluded.encrypted,
+        ts         = excluded.ts,
+        row_type   = excluded.row_type,
+        collection = excluded.collection
+    `, [fk, key, uid, collection, rowType, isEncrypted ? 1 : 0, serialized, now, now]);
+  }
+
+  function _rawDelete(fullKey) {
+    _sqlDB.run('DELETE FROM kv_store WHERE full_key = ?', [fullKey]);
+    _schedulePersist(PERSIST_NORMAL_MS);
+  }
+
+  function _cachedGet(fullKey) {
+    return _rawGet(fullKey);
+  }
+
+  async function _decrypt(key, rawData) {
+    if (rawData === null || rawData === undefined) return null;
+    const isPlain = _PLAINTEXT_KEYS.has(key);
+    if (isPlain) {
+      if (typeof rawData === 'string' && rawData.startsWith('GZND_ENC_')) return null;
+      try { return JSON.parse(rawData); } catch { return rawData; }
+    }
+    const dec = await SQLiteCrypto.decrypt(rawData);
+    if (dec === null) return null;
+    try { return JSON.parse(dec); } catch { return dec; }
+  }
+
+  function _outboxAdd(action, collection, docId, payload) {
+    if (!_sqlDB) return;
+    const id = (typeof generateUUID === 'function')
+      ? generateUUID('ob')
+      : Date.now().toString(36) + Math.random().toString(36).slice(2);
+    _sqlDB.run(`
+      INSERT OR IGNORE INTO ndapp_outbox
+        (id, uid, action, collection, doc_id, payload, created_at, attempts, last_attempt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0)
+    `, [id, _uid, action, collection || '', docId || '', payload ? JSON.stringify(payload) : null, Date.now()]);
+    _schedulePersist(PERSIST_URGENT_MS);
+  }
+
+  function _outboxGetAll() {
+    if (!_sqlDB) return [];
+    return _sqlDB.exec(
+      'SELECT id, action, collection, doc_id, payload FROM ndapp_outbox WHERE uid=? ORDER BY created_at',
+      [_uid]
+    ).flatMap(r => r.values.map(v => ({
+      id: v[0], action: v[1], collection: v[2], doc_id: v[3],
+      data: v[4] ? JSON.parse(v[4]) : null,
+    })));
+  }
+
+  function _outboxRemove(id) {
+    if (!_sqlDB) return;
+    _sqlDB.run('DELETE FROM ndapp_outbox WHERE id = ?', [id]);
+    _schedulePersist(PERSIST_NORMAL_MS);
+  }
+
+  function _outboxBumpAttempt(id) {
+    if (!_sqlDB) return;
+    _sqlDB.run(
+      'UPDATE ndapp_outbox SET attempts=attempts+1, last_attempt=? WHERE id=?',
+      [Date.now(), id]
+    );
+  }
+
+  async function _drainOutbox() {
+    if (!_sqlDB || !navigator.onLine) return;
+    if (typeof firebaseDB === 'undefined' || !firebaseDB) return;
+    if (typeof currentUser === 'undefined' || !currentUser) return;
+    const ops = _outboxGetAll();
+    if (ops.length === 0) return;
+    const userRef = firebaseDB.collection('users').doc(currentUser.uid);
+    let drained = 0;
+    for (const op of ops) {
+      try {
+        if (op.action === 'set' || op.action === 'set-doc') {
+          const ref = userRef.collection(op.collection).doc(op.doc_id);
+          const drainData = { ...(op.data || {}) };
+          if (typeof firebase !== 'undefined' && firebase.firestore && !drainData.isMerged) {
+            drainData.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+          }
+          await ref.set(drainData, { merge: true });
+        } else if (op.action === 'delete') {
+          const ref = userRef.collection(op.collection).doc(op.doc_id);
+          await ref.delete();
+        }
+        _outboxRemove(op.id);
+        drained++;
+      } catch (e) {
+        _outboxBumpAttempt(op.id);
+        console.warn(`[SQLite.outbox] op ${op.id} failed (will retry):`, _safeErr(e));
+      }
+    }
+    if (drained > 0) {
+      await _flushPersist();
+    }
+  }
+
+  return {
+
+    DECRYPT_FAILED: Symbol('DECRYPT_FAILED'),
+
+    setUserPrefix(uid) {
+      const newPrefix = uid ? 'u_' + uid + '_' : '';
+      if (_prefix !== newPrefix) {
+        _prefix = newPrefix;
+        _uid    = uid || '';
+        if (typeof DeltaSync !== 'undefined') {
+          DeltaSync._cache = {};
+          DeltaSync._dirty = new Map();
+          DeltaSync._uploaded = new Map();
+          DeltaSync._downloaded = new Map();
+          if (typeof DeltaSync.loadAllPendingIds === 'function') {
+            setTimeout(() => DeltaSync.loadAllPendingIds().catch(() => {}), 100);
+          }
+        }
+      }
+    },
+
+    clearUserPrefix() {
+      _prefix = '';
+      _uid    = '';
+      if (typeof DeltaSync !== 'undefined') {
+        DeltaSync._cache = {};
+        DeltaSync._dirty = new Map();
+      }
+    },
+
+    async init() {
+      if (_sqlDB)       return _sqlDB;
+      if (_initPromise) return _initPromise;
+      _initPromise = (async () => {
+        try {
+
+          _hasOPFS = typeof navigator !== 'undefined' &&
+                     !!navigator.storage &&
+                     typeof navigator.storage.getDirectory === 'function';
+
+          _SQL = await _loadSqlJs();
+          const existing = await _loadBestDB();
+          _clearStmtCache();
+          _sqlDB = existing ? new _SQL.Database(existing) : new _SQL.Database();
+          _bootstrapSchema(_sqlDB);
+
+          if (existing && !_integrityCheck(_sqlDB)) {
+            console.error('[SQLite] Integrity check failed — proceeding with caution');
+          }
+
+          if (!existing) await _dualPersist();
+
+          if (navigator.onLine) {
+            setTimeout(() => _drainOutbox().catch(() => {}), 2000);
+          }
+
+          try { _persistChannel = new BroadcastChannel('sqlite-persist-channel'); }
+          catch {}
+
+          window.addEventListener('online', () => {
+            _drainOutbox().catch(() => {});
+            if (typeof triggerAutoSync === 'function') triggerAutoSync();
+          });
+
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && _pendingWrites > 0) {
+              _dualPersist().catch(() => {});
+            }
+          });
+
+          window.addEventListener('beforeunload', () => {
+            if (_pendingWrites > 0 && _sqlDB) {
+              if (_persistTimer) { clearTimeout(_persistTimer); _persistTimer = null; }
+              try {
+                const data = _sqlDB.export();
+                _lsBlobWrite(_LS_BLOB_KEY, data).catch(() => {});
+                if (_hasOPFS) {
+                  _opfsShadowWrite(data).catch(() => {});
+                }
+              } catch {}
+            }
+          });
+
+          return _sqlDB;
+        } catch (e) {
+          _initPromise = null;
+          throw e;
+        }
+      })();
+      return _initPromise;
+    },
+
+    async get(key, defaultValue = null) {
+      await this.init();
+      const row = _cachedGet(_fullKey(key));
+      if (!row) return defaultValue;
+      try {
+        if (row.encrypted) {
+          const val = await _decrypt(key, row.value);
+          return val === null ? defaultValue : val;
+        }
+        try { return JSON.parse(row.value); } catch { return row.value; }
+      } catch (e) {
+        console.warn('[SQLite.get]', key, _safeErr(e));
+        return defaultValue;
+      }
+    },
+
+    async set(key, value) {
+      await this.init();
+      if (!SQLiteCrypto.isReady()) await SQLiteCrypto.restoreSessionKeyFromStorage().catch(() => {});
+      const _rt = _rowType(key);
+      if (_rt === 'collection') {
+        if (Array.isArray(value)) {
+          value = value.map(r => (typeof r === 'object' && r !== null) ? ensureRecordIntegrity(r) : r);
+        } else if (typeof value === 'object' && value !== null) {
+          value = ensureRecordIntegrity(value);
+        }
+      }
+      const serialized = typeof value === 'string' ? value : JSON.stringify(value);
+      const isPlain    = _PLAINTEXT_KEYS.has(key);
+      let stored, isEncrypted;
+      if (isPlain) {
+        stored = serialized; isEncrypted = false;
+      } else {
+        try {
+          stored = await SQLiteCrypto.encrypt(serialized);
+          isEncrypted = SQLiteCrypto.isReady();
+        } catch (e) {
+          console.warn('[SQLite.set] encryption failed for', key, _safeErr(e));
+          stored = serialized; isEncrypted = false;
+        }
+      }
+      _rawSet(key, stored, isEncrypted);
+      _schedulePersist(_persistUrgencyFor(key));
+    },
+
+    async setBatch(entries) {
+      await this.init();
+      if (!SQLiteCrypto.isReady()) await SQLiteCrypto.restoreSessionKeyFromStorage().catch(() => {});
+      const validated = entries.map(([key, value]) => {
+        if (_rowType(key) === 'collection') {
+          if (Array.isArray(value)) {
+            value = value.map(r => (typeof r === 'object' && r !== null) ? ensureRecordIntegrity(r) : r);
+          } else if (typeof value === 'object' && value !== null) {
+            value = ensureRecordIntegrity(value);
+          }
+        }
+        return [key, value];
+      });
+      const prepared = await Promise.all(validated.map(async ([key, value]) => {
+        const serialized = typeof value === 'string' ? value : JSON.stringify(value);
+        const isPlain    = _PLAINTEXT_KEYS.has(key);
+        if (isPlain) return [key, serialized, false];
+        try {
+          const enc = await SQLiteCrypto.encrypt(serialized);
+          return [key, enc, SQLiteCrypto.isReady()];
+        } catch { return [key, serialized, false]; }
+      }));
+      let batchUrgency = PERSIST_LAZY_MS;
+      for (const [key] of entries) {
+        const u = _persistUrgencyFor(key);
+        if (u < batchUrgency) batchUrgency = u;
+      }
+      _sqlDB.run('BEGIN TRANSACTION');
+      try {
+        for (const [key, stored, isEnc] of prepared) _rawSet(key, stored, isEnc);
+        _sqlDB.run('COMMIT');
+      } catch (e) {
+        try { _sqlDB.run('ROLLBACK'); } catch {}
+        throw e;
+      }
+      _schedulePersist(batchUrgency);
+    },
+
+    async getBatch(keys) {
+      await this.init();
+      const results = new Map();
+      if (keys.length === 0) return results;
+      await SQLiteCrypto.restoreSessionKeyFromStorage();
+
+      for (const key of keys) {
+        const row = _cachedGet(_fullKey(key));
+        if (!row) { results.set(key, null); continue; }
+        try {
+          if (row.encrypted) {
+            const val = await _decrypt(key, row.value);
+            if (val === null) {
+              const wasEnc = typeof row.value === 'string' && row.value.startsWith('GZND_ENC_');
+              results.set(key, wasEnc ? this.DECRYPT_FAILED : null);
+            } else {
+              results.set(key, val);
+            }
+          } else {
+            const isPlain = _PLAINTEXT_KEYS.has(key);
+            if (isPlain && typeof row.value === 'string' && row.value.startsWith('GZND_ENC_')) {
+              results.set(key, null); continue;
+            }
+            try { results.set(key, JSON.parse(row.value)); }
+            catch { results.set(key, row.value); }
+          }
+        } catch (e) {
+          const wasEnc = typeof row.value === 'string' && row.value.startsWith('GZND_ENC_');
+          if (wasEnc) {
+            console.warn('[SQLite.getBatch] decrypt exception for', key, _safeErr(e));
+            results.set(key, this.DECRYPT_FAILED);
+          } else {
+            try { results.set(key, JSON.parse(row.value)); }
+            catch { results.set(key, row.value); }
+          }
+        }
+      }
+      return results;
+    },
+
+    async remove(key) {
+      await this.init();
+      _rawDelete(_fullKey(key));
+    },
+
+    async clearUserData() {
+      await this.init();
+      _clearStmtCache();
+      if (!_uid) {
+        _sqlDB.run(`DELETE FROM kv_store WHERE row_type != 'device'`);
+        _sqlDB.run('DELETE FROM ndapp_outbox');
+      } else {
+        _sqlDB.run(`DELETE FROM kv_store WHERE uid=? AND row_type != 'device'`, [_uid]);
+        _sqlDB.run('DELETE FROM ndapp_outbox WHERE uid=?', [_uid]);
+      }
+      _sqlDB.run('PRAGMA wal_checkpoint(TRUNCATE)');
+      await _flushPersist();
+    },
+
+    async clearAll() {
+      await this.init();
+      _clearStmtCache();
+      _sqlDB.run('DELETE FROM kv_store');
+      _sqlDB.run('DELETE FROM ndapp_outbox');
+      _sqlDB.run('PRAGMA wal_checkpoint(TRUNCATE)');
+      await _flushPersist();
+    },
+
+    async flush() {
+      await _flushPersist();
+    },
+
+    query(sql, params = []) {
+      if (!_sqlDB) throw new Error('[SQLite] not initialised');
+      const out  = [];
+      const stmt = _sqlDB.prepare(sql);
+      stmt.bind(params);
+      while (stmt.step()) out.push(stmt.getAsObject());
+      stmt.free();
+      return out;
+    },
+
+    async reEncryptAll() {
+      if (!SQLiteCrypto.isReady() || !_sqlDB) return;
+      try {
+        const rows = _sqlDB.exec(
+          "SELECT full_key, user_key, value, encrypted FROM kv_store WHERE encrypted=0 AND row_type IN ('collection','settings')"
+        );
+        if (!rows.length || !rows[0].values.length) return;
+        let updated = 0;
+        for (const [fk, uk, rawVal] of rows[0].values) {
+          if (!rawVal || typeof rawVal !== 'string') continue;
+          if (rawVal.startsWith('GZND_ENC_')) continue;
+          try {
+            const enc = await SQLiteCrypto.encrypt(rawVal);
+            if (enc !== rawVal) {
+              _sqlDB.run(
+                'UPDATE kv_store SET value=?, encrypted=1 WHERE full_key=?',
+                [enc, fk]
+              );
+              updated++;
+            }
+          } catch { /* skip individual row failures */ }
+        }
+        if (updated > 0) {
+          _schedulePersist(PERSIST_NORMAL_MS);
+        }
+      } catch (e) {
+        console.warn('[SQLite] reEncryptAll error:', _safeErr(e));
+      }
+    },
+
+    outboxAdd(action, collection, docId, payload) {
+      _outboxAdd(action, collection, docId, payload);
+    },
+
+    outboxGetAll() {
+      return _outboxGetAll();
+    },
+
+    outboxAck(id) {
+      _outboxRemove(id);
+    },
+
+    drainOutbox() {
+      return _drainOutbox();
+    },
+
+    outboxPending() {
+      if (!_sqlDB) return 0;
+      try {
+        const r = _sqlDB.exec(
+          'SELECT COUNT(*) FROM ndapp_outbox WHERE uid=?', [_uid]
+        );
+        return (r.length && r[0].values.length) ? r[0].values[0][0] : 0;
+      } catch { return 0; }
+    },
+
+    exportDB() {
+      if (!_sqlDB) return null;
+      return _sqlDB.export();
+    },
+
+    exportWithMeta() {
+      if (!_sqlDB) return null;
+      const data = _sqlDB.export();
+      return {
+        version:       SQLITE_SCHEMA_VERSION,
+        exportedAt:    new Date().toISOString(),
+        uid:           _uid,
+        dbSizeBytes:   data.byteLength,
+        rowCount:      this.query('SELECT COUNT(*) as n FROM kv_store')[0]?.n || 0,
+        outboxCount:   this.outboxPending(),
+        bytes:         data,
+      };
+    },
+
+    async importDB(bytes) {
+      if (!_isValidSQLite(bytes)) throw new Error('[SQLite] importDB: invalid SQLite file');
+      await this.init();
+      _clearStmtCache();
+      _sqlDB = new _SQL.Database(bytes);
+      _bootstrapSchema(_sqlDB);
+      if (!_integrityCheck(_sqlDB)) throw new Error('[SQLite] importDB: integrity check failed');
+      await _dualPersist();
+    },
+
+    async offlineStatus() {
+      await this.init();
+      const schemaRows = _sqlDB.exec('SELECT version, upgraded_at FROM schema_version LIMIT 1');
+      const schemaVer  = schemaRows.length ? schemaRows[0].values[0][0] : 0;
+      const schemaAt   = schemaRows.length ? schemaRows[0].values[0][1] : 0;
+
+      const countRows  = _sqlDB.exec(
+        `SELECT row_type, COUNT(*) as n FROM kv_store
+         WHERE uid=? OR row_type='device' GROUP BY row_type`,
+        [_uid]
+      );
+      const rowCounts  = {};
+      if (countRows.length) countRows[0].values.forEach(([rt, n]) => { rowCounts[rt] = n; });
+
+      const outboxRows = _sqlDB.exec(
+        'SELECT COUNT(*) as n, MAX(attempts) as max_attempts FROM ndapp_outbox WHERE uid=?',
+        [_uid]
+      );
+      const outboxN    = outboxRows.length ? outboxRows[0].values[0][0] : 0;
+      const maxAttempt = outboxRows.length ? outboxRows[0].values[0][1] : 0;
+
+      let quota = null;
+      try {
+        if (navigator.storage && navigator.storage.estimate) {
+          const est = await navigator.storage.estimate();
+          quota = {
+            usedMB:  (est.usage  / 1024 / 1024).toFixed(1),
+            quotaMB: (est.quota  / 1024 / 1024).toFixed(1),
+            freeMB:  ((est.quota - est.usage) / 1024 / 1024).toFixed(1),
+            pct:     ((est.usage / est.quota) * 100).toFixed(1) + '%',
+          };
+        }
+      } catch {}
+
+      const dbBytes  = _sqlDB.export().byteLength;
+      const cacheHit = 0;
+
+      return {
+        sqlite: {
+          schemaVersion:   schemaVer,
+          upgradedAt:      schemaAt ? new Date(schemaAt).toISOString() : null,
+          dbSizeKB:        (dbBytes / 1024).toFixed(1),
+          pendingWrites:   _pendingWrites,
+          lastPersistedAt: _lastPersistAt ? new Date(_lastPersistAt).toISOString() : null,
+          opfsPrimary:     _hasOPFS,
+          rowsByType:      rowCounts,
+          readCacheSize:   cacheHit,
+        },
+        outbox: {
+          pendingOps:  outboxN,
+          maxAttempts: maxAttempt,
+        },
+        network: {
+          online:     navigator.onLine,
+          offlineQueue: typeof OfflineQueue !== 'undefined' ? OfflineQueue.queue.length      : 0,
+          failedOps:    typeof OfflineQueue !== 'undefined' ? OfflineQueue.deadLetterQueue.length : 0,
+        },
+        storage: quota,
+      };
+    },
+
+    schemaVersion() {
+      if (!_sqlDB) return null;
+      try {
+        const r = _sqlDB.exec('SELECT version FROM schema_version LIMIT 1');
+        return (r.length && r[0].values.length) ? r[0].values[0][0] : 0;
+      } catch { return 0; }
+    },
+
+    walCheckpoint() {
+      if (!_sqlDB) return;
+      try { _sqlDB.run('PRAGMA wal_checkpoint(PASSIVE)'); }
+      catch {}
+    },
+
+    collectionStats() {
+      if (!_sqlDB) return {};
+      try {
+        const rows = _sqlDB.exec(
+          `SELECT collection, COUNT(*) as n
+           FROM kv_store WHERE uid=? AND collection != ''
+           GROUP BY collection`,
+          [_uid]
+        );
+        const out = {};
+        if (rows.length) rows[0].values.forEach(([col, n]) => { out[col] = n; });
+        return out;
+      } catch { return {}; }
+    },
+
+  };
+})();
+
 function ensureArray(value) {
 if (Array.isArray(value)) {
 return value;
@@ -1475,64 +1785,18 @@ return [];
 return [];
 }
 async function loadAllData() {
-const dataKeys = [
-'mfg_pro_pkr', 'noman_history', 'customer_sales', 'rep_sales', 'rep_customers',
-'sales_customers',
-'factory_inventory_data', 'factory_production_history',
-'payment_entities', 'payment_transactions', 'expenses',
-'stock_returns', 'deletion_records', 'deleted_records',
-'factory_default_formulas', 'factory_additional_costs',
-'factory_sale_prices', 'factory_cost_adjustment_factor',
-'factory_unit_tracking', 'naswar_default_settings',
-'appMode', 'repProfile', 'expense_categories', 'sales_reps_list',
-'assignedManager', 'assignedUserTabs',
-'factory_default_formulas_timestamp', 'factory_additional_costs_timestamp',
-'factory_sale_prices_timestamp', 'factory_cost_adjustment_factor_timestamp',
-'factory_unit_tracking_timestamp', 'naswar_default_settings_timestamp',
+if (typeof loadUIState === 'function') await loadUIState();
+const configKeys = [
+'naswar_default_settings', 'appMode', 'repProfile', 'expense_categories',
+'sales_reps_list', 'assignedManager', 'assignedUserTabs',
 'appMode_timestamp', 'repProfile_timestamp'
 ];
-const batchResults = await idb.getBatch(dataKeys);
-db = ensureArray(batchResults.get('mfg_pro_pkr'));
-salesHistory = ensureArray(batchResults.get('noman_history'));
-customerSales = ensureArray(batchResults.get('customer_sales'));
-repSales = ensureArray(batchResults.get('rep_sales'));
-repCustomers = ensureArray(batchResults.get('rep_customers'));
-salesCustomers = ensureArray(batchResults.get('sales_customers'));
-stockReturns = ensureArray(batchResults.get('stock_returns'));
-factoryInventoryData = ensureArray(batchResults.get('factory_inventory_data'));
-factoryProductionHistory = ensureArray(batchResults.get('factory_production_history'));
-paymentEntities = ensureArray(batchResults.get('payment_entities'));
-paymentTransactions = ensureArray(batchResults.get('payment_transactions'));
-expenseRecords = ensureArray(batchResults.get('expenses'));
-deletionRecordsArray = ensureArray(batchResults.get('deletion_records'));
-deletionRecords = deletionRecordsArray;
-const deletedRecordsArray = ensureArray(batchResults.get('deleted_records'));
-deletedRecordIds = new Set(deletedRecordsArray);
-const loadedFormulas = batchResults.get('factory_default_formulas');
-if (loadedFormulas && typeof loadedFormulas === 'object' && 'standard' in loadedFormulas && 'asaan' in loadedFormulas) {
-factoryDefaultFormulas = loadedFormulas;
-}
-const loadedAdditionalCosts = batchResults.get('factory_additional_costs');
-if (loadedAdditionalCosts && typeof loadedAdditionalCosts === 'object' && 'standard' in loadedAdditionalCosts && 'asaan' in loadedAdditionalCosts) {
-factoryAdditionalCosts = loadedAdditionalCosts;
-}
-const loadedSalePrices = batchResults.get('factory_sale_prices');
-if (loadedSalePrices && typeof loadedSalePrices === 'object' && 'standard' in loadedSalePrices && 'asaan' in loadedSalePrices) {
-factorySalePrices = loadedSalePrices;
-}
-const loadedAdjustmentFactor = batchResults.get('factory_cost_adjustment_factor');
-if (loadedAdjustmentFactor && typeof loadedAdjustmentFactor === 'object' && 'standard' in loadedAdjustmentFactor && 'asaan' in loadedAdjustmentFactor) {
-factoryCostAdjustmentFactor = loadedAdjustmentFactor;
-}
-const loadedUnitTracking = batchResults.get('factory_unit_tracking');
-if (loadedUnitTracking && typeof loadedUnitTracking === 'object') {
-factoryUnitTracking = loadedUnitTracking;
-}
+const batchResults = await sqliteStore.getBatch(configKeys);
+const _notFailed = v => v !== null && v !== undefined && v !== sqliteStore.DECRYPT_FAILED;
 const loadedDefaultSettings = batchResults.get('naswar_default_settings');
 if (loadedDefaultSettings && typeof loadedDefaultSettings === 'object') {
 defaultSettings = loadedDefaultSettings;
 }
-const _notFailed = v => v !== null && v !== undefined && v !== idb.DECRYPT_FAILED;
 const loadedAppMode = batchResults.get('appMode');
 if (_notFailed(loadedAppMode) && typeof loadedAppMode === 'string') {
 appMode = loadedAppMode;
@@ -1540,12 +1804,9 @@ appMode = loadedAppMode;
 const loadedRepProfile = batchResults.get('repProfile');
 if (_notFailed(loadedRepProfile) && typeof loadedRepProfile === 'string') {
 currentRepProfile = loadedRepProfile;
-} else if (loadedRepProfile === idb.DECRYPT_FAILED) {
-console.warn('loadAllData: repProfile decryption failed — will re-acquire from Firestore on registerDevice');
 }
 const loadedExpenseCategories = batchResults.get('expense_categories');
 if (_notFailed(loadedExpenseCategories) && Array.isArray(loadedExpenseCategories)) {
-expenseCategories = loadedExpenseCategories;
 }
 const loadedSalesRepsList = batchResults.get('sales_reps_list');
 if (_notFailed(loadedSalesRepsList) && Array.isArray(loadedSalesRepsList) && loadedSalesRepsList.length > 0) {
@@ -1561,40 +1822,25 @@ window._assignedUserTabs = loadedAssignedUserTabs;
 window._userRoleAllowedTabs = loadedAssignedUserTabs;
 }
 const CRITICAL_KEYS = [
-  'mfg_pro_pkr', 'customer_sales', 'payment_transactions', 'payment_entities',
-  'noman_history', 'expenses'
+'mfg_pro_pkr', 'customer_sales', 'payment_transactions', 'payment_entities',
+'noman_history', 'expenses'
 ];
-const failedKeys = CRITICAL_KEYS.filter(
-  k => batchResults.get(k) === idb.DECRYPT_FAILED
-);
-if (failedKeys.length > 0) {
-  const keyReady = IDBCrypto.isReady();
-  const reason = keyReady
-    ? 'Decryption failed — data may be corrupted or the encryption key has changed.'
-    : 'Encryption key unavailable — please log in again to restore your data.';
-  console.error(
-    'loadAllData: decryption failure on critical keys:', failedKeys, '| keyReady:', keyReady
-  );
-  const err = new Error(reason);
-  err.code = 'DECRYPT_FAILED';
-  err.failedKeys = failedKeys;
-  throw err;
+const criticalResults = await sqliteStore.getBatch(CRITICAL_KEYS);
+const failedKeys = CRITICAL_KEYS.filter(k => criticalResults.get(k) === sqliteStore.DECRYPT_FAILED);
+if (failedKeys.length > 0 && SQLiteCrypto.isReady()) {
+const err = new Error('Decryption failed — data may be corrupted or the encryption key has changed.');
+err.code = 'DECRYPT_FAILED';
+err.failedKeys = failedKeys;
+throw err;
 }
-if (!IDBCrypto.isReady()) {
-  const criticalEmpty = [db, customerSales, paymentTransactions, paymentEntities]
-    .every(arr => arr.length === 0);
-  if (criticalEmpty) {
-    console.warn('loadAllData: session key not ready and all critical collections empty — possible key loss');
-    if (typeof showToast === 'function') {
-      showToast(
-        'Encryption key unavailable — if you have existing data, please log in again.',
-        'warning', 6000
-      );
-    }
-  }
+if (!SQLiteCrypto.isReady()) {
+const criticalEmpty = CRITICAL_KEYS.every(k => ensureArray(criticalResults.get(k)).length === 0);
+if (criticalEmpty && typeof showToast === 'function') {
+showToast('Encryption key unavailable — if you have existing data, please log in again.', 'warning', 6000);
+}
 }
 if (typeof DeltaSync !== 'undefined' && typeof DeltaSync.loadAllUploadedIds === 'function') {
-  DeltaSync.loadAllUploadedIds().catch(() => {});
+DeltaSync.loadAllUploadedIds().catch(() => {});
 }
 }
 const DEVICE_ID_COOKIE = 'gz_did';
@@ -1612,7 +1858,7 @@ function _writeCookie(name, value) {
 try {
 document.cookie = `${name}=${encodeURIComponent(value)}; max-age=${COOKIE_MAX_AGE}; path=/; SameSite=Strict`;
 } catch (e) {
-console.warn('_writeCookie failed:', e);
+console.warn('_writeCookie failed:', _safeErr(e));
 }
 }
 function _generateUUID() {
@@ -1664,7 +1910,7 @@ async function _persistDeviceId(deviceId) {
 _writeCookie(DEVICE_ID_COOKIE, deviceId);
 try { localStorage.setItem('persistent_device_id', deviceId); } catch (e) {  }
 _writeSession('gz_did_session', deviceId);
-try { await idb.set('device_id', deviceId); } catch (e) {  }
+try { await sqliteStore.set('device_id', deviceId); } catch (e) {  }
 await _writeCacheAnchor(deviceId);
 }
 async function _recoverDeviceIdByFingerprint() {
@@ -1682,7 +1928,7 @@ const data = snap.docs[0].data();
 return data.deviceId || null;
 }
 } catch (e) {
-console.warn('Fingerprint-based device ID recovery failed:', e);
+console.warn('Fingerprint-based device ID recovery failed:', _safeErr(e));
 }
 return null;
 }
@@ -1703,7 +1949,7 @@ if (!snap.empty) {
 return snap.docs[0].data().deviceId || null;
 }
 } catch (e) {
-console.warn('Token-based device ID recovery failed:', e);
+console.warn('Token-based device ID recovery failed:', _safeErr(e));
 }
 return null;
 }
@@ -1714,7 +1960,7 @@ if (!deviceId) {
 try { deviceId = localStorage.getItem('persistent_device_id') || null; } catch (e) {  }
 }
 if (!deviceId) {
-try { deviceId = await idb.get('device_id'); } catch (e) {  }
+try { deviceId = await sqliteStore.get('device_id'); } catch (e) {  }
 }
 if (!deviceId) deviceId = await _readCacheAnchor();
 if (!deviceId && firebaseDB && currentUser) {
@@ -1741,7 +1987,7 @@ try {
 if (firebaseDB && currentUser) {
 try { _writeCookie(DEVICE_ID_COOKIE, ''); } catch(e) {}
 try { localStorage.removeItem('persistent_device_id'); } catch(e) {}
-try { await idb.set('device_id', null); } catch(e) {}
+try { await sqliteStore.set('device_id', null); } catch(e) {}
 }
 const deviceId = await getDeviceId();
 await _persistDeviceId(deviceId);
@@ -1797,7 +2043,7 @@ h = ((h << 5) - h + raw.charCodeAt(i)) | 0;
 }
 canvasHash = Math.abs(h).toString(36).toUpperCase().padStart(6, '0');
 } catch (e) {
-console.warn('Canvas fingerprint hash failed', e);
+console.warn('Canvas fingerprint hash failed', _safeErr(e));
 }
 const stableStr = `${os}|${screenRes}|${colorDepth}|${pixelRatio}|${cores}|${tz}|${platform}|${canvasHash}`;
 let stableHash = 0;
@@ -1825,11 +2071,11 @@ fullUserAgent: ua
 };
 }
 async function getDeviceName() {
-let deviceName = await idb.get('device_name');
+let deviceName = await sqliteStore.get('device_name');
 if (!deviceName) {
 const fp = await getDeviceFingerprint();
 deviceName = fp.readableName;
-await idb.set('device_name', deviceName);
+await sqliteStore.set('device_name', deviceName);
 }
 return deviceName;
 }
@@ -1844,8 +2090,8 @@ try {
 const deviceId = await getDeviceId();
 const fp = await getDeviceFingerprint();
 const deviceName = fp.readableName;
-try { await idb.set('device_name', deviceName); } catch(e) {
-console.warn('Failed to save data locally.', e);
+try { await sqliteStore.set('device_name', deviceName); } catch(e) {
+console.warn('Failed to save data locally.', _safeErr(e));
 }
 const userRef = firebaseDB.collection('users').doc(currentUser.uid);
 try {
@@ -1859,7 +2105,7 @@ if (deleteOps.length > 0) {
 await Promise.all(deleteOps);
 }
 } catch (dupErr) {
-console.warn('Duplicate cleanup failed:', dupErr);
+console.warn('Duplicate cleanup failed:', _safeErr(dupErr));
 }
 const userAgent = navigator.userAgent;
 const deviceType = /Mobile|Android|iPhone/.test(userAgent)
@@ -1880,26 +2126,26 @@ const persistedRep = persistedRoleType === 'rep' ? (persistedRoleName || current
 const persistedManager = (persistedRoleType === 'production' || persistedRoleType === 'factory') ? persistedRoleName : null;
 if (persistedMode !== appMode) {
 appMode = persistedMode;
-const idbBatch = [
+const sqliteBatch = [
 ['appMode', appMode],
 ['appMode_timestamp', existing.appMode_timestamp || Date.now()]
 ];
 if (persistedMode === 'rep' && persistedRep) {
 currentRepProfile = persistedRep;
-idbBatch.push(['repProfile', persistedRep]);
+sqliteBatch.push(['repProfile', persistedRep]);
 } else if (persistedMode === 'userrole') {
 const persistedUserManager = existing.assignedManager || existing.assignedRoleName || null;
 const persistedUserTabs = Array.isArray(existing.assignedUserTabs) ? existing.assignedUserTabs : [];
 window._assignedManagerName = persistedUserManager;
 window._assignedUserTabs = persistedUserTabs;
 window._userRoleAllowedTabs = persistedUserTabs;
-idbBatch.push(['assignedManager', persistedUserManager]);
-idbBatch.push(['assignedUserTabs', persistedUserTabs]);
+sqliteBatch.push(['assignedManager', persistedUserManager]);
+sqliteBatch.push(['assignedUserTabs', persistedUserTabs]);
 } else if ((persistedMode === 'production' || persistedMode === 'factory') && persistedManager) {
 window._assignedManagerName = persistedManager;
-idbBatch.push(['assignedManager', persistedManager]);
+sqliteBatch.push(['assignedManager', persistedManager]);
 }
-await idb.setBatch(idbBatch);
+await sqliteStore.setBatch(sqliteBatch);
 }
 
 const isFirstRegistration = !existingDoc.exists;
@@ -1958,11 +2204,9 @@ language: navigator.language || 'en',
 theme: document.documentElement.getAttribute('data-theme') || 'dark'
 }, { merge: true });
 startDeviceHeartbeat(deviceRef);
-// Defer the device command listener by one tick to ensure the Firestore SDK
-// has fully settled after the preceding .set() writes — avoids the
-// "INTERNAL ASSERTION FAILED: Unexpected state" error on cold start.
+
 setTimeout(() => {
-listenForDeviceCommands().catch(e => console.warn('Device command listener failed.', e));
+listenForDeviceCommands().catch(e => console.warn('Device command listener failed.', _safeErr(e)));
 }, 2000);
 listenForTeamChanges();
 await logDeviceActivity('device_registered', {
@@ -1972,7 +2216,7 @@ deviceType: deviceType,
 browser: browser
 });
 } catch (error) {
-console.warn('Device command listener failed.', error);
+console.error('Device registration failed.', _safeErr(error));
 }
 }
 function startDeviceHeartbeat(deviceRef) {
@@ -1998,7 +2242,7 @@ assignedManager: (_isUserRole || _isMgrMode) ? (window._assignedManagerName || n
 assignedUserTabs: _isUserRole ? (window._assignedUserTabs || []) : null,
 });
 } catch (error) {
-console.warn('Heartbeat update failed.', error);
+console.warn('Heartbeat update failed.', _safeErr(error));
 }
 }
 }, APP_CONFIG.HEARTBEAT_INTERVAL_MS);
@@ -2031,14 +2275,14 @@ details: details,
 userId: currentUser.uid
 });
 } catch (error) {
-console.warn('Firebase operation failed.', error);
+console.warn('Firebase operation failed.', _safeErr(error));
 }
 }
 window.logDeviceActivity = logDeviceActivity;
 async function initializeDeviceListeners() {
 try {
 setTimeout(() => {
-listenForDeviceCommands().catch(e => console.warn('Device command listener failed.', e));
+listenForDeviceCommands().catch(e => console.warn('Device command listener failed.', _safeErr(e)));
 }, 2000);
 listenForTeamChanges();
 } catch (error) {
@@ -2048,107 +2292,16 @@ showToast('Device command listener failed.', 'error');
 await cleanupOldDeletions();
 }
 window.initializeDeviceListeners = initializeDeviceListeners;
-const AppState = Object.seal({
-  currentUser:              null,
-  firebaseDB:               null,
-  database:                 null,
-  auth:                     null,
-  isSyncing:                false,
-  appMode:                  'admin',
-  currentRepProfile:        'admin',
-  salesRepsList:            ['NORAN SHAH', 'NOMAN SHAH'],
-  userRolesList:            [],
-  db:                       [],
-  salesHistory:             [],
-  customerSales:            [],
-  repSales:                 [],
-  repCustomers:             [],
-  salesCustomers:           [],
-  stockReturns:             [],
-  expenseRecords:           [],
-  expenseCategories:        [],
-  deletedRecordIds:         new Set(),
-  deletionRecordsArray:     [],
-  deletionRecords:          [],
-  paymentEntities:          [],
-  paymentTransactions:      [],
-  factoryInventoryData:     [],
-  factoryProductionHistory: [],
-  factoryDefaultFormulas:   { standard: [], asaan: [] },
-  factoryAdditionalCosts:   { standard: 0,  asaan: 0  },
-  factorySalePrices:        { standard: 0,  asaan: 0  },
-  factoryCostAdjustmentFactor: { standard: 1, asaan: 1 },
-  factoryUnitTracking: {
-    standard: { produced: 0, consumed: 0, available: 0, unitCostHistory: [] },
-    asaan:    { produced: 0, consumed: 0, available: 0, unitCostHistory: [] }
-  },
-});
+window.currentUser = null;
+window.firebaseDB = null;
+window.database = null;
+window.auth = null;
+window.isSyncing = false;
+window.appMode = 'admin';
+window.currentRepProfile = 'admin';
+window.salesRepsList = ['NORAN SHAH', 'NOMAN SHAH'];
+window.userRolesList = [];
 const _VALID_APP_MODES = new Set(['admin','rep','production','factory','userrole']);
-const _AppStateDescriptors = {
-  isSyncing: {
-    get() { return AppState.isSyncing; },
-    set(v) {
-      if (typeof v !== 'boolean') {
-        console.warn('[AppState] isSyncing must be boolean, got:', typeof v, v);
-        return;
-      }
-      AppState.isSyncing = v;
-    }
-  },
-  appMode: {
-    get() { return AppState.appMode; },
-    set(v) {
-      if (!_VALID_APP_MODES.has(v)) {
-        console.warn('[AppState] Invalid appMode value:', v, '— must be one of', [..._VALID_APP_MODES]);
-        return;
-      }
-      AppState.appMode = v;
-    }
-  },
-  currentUser: {
-    get() { return AppState.currentUser; },
-    set(v) {
-      if (v !== null && typeof v !== 'object') {
-        console.warn('[AppState] currentUser must be object or null, got:', typeof v);
-        return;
-      }
-      AppState.currentUser = v;
-    }
-  },
-  firebaseDB: {
-    get() { return AppState.firebaseDB; },
-    set(v) {
-      if (v !== null && typeof v !== 'object') {
-        console.warn('[AppState] firebaseDB must be object or null, got:', typeof v);
-        return;
-      }
-      AppState.firebaseDB = v;
-    }
-  },
-};
-const _plain = (key) => ({
-  get() { return AppState[key]; },
-  set(v) { AppState[key] = v; }
-});
-[
-  'database','auth',
-  'currentRepProfile','salesRepsList','userRolesList',
-  'db','salesHistory','customerSales','repSales','repCustomers','salesCustomers',
-  'stockReturns','expenseRecords','expenseCategories','deletedRecordIds',
-  'deletionRecordsArray','deletionRecords',
-  'paymentEntities','paymentTransactions',
-  'factoryInventoryData','factoryProductionHistory','factoryDefaultFormulas',
-  'factoryAdditionalCosts','factorySalePrices','factoryCostAdjustmentFactor',
-  'factoryUnitTracking',
-].forEach(key => { _AppStateDescriptors[key] = _plain(key); });
-Object.defineProperties(window, Object.fromEntries(
-  Object.entries(_AppStateDescriptors).map(([k, desc]) => [k, {
-    get: desc.get,
-    set: desc.set,
-    enumerable: true,
-    configurable: false
-  }])
-));
 
 const _MODE_CODES = {
   'admin':      '0',
@@ -2525,7 +2678,7 @@ const dataTypes = [
 let totalCleaned = 0;
 for (const dataType of dataTypes) {
 try {
-const allData = await idb.get(dataType) || [];
+const allData = await sqliteStore.get(dataType) || [];
 const beforeCount = allData.length;
 const cleaned = allData.filter(record => {
 if (!record.deletedAt && !record.tombstoned_at) {
@@ -2538,7 +2691,7 @@ return true;
 return false;
 });
 if (cleaned.length !== beforeCount) {
-await idb.set(dataType, cleaned);
+await sqliteStore.set(dataType, cleaned);
 const removedCount = beforeCount - cleaned.length;
 totalCleaned += removedCount;
 }
@@ -2595,7 +2748,7 @@ validCount++;
 return record;
 });
 if (fixedCount > 0) {
-await idb.set(dataType, validatedRecords);
+await sqliteStore.set(dataType, validatedRecords);
 }
 return {
 fixed: fixedCount,
@@ -2621,7 +2774,7 @@ let totalValid = 0;
 let totalRecords = 0;
 for (const dataType of dataTypes) {
 try {
-const records = await idb.get(dataType) || [];
+const records = await sqliteStore.get(dataType) || [];
 if (records.length > 0) {
 const result = await validateAndFixRecords(dataType, records);
 totalFixed += result.fixed;

@@ -4,19 +4,21 @@
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'none';
-  script-src  'self' 'unsafe-inline'
+  script-src  'self' 'unsafe-inline' 'wasm-unsafe-eval'
               https://www.gstatic.com
               https://unpkg.com
               https://cdn.jsdelivr.net
               https://cdnjs.cloudflare.com
-              https://apis.google.com;
+              https://apis.google.com
+              https://accounts.google.com;
   style-src   'self' 'unsafe-inline'
               https://fonts.googleapis.com
               https://unpkg.com;
   font-src    https://fonts.gstatic.com;
   img-src     'self' data:
               https://*.tile.openstreetmap.org
-              https://www.gstatic.com;
+              https://www.gstatic.com
+              https://*.googleusercontent.com;
   connect-src 'self'
               https://*.googleapis.com
               https://*.firebaseio.com
@@ -24,7 +26,8 @@
               https://*.firebaseapp.com
               https://nominatim.openstreetmap.org
               https://firestore.googleapis.com
-              https://*.google.com;
+              https://*.google.com
+              https://accounts.google.com;
   frame-src   https://apis.google.com
               https://*.firebaseapp.com
               https://*.google.com;
@@ -49,9 +52,96 @@
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700;800;900&family=Geist+Mono:wght@300;400;500;600;700&family=Noto+Nastaliq+Urdu:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="app.css">
 <link rel="preload" href="admin-data.js" as="script">
+
+<link rel="preload" href="./sql-wasm.js" as="script" onerror="void 0">
+<script>
+(function() {
+
+  var _FIREBASE_NOISE = ['DOMException', 'Failed to fetch', 'WebChannelConnection', 'QUIC_PROTOCOL_ERROR'];
+  function _containsDOMException(args) {
+    for (var i = 0; i < args.length; i++) {
+      var a = args[i];
+
+      if (a instanceof DOMException) return true;
+
+      if (typeof a === 'string') {
+        for (var j = 0; j < _FIREBASE_NOISE.length; j++) {
+          if (a.indexOf(_FIREBASE_NOISE[j]) !== -1) return true;
+        }
+      }
+
+      if (a instanceof Error && a.message && a.message.indexOf('[DOMException]') === 0) return true;
+    }
+    return false;
+  }
+  function _applyConsolePatch() {
+
+    var _methods = ['error', 'warn'];
+    _methods.forEach(function(method) {
+      var _orig = console[method].bind(console);
+      console[method] = function() {
+        var args = Array.from(arguments);
+
+        if (_containsDOMException(args)) return;
+        _orig.apply(console, args);
+      };
+    });
+  }
+
+  _applyConsolePatch();
+
+  window._reapplyConsolePatch = _applyConsolePatch;
+
+  window.addEventListener('unhandledrejection', function(event) {
+    var reason = event.reason;
+
+    if (!reason) { event.preventDefault(); return; }
+
+    if (reason instanceof DOMException) { event.preventDefault(); return; }
+
+    if (reason instanceof Error) {
+      var msg = reason.message || '';
+      if (msg.indexOf('[DOMException]') === 0 || msg.indexOf('DOMException') !== -1) {
+        event.preventDefault(); return;
+      }
+    }
+
+    if (typeof reason === 'string' && reason.indexOf('DOMException') !== -1) {
+      event.preventDefault(); return;
+    }
+  });
+
+  window.onerror = function(msg, src, line, col, error) {
+
+    if (error instanceof DOMException) return true;
+
+    if (error instanceof Error && error.message && error.message.indexOf('DOMException') !== -1) return true;
+
+    if (typeof msg === 'string' && msg.indexOf('DOMException') !== -1) return true;
+    return false;
+  };
+})();
+</script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script>
+
+(function() {
+  if (typeof window._reapplyConsolePatch === 'function') window._reapplyConsolePatch();
+  if (typeof firebase === 'undefined') return;
+
+  if (typeof firebase.setLogLevel === 'function') firebase.setLogLevel('silent');
+
+  if (firebase.firestore && typeof firebase.firestore.setLogLevel === 'function') {
+    firebase.firestore.setLogLevel('silent');
+  }
+
+  try {
+    firebase.firestore().settings({ experimentalForceLongPolling: true, merge: true });
+  } catch (_e) {  }
+})();
+</script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
 <script>
 window._swConfirmed = false;
@@ -115,6 +205,7 @@ if ('serviceWorker' in navigator) {
   });
 }
 </script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 <div class="liquid-bg-element liquid-1"></div>
@@ -330,13 +421,17 @@ This will automatically create a <strong>PAYEE</strong> entity. Any debts to thi
 <span id="manageEntityStats">Current Balance: 0.00</span>
 </div>
 <div class="overlay-header__row3">
-<select id="entityPdfRange" class="store-selector" onchange="if(currentEntityId){const entity=paymentEntities.find(e=>String(e.id)===String(currentEntityId));if(entity)renderEntityOverlayContent(entity);}">
-<option value="today">Today</option>
-<option value="week">This Week</option>
-<option value="month">This Month</option>
-<option value="year">This Year</option>
-<option value="all" selected>All Time</option>
-</select>
+<div class="date-range-picker">
+<div class="date-range-field">
+<label class="date-range-label">From</label>
+<input type="date" id="entityPdfDateFrom" class="date-range-input" onchange="if(currentEntityId){const entity=paymentEntities.find(e=>String(e.id)===String(currentEntityId));if(entity)renderEntityOverlayContent(entity);}">
+</div>
+<span class="date-range-sep">→</span>
+<div class="date-range-field">
+<label class="date-range-label">To</label>
+<input type="date" id="entityPdfDateTo" class="date-range-input" onchange="if(currentEntityId){const entity=paymentEntities.find(e=>String(e.id)===String(currentEntityId));if(entity)renderEntityOverlayContent(entity);}">
+</div>
+</div>
 <button class="btn btn-noran btn-sm btn-pdf" onclick="exportEntityToPDF()" title="Export to PDF">📄</button>
 </div>
 </div>
@@ -381,13 +476,17 @@ This will automatically create a <strong>PAYEE</strong> entity. Any debts to thi
 <span id="expenseOverlayStats">Total: 0.00</span>
 </div>
 <div class="overlay-header__row3">
-<select id="expenseOverlayRange" class="store-selector" onchange="renderExpenseOverlayContent()">
-<option value="today">Today</option>
-<option value="week">This Week</option>
-<option value="month">This Month</option>
-<option value="year">This Year</option>
-<option value="all" selected>All Time</option>
-</select>
+<div class="date-range-picker">
+<div class="date-range-field">
+<label class="date-range-label">From</label>
+<input type="date" id="expenseDateFrom" class="date-range-input" onchange="renderExpenseOverlayContent()">
+</div>
+<span class="date-range-sep">→</span>
+<div class="date-range-field">
+<label class="date-range-label">To</label>
+<input type="date" id="expenseDateTo" class="date-range-input" onchange="renderExpenseOverlayContent()">
+</div>
+</div>
 <button class="btn btn-noran btn-sm btn-pdf" onclick="exportExpenseOverlayToPDF()" title="Export to PDF">📄</button>
 </div>
 </div>
@@ -429,13 +528,17 @@ This will automatically create a <strong>PAYEE</strong> entity. Any debts to thi
 <span id="manageCustomerStats">Current Debt: 0.00</span>
 </div>
 <div class="overlay-header__row3">
-<select id="customerPdfRange" class="store-selector" onchange="if(currentManagingCustomer)renderCustomerTransactions(currentManagingCustomer);">
-<option value="today">Today</option>
-<option value="week">This Week</option>
-<option value="month">This Month</option>
-<option value="year">This Year</option>
-<option value="all" selected>All Time</option>
-</select>
+<div class="date-range-picker">
+<div class="date-range-field">
+<label class="date-range-label">From</label>
+<input type="date" id="customerPdfDateFrom" class="date-range-input" onchange="if(currentManagingCustomer)renderCustomerTransactions(currentManagingCustomer);">
+</div>
+<span class="date-range-sep">→</span>
+<div class="date-range-field">
+<label class="date-range-label">To</label>
+<input type="date" id="customerPdfDateTo" class="date-range-input" onchange="if(currentManagingCustomer)renderCustomerTransactions(currentManagingCustomer);">
+</div>
+</div>
 <button class="btn btn-noman btn-sm btn-pdf" onclick="exportCustomerToPDF()" title="Export to PDF">📄</button>
 </div>
 </div>
@@ -524,13 +627,17 @@ Override the default sale price for this customer. Leave blank to use the standa
 <span id="repManageCustomerStats">Current Debt: 0.00</span>
 </div>
 <div class="overlay-header__row3">
-<select id="repCustomerPdfRange" class="store-selector" onchange="if(currentManagingRepCustomer)renderRepCustomerTransactions(currentManagingRepCustomer);">
-<option value="today">Today</option>
-<option value="week">This Week</option>
-<option value="month">This Month</option>
-<option value="year">This Year</option>
-<option value="all" selected>All Time</option>
-</select>
+<div class="date-range-picker">
+<div class="date-range-field">
+<label class="date-range-label">From</label>
+<input type="date" id="repCustomerPdfDateFrom" class="date-range-input" onchange="if(currentManagingRepCustomer)renderRepCustomerTransactions(currentManagingRepCustomer);">
+</div>
+<span class="date-range-sep">→</span>
+<div class="date-range-field">
+<label class="date-range-label">To</label>
+<input type="date" id="repCustomerPdfDateTo" class="date-range-input" onchange="if(currentManagingRepCustomer)renderRepCustomerTransactions(currentManagingRepCustomer);">
+</div>
+</div>
 <button class="btn btn-noman btn-sm btn-pdf" onclick="exportRepCustomerToPDF()" title="Export to PDF">📄</button>
 </div>
 </div>
@@ -671,13 +778,13 @@ View Database Structure
 
 <div id="recycleBinOverlay" class="factory-overlay" style="display:none;">
   <div class="factory-overlay-card liquid-card" style="max-width:520px;width:100%;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;">
-    
+
     <div class="section-header" style="flex-shrink:0;">
       <h3 class="u-heading-main" style="display:flex;align-items:center;gap:8px;"> Recycle Bin</h3>
       <button class="btn-theme" onclick="closeRecycleBin()">✕</button>
     </div>
     <hr style="width:100%;border:0;border-top:1px solid var(--glass-border);margin:4px 0;flex-shrink:0;">
-    
+
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0 4px;flex-shrink:0;flex-wrap:wrap;">
       <div id="recycleBinStats" style="font-size:0.75rem;color:var(--text-muted);"></div>
       <select id="recycleBinFilter"
@@ -692,15 +799,15 @@ View Database Structure
         <option value="tab_payments">Payments Tab</option>
       </select>
     </div>
-    
+
     <div style="background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.18);border-radius:10px;padding:9px 13px;font-size:0.73rem;color:var(--text-muted);line-height:1.5;margin-bottom:10px;flex-shrink:0;">
       ↩ <strong style="color:var(--text-main);">Recover</strong> restores the record to its original collection and re-activates it in all views &amp; balances.
       Records marked <span style="color:#ef4444;font-weight:600;">local only</span> may not have a full snapshot to restore from — balance adjustments may be needed manually.
       All records expire after <strong style="color:var(--text-main);">90 days</strong>.
     </div>
-    
+
     <div id="recycleBinList" style="flex:1;min-height:0;overflow-y:auto;padding-right:4px;"></div>
-    
+
     <div style="flex-shrink:0;padding-top:12px;border-top:1px solid var(--glass-border);margin-top:8px;display:flex;justify-content:flex-end;">
       <button onclick="closeRecycleBin()" style="padding:9px 22px;border-radius:999px;background:var(--input-bg);border:1px solid var(--glass-border);color:var(--text-main);font-size:0.85rem;cursor:pointer;">Close</button>
     </div>
@@ -980,7 +1087,7 @@ Insufficient formula units available! Please reduce formula units used.
 </div>
 <div class="chart-container" style="margin-top:12px;">
 <div class="chart-box">
-<canvas id="storeComparisonChart"></canvas>
+<div id="storeComparisonChart" class="sc-host"></div>
 </div>
 </div>
 </div>
@@ -996,13 +1103,10 @@ Insufficient formula units available! Please reduce formula units used.
 </div>
 <div class="chart-container">
 <div class="chart-box">
-<canvas id="mfgBarChart"></canvas>
+<div id="mfgBarChart" class="sc-host"></div>
 </div>
 <div class="chart-box">
-<div class="percentage-toggle-container">
-<button class="percentage-toggle-btn" id="mfgPiePercentageToggle" onclick="togglePercentage('mfgPieChart')">Show %</button>
-</div>
-<canvas id="mfgPieChart"></canvas>
+<div id="mfgPieChart" class="sc-host"></div>
 </div>
 </div>
 </div>
@@ -1159,13 +1263,10 @@ No records found
 </div>
 <div class="chart-container">
 <div class="chart-box">
-<canvas id="custSalesChart"></canvas>
+<div id="custSalesChart" class="sc-host"></div>
 </div>
 <div class="chart-box">
-<div class="percentage-toggle-container">
-<button class="percentage-toggle-btn" id="custPaymentPercentageToggle" onclick="togglePercentage('custPaymentChart')">Show %</button>
-</div>
-<canvas id="custPaymentChart"></canvas>
+<div id="custPaymentChart" class="sc-host"></div>
 </div>
 </div>
 </div>
@@ -1274,14 +1375,11 @@ No records found
 <div class="chart-container">
 <div class="chart-box">
 <p style="font-size: 10px; text-align: center; color: var(--accent); margin: 0 0 8px 0; font-weight: 800;">COMPETITION</p>
-<canvas id="performanceChart"></canvas>
+<div id="performanceChart" class="sc-host"></div>
 </div>
 <div class="chart-box">
-<div class="percentage-toggle-container">
-<button class="percentage-toggle-btn" id="compositionPercentageToggle" onclick="togglePercentage('compositionChart')">Show %</button>
-</div>
 <p style="font-size: 10px; text-align: center; color: var(--accent); margin: 0 0 8px 0; font-weight: 800;">MARKET COMPOSITION</p>
-<canvas id="compositionChart"></canvas>
+<div id="compositionChart" class="sc-host"></div>
 </div>
 </div>
 <table class="comp-table">
@@ -1314,7 +1412,7 @@ No records found
 </div>
 <div class="sales-rep-chart-container">
 <div class="sales-rep-chart-box">
-<canvas id="indPerformanceChart"></canvas>
+<div id="indPerformanceChart" class="sc-host"></div>
 </div>
 </div>
 </div>
@@ -1743,6 +1841,10 @@ Save Transaction
 <span>External Payments Made:</span>
 <span class="formula-value u-text-danger" id="cashDetailPaymentsOut">0.00</span>
 </div>
+<div class="formula-item" style="background:rgba(220, 38, 38, 0.1); padding:5px; border-radius:5px;">
+<span>Operating Expenses:</span>
+<span class="formula-value u-text-danger" id="cashDetailOperatingExpenses">0.00</span>
+</div>
 <div class="formula-item" style="font-weight:800; background:rgba(37, 99, 235, 0.1); padding:8px; border-radius:6px; margin-top:5px;">
 <span>NET CASH IN HAND:</span>
 <span class="formula-value u-text-emerald" id="cashDetailNet">0.00</span>
@@ -1788,13 +1890,6 @@ Save Transaction
 <div class="formula-item u-ml-15" >
 <span>Entity Payables (Payment Entities):</span>
 <span class="formula-value u-text-danger" id="entityPayables">0.00</span>
-</div>
-<div class="formula-item u-ml-15" >
-<span>Other Payables:</span>
-</div>
-<div class="formula-item" style="margin-left:30px; font-size:0.8rem;">
-<span>Operating Expenses:</span>
-<span class="formula-value u-text-danger" id="otherPayablesOperating">0.00</span>
 </div>
 <div class="formula-item" style="margin-left:15px; font-weight:700; background:rgba(220, 38, 38, 0.05); padding:5px; border-radius:5px;">
 <span>TOTAL ACCOUNTS PAYABLE:</span>
@@ -1953,6 +2048,7 @@ No records found
 <div style="display:flex; gap:6px; margin-bottom:18px; background:var(--glass-raised); border-radius:var(--radius-full); padding:4px;">
 <button id="team-tab-rep" class="toggle-opt active" onclick="switchManageTeamTab('rep')" style="flex:1; font-size:0.68rem; padding:7px 4px; border-radius:var(--radius-full);">Sales Rep</button>
 <button id="team-tab-userrole" class="toggle-opt" onclick="switchManageTeamTab('userrole')" style="flex:1; font-size:0.68rem; padding:7px 4px; border-radius:var(--radius-full);">User Roles</button>
+<button id="team-tab-accounts" class="toggle-opt" onclick="switchManageTeamTab('accounts')" style="flex:1; font-size:0.68rem; padding:7px 4px; border-radius:var(--radius-full);">App Accounts</button>
 </div>
 <div id="team-panel-rep">
 <div class="grid-inputs u-mb-20">
@@ -1994,8 +2090,43 @@ No records found
 <div id="manage-userrole-list"></div>
 </div>
 </div>
+
+<div id="team-panel-accounts" style="display:none;">
+  <div style="margin-bottom:14px;">
+    <label style="font-size:0.72rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:10px;">Add New Account</label>
+    <div class="grid-inputs" style="margin-bottom:10px;">
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="acct-new-email" placeholder="user@example.com" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="acct-new-password" placeholder="min 8 characters" autocomplete="new-password">
+      </div>
+    </div>
+    <div style="margin-bottom:10px;">
+      <label style="font-size:0.72rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:8px;">Role</label>
+      <div style="display:flex;gap:6px;background:var(--glass-raised);border-radius:var(--radius-full);padding:4px;">
+        <button id="acct-role-user" class="toggle-opt active" onclick="setNewAccountRole('user')" style="flex:1;font-size:0.72rem;padding:7px 4px;border-radius:var(--radius-full);">User</button>
+        <button id="acct-role-admin" class="toggle-opt" onclick="setNewAccountRole('admin')" style="flex:1;font-size:0.72rem;padding:7px 4px;border-radius:var(--radius-full);">Admin</button>
+      </div>
+    </div>
+    <div id="acct-add-msg" style="font-size:0.75rem;min-height:18px;margin-bottom:8px;"></div>
+    <button class="btn btn-main u-h-42 u-fs-md2 u-fw-700" onclick="adminAddAccount()" id="acct-add-btn">Add Account</button>
+  </div>
+  <div style="border-top:1px solid var(--glass-border);padding-top:14px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <label style="font-size:0.72rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Registered Accounts</label>
+      <button class="btn-theme" style="font-size:0.7rem;padding:4px 10px;" onclick="loadAccountsList()">&#8635; Refresh</button>
+    </div>
+    <div id="manage-accounts-list"><div style="color:var(--text-muted);font-size:0.8rem;text-align:center;padding:16px;">Loading...</div></div>
+  </div>
+</div>
+
 </div>
 </div>
+</div>
+<script src="native-pdf.js" defer></script>
 <script src="constants.js" defer></script>
 <script src="business.js" defer></script>
 <script src="admin-data.js" defer></script>

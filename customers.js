@@ -13,6 +13,10 @@ calculateCustomerStatsForDisplay(name);
 }
 window._selectCustomerBase = selectCustomer;
 async function calculateCustomerStatsForDisplay(name) {
+const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
+const repSales = ensureArray(await sqliteStore.get('rep_sales'));
+const salesCustomers = ensureArray(await sqliteStore.get('sales_customers'));
+const repCustomers = ensureArray(await sqliteStore.get('rep_customers'));
 if (!name) return;
 const sales = customerSales.filter(s =>
 s && s.currentRepProfile === 'admin' && s.customerName && s.customerName.toLowerCase() === name.toLowerCase()
@@ -23,13 +27,13 @@ return;
 }
 let totalCredit = 0;
 let totalQty = 0;
-sales.forEach(s => {
+for (const s of sales) {
 totalQty += (s.quantity || 0);
 const isRepLinked = s.salesRep !== 'NONE';
 if (s.transactionType === 'OLD_DEBT') {
 if (!s.creditReceived) {
 const partialPaid = s.partialPaymentReceived || 0;
-totalCredit += (getSaleTransactionValue(s) - partialPaid);
+totalCredit += (await getSaleTransactionValue(s) - partialPaid);
 }
 } else if (s.paymentType === 'CREDIT' && !s.creditReceived) {
 
@@ -37,12 +41,12 @@ if (s.isMerged && typeof s.creditValue === 'number') {
 totalCredit += s.creditValue;
 } else {
 const partialPaid = s.partialPaymentReceived || 0;
-totalCredit += (getSaleTransactionValue(s) - partialPaid);
+totalCredit += (await getSaleTransactionValue(s) - partialPaid);
 }
 } else if (isRepLinked) {
-
-if (s.paymentType === 'CASH' || s.creditReceived) {
-totalCredit += (s.totalValue || 0);
+if (s.paymentType === 'CREDIT' && !s.creditReceived) {
+const partialPaid = s.partialPaymentReceived || 0;
+totalCredit += (await getSaleTransactionValue(s) - partialPaid);
 } else if (s.paymentType === 'COLLECTION') {
 totalCredit -= (s.totalValue || 0);
 } else if (s.paymentType === 'PARTIAL_PAYMENT') {
@@ -56,7 +60,7 @@ totalCredit -= (s.totalValue || 0);
 totalCredit -= (s.totalValue || 0);
 }
 }
-});
+}
 totalCredit = Math.max(0, totalCredit);
 const _setCust = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
 _setCust('customer-current-credit', await formatCurrency(totalCredit));
@@ -67,46 +71,41 @@ updateCollectionPreview();
 }
 }
 async function renderCustomersTable(page = 1) {
+const deletedRecordIds = new Set(ensureArray(await sqliteStore.get('deleted_records')));
+const _rctAlive = (item) => item && item.id && !deletedRecordIds.has(String(item.id));
+const customerSales = ensureArray(await sqliteStore.get('customer_sales')).filter(_rctAlive);
+const salesCustomers = ensureArray(await sqliteStore.get('sales_customers')).filter(_rctAlive);
 const tbody = document.getElementById('customers-table-body');
 if (!tbody) {
 return;
 }
 try {
-const freshSales = await idb.get('customer_sales', []);
-if (Array.isArray(freshSales)) {
-const recordMap = new Map(freshSales.map(s => [s.id, s]));
-if (Array.isArray(customerSales)) {
-customerSales.forEach(s => {
-if (!recordMap.has(s.id)) {
-recordMap.set(s.id, s);
-}
-});
-}
-customerSales = Array.from(recordMap.values());
-}
+const freshSales = await sqliteStore.get('customer_sales', []);
+const mergedSales = Array.isArray(freshSales) ? freshSales : customerSales;
 } catch (error) {
 console.error('UI refresh failed.', _safeErr(error));
 showToast('UI refresh failed.', 'error');
 }
 try {
-const freshSalesCustomers = await idb.get('sales_customers', []);
+const freshSalesCustomers = await sqliteStore.get('sales_customers', []);
 if (Array.isArray(freshSalesCustomers) && freshSalesCustomers.length > 0) {
 const regMap = new Map(freshSalesCustomers.map(c => [c.id, c]));
 if (Array.isArray(salesCustomers)) {
 salesCustomers.forEach(c => { if (c && c.id && !regMap.has(c.id)) regMap.set(c.id, c); });
 }
-salesCustomers = Array.from(regMap.values());
+const mergedSC = Array.from(regMap.values());
+await sqliteStore.set('sales_customers', mergedSC);
 }
 } catch (regError) {
-console.warn('Registry refresh failed, using in-memory:', regError);
+console.warn('Registry refresh failed, using in-memory:', _safeErr(regError));
 }
 const filterInput = document.getElementById('customer-filter');
 const filterValue = filterInput ? filterInput.value.toLowerCase() : '';
 const customerStats = {};
-customerSales.forEach(sale => {
+for (const sale of customerSales) {
 const name = sale.customerName;
-if (!name || name.trim() === '') return;
-if (sale.currentRepProfile !== 'admin') return;
+if (!name || name.trim() === '') continue;
+if (sale.currentRepProfile !== 'admin') continue;
 const isRepLinked = sale.salesRep && sale.salesRep !== 'NONE';
 if (!customerStats[name]) {
 customerStats[name] = { name: name, credit: 0, quantity: 0, lastSaleDate: 0 };
@@ -114,19 +113,19 @@ customerStats[name] = { name: name, credit: 0, quantity: 0, lastSaleDate: 0 };
 customerStats[name].quantity += (sale.quantity || 0);
 if (sale.transactionType === 'OLD_DEBT' && !sale.creditReceived) {
 const partialPaid = sale.partialPaymentReceived || 0;
-customerStats[name].credit += (getSaleTransactionValue(sale) - partialPaid);
+customerStats[name].credit += (await getSaleTransactionValue(sale) - partialPaid);
 } else if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
 
 if (sale.isMerged && typeof sale.creditValue === 'number') {
 customerStats[name].credit += sale.creditValue;
 } else {
 const partialPaid = sale.partialPaymentReceived || 0;
-customerStats[name].credit += (getSaleTransactionValue(sale) - partialPaid);
+customerStats[name].credit += (await getSaleTransactionValue(sale) - partialPaid);
 }
 } else if (isRepLinked) {
-
-if (sale.paymentType === 'CASH' || sale.creditReceived) {
-customerStats[name].credit += (sale.totalValue || 0);
+if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
+const partialPaid = sale.partialPaymentReceived || 0;
+customerStats[name].credit += (await getSaleTransactionValue(sale) - partialPaid);
 } else if (sale.paymentType === 'COLLECTION') {
 customerStats[name].credit -= (sale.totalValue || 0);
 } else if (sale.paymentType === 'PARTIAL_PAYMENT') {
@@ -148,7 +147,7 @@ if (!isNaN(timestamp) && timestamp > customerStats[name].lastSaleDate) {
 customerStats[name].lastSaleDate = timestamp;
 }
 }
-});
+}
 let sortedCustomers = Object.values(customerStats)
 .filter(c => c && c.name)
 .sort((a, b) => {
@@ -194,7 +193,7 @@ page,
 totalPages
 };
 if (customerData && customerData.customers) {
-renderCustomersFromCache(customerData, tbody);
+await renderCustomersFromCache(customerData, tbody);
 } else {
 tbody.innerHTML = `<tr><td class="u-empty-state-danger" colspan="5" >Failed to load customer data</td></tr>`;
 }
@@ -203,7 +202,7 @@ _setCustH('customer-count', `${totalItems || 0} active`);
 _setCustH('customers-total-credit', `${fmtAmt(totalOutstanding)}`);
 _setCustH('customers-total-quantity', safeNumber(totalGlobalQty, 0).toFixed(2) + ' kg');
 }
-function renderCustomersFromCache(data, tbody) {
+async function renderCustomersFromCache(data, tbody) {
 if (!data) {
 tbody.innerHTML = `<tr><td class="u-empty-state-danger" colspan="5" >Error loading customers</td></tr>`;
 return;
@@ -217,6 +216,8 @@ if (customers.length === 0) {
 tbody.innerHTML = `<tr><td class="u-empty-state-md" colspan="5" >No customers found</td></tr>`;
 return;
 }
+const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
+const salesCustomers = ensureArray(await sqliteStore.get('sales_customers'));
 function buildCustomerRow(c) {
 if (!c || !c.name) return null;
 try {
@@ -231,7 +232,7 @@ s.customerPhone
 );
 phone = contact?.phone || customerSaleData?.customerPhone || '-';
 } catch (phoneError) {
-console.warn('Customer data operation failed.', phoneError);
+console.warn('Customer data operation failed.', _safeErr(phoneError));
 }
 const creditStyle = c.credit > 0 ? 'color:var(--warning); font-weight:700;' : 'color:var(--accent-emerald); font-weight:700;';
 const row = document.createElement('tr');
@@ -248,7 +249,7 @@ row.innerHTML = `
 </td>`;
 return row;
 } catch (rowError) {
-console.warn('An unexpected error occurred.', rowError);
+console.warn('An unexpected error occurred.', _safeErr(rowError));
 return null;
 }
 }
@@ -256,35 +257,9 @@ GNDVirtualScroll.mount('vs-scroller-customers', customers, buildCustomerRow, tbo
 }
 let currentManagingCustomer = null;
 let currentManagingRepCustomer = null;
-async function migrateOldDebtRecords() {
-try {
-let salesArray = await idb.get('customer_sales', []);
-if (!Array.isArray(salesArray)) return;
-let migrated = false;
-salesArray.forEach(s => {
-if (s && s.transactionType === 'OLD_DEBT' && !s.currentRepProfile) {
-s.currentRepProfile = 'admin';
-migrated = true;
-}
-});
-if (migrated) {
-await idb.set('customer_sales', salesArray);
-if (Array.isArray(customerSales)) {
-customerSales.forEach((s, idx) => {
-if (s && s.transactionType === 'OLD_DEBT' && !s.currentRepProfile) {
-customerSales[idx].currentRepProfile = 'admin';
-}
-});
-}
-}
-} catch (e) {
-console.warn('OLD_DEBT migration failed:', e);
-}
-}
-if (typeof window !== 'undefined') {
-setTimeout(() => migrateOldDebtRecords(), 1000);
-}
 async function openCustomerManagement(customerName) {
+const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
+const repSales = ensureArray(await sqliteStore.get('rep_sales'));
 currentManagingCustomer = customerName;
 const _setMCT = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
 _setMCT('manageCustomerTitle', customerName);
@@ -301,7 +276,7 @@ if (_cmOverlay) _cmOverlay.style.display = 'flex';
 });
 await renderCustomerTransactions(customerName);
 }
-function closeCustomerManagement() {
+async function closeCustomerManagement() {
 requestAnimationFrame(() => {
 document.body.style.overflow = '';
 document.documentElement.style.overflow = '';
@@ -310,26 +285,18 @@ document.getElementById('customerManagementOverlay').style.display = 'none';
 currentManagingCustomer = null;
 setTimeout(async () => {
 try {
-const freshSales = await idb.get('customer_sales', []);
-if (Array.isArray(freshSales)) {
-const m = new Map(freshSales.map(s => [s.id, s]));
-if (Array.isArray(customerSales)) customerSales.forEach(s => { if (!m.has(s.id)) m.set(s.id, s); });
-customerSales = Array.from(m.values());
-}
-const freshContacts = await idb.get('sales_customers', []);
-if (Array.isArray(freshContacts)) {
-const m = new Map(freshContacts.map(c => [c.id, c]));
-if (Array.isArray(salesCustomers)) salesCustomers.forEach(c => { if (!m.has(c.id)) m.set(c.id, c); });
-salesCustomers = Array.from(m.values());
-}
+await sqliteStore.get('customer_sales', []);
+await sqliteStore.get('sales_customers', []);
 } catch(e) {
 showToast('Customer data operation failed.', 'error');
-console.warn('closeCustomerManagement IDB error', e);
+console.warn('closeCustomerManagement SQLite error', _safeErr(e));
 }
 if (typeof renderCustomersTable === 'function') renderCustomersTable();
 }, 100);
 }
 async function deleteCurrentCustomer() {
+const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
+const salesCustomers = ensureArray(await sqliteStore.get('sales_customers'));
 if (!currentManagingCustomer) return;
 const name = currentManagingCustomer;
 const txs = customerSales.filter(s =>
@@ -354,19 +321,18 @@ const contactId = contactRecord.id;
 await registerDeletion(contactId, 'sales_customers', contactRecord);
 salesCustomers.splice(contactIdx, 1);
 await saveWithTracking('sales_customers', salesCustomers);
-await deleteRecordFromFirestore('sales_customers', contactId);
+deleteRecordFromFirestore('sales_customers', contactId).catch(() => {});
 }
 const idsToDelete = txs.map(s => s.id);
 
 const txsToDelete = txs.slice();
-customerSales = customerSales.filter(s => !idsToDelete.includes(s.id));
+const prunedSales = customerSales.filter(s => !idsToDelete.includes(s.id));
+await sqliteStore.set('customer_sales', prunedSales);
 for (const tx of txsToDelete) {
 await registerDeletion(tx.id, 'sales', tx);
 }
 await saveWithTracking('customer_sales', customerSales);
-for (const id of idsToDelete) {
-await deleteRecordFromFirestore('customer_sales', id);
-}
+void Promise.all(idsToDelete.map(id => deleteRecordFromFirestore('customer_sales', id).catch(() => {})));
 notifyDataChange('sales');
 triggerAutoSync();
 closeCustomerManagement();
@@ -376,11 +342,15 @@ showToast('Failed to delete customer. Please try again.', 'error');
 }
 }
 async function renderCustomerTransactions(name) {
+const salesCustomers = ensureArray(await sqliteStore.get('sales_customers'));
+const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
+const repSales = ensureArray(await sqliteStore.get('rep_sales'));
+const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
 const list = document.getElementById('customerManagementHistoryList');
 if (!list) return;
 let transactions = [];
 try {
-const dbSales = await idb.get('customer_sales', []);
+const dbSales = await sqliteStore.get('customer_sales', []);
 if (Array.isArray(dbSales)) {
 const recordMap = new Map(dbSales.map(s => [s.id, s]));
 if (Array.isArray(customerSales)) {
@@ -390,8 +360,13 @@ recordMap.set(s.id, s);
 }
 });
 }
-customerSales = Array.from(recordMap.values());
-transactions = customerSales.filter(s =>
+const normalizedSales = Array.from(recordMap.values()).map(s => {
+if (s && !s.currentRepProfile && (!s.salesRep || s.salesRep === 'NONE' || s.salesRep === 'ADMIN')) {
+return { ...s, currentRepProfile: 'admin' };
+}
+return s;
+});
+transactions = normalizedSales.filter(s =>
 s && s.currentRepProfile === 'admin' && s.customerName === name
 );
 } else {
@@ -406,32 +381,17 @@ transactions = customerSales.filter(s =>
 s && s.currentRepProfile === 'admin' && s.customerName === name
 );
 }
-const rangeSelect = document.getElementById('customerPdfRange');
-const range = rangeSelect ? rangeSelect.value : 'all';
-if (range !== 'all') {
-const now = new Date();
-const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+const custDateFromEl = document.getElementById('customerPdfDateFrom');
+const custDateToEl = document.getElementById('customerPdfDateTo');
+const fromVal = custDateFromEl ? custDateFromEl.value : '';
+const toVal = custDateToEl ? custDateToEl.value : '';
+if (fromVal || toVal) {
 transactions = transactions.filter(t => {
 if (!t.date) return false;
-const transDate = new Date(t.date);
-switch(range) {
-case 'today':
-return transDate >= today;
-case 'week':
-const weekAgo = new Date(today);
-weekAgo.setDate(weekAgo.getDate() - 7);
-return transDate >= weekAgo;
-case 'month':
-const monthAgo = new Date(today);
-monthAgo.setMonth(monthAgo.getMonth() - 1);
-return transDate >= monthAgo;
-case 'year':
-const yearAgo = new Date(today);
-yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-return transDate >= yearAgo;
-default:
+const d = t.date.slice(0, 10);
+if (fromVal && d < fromVal) return false;
+if (toVal && d > toVal) return false;
 return true;
-}
 });
 }
 const entity = (Array.isArray(salesCustomers) ? salesCustomers : []).find(e => e && e.name && e.name.toLowerCase() === name.toLowerCase());
@@ -449,23 +409,33 @@ ${phone ? phoneActionHTML(phone) : 'No Phone'} ${address ? `| ◆ ${esc(address)
 </div>
 `;
 let currentDebt = 0;
-transactions.forEach(t => {
+for (const t of transactions) {
+const _tRepLinked = t.salesRep && t.salesRep !== 'NONE';
 if (t.transactionType === 'OLD_DEBT' && !t.creditReceived) {
 const partialPaid = t.partialPaymentReceived || 0;
-currentDebt += getSaleTransactionValue(t) - partialPaid;
+currentDebt += await getSaleTransactionValue(t) - partialPaid;
+} else if (_tRepLinked) {
+if (t.paymentType === 'CREDIT' && !t.creditReceived) {
+const partialPaid = t.partialPaymentReceived || 0;
+currentDebt += (await getSaleTransactionValue(t) - partialPaid);
+} else if (t.paymentType === 'COLLECTION') {
+currentDebt -= (t.totalValue || 0);
+} else if (t.paymentType === 'PARTIAL_PAYMENT') {
+currentDebt -= (t.totalValue || 0);
+}
 } else if (t.paymentType === 'CREDIT' && !t.creditReceived) {
 if (t.isMerged && typeof t.creditValue === 'number') {
 currentDebt += t.creditValue;
 } else {
 const partialPaid = t.partialPaymentReceived || 0;
-currentDebt += (getSaleTransactionValue(t) - partialPaid);
+currentDebt += (await getSaleTransactionValue(t) - partialPaid);
 }
 } else if (t.paymentType === 'COLLECTION') {
 currentDebt -= (t.totalValue || 0);
 } else if (t.paymentType === 'PARTIAL_PAYMENT') {
 currentDebt -= (t.totalValue || 0);
 }
-});
+}
 currentDebt = Math.max(0, currentDebt);
 const _mcStats = document.getElementById('manageCustomerStats'); if (_mcStats) _mcStats.innerText = `Current Debt: ${await formatCurrency(currentDebt)}`;
 transactions.sort((a, b) => b.timestamp - a.timestamp);
@@ -484,7 +454,7 @@ let statusClass = t.creditReceived ? 'paid' : 'pending';
 let btnText = t.creditReceived ? 'PAID' : 'PENDING';
 let toggleBtnHtml = '';
 const partialPaid = t.partialPaymentReceived || 0;
-const _txValue = getSaleTransactionValue(t);
+const _txValue = await getSaleTransactionValue(t);
 const effectiveDue = (t.isMerged && typeof t.creditValue === 'number') ? t.creditValue : (_txValue - partialPaid);
 const hasPartialPayment = isCredit && !t.creditReceived && partialPaid > 0 && !t.isMerged;
 const isOldDebt = t.transactionType === 'OLD_DEBT';
@@ -493,13 +463,6 @@ const mergedSettled = t.creditReceived || (t.isMerged && effectiveDue <= 0.01);
 toggleBtnHtml = mergedSettled
 ? `<span class="status-toggle-btn paid" style="opacity:0.8;">SETTLED</span>`
 : `<span class="status-toggle-btn pending" style="opacity:0.8;">PENDING</span>`;
-} else if(isOldDebt) {
-if (hasPartialPayment) {
-const remaining = effectiveDue;
-btnText = `PARTIAL (${await formatCurrency(remaining)} due)`;
-statusClass = 'partial';
-}
-toggleBtnHtml = `<button class="status-toggle-btn ${statusClass}" onclick="toggleSingleTransactionStatus('${t.id}')">${btnText}</button>`;
 } else if(isCredit) {
 if (hasPartialPayment) {
 const remaining = effectiveDue;
@@ -578,6 +541,7 @@ _custFrag.appendChild(item);
 list.replaceChildren(_custFrag);
 }
 async function toggleSingleTransactionStatus(id) {
+const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
 const record = customerSales.find(s => s.id === id);
 if (record?.isMerged) {
 showToast('Opening balance records cannot be toggled. Use Bulk Payment to settle.', 'warning', 4000);
@@ -598,11 +562,12 @@ refreshAllCalculations();
 }
 } catch (e) {
 customerSales.length = 0; customerSales.push(...snapshot);
-await idb.set('customer_sales', customerSales).catch(() => {});
+await sqliteStore.set('customer_sales', customerSales).catch(() => {});
 showToast('Failed to update transaction status. Please try again.', 'error');
 }
 }
 async function toggleRepTransactionStatus(id) {
+const repSales = ensureArray(await sqliteStore.get('rep_sales'));
 const record = repSales.find(s => s.id === id);
 if (record?.isMerged) {
 showToast('Opening balance records cannot be toggled. Use Bulk Payment to settle.', 'warning', 4000);
@@ -622,11 +587,13 @@ renderRepCustomerTransactions(currentManagingRepCustomer);
 }
 } catch (e) {
 repSales.length = 0; repSales.push(...snapshot);
-await idb.set('rep_sales', repSales).catch(() => {});
+await sqliteStore.set('rep_sales', repSales).catch(() => {});
 showToast('Failed to update transaction status. Please try again.', 'error');
 }
 }
 async function deleteTransactionFromOverlay(id) {
+const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
+const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
 if (!id || !validateUUID(id)) {
 showToast('Invalid transaction ID', 'error');
 return;
@@ -697,8 +664,8 @@ rel.updatedAt = getTimestamp();
 ensureRecordIntegrity(rel, true);
 }
 }
-customerSales = customerSales.filter(s => s.id !== id);
-await unifiedDelete('customer_sales', customerSales, id, { strict: true }, item);
+const customerSalesFiltered = customerSales.filter(s => s.id !== id);
+await unifiedDelete('customer_sales', customerSalesFiltered, id, { strict: true }, item);
 refreshAllCalculations();
 if (typeof refreshCustomerSales === 'function') await refreshCustomerSales();
 renderCustomersTable();
@@ -710,6 +677,7 @@ showToast('Failed to delete transaction. Please try again.', 'error');
 }
 }
 async function deleteRepTransactionFromOverlay(id) {
+const repSales = ensureArray(await sqliteStore.get('rep_sales'));
 if (!id || !validateUUID(id)) {
 showToast('Invalid transaction ID', 'error');
 return;
@@ -778,8 +746,8 @@ rel.updatedAt = getTimestamp();
 ensureRecordIntegrity(rel, true);
 }
 }
-repSales = repSales.filter(s => s.id !== id);
-await unifiedDelete('rep_sales', repSales, id, { strict: true }, item);
+const repSalesFiltered = repSales.filter(s => s.id !== id);
+await unifiedDelete('rep_sales', repSalesFiltered, id, { strict: true }, item);
 renderRepCustomerTransactions(currentManagingRepCustomer);
 renderRepCustomerTable();
 notifyDataChange('rep');
@@ -790,6 +758,9 @@ showToast('Failed to delete transaction. Please try again.', 'error');
 }
 }
 async function processBulkPayment() {
+const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
+const paymentEntities = ensureArray(await sqliteStore.get('payment_entities'));
+const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
 const amount = parseFloat(document.getElementById('bulkPaymentAmount').value);
 if (!amount || amount <= 0) { showToast('Please enter a valid amount', 'warning', 3000); return; }
 const snapshot = [...customerSales];
@@ -828,6 +799,7 @@ id: partialId, timestamp: nowEpoch, createdAt: nowEpoch, updatedAt: nowEpoch,
 date: nowISODate, time: nowTime,
 customerName: currentManagingCustomer, customerPhone: sale.customerPhone || '', quantity: 0,
 supplyStore: sale.supplyStore || 'STORE_A', paymentType: 'PARTIAL_PAYMENT', salesRep: 'NONE',
+currentRepProfile: 'admin',
 totalCost: 0, totalValue: remaining, profit: 0, creditReceived: true,
 relatedSaleId: sale.id, syncedAt: new Date().toISOString()
 }, false, false));
@@ -843,6 +815,7 @@ id: collId, timestamp: nowEpoch, createdAt: nowEpoch, updatedAt: nowEpoch,
 date: nowISODate, time: nowTime,
 customerName: currentManagingCustomer, customerPhone: ls?.customerPhone || '', quantity: 0,
 supplyStore: ls?.supplyStore || 'STORE_A', paymentType: 'COLLECTION', salesRep: 'NONE',
+currentRepProfile: 'admin',
 totalCost: 0, totalValue: remaining, profit: 0, creditReceived: true,
 syncedAt: new Date().toISOString()
 }, false, false));
@@ -851,11 +824,11 @@ if (updatedCount > 0 || partialPaymentMade) {
 const changedIds = new Set(pending.map(s => s.id));
 if (collId) changedIds.add(collId);
 await saveWithTracking('customer_sales', customerSales, null, Array.from(changedIds));
-for (const sale of customerSales) {
-if (changedIds.has(sale.id) || sale.paymentType === 'PARTIAL_PAYMENT' || sale.paymentType === 'COLLECTION') {
-await saveRecordToFirestore('customer_sales', sale);
-}
-}
+void Promise.all(
+  customerSales
+    .filter(sale => changedIds.has(sale.id) || sale.paymentType === 'PARTIAL_PAYMENT' || sale.paymentType === 'COLLECTION')
+    .map(sale => saveRecordToFirestore('customer_sales', sale).catch(() => {}))
+).catch(() => {});
 notifyDataChange('sales'); triggerAutoSync();
 let msg = `Payment of ${fmtAmt(amount)} processed successfully. `;
 msg += partialPaymentMade ? 'Partial payment applied.' : remaining === 0 ? `${updatedCount} transaction(s) fully cleared.` : `${updatedCount} cleared, ${fmtAmt(remaining)} extra.`;
@@ -866,7 +839,7 @@ refreshAllCalculations();
 } else { showToast('No changes made.', 'info', 2500); }
 } catch (e) {
 customerSales.length = 0; customerSales.push(...snapshot);
-await idb.set('customer_sales', customerSales).catch(() => {});
+await sqliteStore.set('customer_sales', customerSales).catch(() => {});
 showToast('Failed to process bulk payment. Please try again.', 'error');
 }
 }
@@ -877,6 +850,9 @@ item.style.display = item.innerText.toLowerCase().includes(term) ? 'flex' : 'non
 });
 }
 async function processRepBulkPayment() {
+const repSales = ensureArray(await sqliteStore.get('rep_sales'));
+const paymentEntities = ensureArray(await sqliteStore.get('payment_entities'));
+const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
 const amount = parseFloat(document.getElementById('repBulkPaymentAmount').value);
 if (!amount || amount <= 0) { showToast('Please enter a valid amount', 'warning', 3000); return; }
 const snapshot = [...repSales];
@@ -939,11 +915,11 @@ if (updatedCount > 0 || partialPaymentMade) {
 const changedIds = new Set(pending.map(s => s.id));
 if (collId) changedIds.add(collId);
 await saveWithTracking('rep_sales', repSales, null, Array.from(changedIds));
-for (const sale of repSales) {
-if (changedIds.has(sale.id) || sale.paymentType === 'PARTIAL_PAYMENT' || sale.paymentType === 'COLLECTION') {
-await saveRecordToFirestore('rep_sales', sale);
-}
-}
+void Promise.all(
+  repSales
+    .filter(sale => changedIds.has(sale.id) || sale.paymentType === 'PARTIAL_PAYMENT' || sale.paymentType === 'COLLECTION')
+    .map(sale => saveRecordToFirestore('rep_sales', sale).catch(() => {}))
+).catch(() => {});
 notifyDataChange('rep'); triggerAutoSync();
 let msg = `Payment of ${fmtAmt(amount)} processed successfully. `;
 msg += partialPaymentMade ? 'Partial payment applied.' : remaining === 0 ? `${updatedCount} transaction(s) fully cleared.` : `${updatedCount} cleared, ${fmtAmt(remaining)} extra.`;
@@ -954,7 +930,7 @@ renderRepCustomerTable();
 } else { showToast('No changes made.', 'info', 2500); }
 } catch (e) {
 repSales.length = 0; repSales.push(...snapshot);
-await idb.set('rep_sales', repSales).catch(() => {});
+await sqliteStore.set('rep_sales', repSales).catch(() => {});
 showToast('Failed to process bulk payment. Please try again.', 'error');
 }
 }
@@ -1098,10 +1074,14 @@ window.showGlassConfirm = showGlassConfirm;
 if (typeof window._onShowGlassConfirmReady === 'function') {
 window._onShowGlassConfirmReady();
 }
-function filterCustomers() {
+async function filterCustomers() {
+const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
+const salesCustomers = ensureArray(await sqliteStore.get('sales_customers'));
 renderCustomersTable();
 }
-function openCustomerEditModal(customerName) {
+async function openCustomerEditModal(customerName) {
+const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
+const salesCustomers = ensureArray(await sqliteStore.get('sales_customers'));
 const nameInput = document.getElementById('edit-cust-name');
 nameInput.value = customerName;
 nameInput.dataset.originalName = customerName;
@@ -1136,6 +1116,8 @@ document.getElementById('customerEditOverlay').style.display = 'none';
 });
 }
 async function saveCustomerDetails() {
+const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
+const salesCustomers = ensureArray(await sqliteStore.get('sales_customers'));
 const nameInput = document.getElementById('edit-cust-name');
 const name = nameInput.value.trim();
 const originalName = nameInput.dataset.originalName || name;
@@ -1146,11 +1128,12 @@ const customSalePrice = parseFloat(document.getElementById('edit-cust-custom-pri
 if (!name) { showToast('Customer name is required', 'error'); return; }
 try {
 const nameChanged = name.toLowerCase() !== originalName.toLowerCase();
-const freshContacts = await idb.get('sales_customers', []);
+const freshContacts = await sqliteStore.get('sales_customers', []);
 if (Array.isArray(freshContacts)) {
 const m = new Map(freshContacts.map(c => [c.id, c]));
 if (Array.isArray(salesCustomers)) salesCustomers.forEach(c => { if (!m.has(c.id)) m.set(c.id, c); });
-salesCustomers = Array.from(m.values());
+const refreshedSC = Array.from(m.values());
+await sqliteStore.set('sales_customers', refreshedSC);
 }
 let contact = salesCustomers.find(c => c && c.name && c.name.toLowerCase() === originalName.toLowerCase());
 if (!contact) contact = salesCustomers.find(c => c && c.name && c.name.toLowerCase() === name.toLowerCase());
@@ -1165,9 +1148,9 @@ createdAt: getTimestamp(), updatedAt: getTimestamp(), timestamp: getTimestamp() 
 salesCustomers.push(contact);
 }
 await saveWithTracking('sales_customers', salesCustomers, contact);
-await saveRecordToFirestore('sales_customers', contact);
+saveRecordToFirestore('sales_customers', contact).catch(() => {});
 notifyDataChange('sales');
-let salesArray = await idb.get('customer_sales', []);
+let salesArray = await sqliteStore.get('customer_sales', []);
 if (!Array.isArray(salesArray)) salesArray = [];
 if (Array.isArray(customerSales) && customerSales.length > 0) {
 const mSales = new Map(salesArray.map(s => [s.id, s]));
@@ -1222,11 +1205,11 @@ salesArray.forEach(s => { if (s && s.customerName === name && s.customerPhone !=
 customerSales.length = 0; customerSales.push(...salesArray);
 if (nameChanged || oldDebtModified || phoneUpdated) {
 await saveWithTracking('customer_sales', salesArray, oldDebtModified && !phoneUpdated && !nameChanged ? oldDebtRecord : null);
-if (oldDebtRecord) await saveRecordToFirestore('customer_sales', oldDebtRecord);
+if (oldDebtRecord) saveRecordToFirestore('customer_sales', oldDebtRecord).catch(() => {});
 if (deletedOldDebtId) {
 await registerDeletion(deletedOldDebtId, 'sales', window._oldDebtRecordForDeletion || null);
 window._oldDebtRecordForDeletion = null;
-await deleteRecordFromFirestore('customer_sales', deletedOldDebtId);
+deleteRecordFromFirestore('customer_sales', deletedOldDebtId).catch(() => {});
 }
 if (nameChanged && renamedRecords.length > 0) {
 const cloudPushes = renamedRecords.map(r => saveRecordToFirestore('customer_sales', r));
