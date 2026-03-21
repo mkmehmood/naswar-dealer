@@ -223,87 +223,61 @@ const NativePDF = (() => {
     const cleaned  = hasPhone ? phone.trim().replace(/[^\d+]/g, '') : '';
     const waUrl    = hasPhone ? `https://wa.me/${cleaned}` : null;
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    let waWin = null;
-    if (waUrl && !isMobile) {
-      waWin = window.open('', '_blank');
-    }
-    const { screenW, physW, dpr } = getDeviceW(landscape);
+
+    const { screenW, physW } = getDeviceW(landscape);
     const cssW = screenW;
     const html  = buildDoc(bodyHTML, { landscape });
     const blob  = new Blob([html], { type: 'text/html' });
-    const url   = URL.createObjectURL(blob);
+    const blobUrl = URL.createObjectURL(blob);
+
     const frame = document.createElement('iframe');
-    frame.style.cssText = [
-      'position:fixed',
-      'top:-99999px',
-      'left:-99999px',
-      `width:${cssW}px`,
-      'height:10px',       // will grow once loaded
-      'border:none',
-      'background:#fff',
-      'visibility:hidden',
-    ].join(';');
+    frame.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:' + cssW + 'px;height:10px;border:none;background:#fff;visibility:hidden;';
     document.body.appendChild(frame);
+
     await new Promise(resolve => {
       frame.onload = () => setTimeout(resolve, 500);
-      frame.src = url;
+      frame.src = blobUrl;
     });
+
     const contentH = frame.contentDocument
-      ? Math.max(
-          frame.contentDocument.body.scrollHeight,
-          frame.contentDocument.documentElement.scrollHeight,
-          100
-        )
-      : Math.round(cssW * 1.414); // fallback: A4 ratio
+      ? Math.max(frame.contentDocument.body.scrollHeight, frame.contentDocument.documentElement.scrollHeight, 100)
+      : Math.round(cssW * 1.414);
     frame.style.height = contentH + 'px';
     await new Promise(r => setTimeout(r, 150));
+
     const canvasW = physW;
     const canvasH = Math.round(contentH * (physW / cssW));
     let imageBlob = null;
     try {
-      const innerHTML = frame.contentDocument.documentElement.outerHTML;
-      const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${canvasW}" height="${canvasH}">
-        <foreignObject width="${canvasW}" height="${canvasH}">
-          <html xmlns="http://www.w3.org/1999/xhtml">
-            <head>
-              <meta charset="utf-8"/>
-              <style>${buildCSS(landscape)}</style>
-            </head>
-            <body style="margin:0;padding:0;width:${cssW}px;transform:scale(${physW/cssW});transform-origin:top left;">
-              ${frame.contentDocument.body.innerHTML}
-            </body>
-          </html>
-        </foreignObject>
-      </svg>`;
+      const svgStr = '<svg xmlns="http://www.w3.org/2000/svg" width="' + canvasW + '" height="' + canvasH + '">' +
+        '<foreignObject width="' + canvasW + '" height="' + canvasH + '">' +
+        '<html xmlns="http://www.w3.org/1999/xhtml"><head><meta charset="utf-8"/>' +
+        '<style>' + buildCSS(landscape) + '</style></head>' +
+        '<body style="margin:0;padding:0;width:' + cssW + 'px;transform:scale(' + (physW/cssW) + ');transform-origin:top left;">' +
+        frame.contentDocument.body.innerHTML +
+        '</body></html></foreignObject></svg>';
       const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
       const svgUrl  = URL.createObjectURL(svgBlob);
       const img     = new Image();
       img.crossOrigin = 'anonymous';
-      await new Promise((res, rej) => {
-        img.onload = res;
-        img.onerror = () => rej(new Error('SVG image load failed'));
-        img.src = svgUrl;
-      });
+      await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('SVG load failed')); img.src = svgUrl; });
       const canvas = document.createElement('canvas');
-      canvas.width  = canvasW;
-      canvas.height = canvasH;
+      canvas.width = canvasW; canvas.height = canvasH;
       const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvasW, canvasH);
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvasW, canvasH);
       ctx.drawImage(img, 0, 0, canvasW, canvasH);
       URL.revokeObjectURL(svgUrl);
       imageBlob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
     } catch (e) {
-      console.warn('[NativePDF] canvas render failed:', e);
       imageBlob = null;
     }
+
     if (frame.parentNode) document.body.removeChild(frame);
-    URL.revokeObjectURL(url);
-    const imageFile = imageBlob
-      ? new File([imageBlob], `${filename}.jpg`, { type: 'image/jpeg' })
-      : null;
+    URL.revokeObjectURL(blobUrl);
+
+    const imageFile = imageBlob ? new File([imageBlob], filename + '.jpg', { type: 'image/jpeg' }) : null;
+
     if (imageFile && navigator.canShare && navigator.canShare({ files: [imageFile] })) {
-      if (waWin) { try { waWin.close(); } catch(e) {} waWin = null; }
       try {
         await navigator.share({ files: [imageFile], title: 'Account Statement' });
         showToast('Statement shared successfully', 'success');
@@ -312,32 +286,22 @@ const NativePDF = (() => {
         if (err.name === 'AbortError') { showToast('Share cancelled', 'info'); return; }
       }
     }
+
     if (imageFile) {
       const dlLink = document.createElement('a');
-      dlLink.href     = URL.createObjectURL(imageBlob);
-      dlLink.download = `${filename}.jpg`;
+      dlLink.href = URL.createObjectURL(imageBlob);
+      dlLink.download = filename + '.jpg';
       document.body.appendChild(dlLink);
       dlLink.click();
       document.body.removeChild(dlLink);
-      setTimeout(() => URL.revokeObjectURL(dlLink.href), 8000);
+      setTimeout(() => URL.revokeObjectURL(dlLink.href), 5000);
     }
-    if (waUrl) {
-      if (isMobile) {
-        showToast('Statement saved — opening WhatsApp…', 'success');
-        setTimeout(() => { window.location.href = waUrl; }, 600);
-      } else if (waWin) {
-        showToast('Statement saved — WhatsApp opened', 'success');
-        waWin.location.href = waUrl;
-      } else {
-        const w = window.open(waUrl, '_blank');
-        if (!w) { window.location.href = waUrl; }
-        showToast('Statement saved — opening WhatsApp…', 'success');
-      }
+
+    if (hasPhone) {
+      showToast('Image downloaded — opening WhatsApp to send it…', 'success');
+      setTimeout(() => window.open('https://wa.me/' + cleaned, '_blank'), 600);
     } else {
-      showToast(imageFile ? 'Statement saved as image' : 'Statement exported', 'success');
-    }
-    if (!imageFile) {
-      buildAndDownload(bodyHTML, filename, { landscape });
+      showToast(imageFile ? 'Statement saved as image' : 'Statement saved', 'success');
     }
   }
   
