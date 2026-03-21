@@ -194,19 +194,35 @@ const NativePDF = (() => {
 <body>${bodyHTML}</body></html>`;
   }
   
+  function _triggerPrint(html, filename, onAfterPrint) {
+    const blob  = new Blob([html], { type: 'text/html' });
+    const url   = URL.createObjectURL(blob);
+    const frame = document.createElement('iframe');
+    frame.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;opacity:0;';
+    document.body.appendChild(frame);
+    frame.onload = () => {
+      try {
+        frame.contentDocument.title = filename;
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+      } catch(e) {
+        window.open(url, '_blank');
+      }
+      setTimeout(() => {
+        if (frame.parentNode) document.body.removeChild(frame);
+        URL.revokeObjectURL(url);
+        if (onAfterPrint) onAfterPrint();
+      }, 2000);
+    };
+    frame.src = url;
+  }
+
   function buildAndDownload(bodyHTML, filename, { landscape = false } = {}) {
     const html = buildDoc(bodyHTML, { landscape });
-    const blob = new Blob([html], { type: 'text/html' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = filename + '.html';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 8000);
-    showToast('Statement downloaded', 'success');
+    showToast('Generating PDF…', 'info');
+    _triggerPrint(html, filename, () => showToast('PDF ready — save from print dialog', 'success'));
   }
+
   async function buildAndShare(bodyHTML, filename, phone, { landscape = false } = {}) {
     const hasPhone = phone && phone !== 'N/A' && phone.trim() !== '';
     const cleaned  = hasPhone ? phone.trim().replace(/[^\d+]/g, '') : '';
@@ -235,70 +251,92 @@ const NativePDF = (() => {
     frame.style.height = contentH + 'px';
     await new Promise(r => setTimeout(r, 150));
 
-    const canvasW = physW;
-    const canvasH = Math.round(contentH * (physW / cssW));
-    let imageBlob = null;
-    try {
-      const svgStr = '<svg xmlns="http://www.w3.org/2000/svg" width="' + canvasW + '" height="' + canvasH + '">'
-        + '<foreignObject width="' + canvasW + '" height="' + canvasH + '">'
-        + '<html xmlns="http://www.w3.org/1999/xhtml"><head><meta charset="utf-8"/>'
-        + '<style>' + buildCSS(landscape) + '</style></head>'
-        + '<body style="margin:0;padding:0;width:' + cssW + 'px;transform:scale(' + (physW / cssW) + ');transform-origin:top left;">'
-        + frame.contentDocument.body.innerHTML
-        + '</body></html></foreignObject></svg>';
-      const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
-      const svgUrl  = URL.createObjectURL(svgBlob);
-      const img     = new Image();
-      img.crossOrigin = 'anonymous';
-      await new Promise((res, rej) => {
-        img.onload = res;
-        img.onerror = () => rej(new Error('render failed'));
-        img.src = svgUrl;
-      });
-      const canvas = document.createElement('canvas');
-      canvas.width = canvasW; canvas.height = canvasH;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvasW, canvasH);
-      ctx.drawImage(img, 0, 0, canvasW, canvasH);
-      URL.revokeObjectURL(svgUrl);
-      imageBlob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
-    } catch (e) {
-      imageBlob = null;
-    }
+    const a4PageH  = Math.round(cssW * (297 / 210));
+    const isOnePage = contentH <= a4PageH * 1.1;
 
-    if (frame.parentNode) document.body.removeChild(frame);
-    URL.revokeObjectURL(blobUrl);
-
-    const imageFile = imageBlob
-      ? new File([imageBlob], filename + '.jpg', { type: 'image/jpeg' })
-      : null;
-
-    if (imageFile && navigator.canShare && navigator.canShare({ files: [imageFile] })) {
+    if (isOnePage) {
+      const canvasW = physW;
+      const canvasH = Math.round(contentH * (physW / cssW));
+      let imageBlob = null;
       try {
-        await navigator.share({ files: [imageFile], title: 'Account Statement' });
-        showToast('Statement shared successfully', 'success');
-        return;
-      } catch (err) {
-        if (err.name === 'AbortError') { showToast('Share cancelled', 'info'); return; }
+        const svgStr = '<svg xmlns="http://www.w3.org/2000/svg" width="' + canvasW + '" height="' + canvasH + '">'
+          + '<foreignObject width="' + canvasW + '" height="' + canvasH + '">'
+          + '<html xmlns="http://www.w3.org/1999/xhtml"><head><meta charset="utf-8"/>'
+          + '<style>' + buildCSS(landscape) + '</style></head>'
+          + '<body style="margin:0;padding:0;width:' + cssW + 'px;transform:scale(' + (physW / cssW) + ');transform-origin:top left;">'
+          + frame.contentDocument.body.innerHTML
+          + '</body></html></foreignObject></svg>';
+        const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+        const svgUrl  = URL.createObjectURL(svgBlob);
+        const img     = new Image();
+        img.crossOrigin = 'anonymous';
+        await new Promise((res, rej) => {
+          img.onload = res;
+          img.onerror = () => rej(new Error('render failed'));
+          img.src = svgUrl;
+        });
+        const canvas = document.createElement('canvas');
+        canvas.width = canvasW; canvas.height = canvasH;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvasW, canvasH);
+        ctx.drawImage(img, 0, 0, canvasW, canvasH);
+        URL.revokeObjectURL(svgUrl);
+        imageBlob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
+      } catch (e) {
+        imageBlob = null;
       }
-    }
 
-    const dlBlob = imageBlob || htmlBlob;
-    const dlName = imageBlob ? filename + '.jpg' : filename + '.html';
-    const dlUrl  = URL.createObjectURL(dlBlob);
-    const dlLink = document.createElement('a');
-    dlLink.href     = dlUrl;
-    dlLink.download = dlName;
-    document.body.appendChild(dlLink);
-    dlLink.click();
-    document.body.removeChild(dlLink);
-    setTimeout(() => URL.revokeObjectURL(dlUrl), 8000);
+      if (frame.parentNode) document.body.removeChild(frame);
+      URL.revokeObjectURL(blobUrl);
 
-    if (waUrl) {
-      showToast('Statement downloaded — opening WhatsApp to send it…', 'success');
-      setTimeout(() => window.open(waUrl, '_blank'), 600);
+      const imageFile = imageBlob
+        ? new File([imageBlob], filename + '.jpg', { type: 'image/jpeg' })
+        : null;
+
+      if (imageFile && navigator.canShare && navigator.canShare({ files: [imageFile] })) {
+        try {
+          await navigator.share({ files: [imageFile], title: 'Account Statement' });
+          showToast('Statement shared successfully', 'success');
+          return;
+        } catch (err) {
+          if (err.name === 'AbortError') { showToast('Share cancelled', 'info'); return; }
+        }
+      }
+
+      if (imageBlob) {
+        const dlUrl  = URL.createObjectURL(imageBlob);
+        const dlLink = document.createElement('a');
+        dlLink.href     = dlUrl;
+        dlLink.download = filename + '.jpg';
+        document.body.appendChild(dlLink);
+        dlLink.click();
+        document.body.removeChild(dlLink);
+        setTimeout(() => URL.revokeObjectURL(dlUrl), 8000);
+        if (waUrl) {
+          showToast('Image downloaded — opening WhatsApp to send it…', 'success');
+          setTimeout(() => window.open(waUrl, '_blank'), 600);
+        } else {
+          showToast('Statement saved as image', 'success');
+        }
+      } else {
+        if (frame.parentNode) document.body.removeChild(frame);
+        URL.revokeObjectURL(blobUrl);
+        showToast('Generating PDF…', 'info');
+        _triggerPrint(html, filename, waUrl ? () => {
+          showToast('PDF ready — save then open WhatsApp to send it…', 'success');
+          setTimeout(() => window.open(waUrl, '_blank'), 800);
+        } : null);
+      }
+
     } else {
-      showToast('Statement downloaded', 'success');
+      if (frame.parentNode) document.body.removeChild(frame);
+      URL.revokeObjectURL(blobUrl);
+
+      showToast('Generating PDF…', 'info');
+      _triggerPrint(html, filename, waUrl ? () => {
+        showToast('PDF ready — save then open WhatsApp to send it…', 'success');
+        setTimeout(() => window.open(waUrl, '_blank'), 800);
+      } : null);
     }
   }
   function table({ headers, rows, colStyles = [], headerColor = '#28a745' }) {
