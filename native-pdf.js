@@ -194,25 +194,32 @@ const NativePDF = (() => {
 <body>${bodyHTML}</body></html>`;
   }
   
-  function _triggerPrint(html, filename, onAfterPrint) {
+  function _printAndShare(html, filename, waUrl) {
     const blob  = new Blob([html], { type: 'text/html' });
     const url   = URL.createObjectURL(blob);
     const frame = document.createElement('iframe');
-    frame.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;opacity:0;';
+    frame.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:99999;background:#fff;';
     document.body.appendChild(frame);
     frame.onload = () => {
       try {
         frame.contentDocument.title = filename;
-        frame.contentWindow.focus();
-        frame.contentWindow.print();
+        setTimeout(() => {
+          try { frame.contentWindow.print(); } catch(e) {}
+          setTimeout(() => {
+            if (frame.parentNode) document.body.removeChild(frame);
+            URL.revokeObjectURL(url);
+            if (waUrl) {
+              showToast('Statement exported — opening WhatsApp to send it…', 'success');
+              setTimeout(() => window.open(waUrl, '_blank'), 400);
+            } else {
+              showToast('Statement exported successfully', 'success');
+            }
+          }, 1000);
+        }, 300);
       } catch(e) {
-        window.open(url, '_blank');
-      }
-      setTimeout(() => {
         if (frame.parentNode) document.body.removeChild(frame);
         URL.revokeObjectURL(url);
-        if (onAfterPrint) onAfterPrint();
-      }, 2000);
+      }
     };
     frame.src = url;
   }
@@ -220,7 +227,7 @@ const NativePDF = (() => {
   function buildAndDownload(bodyHTML, filename, { landscape = false } = {}) {
     const html = buildDoc(bodyHTML, { landscape });
     showToast('Generating PDF…', 'info');
-    _triggerPrint(html, filename, () => showToast('PDF ready — save from print dialog', 'success'));
+    _printAndShare(html, filename, null);
   }
 
   async function buildAndShare(bodyHTML, filename, phone, { landscape = false } = {}) {
@@ -252,7 +259,7 @@ const NativePDF = (() => {
     await new Promise(r => setTimeout(r, 150));
 
     const a4PageH  = Math.round(cssW * (297 / 210));
-    const isOnePage = contentH <= a4PageH * 1.1;
+    const isOnePage = contentH <= a4PageH * 1.15;
 
     if (isOnePage) {
       const canvasW = physW;
@@ -272,7 +279,7 @@ const NativePDF = (() => {
         img.crossOrigin = 'anonymous';
         await new Promise((res, rej) => {
           img.onload = res;
-          img.onerror = () => rej(new Error('render failed'));
+          img.onerror = rej;
           img.src = svgUrl;
         });
         const canvas = document.createElement('canvas');
@@ -289,21 +296,17 @@ const NativePDF = (() => {
       if (frame.parentNode) document.body.removeChild(frame);
       URL.revokeObjectURL(blobUrl);
 
-      const imageFile = imageBlob
-        ? new File([imageBlob], filename + '.jpg', { type: 'image/jpeg' })
-        : null;
-
-      if (imageFile && navigator.canShare && navigator.canShare({ files: [imageFile] })) {
-        try {
-          await navigator.share({ files: [imageFile], title: 'Account Statement' });
-          showToast('Statement shared successfully', 'success');
-          return;
-        } catch (err) {
-          if (err.name === 'AbortError') { showToast('Share cancelled', 'info'); return; }
-        }
-      }
-
       if (imageBlob) {
+        const imageFile = new File([imageBlob], filename + '.jpg', { type: 'image/jpeg' });
+        if (navigator.canShare && navigator.canShare({ files: [imageFile] })) {
+          try {
+            await navigator.share({ files: [imageFile], title: 'Account Statement' });
+            showToast('Statement shared successfully', 'success');
+            return;
+          } catch (err) {
+            if (err.name === 'AbortError') { showToast('Share cancelled', 'info'); return; }
+          }
+        }
         const dlUrl  = URL.createObjectURL(imageBlob);
         const dlLink = document.createElement('a');
         dlLink.href     = dlUrl;
@@ -319,24 +322,13 @@ const NativePDF = (() => {
           showToast('Statement saved as image', 'success');
         }
       } else {
-        if (frame.parentNode) document.body.removeChild(frame);
-        URL.revokeObjectURL(blobUrl);
-        showToast('Generating PDF…', 'info');
-        _triggerPrint(html, filename, waUrl ? () => {
-          showToast('PDF ready — save then open WhatsApp to send it…', 'success');
-          setTimeout(() => window.open(waUrl, '_blank'), 800);
-        } : null);
+        _printAndShare(html, filename, waUrl);
       }
 
     } else {
       if (frame.parentNode) document.body.removeChild(frame);
       URL.revokeObjectURL(blobUrl);
-
-      showToast('Generating PDF…', 'info');
-      _triggerPrint(html, filename, waUrl ? () => {
-        showToast('PDF ready — save then open WhatsApp to send it…', 'success');
-        setTimeout(() => window.open(waUrl, '_blank'), 800);
-      } : null);
+      _printAndShare(html, filename, waUrl);
     }
   }
   function table({ headers, rows, colStyles = [], headerColor = '#28a745' }) {
