@@ -36,7 +36,7 @@ const NativePDF = (() => {
       overflow: hidden;
     }
     .page:last-child { page-break-after: auto; }
-    /* Header bar */
+     
     .doc-header {
       width: 100%;
       padding: ${halfPad}px ${pad}px;
@@ -55,7 +55,7 @@ const NativePDF = (() => {
       margin-top: 2px;
       opacity: 0.9;
     }
-    /* Title / meta */
+     
     .doc-title {
       text-align: center;
       padding: ${halfPad}px ${pad}px 4px;
@@ -73,12 +73,12 @@ const NativePDF = (() => {
     .doc-meta .k  { font-weight: 700; color: #333; white-space: nowrap; }
     .doc-meta .v  { color: #555; word-break: break-word; }
     .doc-divider  { height: 1px; margin: 0 ${pad}px 6px; }
-    /* Section label */
+     
     .section-label {
       font-size: ${smaller}px; font-weight: 700; text-transform: uppercase;
       letter-spacing: 0.5px; padding: 4px ${pad}px 3px;
     }
-    /* Tables — fluid, no fixed widths */
+     
     table {
       width: calc(100% - ${pad * 2}px);
       margin: 0 ${pad}px 6px;
@@ -105,11 +105,11 @@ const NativePDF = (() => {
       overflow-wrap: break-word;
     }
     tbody tr:nth-child(even) td { background: #fafafa; }
-    /* Alignment helpers */
+     
     .ta-c { text-align: center; }
     .ta-r { text-align: right; }
     .ta-l { text-align: left; }
-    /* Colour utilities */
+     
     .c-red    { color: #dc3545; }
     .c-green  { color: #28a745; }
     .c-gray   { color: #888; }
@@ -117,15 +117,15 @@ const NativePDF = (() => {
     .c-purple { color: #7e22ce; }
     .fw-700   { font-weight: 700; }
     .fw-800   { font-weight: 800; }
-    /* Total rows */
+     
     .row-total        td { font-weight:700; font-size:${small}px; background:#f0f0f0 !important; }
     .row-total-green  td { font-weight:700; font-size:${small}px; background:#ebffeb !important; }
     .row-total-blue   td { font-weight:700; font-size:${small}px; background:#f0f8ff !important; }
     .row-total-orange td { font-weight:700; font-size:${small}px; background:#fff5eb !important; }
-    /* Merged rows */
+     
     .row-merged     td { background:#f5ebff !important; color:#50287a; }
     .row-merged-sub td { background:#e6d2ff !important; font-weight:700; }
-    /* Merged banner */
+     
     .merged-banner {
       margin: 4px ${pad}px;
       background: #f5ebff;
@@ -134,7 +134,7 @@ const NativePDF = (() => {
       padding: 4px 10px;
       font-size: ${small}px; font-weight:700; color:#7e22ce;
     }
-    /* Summary box */
+     
     .summary-box {
       margin: 4px ${pad}px;
       border-radius: 4px;
@@ -145,7 +145,7 @@ const NativePDF = (() => {
     }
     .summary-box .item  { display:flex; gap:4px; align-items:center; flex-wrap:wrap; }
     .summary-box .label { font-weight:600; color:#555; }
-    /* Footer */
+     
     .doc-footer {
       text-align: center;
       font-size: ${smaller}px;
@@ -154,7 +154,7 @@ const NativePDF = (() => {
       border-top: 1px solid #eee;
       margin-top: 6px;
     }
-    /* Note box */
+     
     .note-box {
       margin: 4px ${pad}px;
       background: #f5ebff;
@@ -162,7 +162,7 @@ const NativePDF = (() => {
       padding: 4px 10px;
       font-size: ${smaller}px; font-weight:700; color:#7e22ce;
     }
-    /* Breakdown */
+     
     .breakdown { margin: 4px ${pad}px; font-size:${small}px; }
     .breakdown .bk-row { display:flex; justify-content:space-between; padding:2px 0; border-bottom:1px solid #f0f0f0; }
     .breakdown .bk-row .bk-name { color:#555; }
@@ -198,37 +198,27 @@ const NativePDF = (() => {
     const html = buildDoc(bodyHTML, { landscape });
     const blob = new Blob([html], { type: 'text/html' });
     const url  = URL.createObjectURL(blob);
-    const frame = document.createElement('iframe');
-    frame.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;opacity:0;';
-    document.body.appendChild(frame);
-    frame.onload = () => {
-      try {
-        frame.contentDocument.title = filename;
-        frame.contentWindow.focus();
-        frame.contentWindow.print();
-      } catch(e) {
-        console.warn('[NativePDF] print failed, opening in tab', e);
-        window.open(url, '_blank');
-      }
-      setTimeout(() => {
-        if (frame.parentNode) document.body.removeChild(frame);
-        URL.revokeObjectURL(url);
-      }, 5000);
-    };
-    frame.src = url;
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = filename + '.html';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 8000);
+    showToast('Statement downloaded', 'success');
   }
-  
   async function buildAndShare(bodyHTML, filename, phone, { landscape = false } = {}) {
     const hasPhone = phone && phone !== 'N/A' && phone.trim() !== '';
     const cleaned  = hasPhone ? phone.trim().replace(/[^\d+]/g, '') : '';
-    const waUrl    = hasPhone ? `https://wa.me/${cleaned}` : null;
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const waUrl    = hasPhone ? 'https://wa.me/' + cleaned : null;
+
+    showToast('Generating statement…', 'info');
 
     const { screenW, physW } = getDeviceW(landscape);
-    const cssW = screenW;
-    const html  = buildDoc(bodyHTML, { landscape });
-    const blob  = new Blob([html], { type: 'text/html' });
-    const blobUrl = URL.createObjectURL(blob);
+    const cssW     = screenW;
+    const html     = buildDoc(bodyHTML, { landscape });
+    const htmlBlob = new Blob([html], { type: 'text/html' });
+    const blobUrl  = URL.createObjectURL(htmlBlob);
 
     const frame = document.createElement('iframe');
     frame.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:' + cssW + 'px;height:10px;border:none;background:#fff;visibility:hidden;';
@@ -249,18 +239,22 @@ const NativePDF = (() => {
     const canvasH = Math.round(contentH * (physW / cssW));
     let imageBlob = null;
     try {
-      const svgStr = '<svg xmlns="http://www.w3.org/2000/svg" width="' + canvasW + '" height="' + canvasH + '">' +
-        '<foreignObject width="' + canvasW + '" height="' + canvasH + '">' +
-        '<html xmlns="http://www.w3.org/1999/xhtml"><head><meta charset="utf-8"/>' +
-        '<style>' + buildCSS(landscape) + '</style></head>' +
-        '<body style="margin:0;padding:0;width:' + cssW + 'px;transform:scale(' + (physW/cssW) + ');transform-origin:top left;">' +
-        frame.contentDocument.body.innerHTML +
-        '</body></html></foreignObject></svg>';
+      const svgStr = '<svg xmlns="http://www.w3.org/2000/svg" width="' + canvasW + '" height="' + canvasH + '">'
+        + '<foreignObject width="' + canvasW + '" height="' + canvasH + '">'
+        + '<html xmlns="http://www.w3.org/1999/xhtml"><head><meta charset="utf-8"/>'
+        + '<style>' + buildCSS(landscape) + '</style></head>'
+        + '<body style="margin:0;padding:0;width:' + cssW + 'px;transform:scale(' + (physW / cssW) + ');transform-origin:top left;">'
+        + frame.contentDocument.body.innerHTML
+        + '</body></html></foreignObject></svg>';
       const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
       const svgUrl  = URL.createObjectURL(svgBlob);
       const img     = new Image();
       img.crossOrigin = 'anonymous';
-      await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('SVG load failed')); img.src = svgUrl; });
+      await new Promise((res, rej) => {
+        img.onload = res;
+        img.onerror = () => rej(new Error('render failed'));
+        img.src = svgUrl;
+      });
       const canvas = document.createElement('canvas');
       canvas.width = canvasW; canvas.height = canvasH;
       const ctx = canvas.getContext('2d');
@@ -275,7 +269,9 @@ const NativePDF = (() => {
     if (frame.parentNode) document.body.removeChild(frame);
     URL.revokeObjectURL(blobUrl);
 
-    const imageFile = imageBlob ? new File([imageBlob], filename + '.jpg', { type: 'image/jpeg' }) : null;
+    const imageFile = imageBlob
+      ? new File([imageBlob], filename + '.jpg', { type: 'image/jpeg' })
+      : null;
 
     if (imageFile && navigator.canShare && navigator.canShare({ files: [imageFile] })) {
       try {
@@ -287,24 +283,24 @@ const NativePDF = (() => {
       }
     }
 
-    if (imageFile) {
-      const dlLink = document.createElement('a');
-      dlLink.href = URL.createObjectURL(imageBlob);
-      dlLink.download = filename + '.jpg';
-      document.body.appendChild(dlLink);
-      dlLink.click();
-      document.body.removeChild(dlLink);
-      setTimeout(() => URL.revokeObjectURL(dlLink.href), 5000);
-    }
+    const dlBlob = imageBlob || htmlBlob;
+    const dlName = imageBlob ? filename + '.jpg' : filename + '.html';
+    const dlUrl  = URL.createObjectURL(dlBlob);
+    const dlLink = document.createElement('a');
+    dlLink.href     = dlUrl;
+    dlLink.download = dlName;
+    document.body.appendChild(dlLink);
+    dlLink.click();
+    document.body.removeChild(dlLink);
+    setTimeout(() => URL.revokeObjectURL(dlUrl), 8000);
 
-    if (hasPhone) {
-      showToast('Image downloaded — opening WhatsApp to send it…', 'success');
-      setTimeout(() => window.open('https://wa.me/' + cleaned, '_blank'), 600);
+    if (waUrl) {
+      showToast('Statement downloaded — opening WhatsApp to send it…', 'success');
+      setTimeout(() => window.open(waUrl, '_blank'), 600);
     } else {
-      showToast(imageFile ? 'Statement saved as image' : 'Statement saved', 'success');
+      showToast('Statement downloaded', 'success');
     }
   }
-  
   function table({ headers, rows, colStyles = [], headerColor = '#28a745' }) {
     const thStyle = `background:${headerColor};`;
     const headCells = headers.map((hdr, i) => {
@@ -944,7 +940,7 @@ async function exportUnifiedData() {
         if (balance>0.01)  totReceivable+=balance;
         const hasMerged=!!entityMergedInfo[entity.id];
         const balDisplay=Math.abs(balance)<0.01?'':balance<0?fmtAmt(Math.abs(balance)):fmtAmt(balance);
-        const balNote=Math.abs(balance)<0.01?'':balance<0?'PAYABLE':'RECEIVABLE';
+        const balNote='';
         entityRows.push({
           cells:[entity.name+(hasMerged?'\n★ Year-end balance':''),supplierIdSet.has(sid)?'SUPPLIER':'ENTITY',
             entity.phone||'N/A', hasMerged?'Year-End\n'+source:source, balDisplay, balNote],
@@ -953,7 +949,7 @@ async function exportUnifiedData() {
         pdfEntityList.push(entity);
       });
       entityRows.push({ cells:[`TOTAL (${entityRows.length} entities)`,'','','',
-        `Payable: ${fmtAmt(totPayable)} / Receivable: ${fmtAmt(totReceivable)}`,
+        `${fmtAmt(totPayable)} / ${fmtAmt(totReceivable)}`,
         `Net: ${fmtAmt(Math.abs(totReceivable-totPayable))}`],
         rowClass:'row-total-blue' });
       contentHTML += table({
@@ -966,7 +962,7 @@ async function exportUnifiedData() {
         headerColor: color,
       });
       contentHTML += `<div class="summary-box" style="background:#e0f7f5;font-size:8px;">
-        Total Payables: ${h(fmtAmt(totPayable))} | Total Receivables: ${h(fmtAmt(totReceivable))} | Net: ${h(fmtAmt(Math.abs(totReceivable-totPayable)))} 
+        ${h(fmtAmt(totPayable))} / ${h(fmtAmt(totReceivable))} | ${h(fmtAmt(Math.abs(totReceivable-totPayable)))} 
       </div>`;
       if (Object.keys(entityMergedInfo).length>0) {
         contentHTML += noteBox('Highlighted rows contain year-end opening balances (MERGED) from Close Financial Year.');
