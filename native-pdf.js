@@ -219,6 +219,14 @@ const NativePDF = (() => {
   }
   
   async function buildAndShare(bodyHTML, filename, phone, { landscape = false } = {}) {
+    const hasPhone = phone && phone !== 'N/A' && phone.trim() !== '';
+    const cleaned  = hasPhone ? phone.trim().replace(/[^\d+]/g, '') : '';
+    const waUrl    = hasPhone ? `https://wa.me/${cleaned}` : null;
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    let waWin = null;
+    if (waUrl && !isMobile) {
+      waWin = window.open('', '_blank');
+    }
     const { screenW, physW, dpr } = getDeviceW(landscape);
     const cssW = screenW;
     const html  = buildDoc(bodyHTML, { landscape });
@@ -294,10 +302,8 @@ const NativePDF = (() => {
     const imageFile = imageBlob
       ? new File([imageBlob], `${filename}.jpg`, { type: 'image/jpeg' })
       : null;
-    const hasPhone = phone && phone !== 'N/A' && phone.trim() !== '';
-    const cleaned  = hasPhone ? phone.trim().replace(/[^\d+]/g, '') : '';
-    const waUrl    = hasPhone ? `https://wa.me/${cleaned}` : null;
     if (imageFile && navigator.canShare && navigator.canShare({ files: [imageFile] })) {
+      if (waWin) { try { waWin.close(); } catch(e) {} waWin = null; }
       try {
         await navigator.share({ files: [imageFile], title: 'Account Statement' });
         showToast('Statement shared successfully', 'success');
@@ -316,18 +322,16 @@ const NativePDF = (() => {
       setTimeout(() => URL.revokeObjectURL(dlLink.href), 8000);
     }
     if (waUrl) {
-      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
       if (isMobile) {
-        setTimeout(() => { window.location.href = waUrl; }, 800);
-        showToast('Image saved — opening WhatsApp…', 'success');
+        showToast('Statement saved — opening WhatsApp…', 'success');
+        setTimeout(() => { window.location.href = waUrl; }, 600);
+      } else if (waWin) {
+        showToast('Statement saved — WhatsApp opened', 'success');
+        waWin.location.href = waUrl;
       } else {
-        showToast('Image saved — opening WhatsApp…', 'success');
-        setTimeout(() => {
-          const opened = window.open(waUrl, '_blank');
-          if (!opened) {
-            window.location.href = waUrl;
-          }
-        }, 400);
+        const w = window.open(waUrl, '_blank');
+        if (!w) { window.location.href = waUrl; }
+        showToast('Statement saved — opening WhatsApp…', 'success');
       }
     } else {
       showToast(imageFile ? 'Statement saved as image' : 'Statement exported', 'success');
