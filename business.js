@@ -360,7 +360,7 @@ const _OPFSStore = (() => {
         const root = await navigator.storage.getDirectory();
         const fh   = await root.getFileHandle(filename);
         return JSON.parse(await (await fh.getFile()).text());
-      } catch {}
+      } catch { /* fall through to localStorage */ }
     }
     try { const r = localStorage.getItem(lsKey); return r ? JSON.parse(r) : {}; } catch { return {}; }
   }
@@ -1610,7 +1610,7 @@ const sqliteStore = (() => {
               );
               updated++;
             }
-          } catch {}
+          } catch { /* skip individual row failures */ }
         }
         if (updated > 0) {
           _schedulePersist(PERSIST_NORMAL_MS);

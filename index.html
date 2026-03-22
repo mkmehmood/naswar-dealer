@@ -421,17 +421,7 @@ This will automatically create a <strong>PAYEE</strong> entity. Any debts to thi
 <span id="manageEntityStats">Current Balance: 0.00</span>
 </div>
 <div class="overlay-header__row3">
-<div class="date-range-picker">
-<div class="date-range-field">
-<label class="date-range-label">From</label>
-<input type="date" id="entityPdfDateFrom" class="date-range-input" onchange="if(currentEntityId){const entity=paymentEntities.find(e=>String(e.id)===String(currentEntityId));if(entity)renderEntityOverlayContent(entity);}">
-</div>
-<span class="date-range-sep">→</span>
-<div class="date-range-field">
-<label class="date-range-label">To</label>
-<input type="date" id="entityPdfDateTo" class="date-range-input" onchange="if(currentEntityId){const entity=paymentEntities.find(e=>String(e.id)===String(currentEntityId));if(entity)renderEntityOverlayContent(entity);}">
-</div>
-</div>
+<input type="date" id="entityDateFrom" class="store-selector date-range-input" onchange="if(currentEntityId){const entity=paymentEntities.find(e=>String(e.id)===String(currentEntityId));if(entity)renderEntityOverlayContent(entity);}"><span class="date-range-sep">to</span><input type="date" id="entityDateTo" class="store-selector date-range-input" onchange="if(currentEntityId){const entity=paymentEntities.find(e=>String(e.id)===String(currentEntityId));if(entity)renderEntityOverlayContent(entity);}">
 <button class="btn btn-noran btn-sm btn-pdf" onclick="exportEntityToPDF()" title="Export to PDF">📄</button>
 </div>
 </div>
@@ -476,17 +466,7 @@ This will automatically create a <strong>PAYEE</strong> entity. Any debts to thi
 <span id="expenseOverlayStats">Total: 0.00</span>
 </div>
 <div class="overlay-header__row3">
-<div class="date-range-picker">
-<div class="date-range-field">
-<label class="date-range-label">From</label>
-<input type="date" id="expenseDateFrom" class="date-range-input" onchange="renderExpenseOverlayContent()">
-</div>
-<span class="date-range-sep">→</span>
-<div class="date-range-field">
-<label class="date-range-label">To</label>
-<input type="date" id="expenseDateTo" class="date-range-input" onchange="renderExpenseOverlayContent()">
-</div>
-</div>
+<input type="date" id="expenseDateFrom" class="store-selector date-range-input" onchange="renderExpenseOverlayContent()"><span class="date-range-sep">to</span><input type="date" id="expenseDateTo" class="store-selector date-range-input" onchange="renderExpenseOverlayContent()">
 <button class="btn btn-noran btn-sm btn-pdf" onclick="exportExpenseOverlayToPDF()" title="Export to PDF">📄</button>
 </div>
 </div>
@@ -528,17 +508,7 @@ This will automatically create a <strong>PAYEE</strong> entity. Any debts to thi
 <span id="manageCustomerStats">Current Debt: 0.00</span>
 </div>
 <div class="overlay-header__row3">
-<div class="date-range-picker">
-<div class="date-range-field">
-<label class="date-range-label">From</label>
-<input type="date" id="customerPdfDateFrom" class="date-range-input" onchange="if(currentManagingCustomer)renderCustomerTransactions(currentManagingCustomer);">
-</div>
-<span class="date-range-sep">→</span>
-<div class="date-range-field">
-<label class="date-range-label">To</label>
-<input type="date" id="customerPdfDateTo" class="date-range-input" onchange="if(currentManagingCustomer)renderCustomerTransactions(currentManagingCustomer);">
-</div>
-</div>
+<input type="date" id="customerDateFrom" class="store-selector date-range-input" onchange="if(currentManagingCustomer)renderCustomerTransactions(currentManagingCustomer);"><span class="date-range-sep">to</span><input type="date" id="customerDateTo" class="store-selector date-range-input" onchange="if(currentManagingCustomer)renderCustomerTransactions(currentManagingCustomer);">
 <button class="btn btn-noman btn-sm btn-pdf" onclick="exportCustomerToPDF()" title="Export to PDF">📄</button>
 </div>
 </div>
@@ -627,17 +597,7 @@ Override the default sale price for this customer. Leave blank to use the standa
 <span id="repManageCustomerStats">Current Debt: 0.00</span>
 </div>
 <div class="overlay-header__row3">
-<div class="date-range-picker">
-<div class="date-range-field">
-<label class="date-range-label">From</label>
-<input type="date" id="repCustomerPdfDateFrom" class="date-range-input" onchange="if(currentManagingRepCustomer)renderRepCustomerTransactions(currentManagingRepCustomer);">
-</div>
-<span class="date-range-sep">→</span>
-<div class="date-range-field">
-<label class="date-range-label">To</label>
-<input type="date" id="repCustomerPdfDateTo" class="date-range-input" onchange="if(currentManagingRepCustomer)renderRepCustomerTransactions(currentManagingRepCustomer);">
-</div>
-</div>
+<input type="date" id="repCustomerDateFrom" class="store-selector date-range-input" onchange="if(currentManagingRepCustomer)renderRepCustomerTransactions(currentManagingRepCustomer);"><span class="date-range-sep">to</span><input type="date" id="repCustomerDateTo" class="store-selector date-range-input" onchange="if(currentManagingRepCustomer)renderRepCustomerTransactions(currentManagingRepCustomer);">
 <button class="btn btn-noman btn-sm btn-pdf" onclick="exportRepCustomerToPDF()" title="Export to PDF">📄</button>
 </div>
 </div>
@@ -2126,7 +2086,6 @@ No records found
 </div>
 </div>
 </div>
-<script src="native-pdf.js" defer></script>
 <script src="constants.js" defer></script>
 <script src="business.js" defer></script>
 <script src="admin-data.js" defer></script>

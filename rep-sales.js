@@ -827,16 +827,14 @@ console.error('Rep sales operation failed.', _safeErr(e));
 showToast('Rep sales operation failed.', 'error');
 transactions = repSales.filter(s => s.customerName === name && s.salesRep === currentRepProfile);
 }
-const repDateFromEl = document.getElementById('repCustomerPdfDateFrom');
-const repDateToEl = document.getElementById('repCustomerPdfDateTo');
-const fromVal = repDateFromEl ? repDateFromEl.value : '';
-const toVal = repDateToEl ? repDateToEl.value : '';
-if (fromVal || toVal) {
+const _fromVal = (document.getElementById('repCustomerDateFrom') || {}).value || '';
+const _toVal   = (document.getElementById('repCustomerDateTo')   || {}).value || '';
+if (_fromVal || _toVal) {
 transactions = transactions.filter(t => {
 if (!t.date) return false;
 const d = t.date.slice(0, 10);
-if (fromVal && d < fromVal) return false;
-if (toVal && d > toVal) return false;
+if (_fromVal && d < _fromVal) return false;
+if (_toVal   && d > _toVal)   return false;
 return true;
 });
 }
@@ -1172,6 +1170,233 @@ statusDiv.textContent = msg;
 statusDiv.style.color = 'var(--danger)';
 if (btn) btn.disabled = false;
 }, gpsOptions);
+}
+async function exportRepCustomerToPDF() {
+const repSales = ensureArray(await sqliteStore.get('rep_sales'));
+const repCustomers = ensureArray(await sqliteStore.get('rep_customers'));
+const titleElement = document.getElementById('repManageCustomerTitle');
+if (!titleElement) { showToast('No rep customer selected', 'warning'); return; }
+const customerName = titleElement.innerText.trim();
+if (!customerName) { showToast('No rep customer selected', 'warning'); return; }
+const _fromVal = (document.getElementById('repCustomerDateFrom') || {}).value || '';
+const _toVal   = (document.getElementById('repCustomerDateTo')   || {}).value || '';
+showToast('Generating PDF...', 'info');
+try {
+if (!window.jspdf) {
+await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js');
+await new Promise(r => setTimeout(r, 200));
+}
+if (!window.jspdf || !window.jspdf.jsPDF) throw new Error('Failed to load PDF library. Please refresh and try again.');
+let transactions = repSales.filter(s =>
+s.customerName === customerName && s.salesRep === currentRepProfile
+);
+const now = new Date();
+const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+if (_fromVal || _toVal) {
+transactions = transactions.filter(t => {
+if (t.transactionType === 'OLD_DEBT') return true;
+if (!t.date) return false;
+const d = t.date.slice(0, 10);
+if (_fromVal && d < _fromVal) return false;
+if (_toVal   && d > _toVal)   return false;
+return true;
+});
+}
+transactions.sort((a, b) => {
+if (a.isMerged && !b.isMerged) return -1;
+if (!a.isMerged && b.isMerged) return 1;
+const ap = (a.paymentType === 'CREDIT' && !a.creditReceived) ? 1 : 0;
+const bp = (b.paymentType === 'CREDIT' && !b.creditReceived) ? 1 : 0;
+if (bp !== ap) return bp - ap;
+return new Date(a.date) - new Date(b.date);
+});
+const repContact = repCustomers.find(c => c && c.name && c.name.toLowerCase() === customerName.toLowerCase());
+const phone = repContact?.phone || transactions.find(t => t.customerPhone)?.customerPhone || 'N/A';
+const address = repContact?.address || 'N/A';
+const { jsPDF } = window.jspdf;
+const _dpiScale = 0.2646;
+const _swMm = Math.min(window.screen.width  * _dpiScale, 210);
+const _shMm = Math.min(window.screen.height * _dpiScale, 297);
+const _pgW  = Math.round(_swMm * 10) / 10;
+const _pgH  = Math.round(_shMm * 10) / 10;
+const doc = new jsPDF({ orientation:'p', unit:'mm', format:[_pgW, _pgH] });
+const pageW = doc.internal.pageSize.getWidth();
+const hdrColor = [79, 70, 229];
+doc.setFillColor(...hdrColor);
+doc.rect(0, 0, pageW, 22, 'F');
+doc.setFontSize(16); doc.setFont(undefined, 'bold'); doc.setTextColor(255, 255, 255);
+doc.text('GULL AND ZUBAIR NASWAR DEALERS', pageW / 2, 10, { align: 'center' });
+doc.setFontSize(9); doc.setFont(undefined, 'normal');
+doc.text('Naswar Manufacturers & Dealers · Rep Sales Statement', pageW / 2, 17, { align: 'center' });
+const rangeName = (_fromVal && _toVal) ? (_fromVal + ' to ' + _toVal)
+  : _fromVal ? ('From ' + _fromVal) : _toVal ? ('To ' + _toVal) : 'All Time';
+doc.setFontSize(12); doc.setFont(undefined, 'bold'); doc.setTextColor(50, 50, 50);
+doc.text(`Rep Customer Account Statement · ${rangeName}`, pageW / 2, 30, { align: 'center' });
+doc.setFontSize(9); doc.setFont(undefined, 'normal'); doc.setTextColor(80, 80, 80);
+let yPos = 38;
+doc.setFont(undefined, 'bold'); doc.text('Customer:', 14, yPos);
+doc.setFont(undefined, 'normal'); doc.text(customerName, 36, yPos);
+doc.setFont(undefined, 'bold'); doc.text('Phone:', 14, yPos + 5);
+doc.setFont(undefined, 'normal'); doc.text(phone, 36, yPos + 5);
+doc.setFont(undefined, 'bold'); doc.text('Sales Rep:', 14, yPos + 10);
+doc.setFont(undefined, 'normal'); doc.text(currentRepProfile || 'N/A', 36, yPos + 10);
+doc.setFont(undefined, 'bold'); doc.text('Generated:', pageW / 2, yPos);
+doc.setFont(undefined, 'normal');
+doc.text(now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }), pageW / 2 + 22, yPos);
+yPos += 18;
+doc.setDrawColor(...hdrColor); doc.setLineWidth(0.5);
+doc.line(14, yPos, pageW - 14, yPos);
+yPos += 5;
+if (transactions.length > 0) {
+const buildRow = (t, runBal) => {
+const pt = t.paymentType || 'CASH';
+const isOldDebt = t.transactionType === 'OLD_DEBT';
+let debit = 0, credit = 0, typeLabel = '', detailLabel = '', displayDate = formatDisplayDate(t.date);
+const unitPrice = (t.unitPrice && t.unitPrice > 0) ? t.unitPrice : getSalePriceForStore(t.supplyStore || 'STORE_A');
+if (isOldDebt) {
+debit = parseFloat(t.totalValue) || 0;
+credit = parseFloat(t.partialPaymentReceived) || 0;
+typeLabel = 'OLD DEBT';
+detailLabel = t.notes || 'Brought forward from previous records';
+} else if (pt === 'CASH') {
+const val = t.totalValue || 0;
+debit = val; credit = val;
+typeLabel = 'CASH';
+detailLabel = `${fmtAmt(t.quantity||0)} kg × Rs ${fmtAmt(unitPrice)}`;
+} else if (pt === 'CREDIT' && !t.creditReceived) {
+const val = t.totalValue || 0;
+const partial = parseFloat(t.partialPaymentReceived) || 0;
+debit = val; credit = partial;
+typeLabel = partial > 0 ? 'CREDIT\n(PARTIAL)' : 'CREDIT';
+detailLabel = `${fmtAmt(t.quantity||0)} kg × Rs ${fmtAmt(unitPrice)}`;
+if (partial > 0) detailLabel += `\nPaid: Rs ${fmtAmt(partial)} | Due: Rs ${fmtAmt(val-partial)}`;
+} else if (pt === 'CREDIT' && t.creditReceived) {
+const val = t.totalValue || 0;
+debit = val; credit = val;
+typeLabel = 'CREDIT\n(PAID)';
+detailLabel = `${fmtAmt(t.quantity||0)} kg × Rs ${fmtAmt(unitPrice)}`;
+displayDate = formatDisplayDate(t.creditReceivedDate || t.date);
+} else if (pt === 'COLLECTION') {
+credit = parseFloat(t.totalValue) || 0;
+typeLabel = 'COLLECTION';
+detailLabel = 'Cash payment received';
+displayDate = formatDisplayDate(t.creditReceivedDate || t.date);
+} else if (pt === 'PARTIAL_PAYMENT') {
+credit = parseFloat(t.totalValue) || 0;
+typeLabel = 'PARTIAL\nPAYMENT';
+detailLabel = 'Partial payment received';
+displayDate = formatDisplayDate(t.creditReceivedDate || t.date);
+}
+runBal.val += (debit - credit);
+let balDisplay;
+if (Math.abs(runBal.val) < 0.01) balDisplay = 'SETTLED';
+else if (runBal.val > 0) balDisplay = 'Rs ' + fmtAmt(runBal.val);
+else balDisplay = 'OVERPAID\nRs ' + fmtAmt(Math.abs(runBal.val));
+return { row: [displayDate, typeLabel, detailLabel.substring(0,55),
+debit>0?'Rs '+fmtAmt(debit):'-', credit>0?'Rs '+fmtAmt(credit):'-', balDisplay],
+debit, credit, qty: t.quantity||0 };
+};
+const normalTxns = transactions.filter(t => !t.isMerged);
+const txRows = [];
+const txRunBal = { val: 0 };
+let totDebit = 0, totCredit = 0, totQty = 0;
+for (const t of normalTxns) {
+const r = buildRow(t, txRunBal);
+txRows.push(r.row);
+totDebit += r.debit;
+totCredit += r.credit;
+totQty += r.qty;
+}
+const finalBal = totDebit - totCredit;
+txRows.push(['TOTALS', '', `${fmtAmt(totQty)} kg total`,
+'Rs '+fmtAmt(totDebit), 'Rs '+fmtAmt(totCredit),
+Math.abs(finalBal)<0.01?'SETTLED':(finalBal>0?'DUE\nRs '+fmtAmt(finalBal):'OVERPAID\nRs '+fmtAmt(Math.abs(finalBal)))]);
+doc.autoTable({
+startY: yPos,
+head: [['Date', 'Type', 'Details', 'Debit (Sale)', 'Credit (Rcvd)', 'Balance']],
+body: txRows,
+theme: 'grid',
+headStyles: { fillColor: hdrColor, textColor: 255, fontSize: 8.5, fontStyle: 'bold', halign: 'center' },
+styles: { fontSize: 7.5, cellPadding: 2.5, lineWidth: 0.15, lineColor: [180,180,220], overflow: 'linebreak' },
+columnStyles: {
+0:{cellWidth:22,halign:'center'},1:{cellWidth:22,halign:'center',fontStyle:'bold'},
+2:{cellWidth:52},3:{cellWidth:27,halign:'right',textColor:[220,53,69],fontStyle:'bold'},
+4:{cellWidth:27,halign:'right',textColor:[40,167,69],fontStyle:'bold'},5:{cellWidth:26,halign:'center',fontStyle:'bold'}
+},
+didParseCell: function(data) {
+const isTotal = data.row.index === txRows.length - 1;
+if (isTotal) { data.cell.styles.fontStyle='bold'; data.cell.styles.fillColor=[235,230,255]; data.cell.styles.fontSize=9; }
+if (data.column.index===1&&!isTotal){
+const txt=(data.cell.text||[]).join('');
+if(txt.includes('CASH')) data.cell.styles.textColor=[40,167,69];
+if(txt.includes('CREDIT')) data.cell.styles.textColor=[200,100,0];
+if(txt.includes('COLLECTION')) data.cell.styles.textColor=[40,167,69];
+if(txt.includes('PARTIAL')) data.cell.styles.textColor=[200,100,0];
+if(txt.includes('OLD DEBT')) data.cell.styles.textColor=[220,53,69];
+}
+if (data.column.index===5&&!isTotal){
+const txt=(data.cell.text||[]).join('');
+if(txt==='SETTLED') data.cell.styles.textColor=[100,100,100];
+else if(txt.includes('OVERPAID')) data.cell.styles.textColor=[40,167,69];
+else data.cell.styles.textColor=[220,53,69];
+}
+},
+margin: { left: 14, right: 14 }
+});
+const afterY = doc.lastAutoTable.finalY + 5;
+if (afterY < 268) {
+doc.setFillColor(240, 235, 255);
+doc.roundedRect(14, afterY, pageW - 28, 20, 2, 2, 'F');
+doc.setDrawColor(...hdrColor); doc.setLineWidth(0.3);
+doc.roundedRect(14, afterY, pageW - 28, 20, 2, 2, 'S');
+doc.setFontSize(8); doc.setFont(undefined, 'normal');
+doc.setTextColor(220, 53, 69);
+doc.text(`Total Debit (Sales): Rs ${fmtAmt(totDebit)}`, 20, afterY + 7);
+doc.setTextColor(40, 167, 69);
+doc.text(`Total Credit (Rcvd): Rs ${fmtAmt(totCredit)}`, 20, afterY + 14);
+doc.setFont(undefined, 'bold');
+const balStr = Math.abs(finalBal) < 0.01 ? 'SETTLED'
+: finalBal > 0 ? `Outstanding Due: Rs ${fmtAmt(finalBal)}`
+: `Overpaid by: Rs ${fmtAmt(Math.abs(finalBal))}`;
+doc.setTextColor(Math.abs(finalBal)<0.01?100:finalBal>0?220:40,
+Math.abs(finalBal)<0.01?100:finalBal>0?53:167,
+Math.abs(finalBal)<0.01?100:69);
+doc.text(balStr, 110, afterY + 10.5);
+}
+} else {
+doc.setFont(undefined, 'normal'); doc.setFontSize(10); doc.setTextColor(150);
+doc.text('No transactions recorded for this period.', pageW / 2, yPos + 15, { align: 'center' });
+}
+const pageCount = doc.internal.getNumberOfPages();
+for (let i = 1; i <= pageCount; i++) {
+doc.setPage(i);
+doc.setFontSize(7); doc.setTextColor(160);
+doc.text(
+`Generated on ${now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} at ${now.toLocaleTimeString('en-US')} | GULL AND ZUBAIR NASWAR DEALERS`,
+pageW / 2, 291, { align: 'center' }
+);
+doc.text(`Page ${i} of ${pageCount}`, pageW / 2, 287, { align: 'center' });
+}
+await new Promise(r => setTimeout(r, 100));
+const dateStamp  = new Date().toISOString().split('T')[0];
+const safeRepName = customerName.replace(/[^a-z0-9]/gi, '_');
+if (pageCount === 1) {
+  // ── Single page → image + WhatsApp ──────────────────────────────────────
+  showToast('Single-page statement — converting to image…', 'info');
+  await _exportDocAsImageAndOpenWhatsApp(
+    doc,
+    phone,
+    `Rep_Customer_Statement_${safeRepName}_${dateStamp}`
+  );
+} else {
+  // ── Multi-page → regular PDF download ───────────────────────────────────
+  doc.save(`Rep_Customer_Statement_${safeRepName}_${dateStamp}.pdf`);
+  showToast('PDF exported successfully', 'success');
+}
+} catch (error) {
+showToast('Error generating PDF: ' + error.message, 'error');
+}
 }
 async function renderRepHistory() {
 const repSales = ensureArray(await sqliteStore.get('rep_sales'));

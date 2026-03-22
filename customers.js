@@ -381,16 +381,14 @@ transactions = customerSales.filter(s =>
 s && s.currentRepProfile === 'admin' && s.customerName === name
 );
 }
-const custDateFromEl = document.getElementById('customerPdfDateFrom');
-const custDateToEl = document.getElementById('customerPdfDateTo');
-const fromVal = custDateFromEl ? custDateFromEl.value : '';
-const toVal = custDateToEl ? custDateToEl.value : '';
-if (fromVal || toVal) {
+const _fromVal = (document.getElementById('customerDateFrom') || {}).value || '';
+const _toVal   = (document.getElementById('customerDateTo')   || {}).value || '';
+if (_fromVal || _toVal) {
 transactions = transactions.filter(t => {
 if (!t.date) return false;
 const d = t.date.slice(0, 10);
-if (fromVal && d < fromVal) return false;
-if (toVal && d > toVal) return false;
+if (_fromVal && d < _fromVal) return false;
+if (_toVal   && d > _toVal)   return false;
 return true;
 });
 }

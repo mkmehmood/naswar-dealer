@@ -1653,16 +1653,14 @@ return;
 
 const _entityFrag = document.createDocumentFragment();
 let transactions = paymentTransactions.filter(t => t.entityId === entity.id);
-const entityDateFrom = document.getElementById('entityPdfDateFrom');
-const entityDateTo = document.getElementById('entityPdfDateTo');
-const fromVal = entityDateFrom ? entityDateFrom.value : '';
-const toVal = entityDateTo ? entityDateTo.value : '';
-if (fromVal || toVal) {
+const _fromVal = (document.getElementById('entityDateFrom') || {}).value || '';
+const _toVal   = (document.getElementById('entityDateTo')   || {}).value || '';
+if (_fromVal || _toVal) {
 transactions = transactions.filter(t => {
 if (!t.date) return false;
-const transDate = t.date.slice(0, 10);
-if (fromVal && transDate < fromVal) return false;
-if (toVal && transDate > toVal) return false;
+const d = t.date.slice(0, 10);
+if (_fromVal && d < _fromVal) return false;
+if (_toVal   && d > _toVal)   return false;
 return true;
 });
 }
@@ -1921,6 +1919,840 @@ document.body.appendChild(link);
 link.click();
 document.body.removeChild(link);
 showToast("Entity list exported", "success");
+}
+function _pdfMergedPeriodLabel(record) {
+  const ms = record.mergedSummary;
+  const dr = ms && ms.dateRange;
+  if (dr && dr.from && dr.to) {
+    const fmt = (d) => {
+      try {
+        const dd = new Date(d);
+        if (isNaN(dd.getTime())) return d;
+        return dd.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: '2-digit' });
+      } catch (e) { return d; }
+    };
+    return `${fmt(dr.from)} \u2192 ${fmt(dr.to)}`;
+  }
+  if (record.date) {
+    try {
+      const dd = new Date(record.date);
+      if (!isNaN(dd.getTime()))
+        return dd.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: '2-digit' });
+    } catch (e) {}
+  }
+  return 'Prev. Year';
+}
+function _pdfMergedCountLabel(record) {
+  const cnt = record.mergedRecordCount || (record.mergedSummary && record.mergedSummary.recordCount);
+  return cnt ? `${cnt} txn${cnt !== 1 ? 's' : ''} merged` : 'year-end merge';
+}
+function _pdfDrawMergedSectionHeader(doc, yPos, pageW, label) {
+  const purpleLight = [245, 235, 255];
+  const purpleDark  = [126, 34, 206];
+  const purpleBorder= [175, 82, 222];
+  doc.setFillColor(...purpleLight);
+  doc.roundedRect(14, yPos, pageW - 28, 12, 2, 2, 'F');
+  doc.setDrawColor(...purpleBorder);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(14, yPos, pageW - 28, 12, 2, 2, 'S');
+  doc.setFontSize(8.5);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(...purpleDark);
+  doc.text('\u2605 ' + (label || 'YEAR-END OPENING BALANCE — MERGED RECORDS'), 20, yPos + 8);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(80, 80, 80);
+  return yPos + 16;
+}
+const PDF_MERGED_HDR_COLOR  = [126, 34, 206];
+const PDF_MERGED_ROW_COLOR  = [245, 235, 255];
+const PDF_MERGED_TEXT_COLOR = [126, 34, 206];
+
+/**
+ * When a statement fits on a single page, render it as a high-resolution JPEG.
+ *
+ * On mobile (Android / iOS) the Web Share API is used so the image is
+ * pre-attached when the user picks WhatsApp from the native share sheet.
+ *
+ * On desktop (no Web Share support) the image is downloaded and the
+ * recipient's WhatsApp Web chat is opened in a new tab.
+ *
+ * @param {object} doc          - jsPDF document (fully built, 1 page)
+ * @param {string} phone        - Raw phone string from the entity / customer
+ * @param {string} filenameBase - Base name (no extension) for the output file
+ */
+async function _exportDocAsImageAndOpenWhatsApp(doc, phone, filenameBase) {
+  // ── 1. Load pdf.js if needed ──────────────────────────────────────────────
+  const PDFJS_CDN  = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+  const PDFJS_WRKR = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  if (!window.pdfjsLib) {
+    await loadScript(PDFJS_CDN);
+    await new Promise(r => setTimeout(r, 300));
+  }
+  if (!window.pdfjsLib) throw new Error('Failed to load pdf.js — please refresh and try again.');
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WRKR;
+
+  // ── 2. Render page 1 → canvas at 2.5× scale (~150 dpi) ──────────────────
+  const pdfBytes = doc.output('arraybuffer');
+  const pdfDoc   = await window.pdfjsLib.getDocument({ data: pdfBytes }).promise;
+  const page     = await pdfDoc.getPage(1);
+  const viewport = page.getViewport({ scale: 2.5 });
+
+  const canvas   = document.createElement('canvas');
+  canvas.width   = viewport.width;
+  canvas.height  = viewport.height;
+  await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+
+  // ── 3. Convert canvas → Blob (JPEG 92%) ──────────────────────────────────
+  const imageBlob = await new Promise(resolve =>
+    canvas.toBlob(resolve, 'image/jpeg', 0.92)
+  );
+  const imageFile = new File([imageBlob], `${filenameBase}.jpg`, { type: 'image/jpeg' });
+
+  const hasPhone = phone && phone !== 'N/A' && phone.trim() !== '';
+  const cleaned  = hasPhone ? phone.trim().replace(/[^\d+]/g, '') : '';
+
+  // ── 4a. Mobile: Web Share API → native share sheet (WhatsApp gets the file)
+  if (navigator.canShare && navigator.canShare({ files: [imageFile] })) {
+    try {
+      await navigator.share({
+        files: [imageFile],
+        title: 'Account Statement',
+      });
+      showToast('Statement shared successfully', 'success');
+      return;
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        showToast('Share cancelled', 'info');
+        return;
+      }
+      // Any other error: fall through to desktop path
+      console.warn('[PDF share] Web Share failed, falling back to download:', err);
+    }
+  }
+
+  // ── 4b. Desktop fallback: download image + open WhatsApp Web ─────────────
+  const dlLink    = document.createElement('a');
+  dlLink.href     = URL.createObjectURL(imageBlob);
+  dlLink.download = `${filenameBase}.jpg`;
+  document.body.appendChild(dlLink);
+  dlLink.click();
+  document.body.removeChild(dlLink);
+  setTimeout(() => URL.revokeObjectURL(dlLink.href), 5000);
+
+  if (hasPhone) {
+    showToast('Image downloaded — opening WhatsApp to send it…', 'success');
+    setTimeout(() => window.open(`https://wa.me/${cleaned}`, '_blank'), 600);
+  } else {
+    showToast('Statement saved as image (no phone number on record)', 'success');
+  }
+}
+
+async function exportEntityToPDF() {
+const factoryInventoryData = ensureArray(await sqliteStore.get('factory_inventory_data'));
+const paymentEntities = ensureArray(await sqliteStore.get('payment_entities'));
+const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
+const expenseRecords = ensureArray(await sqliteStore.get('expenses'));
+if (!currentEntityId) {
+showToast("No entity selected", "warning");
+return;
+}
+const entity = paymentEntities.find(e => String(e.id) === String(currentEntityId));
+if (!entity) {
+showToast("Entity not found", "error");
+return;
+}
+const _fromVal = (document.getElementById('entityDateFrom') || {}).value || '';
+const _toVal   = (document.getElementById('entityDateTo')   || {}).value || '';
+showToast("Generating PDF...", "info");
+try {
+if (!window.jspdf) {
+await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js');
+await new Promise(r => setTimeout(r, 200));
+}
+if (!window.jspdf || !window.jspdf.jsPDF) throw new Error("Failed to load PDF library. Please refresh and try again.");
+let transactions = paymentTransactions.filter(t => String(t.entityId) === String(entity.id) && !t.isExpense);
+const now = new Date();
+const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+if (_fromVal || _toVal) {
+transactions = transactions.filter(t => {
+if (!t.date) return false;
+const d = t.date.slice(0, 10);
+if (_fromVal && d < _fromVal) return false;
+if (_toVal   && d > _toVal)   return false;
+return true;
+});
+}
+transactions.sort((a, b) => {
+const da = toSafeDate(a.date);
+const db = toSafeDate(b.date);
+return (da ? da.getTime() : 0) - (db ? db.getTime() : 0);
+});
+const isPayee = entity.type === 'payee';
+const isPayor = entity.type === 'payor';
+const headerColor = isPayee ? [230, 100, 20] : [0, 122, 200];
+const isSupplier = typeof factoryInventoryData !== 'undefined' &&
+factoryInventoryData.some(m => String(m.supplierId) === String(entity.id));
+const supplierMaterials = isSupplier
+? factoryInventoryData.filter(m => String(m.supplierId) === String(entity.id))
+: [];
+const { jsPDF } = window.jspdf;
+const _dpiScale = 0.2646; // 1px at 96dpi in mm
+const _swMm = Math.min(window.screen.width  * _dpiScale, 210); // max A4 width
+const _shMm = Math.min(window.screen.height * _dpiScale, 297); // max A4 height
+const _pgW  = Math.round(_swMm * 10) / 10;
+const _pgH  = Math.round(_shMm * 10) / 10;
+const doc = new jsPDF({ orientation:'p', unit:'mm', format:[_pgW, _pgH] });
+const pageW = doc.internal.pageSize.getWidth();
+doc.setFillColor(...headerColor);
+doc.rect(0, 0, pageW, 22, 'F');
+doc.setFontSize(16); doc.setFont(undefined, 'bold'); doc.setTextColor(255, 255, 255);
+doc.text('GULL AND ZUBAIR NASWAR DEALERS', pageW / 2, 10, { align: 'center' });
+doc.setFontSize(9); doc.setFont(undefined, 'normal');
+doc.text('Naswar Manufacturers & Dealers', pageW / 2, 17, { align: 'center' });
+const rangeName = (_fromVal && _toVal) ? (_fromVal + ' to ' + _toVal)
+  : _fromVal ? ('From ' + _fromVal) : _toVal ? ('To ' + _toVal) : 'All Time';
+doc.setFontSize(12); doc.setFont(undefined, 'bold'); doc.setTextColor(50, 50, 50);
+doc.text(`Account Statement · ${rangeName}`, pageW / 2, 30, { align: 'center' });
+doc.setFontSize(9); doc.setFont(undefined, 'normal'); doc.setTextColor(80, 80, 80);
+let yPos = 38;
+doc.setFont(undefined, 'bold'); doc.text('Name:', 14, yPos);
+doc.setFont(undefined, 'normal'); doc.text(entity.name, 32, yPos);
+doc.setFont(undefined, 'bold'); doc.text('Phone:', 14, yPos + 5);
+doc.setFont(undefined, 'normal'); doc.text(entity.phone || 'N/A', 32, yPos + 5);
+if (entity.wallet) {
+doc.setFont(undefined, 'bold'); doc.text('Wallet/Account:', pageW / 2, yPos);
+doc.setFont(undefined, 'normal'); doc.text(entity.wallet, pageW / 2 + 30, yPos);
+}
+doc.setFont(undefined, 'bold'); doc.text('Generated:', pageW / 2, yPos + 5);
+doc.setFont(undefined, 'normal');
+doc.text(now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }), pageW / 2 + 22, yPos + 5);
+yPos += 18;
+doc.setDrawColor(...headerColor); doc.setLineWidth(0.5);
+doc.line(14, yPos, pageW - 14, yPos);
+yPos += 5;
+if (transactions.length > 0) {
+doc.setFontSize(9); doc.setFont(undefined, 'bold'); doc.setTextColor(...headerColor);
+doc.text('PAYMENT TRANSACTIONS', 14, yPos);
+doc.setTextColor(80, 80, 80); doc.setFont(undefined, 'normal');
+yPos += 5;
+const mergedTxns  = transactions.filter(t => t.isMerged === true);
+const normalTxns  = transactions.filter(t => !t.isMerged);
+const buildTxRow = (t, runBal) => {
+  const amt = parseFloat(t.amount) || 0;
+  const isOut = t.type === 'OUT';
+  const isSupplierPmt = t.isPayable === true;
+  runBal.val += isOut ? -amt : amt;
+  let balDisplay;
+  if (Math.abs(runBal.val) < 0.01) balDisplay = 'SETTLED';
+  else balDisplay = 'Rs ' + fmtAmt(Math.abs(runBal.val));
+  let desc = (t.description || '-').substring(0, 35);
+  if (isSupplierPmt) desc = '\u21a9 Supplier Pmt\n' + desc;
+  return [
+    formatDisplayDate(t.date),
+    desc,
+    t.type,
+    isOut ? 'Rs ' + fmtAmt(amt) : '-',
+    !isOut ? 'Rs ' + fmtAmt(amt) : '-',
+    balDisplay
+  ];
+};
+if (mergedTxns.length > 0) {
+  yPos = _pdfDrawMergedSectionHeader(doc, yPos, pageW, 'YEAR-END OPENING BALANCES (Carried Forward)');
+  const mergedRunBal = { val: 0 };
+  const mergedRows = mergedTxns.map(t => {
+    const row = buildTxRow(t, mergedRunBal);
+    const ms = t.mergedSummary || {};
+    const periodLabel = _pdfMergedPeriodLabel(t);
+    const countLabel  = _pdfMergedCountLabel(t);
+    const origIn  = ms.originalIn  != null ? 'In: Rs '  + fmtAmt(ms.originalIn) : '';
+    const origOut = ms.originalOut != null ? 'Out: Rs ' + fmtAmt(ms.originalOut) : '';
+    const summary = [periodLabel, countLabel, origIn, origOut].filter(Boolean).join('\n');
+    row[1] = summary.substring(0, 70);
+    return row;
+  });
+  const mTotOut = mergedTxns.filter(t => t.type === 'OUT').reduce((s,t) => s+(parseFloat(t.amount)||0), 0);
+  const mTotIn  = mergedTxns.filter(t => t.type === 'IN' ).reduce((s,t) => s+(parseFloat(t.amount)||0), 0);
+  const mFin    = mTotIn - mTotOut;
+  mergedRows.push(['', 'SUBTOTAL', '', 'Rs '+fmtAmt(mTotOut), 'Rs '+fmtAmt(mTotIn),
+    Math.abs(mFin)<0.01?'SETTLED':'Rs '+fmtAmt(Math.abs(mFin))]);
+  doc.autoTable({
+    startY: yPos,
+    head: [['Date', 'Year Period / Summary', 'Type', 'Payment OUT', 'Payment IN', 'Balance']],
+    body: mergedRows,
+    theme: 'grid',
+    headStyles: { fillColor: PDF_MERGED_HDR_COLOR, textColor: 255, fontSize: 8.5, fontStyle: 'bold', halign: 'center' },
+    styles: { fontSize: 7.5, cellPadding: 2.5, lineWidth: 0.15, lineColor: [200, 180, 230], overflow: 'linebreak' },
+    columnStyles: {
+      0: { cellWidth: 22, halign: 'center' },
+      1: { cellWidth: 55 },
+      2: { cellWidth: 13, halign: 'center', fontStyle: 'bold' },
+      3: { cellWidth: 28, halign: 'right', fontStyle: 'bold' },
+      4: { cellWidth: 28, halign: 'right', fontStyle: 'bold' },
+      5: { cellWidth: 30, halign: 'center', fontStyle: 'bold' }
+    },
+    didParseCell: function(data) {
+      const isSubtotal = data.row.index === mergedRows.length - 1;
+      if (isSubtotal) {
+        data.cell.styles.fillColor = [230, 210, 255];
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.fontSize  = 8.5;
+      } else {
+        data.cell.styles.fillColor = PDF_MERGED_ROW_COLOR;
+        data.cell.styles.textColor = [80, 40, 120];
+      }
+      if (data.column.index === 2 && !isSubtotal)
+        data.cell.styles.textColor = data.cell.text[0] === 'OUT' ? [180, 40, 40] : [40, 130, 60];
+      if (data.column.index === 3 && !isSubtotal) data.cell.styles.textColor = [180, 40, 40];
+      if (data.column.index === 4 && !isSubtotal) data.cell.styles.textColor = [40, 130, 60];
+      if (data.column.index === 5 && !isSubtotal) {
+        const txt = (data.cell.text||[]).join('');
+        data.cell.styles.textColor = txt==='SETTLED'?[100,100,100]:[126,34,206];
+      }
+    },
+    margin: { left: 14, right: 14 }
+  });
+  yPos = doc.lastAutoTable.finalY + 6;
+  if (yPos > 255) { doc.addPage(); yPos = 20; }
+}
+let runningBalance = 0;
+const txRunBal = { val: 0 };
+const txRows = normalTxns.map(t => buildTxRow(t, txRunBal));
+const totalOut = normalTxns.filter(t => t.type === 'OUT').reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
+const totalIn  = normalTxns.filter(t => t.type === 'IN' ).reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
+const finalBal = totalIn - totalOut;
+let finalBalDisplay;
+if (Math.abs(finalBal) < 0.01) finalBalDisplay = 'SETTLED';
+else finalBalDisplay = 'Rs ' + fmtAmt(Math.abs(finalBal));
+if (normalTxns.length > 0) {
+  doc.setFontSize(8.5); doc.setFont(undefined, 'bold');
+  doc.setTextColor(...headerColor);
+  doc.text('INDIVIDUAL TRANSACTIONS', 14, yPos);
+  doc.setTextColor(80, 80, 80); doc.setFont(undefined, 'normal');
+  yPos += 5;
+  txRows.push(['', 'TOTAL', '', 'Rs ' + fmtAmt(totalOut), 'Rs ' + fmtAmt(totalIn), finalBalDisplay]);
+  doc.autoTable({
+    startY: yPos,
+    head: [['Date', 'Description', 'Type', 'Payment OUT', 'Payment IN', 'Running Balance']],
+    body: txRows,
+    theme: 'grid',
+    headStyles: { fillColor: headerColor, textColor: 255, fontSize: 8.5, fontStyle: 'bold', halign: 'center' },
+    styles: { fontSize: 7.5, cellPadding: 2.5, lineWidth: 0.15, lineColor: [180, 180, 180], overflow: 'linebreak' },
+    columnStyles: {
+      0: { cellWidth: 22, halign: 'center' },
+      1: { cellWidth: 55 },
+      2: { cellWidth: 13, halign: 'center', fontStyle: 'bold' },
+      3: { cellWidth: 28, halign: 'right', textColor: [220, 53, 69], fontStyle: 'bold' },
+      4: { cellWidth: 28, halign: 'right', textColor: [40, 167, 69], fontStyle: 'bold' },
+      5: { cellWidth: 30, halign: 'center', fontStyle: 'bold' }
+    },
+    didParseCell: function(data) {
+      const isTotal = data.row.index === txRows.length - 1;
+      if (isTotal) { data.cell.styles.fontStyle='bold'; data.cell.styles.fillColor=[240,240,240]; data.cell.styles.fontSize=9; }
+      if (data.column.index===2 && !isTotal)
+        data.cell.styles.textColor = data.cell.text[0]==='OUT'?[220,53,69]:[40,167,69];
+      if (data.column.index===5 && !isTotal) {
+        const txt=(data.cell.text||[]).join('');
+        if (txt.includes('SETTLED')) data.cell.styles.textColor=[100,100,100];
+        else if (txt.includes('OWE')) data.cell.styles.textColor=[220,53,69];
+        else data.cell.styles.textColor=[40,167,69];
+      }
+    },
+    margin: { left: 14, right: 14 }
+  });
+}
+const afterTx = (normalTxns.length > 0 ? doc.lastAutoTable.finalY : yPos - 5) + 5;
+if (afterTx < 270) {
+doc.setFillColor(245, 245, 245);
+doc.roundedRect(14, afterTx, pageW - 28, 14, 2, 2, 'F');
+doc.setFontSize(8.5); doc.setFont(undefined, 'normal');
+doc.setTextColor(220, 53, 69);
+doc.text(`Total OUT: Rs ${fmtAmt(totalOut)}`, 20, afterTx + 9);
+doc.setTextColor(40, 167, 69);
+doc.text(`Total IN: Rs ${fmtAmt(totalIn)}`, 75, afterTx + 9);
+doc.setTextColor(Math.abs(finalBal) < 0.01 ? 100 : finalBal < 0 ? 220 : 40,
+Math.abs(finalBal) < 0.01 ? 100 : finalBal < 0 ? 53 : 167,
+Math.abs(finalBal) < 0.01 ? 100 : finalBal < 0 ? 69 : 69);
+doc.setFont(undefined, 'bold');
+doc.text(`Net Balance: ${finalBalDisplay}`, 138, afterTx + 9);
+yPos = afterTx + 18;
+} else {
+yPos = afterTx + 5;
+}
+} else {
+doc.setFont(undefined, 'normal'); doc.setFontSize(9); doc.setTextColor(150);
+doc.text('No payment transactions recorded for this period.', pageW / 2, yPos + 8, { align: 'center' });
+yPos += 15;
+}
+if (isSupplier && supplierMaterials.length > 0) {
+if (yPos > 240) { doc.addPage(); yPos = 20; }
+doc.setFontSize(9); doc.setFont(undefined, 'bold'); doc.setTextColor(...headerColor);
+doc.text('SUPPLIER INVOICES — RAW MATERIAL PAYABLES', 14, yPos);
+doc.setFontSize(7.5); doc.setFont(undefined, 'normal'); doc.setTextColor(120, 120, 120);
+doc.text('Each row = one material invoice. Payments are applied FIFO (oldest invoice first).', 14, yPos + 4.5);
+doc.setTextColor(80, 80, 80);
+yPos += 9;
+let totalInvoice = 0, totalPaid = 0, totalRemaining = 0;
+const matRows = supplierMaterials
+.sort((a, b) => {
+const da = toSafeDate(a.purchaseDate || a.date || a.createdAt);
+const db = toSafeDate(b.purchaseDate || b.date || b.createdAt);
+return (da ? da.getTime() : 0) - (db ? db.getTime() : 0);
+})
+.map(mat => {
+const originalAmt = parseFloat((
+mat.totalValue ||
+(mat.purchaseCost && mat.purchaseQuantity ? mat.purchaseCost * mat.purchaseQuantity : (mat.quantity || 0) * (mat.cost || 0)) ||
+0
+).toFixed(2));
+const remaining = parseFloat(mat.totalPayable || 0);
+const paid = Math.max(0, originalAmt - remaining);
+totalInvoice += originalAmt;
+totalPaid += paid;
+totalRemaining += remaining;
+const status = mat.paymentStatus === 'paid' || remaining <= 0
+? 'PAID'
+: remaining < originalAmt
+? 'PARTIAL'
+: 'PENDING';
+const qtyStr = mat.purchaseQuantity && mat.purchaseUnitName && mat.conversionFactor && mat.conversionFactor !== 1
+? `${fmtAmt(mat.purchaseQuantity)} ${mat.purchaseUnitName}\n(${fmtAmt(mat.quantity || 0)} kg)`
+: `${fmtAmt(mat.quantity || 0)} kg`;
+return [
+formatDisplayDate(mat.purchaseDate || mat.date || mat.createdAt || '') || '-',
+(mat.name || 'Material').substring(0, 25),
+qtyStr,
+'Rs ' + fmtAmt(originalAmt),
+paid > 0 ? 'Rs ' + fmtAmt(paid) : '-',
+remaining > 0 ? 'Rs ' + fmtAmt(remaining) : '-',
+status
+];
+});
+matRows.push([
+'', 'TOTAL', '',
+'Rs ' + fmtAmt(totalInvoice),
+'Rs ' + fmtAmt(totalPaid),
+'Rs ' + fmtAmt(totalRemaining),
+totalRemaining <= 0 ? 'CLEARED' : ''
+]);
+doc.autoTable({
+startY: yPos,
+head: [['Invoice Date', 'Material', 'Qty', 'Invoice Amt', 'Paid So Far', 'Remaining', 'Status']],
+body: matRows,
+theme: 'grid',
+headStyles: { fillColor: headerColor, textColor: 255, fontSize: 8, fontStyle: 'bold', halign: 'center' },
+styles: { fontSize: 7.5, cellPadding: 2.5, lineWidth: 0.15, lineColor: [180, 180, 180], overflow: 'linebreak' },
+columnStyles: {
+0: { cellWidth: 22, halign: 'center' },
+1: { cellWidth: 36 },
+2: { cellWidth: 24, halign: 'center' },
+3: { cellWidth: 27, halign: 'right', fontStyle: 'bold' },
+4: { cellWidth: 25, halign: 'right', textColor: [40, 167, 69], fontStyle: 'bold' },
+5: { cellWidth: 25, halign: 'right', textColor: [220, 53, 69], fontStyle: 'bold' },
+6: { cellWidth: 17, halign: 'center', fontStyle: 'bold' }
+},
+didParseCell: function(data) {
+const isTotal = data.row.index === matRows.length - 1;
+if (isTotal) {
+data.cell.styles.fontStyle = 'bold';
+data.cell.styles.fillColor = [255, 245, 230];
+data.cell.styles.fontSize = 9;
+}
+if (data.column.index === 6 && !isTotal) {
+const txt = (data.cell.text || []).join('');
+if (txt === 'PAID') data.cell.styles.textColor = [40, 167, 69];
+if (txt === 'PARTIAL') data.cell.styles.textColor = [200, 100, 0];
+if (txt === 'PENDING') data.cell.styles.textColor = [220, 53, 69];
+}
+},
+margin: { left: 14, right: 14 }
+});
+const afterMat = doc.lastAutoTable.finalY + 5;
+if (afterMat < 272) {
+doc.setFillColor(255, 245, 230);
+doc.roundedRect(14, afterMat, pageW - 28, 14, 2, 2, 'F');
+doc.setFontSize(8.5); doc.setFont(undefined, 'normal');
+doc.setTextColor(50, 50, 50);
+doc.text(`Total Invoiced: Rs ${fmtAmt(totalInvoice)}`, 20, afterMat + 9);
+doc.setTextColor(40, 167, 69);
+doc.text(`Paid: Rs ${fmtAmt(totalPaid)}`, 88, afterMat + 9);
+doc.setTextColor(totalRemaining > 0 ? 220 : 100, totalRemaining > 0 ? 53 : 100, totalRemaining > 0 ? 69 : 100);
+doc.setFont(undefined, 'bold');
+doc.text(`Outstanding Payable: Rs ${fmtAmt(totalRemaining)}`, 138, afterMat + 9);
+}
+}
+const pageCount = doc.internal.getNumberOfPages();
+for (let i = 1; i <= pageCount; i++) {
+doc.setPage(i);
+doc.setFontSize(7); doc.setTextColor(160);
+doc.text(
+`Generated on ${now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} at ${now.toLocaleTimeString('en-US')} | GULL AND ZUBAIR NASWAR DEALERS`,
+pageW / 2, 291, { align: 'center' }
+);
+doc.text(`Page ${i} of ${pageCount}`, pageW / 2, 287, { align: 'center' });
+}
+await new Promise(r => setTimeout(r, 100));
+const dateStamp  = new Date().toISOString().split('T')[0];
+const safeName   = entity.name.replace(/[^a-z0-9]/gi, '_');
+if (pageCount === 1) {
+  // ── Single page → image + WhatsApp ──────────────────────────────────────
+  showToast('Single-page statement — converting to image…', 'info');
+  await _exportDocAsImageAndOpenWhatsApp(
+    doc,
+    entity.phone || '',
+    `Entity_Statement_${safeName}_${dateStamp}`
+  );
+} else {
+  // ── Multi-page → regular PDF download ───────────────────────────────────
+  doc.save(`Entity_Statement_${safeName}_${dateStamp}.pdf`);
+  showToast('PDF exported successfully', 'success');
+}
+} catch (error) {
+showToast("Error generating PDF: " + error.message, "error");
+}
+}
+async function exportCustomerToPDF() {
+const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
+const salesCustomers = ensureArray(await sqliteStore.get('sales_customers'));
+const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
+const titleElement = document.getElementById('manageCustomerTitle');
+if (!titleElement) { showToast("No customer selected", "warning"); return; }
+const titleHTML = titleElement.innerHTML;
+const nameMatch = titleHTML.match(/<span>([^<]+)<\/span>/) || titleHTML.match(/^([^<]+)/);
+const customerName = nameMatch ? nameMatch[1].trim() : titleElement.innerText.split('\n')[0].trim();
+if (!customerName) { showToast("No customer selected", "warning"); return; }
+const _fromVal = (document.getElementById('customerDateFrom') || {}).value || '';
+const _toVal   = (document.getElementById('customerDateTo')   || {}).value || '';
+showToast("Generating PDF...", "info");
+try {
+if (!window.jspdf) {
+await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js');
+await new Promise(r => setTimeout(r, 200));
+}
+if (!window.jspdf || !window.jspdf.jsPDF) throw new Error("Failed to load PDF library. Please refresh and try again.");
+let transactions = customerSales.filter(s =>
+s &&
+s.customerName === customerName
+);
+const now = new Date();
+const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+if (_fromVal || _toVal) {
+transactions = transactions.filter(t => {
+if (t.transactionType === 'OLD_DEBT') return true;
+if (!t.date) return false;
+const d = t.date.slice(0, 10);
+if (_fromVal && d < _fromVal) return false;
+if (_toVal   && d > _toVal)   return false;
+return true;
+});
+}
+transactions.sort((a, b) => {
+if (a.isMerged && !b.isMerged) return -1;
+if (!a.isMerged && b.isMerged) return 1;
+const ap = (a.paymentType === 'CREDIT' && !a.creditReceived) ? 1 : 0;
+const bp = (b.paymentType === 'CREDIT' && !b.creditReceived) ? 1 : 0;
+if (bp !== ap) return bp - ap;
+return new Date(a.date) - new Date(b.date);
+});
+const salesContact = salesCustomers.find(c => c && c.name && c.name.toLowerCase() === customerName.toLowerCase());
+const phone = salesContact?.phone || transactions.find(t => t.customerPhone)?.customerPhone || 'N/A';
+const address = salesContact?.address || transactions.find(t => t.customerAddress)?.customerAddress || 'N/A';
+const { jsPDF } = window.jspdf;
+const _dpiScale = 0.2646; // 1px at 96dpi in mm
+const _swMm = Math.min(window.screen.width  * _dpiScale, 210); // max A4 width
+const _shMm = Math.min(window.screen.height * _dpiScale, 297); // max A4 height
+const _pgW  = Math.round(_swMm * 10) / 10;
+const _pgH  = Math.round(_shMm * 10) / 10;
+const doc = new jsPDF({ orientation:'p', unit:'mm', format:[_pgW, _pgH] });
+const pageW = doc.internal.pageSize.getWidth();
+const hdrColor = [40, 167, 69];
+doc.setFillColor(...hdrColor);
+doc.rect(0, 0, pageW, 22, 'F');
+doc.setFontSize(16); doc.setFont(undefined, 'bold'); doc.setTextColor(255, 255, 255);
+doc.text('GULL AND ZUBAIR NASWAR DEALERS', pageW / 2, 10, { align: 'center' });
+doc.setFontSize(9); doc.setFont(undefined, 'normal');
+doc.text('Naswar Manufacturers & Dealers · Sales Tab Statement', pageW / 2, 17, { align: 'center' });
+const rangeName = (_fromVal && _toVal) ? (_fromVal + ' to ' + _toVal)
+  : _fromVal ? ('From ' + _fromVal) : _toVal ? ('To ' + _toVal) : 'All Time';
+doc.setFontSize(12); doc.setFont(undefined, 'bold'); doc.setTextColor(50, 50, 50);
+doc.text(`Customer Account Statement · ${rangeName}`, pageW / 2, 30, { align: 'center' });
+doc.setFontSize(9); doc.setFont(undefined, 'normal'); doc.setTextColor(80, 80, 80);
+let yPos = 38;
+doc.setFont(undefined, 'bold'); doc.text('Customer:', 14, yPos);
+doc.setFont(undefined, 'normal'); doc.text(customerName, 36, yPos);
+doc.setFont(undefined, 'bold'); doc.text('Phone:', 14, yPos + 5);
+doc.setFont(undefined, 'normal'); doc.text(phone, 36, yPos + 5);
+doc.setFont(undefined, 'bold'); doc.text('Address:', 14, yPos + 10);
+doc.setFont(undefined, 'normal'); doc.text(address.substring(0, 60), 36, yPos + 10);
+doc.setFont(undefined, 'bold'); doc.text('Generated:', pageW / 2, yPos);
+doc.setFont(undefined, 'normal');
+doc.text(now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }), pageW / 2 + 22, yPos);
+yPos += 18;
+doc.setDrawColor(...hdrColor); doc.setLineWidth(0.5);
+doc.line(14, yPos, pageW - 14, yPos);
+yPos += 5;
+if (transactions.length > 0) {
+const getSalePrice = async (t) => {
+  if (t.unitPrice && t.unitPrice > 0) return t.unitPrice;
+  return await getEffectiveSalePriceForCustomer(t.customerName, t.supplyStore || 'STORE_A');
+};
+const buildSaleRow = async (t, runBal) => {
+  const pt = t.paymentType || 'CASH';
+  const isOldDebt = t.transactionType === 'OLD_DEBT';
+  let debit = 0, credit = 0, typeLabel = '', detailLabel = '', displayDate = formatDisplayDate(t.date);
+  if (isOldDebt) {
+    debit = parseFloat(t.totalValue) || 0;
+    credit = parseFloat(t.partialPaymentReceived) || 0;
+    typeLabel = 'OLD DEBT';
+    detailLabel = t.notes || 'Brought forward from previous records';
+  } else if (pt === 'CASH') {
+    const val = await getSaleTransactionValue(t);
+    debit = val; credit = val;
+    typeLabel = 'CASH';
+    detailLabel = `${fmtAmt(t.quantity||0)} kg \xd7 Rs ${fmtAmt(await getSalePrice(t))}\n${t.supplyStore?getStoreLabel(t.supplyStore):''}`;
+  } else if (pt === 'CREDIT' && !t.creditReceived) {
+    const val = await getSaleTransactionValue(t);
+    const partial = parseFloat(t.partialPaymentReceived) || 0;
+    debit = val; credit = partial;
+    typeLabel = partial > 0 ? 'CREDIT\n(PARTIAL)' : 'CREDIT';
+    detailLabel = `${fmtAmt(t.quantity||0)} kg \xd7 Rs ${fmtAmt(await getSalePrice(t))}`;
+    if (partial > 0) detailLabel += `\nPaid: Rs ${fmtAmt(partial)} | Due: Rs ${fmtAmt(val-partial)}`;
+  } else if (pt === 'CREDIT' && t.creditReceived) {
+    const val = await getSaleTransactionValue(t);
+    debit = val; credit = val;
+    typeLabel = 'CREDIT\n(PAID)';
+    detailLabel = `${fmtAmt(t.quantity||0)} kg \xd7 Rs ${fmtAmt(await getSalePrice(t))}`;
+    displayDate = formatDisplayDate(t.creditReceivedDate || t.date);
+  } else if (pt === 'COLLECTION') {
+    credit = parseFloat(t.totalValue) || 0;
+    typeLabel = 'COLLECTION';
+    detailLabel = 'Cash payment received';
+    displayDate = formatDisplayDate(t.creditReceivedDate || t.date);
+  } else if (pt === 'PARTIAL_PAYMENT') {
+    credit = parseFloat(t.totalValue) || 0;
+    typeLabel = 'PARTIAL\nPAYMENT';
+    detailLabel = 'Partial payment received';
+    displayDate = formatDisplayDate(t.creditReceivedDate || t.date);
+  }
+  runBal.val += (debit - credit);
+  let balDisplay;
+  if (Math.abs(runBal.val) < 0.01) balDisplay = 'SETTLED';
+  else if (runBal.val > 0) balDisplay = 'Rs ' + fmtAmt(runBal.val);
+  else balDisplay = 'OVERPAID\nRs ' + fmtAmt(Math.abs(runBal.val));
+  return { row: [displayDate, typeLabel, detailLabel.substring(0,55),
+    debit>0?'Rs '+fmtAmt(debit):'-', credit>0?'Rs '+fmtAmt(credit):'-', balDisplay],
+    debit, credit, qty: t.quantity||0 };
+};
+const mergedSalesTxns = transactions.filter(t => t.isMerged === true);
+const normalSalesTxns = transactions.filter(t => !t.isMerged);
+if (mergedSalesTxns.length > 0) {
+  yPos = _pdfDrawMergedSectionHeader(doc, yPos, pageW, 'YEAR-END OPENING BALANCES (Carried Forward)');
+  const mRunBal = { val: 0 };
+  const mergedRows = mergedSalesTxns.map(t => {
+    const ms = t.mergedSummary || {};
+    const periodLabel = _pdfMergedPeriodLabel(t);
+    const countLabel  = _pdfMergedCountLabel(t);
+    const isSettled = ms.isSettled || t.creditReceived;
+    const netOut = ms.netOutstanding != null ? ms.netOutstanding : (t.totalValue || 0);
+    const cashS  = ms.cashSales != null ? ms.cashSales : 0;
+    const details = [
+      periodLabel,
+      countLabel,
+      cashS > 0 ? `Cash sales: Rs ${fmtAmt(cashS)}` : '',
+      !isSettled ? `Net due: Rs ${fmtAmt(netOut)}` : 'Settled'
+    ].filter(Boolean).join('\n');
+    mRunBal.val += netOut;
+    const balTxt = isSettled ? 'SETTLED' : 'Rs ' + fmtAmt(netOut);
+    const pt = t.paymentType || 'CASH';
+    const typeLabel = isSettled ? 'SETTLED\n(MERGED)' : (pt === 'CREDIT' ? 'CREDIT\n(MERGED)' : 'CASH\n(MERGED)');
+    return [formatDisplayDate(t.date), typeLabel, details.substring(0,70),
+      netOut>0?'Rs '+fmtAmt(netOut):'-', isSettled?'Rs '+fmtAmt(cashS):'-', balTxt];
+  });
+  const mNetTotal = mergedSalesTxns.reduce((s,t)=>{
+    const ms=t.mergedSummary||{}; return s+(ms.netOutstanding||t.totalValue||0);},0);
+  mergedRows.push(['','SUBTOTAL',`${mergedSalesTxns.length} year-end record${mergedSalesTxns.length!==1?'s':''}`,
+    mNetTotal>0?'Rs '+fmtAmt(mNetTotal):'-','',
+    mNetTotal<=0.01?'SETTLED':'Rs '+fmtAmt(mNetTotal)]);
+  doc.autoTable({
+    startY: yPos,
+    head: [['Date', 'Type', 'Year Period / Summary', 'Outstanding', 'Settled', 'Balance']],
+    body: mergedRows,
+    theme: 'grid',
+    headStyles: { fillColor: PDF_MERGED_HDR_COLOR, textColor: 255, fontSize: 8.5, fontStyle: 'bold', halign: 'center' },
+    styles: { fontSize: 7.5, cellPadding: 2.5, lineWidth: 0.15, lineColor: [200, 180, 230], overflow: 'linebreak' },
+    columnStyles: {
+      0:{cellWidth:22,halign:'center'},1:{cellWidth:22,halign:'center',fontStyle:'bold'},
+      2:{cellWidth:52},3:{cellWidth:27,halign:'right',fontStyle:'bold'},
+      4:{cellWidth:27,halign:'right',fontStyle:'bold'},5:{cellWidth:26,halign:'center',fontStyle:'bold'}
+    },
+    didParseCell: function(data) {
+      const isSubtotal = data.row.index === mergedRows.length - 1;
+      if (isSubtotal) { data.cell.styles.fillColor=[230,210,255]; data.cell.styles.fontStyle='bold'; }
+      else { data.cell.styles.fillColor=PDF_MERGED_ROW_COLOR; data.cell.styles.textColor=[80,40,120]; }
+      if (data.column.index===3&&!isSubtotal) data.cell.styles.textColor=[180,40,40];
+      if (data.column.index===4&&!isSubtotal) data.cell.styles.textColor=[40,130,60];
+      if (data.column.index===5&&!isSubtotal) {
+        const txt=(data.cell.text||[]).join('');
+        data.cell.styles.textColor = txt==='SETTLED'?[100,100,100]:[126,34,206];
+      }
+    },
+    margin: { left: 14, right: 14 }
+  });
+  yPos = doc.lastAutoTable.finalY + 6;
+  if (yPos > 255) { doc.addPage(); yPos = 20; }
+}
+const txRows = [];
+const txRunBal = { val: 0 };
+let totDebit = 0, totCredit = 0, totQty = 0;
+for (const t of normalSalesTxns) {
+  const r = await buildSaleRow(t, txRunBal);
+  txRows.push(r.row);
+  totDebit  += r.debit;
+  totCredit += r.credit;
+  totQty    += r.qty;
+}
+const finalBal = totDebit - totCredit;
+if (normalSalesTxns.length > 0) {
+  doc.setFontSize(8.5); doc.setFont(undefined,'bold');
+  doc.setTextColor(...hdrColor);
+  doc.text('INDIVIDUAL TRANSACTIONS', 14, yPos);
+  doc.setTextColor(80,80,80); doc.setFont(undefined,'normal');
+  yPos += 5;
+  txRows.push(['TOTALS','',`${fmtAmt(totQty)} kg total`,
+    'Rs '+fmtAmt(totDebit),'Rs '+fmtAmt(totCredit),
+    Math.abs(finalBal)<0.01?'SETTLED':(finalBal>0?'DUE\nRs '+fmtAmt(finalBal):'OVERPAID\nRs '+fmtAmt(Math.abs(finalBal)))]);
+  doc.autoTable({
+    startY: yPos,
+    head: [['Date', 'Type', 'Details', 'Debit (Sale)', 'Credit (Rcvd)', 'Balance']],
+    body: txRows,
+    theme: 'grid',
+    headStyles: { fillColor: hdrColor, textColor: 255, fontSize: 8.5, fontStyle: 'bold', halign: 'center' },
+    styles: { fontSize: 7.5, cellPadding: 2.5, lineWidth: 0.15, lineColor: [180,180,180], overflow: 'linebreak' },
+    columnStyles: {
+      0:{cellWidth:22,halign:'center'},1:{cellWidth:22,halign:'center',fontStyle:'bold'},
+      2:{cellWidth:52},3:{cellWidth:27,halign:'right',textColor:[220,53,69],fontStyle:'bold'},
+      4:{cellWidth:27,halign:'right',textColor:[40,167,69],fontStyle:'bold'},5:{cellWidth:26,halign:'center',fontStyle:'bold'}
+    },
+    didParseCell: function(data) {
+      const isTotal = data.row.index === txRows.length - 1;
+      if (isTotal) { data.cell.styles.fontStyle='bold'; data.cell.styles.fillColor=[235,255,235]; data.cell.styles.fontSize=9; }
+      if (data.column.index===1&&!isTotal){
+        const txt=(data.cell.text||[]).join('');
+        if(txt.includes('CASH')) data.cell.styles.textColor=[40,167,69];
+        if(txt.includes('CREDIT')) data.cell.styles.textColor=[200,100,0];
+        if(txt.includes('COLLECTION')) data.cell.styles.textColor=[40,167,69];
+        if(txt.includes('PARTIAL')) data.cell.styles.textColor=[200,100,0];
+        if(txt.includes('OLD DEBT')) data.cell.styles.textColor=[220,53,69];
+      }
+      if (data.column.index===5&&!isTotal){
+        const txt=(data.cell.text||[]).join('');
+        if(txt==='SETTLED') data.cell.styles.textColor=[100,100,100];
+        else if(txt.includes('OVERPAID')) data.cell.styles.textColor=[40,167,69];
+        else data.cell.styles.textColor=[220,53,69];
+      }
+    },
+    margin: { left: 14, right: 14 }
+  });
+}
+const afterY = (normalSalesTxns.length > 0 ? doc.lastAutoTable.finalY : yPos - 5) + 5;
+if (afterY < 268) {
+doc.setFillColor(245, 255, 245);
+doc.roundedRect(14, afterY, pageW - 28, 20, 2, 2, 'F');
+doc.setDrawColor(...hdrColor); doc.setLineWidth(0.3);
+doc.roundedRect(14, afterY, pageW - 28, 20, 2, 2, 'S');
+doc.setFontSize(8); doc.setFont(undefined, 'normal');
+doc.setTextColor(220, 53, 69);
+doc.text(`Total Debit (Sales): Rs ${fmtAmt(totDebit)}`, 20, afterY + 7);
+doc.setTextColor(40, 167, 69);
+doc.text(`Total Credit (Rcvd): Rs ${fmtAmt(totCredit)}`, 20, afterY + 14);
+doc.setTextColor(Math.abs(finalBal) < 0.01 ? 100 : finalBal > 0 ? 220 : 40,
+Math.abs(finalBal) < 0.01 ? 100 : finalBal > 0 ? 53 : 167,
+Math.abs(finalBal) < 0.01 ? 100 : finalBal > 0 ? 69 : 69);
+doc.setFont(undefined, 'bold');
+const balStr = Math.abs(finalBal) < 0.01 ? 'SETTLED'
+: finalBal > 0 ? `Outstanding Due: Rs ${fmtAmt(finalBal)}`
+: `Overpaid by: Rs ${fmtAmt(Math.abs(finalBal))}`;
+doc.text(balStr, 110, afterY + 10.5);
+}
+} else {
+doc.setFont(undefined, 'normal'); doc.setFontSize(10); doc.setTextColor(150);
+doc.text('No sales recorded for this period.', pageW / 2, yPos + 15, { align: 'center' });
+}
+const pageCount = doc.internal.getNumberOfPages();
+for (let i = 1; i <= pageCount; i++) {
+doc.setPage(i);
+doc.setFontSize(7); doc.setTextColor(160);
+doc.text(
+`Generated on ${now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} at ${now.toLocaleTimeString('en-US')} | GULL AND ZUBAIR NASWAR DEALERS`,
+pageW / 2, 291, { align: 'center' }
+);
+doc.text(`Page ${i} of ${pageCount}`, pageW / 2, 287, { align: 'center' });
+}
+await new Promise(r => setTimeout(r, 100));
+const dateStamp    = new Date().toISOString().split('T')[0];
+const safeCustName = customerName.replace(/[^a-z0-9]/gi, '_');
+if (pageCount === 1) {
+  // ── Single page → image + WhatsApp ──────────────────────────────────────
+  showToast('Single-page statement — converting to image…', 'info');
+  await _exportDocAsImageAndOpenWhatsApp(
+    doc,
+    phone,
+    `Customer_Statement_${safeCustName}_${dateStamp}`
+  );
+} else {
+  // ── Multi-page → regular PDF download ───────────────────────────────────
+  doc.save(`Customer_Statement_${safeCustName}_${dateStamp}.pdf`);
+  showToast('PDF exported successfully', 'success');
+}
+} catch (error) {
+showToast("Error generating PDF: " + error.message, "error");
+}
+}
+const SCRIPT_INTEGRITY = {
+  'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js':
+    'sha256-4C8gBRoAE0XFxW0C7SsQ+X/TBkHSFM3YMwVaF4F8hk=',
+  'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js':
+    'sha256-0ZQJSA5vPBL+6L5uyIjovZ/m7VBpAOUGc7BHOH/RBHE='
+};
+const _scriptLoadPromises = {};
+function loadScript(url, integrity) {
+  const existing = document.querySelector('script[src="' + url + '"]');
+  if (existing && !existing.dataset.failed) {
+    if (_scriptLoadPromises[url]) return _scriptLoadPromises[url];
+    return Promise.resolve();
+  }
+  if (_scriptLoadPromises[url]) return _scriptLoadPromises[url];
+  _scriptLoadPromises[url] = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = url;
+    const sri = integrity || SCRIPT_INTEGRITY[url];
+    if (sri) {
+      script.integrity = sri;
+      script.crossOrigin = 'anonymous';
+    }
+    script.onload = () => {
+      delete _scriptLoadPromises[url];
+      resolve();
+    };
+    script.onerror = () => {
+      script.dataset.failed = '1';
+      document.head.removeChild(script);
+      delete _scriptLoadPromises[url];
+      if (sri) {
+        const fallback = document.createElement('script');
+        fallback.src = url;
+        fallback.crossOrigin = 'anonymous';
+        fallback.onload = () => resolve();
+        fallback.onerror = () => reject(new Error('Failed to load: ' + url));
+        document.head.appendChild(fallback);
+      } else {
+        reject(new Error('Failed to load: ' + url));
+      }
+    };
+    document.head.appendChild(script);
+  });
+  return _scriptLoadPromises[url];
 }
 const SarimChart = (() => {
   function _esc(s) {
@@ -4231,6 +5063,200 @@ if (typeof renderFactoryInventory === 'function') renderFactoryInventory();
 }
 } catch (error) {
 showToast('Failed to save transaction. Please try again.', 'error', 4000);
+}
+}
+async function exportCustomerData(type) {
+const paymentEntities = ensureArray(await sqliteStore.get('payment_entities'));
+const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
+const factorySalePrices = (await sqliteStore.get('factory_sale_prices')) || {};
+const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
+const salesCustomers = ensureArray(await sqliteStore.get('sales_customers'));
+const db = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
+const repSales = ensureArray(await sqliteStore.get('rep_sales'));
+const repCustomers = ensureArray(await sqliteStore.get('rep_customers'));
+showToast("Generating PDF...", "info");
+try {
+if (!window.jspdf) {
+await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js');
+}
+if (!window.jspdf || !window.jspdf.jsPDF) {
+throw new Error("Failed to load PDF library. Please refresh and try again.");
+}
+const fileName = type === 'rep' ? "My_Customer_List.pdf" : "All_Customers_List.pdf";
+const customerMap = new Map();
+const initCust = (name) => ({ name, phone:"N/A", address:"N/A", debt:0, paid:0, qty:0, lastDate:"", lastType:"" });
+const salesData = type === 'rep' ? repSales : customerSales;
+let hasMergedEntries = false;
+salesData.forEach(sale => {
+if (type === 'rep' && (sale.salesRep !== currentRepProfile)) return;
+const name = sale.customerName;
+if (!name) return;
+if (!customerMap.has(name)) customerMap.set(name, initCust(name));
+const cust = customerMap.get(name);
+if (sale.customerPhone) cust.phone = sale.customerPhone;
+if (sale.customerAddress) cust.address = sale.customerAddress;
+if (sale.isMerged === true) {
+  hasMergedEntries = true;
+  const ms = sale.mergedSummary || {};
+  const net = ms.netOutstanding != null ? ms.netOutstanding : (sale.totalValue || 0);
+  const cash = ms.cashSales || 0;
+  cust.debt += (net + cash);
+  cust.paid += cash;
+  cust.qty  += (sale.quantity || 0);
+  if (sale.date > cust.lastDate) { cust.lastDate = sale.date; cust.lastType = 'MERGED'; }
+  return;
+}
+const sp = sale.totalValue && sale.quantity && sale.quantity > 0 && !['COLLECTION','PARTIAL_PAYMENT'].includes(sale.paymentType)
+? sale.totalValue / sale.quantity
+: (sale.supplyStore === 'STORE_C' ? (factorySalePrices?.asaan||0) : (factorySalePrices?.standard||0));
+if (sale.paymentType === 'CREDIT' && !sale.creditReceived) {
+const val = sale.totalValue || (sale.quantity||0) * sp;
+cust.debt += val;
+cust.paid += parseFloat(sale.partialPaymentReceived) || 0;
+cust.qty += (sale.quantity || 0);
+} else if (sale.paymentType === 'CASH') {
+const val = sale.totalValue || (sale.quantity||0) * sp;
+cust.debt += val; cust.paid += val; cust.qty += (sale.quantity || 0);
+} else if (sale.paymentType === 'CREDIT' && sale.creditReceived) {
+const val = sale.totalValue || (sale.quantity||0) * sp;
+cust.debt += val; cust.paid += val; cust.qty += (sale.quantity || 0);
+} else if (sale.paymentType === 'COLLECTION') {
+cust.paid += (sale.totalValue || 0);
+} else if (sale.paymentType === 'PARTIAL_PAYMENT') {
+cust.paid += (sale.totalValue || 0);
+}
+if (sale.date > cust.lastDate) { cust.lastDate = sale.date; cust.lastType = sale.paymentType; }
+});
+if (type === 'admin') {
+paymentEntities.forEach(entity => {
+const entityTxs = paymentTransactions.filter(t => String(t.entityId) === String(entity.id));
+const hasIN = entityTxs.some(t => t.type === 'IN');
+const hasOUT = entityTxs.some(t => t.type === 'OUT');
+const isDerivedPayor = hasIN && !hasOUT;
+if (!isDerivedPayor) return;
+if (!customerMap.has(entity.name)) {
+const nc = initCust(entity.name);
+nc.phone = entity.phone || "N/A";
+nc.address = entity.address || "N/A";
+customerMap.set(entity.name, nc);
+} else {
+const ex = customerMap.get(entity.name);
+if (ex.phone === "N/A" && entity.phone) ex.phone = entity.phone;
+if (ex.address === "N/A" && entity.address) ex.address = entity.address;
+}
+});
+}
+if (customerMap.size === 0) { showToast("No customers found to export.", "warning"); return; }
+const { jsPDF } = window.jspdf;
+const doc = new jsPDF('l', 'mm', 'a4');
+const pageW = doc.internal.pageSize.getWidth();
+const pageH = doc.internal.pageSize.getHeight();
+const hdrColor = [40, 167, 69];
+doc.setFillColor(...hdrColor);
+doc.rect(0, 0, pageW, 22, 'F');
+doc.setFontSize(16); doc.setFont(undefined,'bold'); doc.setTextColor(255,255,255);
+doc.text('GULL AND ZUBAIR NASWAR DEALERS', pageW/2, 10, { align:'center' });
+doc.setFontSize(9); doc.setFont(undefined,'normal');
+doc.text('Naswar Manufacturers & Dealers', pageW/2, 17, { align:'center' });
+doc.setFontSize(12); doc.setFont(undefined,'bold'); doc.setTextColor(50,50,50);
+const titleText = type === 'rep' ? `My Customers — ${currentRepProfile || ''}` : 'All Customers — Complete List';
+doc.text(titleText, pageW/2, 30, { align:'center' });
+doc.setFontSize(8.5); doc.setFont(undefined,'normal'); doc.setTextColor(100,100,100);
+doc.text(`Generated: ${new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})} at ${new Date().toLocaleTimeString('en-US')}`, pageW/2, 36, { align:'center' });
+doc.setDrawColor(...hdrColor); doc.setLineWidth(0.5);
+doc.line(14, 39, pageW - 14, 39);
+const customerRows = [];
+let totDebt = 0, totPaid = 0, totQty = 0, totNet = 0;
+let cntDebtors = 0, cntSettled = 0;
+const sortedCustomers = [...customerMap.values()].sort((a,b) => (b.debt - b.paid) - (a.debt - a.paid));
+sortedCustomers.forEach(cust => {
+const net = cust.debt - cust.paid;
+totDebt += cust.debt; totPaid += cust.paid; totQty += cust.qty; totNet += net;
+if (net > 0.01) cntDebtors++; else cntSettled++;
+customerRows.push([
+cust.name,
+cust.phone,
+cust.address.substring(0, 35),
+cust.debt > 0 ? 'Rs ' + fmtAmt(cust.debt) : '-',
+cust.paid > 0 ? 'Rs ' + fmtAmt(cust.paid) : '-',
+Math.abs(net) < 0.01 ? 'SETTLED'
+: (net > 0 ? 'Rs ' + fmtAmt(net) : 'OVERPAID\nRs ' + fmtAmt(Math.abs(net))),
+fmtAmt(cust.qty),
+formatDisplayDate(cust.lastDate) || '-'
+]);
+});
+customerRows.push([
+'TOTAL (' + customerMap.size + ' customers)',
+'', '',
+'Rs ' + fmtAmt(totDebt),
+'Rs ' + fmtAmt(totPaid),
+'Rs ' + fmtAmt(Math.abs(totNet)) + (totNet > 0 ? '\n(DUE)' : totNet < 0 ? '\n(OVERPAID)' : '\nSETTLED'),
+fmtAmt(totQty),
+''
+]);
+doc.autoTable({
+startY: 43,
+head: [['Customer Name', 'Phone', 'Address', 'Total Debit', 'Total Credit', 'Net Balance', 'Qty (kg)', 'Last Sale']],
+body: customerRows,
+theme: 'grid',
+headStyles: { fillColor: hdrColor, textColor: 255, fontSize: 8.5, fontStyle:'bold', halign:'center' },
+styles: { fontSize: 7.5, cellPadding: 2, lineWidth: 0.15, lineColor:[180,180,180], overflow:'linebreak' },
+columnStyles: {
+0: { cellWidth: 42 },
+1: { cellWidth: 26, halign:'center' },
+2: { cellWidth: 44 },
+3: { cellWidth: 26, halign:'right', textColor:[220,53,69], fontStyle:'bold' },
+4: { cellWidth: 26, halign:'right', textColor:[40,167,69], fontStyle:'bold' },
+5: { cellWidth: 30, halign:'center', fontStyle:'bold' },
+6: { cellWidth: 20, halign:'right' },
+7: { cellWidth: 22, halign:'center' }
+},
+didParseCell: function(data) {
+const isTotal = data.row.index === customerRows.length - 1;
+if (isTotal) {
+data.cell.styles.fontStyle = 'bold';
+data.cell.styles.fillColor = [235, 255, 235];
+data.cell.styles.fontSize = 8.5;
+}
+if (data.column.index === 5 && !isTotal) {
+const txt = (data.cell.text || []).join('');
+if (txt === 'SETTLED') data.cell.styles.textColor = [100,100,100];
+else if (txt.includes('OVERPAID')) data.cell.styles.textColor = [40,167,69];
+else data.cell.styles.textColor = [220,53,69];
+}
+},
+margin: { left: 14, right: 14 }
+});
+const afterY = doc.lastAutoTable.finalY + 6;
+if (afterY < pageH - 25) {
+doc.setFontSize(8); doc.setFont(undefined,'normal'); doc.setTextColor(100,100,100);
+doc.text(`Customers with outstanding debt: ${cntDebtors} | Settled accounts: ${cntSettled} | Total outstanding: Rs ${fmtAmt(Math.max(totNet), 2)}`, 14, afterY);
+if (hasMergedEntries) {
+  const noteY = afterY + 6;
+  if (noteY < pageH - 12) {
+    doc.setFillColor(245, 235, 255);
+    doc.roundedRect(14, noteY, pageW - 28, 9, 1.5, 1.5, 'F');
+    doc.setFontSize(7.5); doc.setFont(undefined,'bold'); doc.setTextColor(126, 34, 206);
+    doc.text('\u2605 Balances include year-end opening balance records (MERGED) from Close Financial Year — these represent carried-forward net positions.', 18, noteY + 6);
+    doc.setFont(undefined,'normal'); doc.setTextColor(80,80,80);
+  }
+}
+}
+const pageCount = doc.internal.getNumberOfPages();
+for (let i = 1; i <= pageCount; i++) {
+doc.setPage(i);
+doc.setFontSize(7); doc.setTextColor(160);
+doc.text(
+`Generated on ${new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})} at ${new Date().toLocaleTimeString('en-US')} | GULL AND ZUBAIR NASWAR DEALERS`,
+pageW/2, pageH - 5, { align:'center' }
+);
+doc.text(`Page ${i} of ${pageCount}`, pageW/2, pageH - 9, { align:'center' });
+}
+doc.save(fileName);
+showToast(`Exported ${customerMap.size} customers successfully!`, "success");
+} catch (error) {
+showToast('Error generating PDF: ' + error.message, 'error');
 }
 }
 async function markSalesEntriesAsReceived(seller, quantityToMark) {
@@ -10069,6 +11095,322 @@ html += `<div style="color: var(--text-muted); font-size: 0.7rem; margin-top: 4p
 }
 container.innerHTML = html;
 }
+async function exportUnifiedData() {
+const factoryInventoryData = ensureArray(await sqliteStore.get('factory_inventory_data'));
+const paymentEntities = ensureArray(await sqliteStore.get('payment_entities'));
+const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
+const expenseRecords = ensureArray(await sqliteStore.get('expenses'));
+const viewModeEl = document.getElementById('unifiedViewMode');
+const periodFilterEl = document.getElementById('unifiedPeriodFilter');
+if (!viewModeEl || !periodFilterEl) {
+showToast('Export failed. Please try again.', 'error');
+return;
+}
+const viewMode = viewModeEl.value || 'entities';
+const periodFilter = periodFilterEl.value || 'all';
+showToast("Generating PDF...", "info");
+try {
+if (!window.jspdf) {
+await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js');
+}
+if (!window.jspdf || !window.jspdf.jsPDF) {
+throw new Error("Failed to load PDF library. Please refresh and try again.");
+}
+const { jsPDF } = window.jspdf;
+const doc = new jsPDF('p', 'mm', 'a4');
+const pageW = doc.internal.pageSize.getWidth();
+const now = new Date();
+const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+let startDate = new Date(0);
+if (periodFilter === 'today') startDate = today;
+else if (periodFilter === 'week') { startDate = new Date(today); startDate.setDate(today.getDate() - 7); }
+else if (periodFilter === 'month') { startDate = new Date(today); startDate.setDate(today.getDate() - 30); }
+const periodName = periodFilter === 'all' ? 'All Time' : periodFilter === 'today' ? 'Today' :
+periodFilter === 'week' ? 'This Week' : 'This Month';
+const isEntities = viewMode === 'entities';
+const hdrColor = isEntities ? [0, 150, 136] : [255, 149, 0];
+doc.setFillColor(...hdrColor);
+doc.rect(0, 0, pageW, 22, 'F');
+doc.setFontSize(15); doc.setFont(undefined,'bold'); doc.setTextColor(255,255,255);
+doc.text('GULL AND ZUBAIR NASWAR DEALERS', pageW/2, 10, { align:'center' });
+doc.setFontSize(9); doc.setFont(undefined,'normal');
+doc.text('Naswar Manufacturers & Dealers', pageW/2, 17, { align:'center' });
+doc.setFontSize(12); doc.setFont(undefined,'bold'); doc.setTextColor(50,50,50);
+const titleText = isEntities ? 'Payment Entities — Balances & Ledger' : 'Expenses — Transaction Records';
+doc.text(`${titleText} · ${periodName}`, pageW/2, 30, { align:'center' });
+doc.setFontSize(8); doc.setFont(undefined,'normal'); doc.setTextColor(120,120,120);
+doc.text(`Generated: ${new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})} at ${new Date().toLocaleTimeString('en-US')}`, pageW/2, 36, { align:'center' });
+doc.setDrawColor(...hdrColor); doc.setLineWidth(0.5);
+doc.line(14, 39, pageW - 14, 39);
+let yPos = 44;
+if (isEntities) {
+if (typeof paymentEntities !== 'undefined' && paymentEntities.length > 0) {
+const supplierIdSet = new Set();
+if (typeof factoryInventoryData !== 'undefined') {
+factoryInventoryData.forEach(m => { if (m.supplierId) supplierIdSet.add(String(m.supplierId)); });
+}
+const supplierInventoryBalances = {};
+if (typeof factoryInventoryData !== 'undefined') {
+factoryInventoryData.forEach(mat => {
+if (mat.supplierId && mat.paymentStatus === 'pending' && mat.totalPayable > 0) {
+const sid = String(mat.supplierId);
+supplierInventoryBalances[sid] = (supplierInventoryBalances[sid] || 0) + mat.totalPayable;
+}
+});
+}
+const entityNetBalances = {};
+const entityMergedInfo = {};
+paymentEntities.forEach(e => {
+if (e.isExpenseEntity === true) return;
+if (supplierIdSet.has(String(e.id))) return;
+entityNetBalances[e.id] = 0;
+});
+if (typeof paymentTransactions !== 'undefined') {
+paymentTransactions.forEach(t => {
+if (t.isExpense === true) return;
+if (supplierIdSet.has(String(t.entityId))) return;
+if (entityNetBalances[t.entityId] !== undefined) {
+const amt = parseFloat(t.amount) || 0;
+if (t.type === 'OUT') entityNetBalances[t.entityId] -= amt;
+else if (t.type === 'IN') entityNetBalances[t.entityId] += amt;
+if (t.isMerged === true && t.mergedSummary) {
+  entityMergedInfo[t.entityId] = entityMergedInfo[t.entityId] || [];
+  entityMergedInfo[t.entityId].push({
+    period: _pdfMergedPeriodLabel(t),
+    count: _pdfMergedCountLabel(t),
+    originalIn:  (t.mergedSummary.originalIn  || 0),
+    originalOut: (t.mergedSummary.originalOut || 0)
+  });
+}
+}
+});
+}
+const entityRows = [];
+const pdfEntityList = [];
+let totPayable = 0, totReceivable = 0;
+paymentEntities
+.filter(e => !e.isExpenseEntity)
+.forEach(entity => {
+const sid = String(entity.id);
+let balance = 0;
+let source = 'Transactions';
+if (supplierIdSet.has(sid)) {
+balance = -(supplierInventoryBalances[sid] || 0);
+source = 'Inventory';
+} else {
+balance = entityNetBalances[entity.id] || 0;
+}
+if (balance < -0.01) totPayable += Math.abs(balance);
+if (balance > 0.01) totReceivable += balance;
+let balDisplay, balNote;
+if (Math.abs(balance) < 0.01) { balDisplay = 'SETTLED'; balNote = ''; }
+else if (balance < 0) { balDisplay = 'Rs ' + fmtAmt(Math.abs(balance)); balNote = 'PAYABLE'; }
+else { balDisplay = 'Rs ' + fmtAmt(balance); balNote = 'RECEIVABLE'; }
+const hasMergedTx = !!entityMergedInfo[entity.id];
+const mergedNote = hasMergedTx
+  ? entityMergedInfo[entity.id].map(m => `\u2605 ${m.period} (${m.count})`).join('\n')
+  : '';
+entityRows.push([
+entity.name + (hasMergedTx ? '\n\u2605 Has year-end balance' : ''),
+supplierIdSet.has(sid) ? 'SUPPLIER' : 'ENTITY',
+entity.phone || 'N/A',
+hasMergedTx ? 'Year-End\n' + source : source,
+balDisplay,
+balNote
+]);
+pdfEntityList.push(entity);
+});
+entityRows.push([
+`TOTAL (${entityRows.length} entities)`, '', '', '',
+'Payable: Rs ' + fmtAmt(totPayable) + '\nReceivable: Rs ' + fmtAmt(totReceivable),
+'Net: Rs ' + fmtAmt(Math.abs(totReceivable - totPayable))
+]);
+doc.autoTable({
+startY: yPos,
+head: [['Name', 'Type', 'Phone', 'Balance Source', 'Balance', 'Status']],
+body: entityRows,
+theme: 'grid',
+headStyles: { fillColor: hdrColor, textColor: 255, fontSize: 9, fontStyle:'bold', halign:'center' },
+styles: { fontSize: 8.5, cellPadding: 3, lineWidth: 0.15, lineColor:[180,180,180], overflow:'linebreak' },
+columnStyles: {
+0: { cellWidth: 48 },
+1: { cellWidth: 20, halign:'center' },
+2: { cellWidth: 28, halign:'center' },
+3: { cellWidth: 24, halign:'center', fontSize:7.5, textColor:[100,100,100] },
+4: { cellWidth: 34, halign:'right', fontStyle:'bold' },
+5: { cellWidth: 22, halign:'center', fontStyle:'bold' }
+},
+didParseCell: function(data) {
+const isTotal = data.row.index === entityRows.length - 1;
+if (isTotal) {
+data.cell.styles.fontStyle = 'bold';
+data.cell.styles.fillColor = [240, 248, 255];
+data.cell.styles.fontSize = 9;
+}
+const rowEntity = (data.row.index < entityRows.length - 1) ? pdfEntityList[data.row.index] : null;
+if (rowEntity && entityMergedInfo[rowEntity.id]) {
+  data.cell.styles.fillColor = PDF_MERGED_ROW_COLOR;
+}
+if (data.column.index === 4 && !isTotal) {
+const txt = (data.cell.text || []).join('');
+data.cell.styles.textColor = txt === 'SETTLED' ? [100,100,100] : [220,53,69];
+}
+if (data.column.index === 5 && !isTotal) {
+const txt = (data.cell.text || []).join('');
+if (txt === 'SETTLED') data.cell.styles.textColor = [100,100,100];
+else if (txt === 'RECEIVABLE') data.cell.styles.textColor = [40,167,69];
+else if (txt === 'PAYABLE') data.cell.styles.textColor = [220,53,69];
+}
+},
+margin: { left: 14, right: 14 }
+});
+const afterY = doc.lastAutoTable.finalY + 6;
+if (afterY < 275) {
+doc.setFontSize(8); doc.setFont(undefined,'normal'); doc.setTextColor(100,100,100);
+doc.text(
+`Total Payables: Rs ${fmtAmt(totPayable)} | Total Receivables: Rs ${fmtAmt(totReceivable)} | Net Position: Rs ${fmtAmt(Math.abs(totReceivable - totPayable))} ${totReceivable > totPayable ? '(IN OUR FAVOR)' : '(NET PAYABLE)'}`,
+14, afterY
+);
+const hasMergedEntries2 = Object.keys(entityMergedInfo).length > 0;
+if (hasMergedEntries2 && afterY + 7 < 280) {
+  doc.setFillColor(245, 235, 255);
+  doc.roundedRect(14, afterY + 6, pageW - 28, 9, 1.5, 1.5, 'F');
+  doc.setFontSize(7.5); doc.setFont(undefined,'bold'); doc.setTextColor(126, 34, 206);
+  doc.text('\u2605 Highlighted rows contain year-end opening balances (MERGED) from Close Financial Year.', 18, afterY + 12.5);
+  doc.setFont(undefined,'normal'); doc.setTextColor(80,80,80);
+}
+}
+} else {
+doc.setFont(undefined,'normal'); doc.setFontSize(10); doc.setTextColor(150);
+doc.text('No entities found.', pageW/2, yPos + 10, { align:'center' });
+}
+}
+if (!isEntities) {
+let expenses = (typeof expenseRecords !== 'undefined' ? expenseRecords : [])
+.filter(exp => exp && exp.category === 'operating');
+if (periodFilter !== 'all') {
+expenses = expenses.filter(exp => {
+if (!exp.date) return false;
+return new Date(exp.date) >= startDate;
+});
+}
+expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
+if (expenses.length > 0) {
+const nameGroups = {};
+expenses.forEach(exp => {
+const key = exp.name || 'Unnamed';
+if (!nameGroups[key]) nameGroups[key] = 0;
+nameGroups[key] += parseFloat(exp.amount) || 0;
+});
+const mergedExpenses = expenses.filter(e => e.isMerged === true);
+const normalExpenses = expenses.filter(e => !e.isMerged);
+if (mergedExpenses.length > 0) {
+  yPos = _pdfDrawMergedSectionHeader(doc, yPos, pageW, 'YEAR-END EXPENSE SUMMARIES (Carried Forward)');
+  const mergedExpRows = mergedExpenses.map(exp => {
+    const ms = exp.mergedSummary || {};
+    const period = _pdfMergedPeriodLabel(exp);
+    const count  = _pdfMergedCountLabel(exp);
+    return [
+      period,
+      exp.name || '-',
+      exp.category || 'operating',
+      `${count} — ${(exp.description || '').substring(0, 35)}`,
+      'Rs ' + fmtAmt(parseFloat(exp.amount)||0)
+    ];
+  });
+  const mExpTotal = mergedExpenses.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+  mergedExpRows.push(['','','','SUBTOTAL ('+mergedExpenses.length+' groups)','Rs '+fmtAmt(mExpTotal)]);
+  doc.autoTable({startY:yPos,head:[['Year Period','Name / Vendor','Category','Summary','Total Amount']],body:mergedExpRows,theme:'grid',
+    headStyles:{fillColor:PDF_MERGED_HDR_COLOR,textColor:255,fontSize:9,fontStyle:'bold',halign:'center'},
+    styles:{fontSize:8,cellPadding:2.5,lineWidth:0.15,lineColor:[200,180,230],overflow:'linebreak'},
+    columnStyles:{0:{cellWidth:30,halign:'center'},1:{cellWidth:34},2:{cellWidth:22,halign:'center',fontSize:7.5},3:{cellWidth:58},4:{cellWidth:28,halign:'right',fontStyle:'bold'}},
+    didParseCell:function(data){const isSub=data.row.index===mergedExpRows.length-1;if(isSub){data.cell.styles.fillColor=[230,210,255];data.cell.styles.fontStyle='bold';data.cell.styles.fontSize=9.5;}else{data.cell.styles.fillColor=PDF_MERGED_ROW_COLOR;data.cell.styles.textColor=[80,40,120];}if(data.column.index===4)data.cell.styles.textColor=isSub?[126,34,206]:[140,60,180];},
+    margin:{left:14,right:14}});
+  yPos = doc.lastAutoTable.finalY + 6;
+  if (yPos > 250) { doc.addPage(); yPos = 20; }
+}
+const expenseRows = normalExpenses.map(exp => [
+formatDisplayDate(exp.date) || exp.date || '',
+exp.name || '-',
+exp.category || 'operating',
+(exp.description || '-').substring(0, 45),
+'Rs ' + fmtAmt(parseFloat(exp.amount) || 0)
+]);
+const totalAmt = expenses.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+if (normalExpenses.length > 0) {
+  doc.setFontSize(8.5); doc.setFont(undefined,'bold');
+  doc.setTextColor(...hdrColor);
+  doc.text('INDIVIDUAL EXPENSE RECORDS', 14, yPos);
+  doc.setTextColor(80,80,80); doc.setFont(undefined,'normal');
+  yPos += 5;
+}
+expenseRows.push(['', '', '', 'TOTAL (' + expenses.length + ' records)', 'Rs ' + fmtAmt(totalAmt)]);
+doc.autoTable({
+startY: yPos,
+head: [['Date', 'Name / Vendor', 'Category', 'Description', 'Amount']],
+body: expenseRows,
+theme: 'grid',
+headStyles: { fillColor: hdrColor, textColor: 255, fontSize: 9, fontStyle:'bold', halign:'center' },
+styles: { fontSize: 8.5, cellPadding: 2.5, lineWidth: 0.15, lineColor:[180,180,180], overflow:'linebreak' },
+columnStyles: {
+0: { cellWidth: 24, halign:'center' },
+1: { cellWidth: 38 },
+2: { cellWidth: 22, halign:'center', fontSize:7.5, textColor:[100,100,100] },
+3: { cellWidth: 60 },
+4: { cellWidth: 28, halign:'right', textColor:[220,53,69], fontStyle:'bold' }
+},
+didParseCell: function(data) {
+const isTotal = data.row.index === expenseRows.length - 1;
+if (isTotal) {
+data.cell.styles.fontStyle = 'bold';
+data.cell.styles.fillColor = [255, 245, 235];
+data.cell.styles.fontSize = 9.5;
+if (data.column.index === 4) data.cell.styles.textColor = [220,53,69];
+}
+},
+margin: { left: 14, right: 14 }
+});
+const afterY = doc.lastAutoTable.finalY + 8;
+if (afterY < 265 && Object.keys(nameGroups).length > 1) {
+doc.setFontSize(9); doc.setFont(undefined,'bold'); doc.setTextColor(50,50,50);
+doc.text('Breakdown by Expense Name:', 14, afterY);
+let bkY = afterY + 5;
+doc.setFont(undefined,'normal'); doc.setFontSize(8);
+Object.entries(nameGroups)
+.sort(([,a],[,b]) => b - a)
+.forEach(([name, total]) => {
+if (bkY > 275) return;
+doc.setTextColor(80,80,80);
+doc.text(name.substring(0, 30), 14, bkY);
+doc.setTextColor(220,53,69); doc.setFont(undefined,'bold');
+doc.text('Rs ' + fmtAmt(total), 130, bkY, { align:'right' });
+doc.setFont(undefined,'normal');
+bkY += 5;
+});
+}
+} else {
+doc.setFont(undefined,'normal'); doc.setFontSize(10); doc.setTextColor(150);
+doc.text('No expense records found for this period.', pageW/2, yPos + 10, { align:'center' });
+}
+}
+const pageCount = doc.internal.getNumberOfPages();
+for (let i = 1; i <= pageCount; i++) {
+doc.setPage(i);
+doc.setFontSize(7); doc.setTextColor(160);
+doc.text(
+`Generated on ${new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})} at ${new Date().toLocaleTimeString('en-US')} | GULL AND ZUBAIR NASWAR DEALERS`,
+pageW/2, 291, { align:'center' }
+);
+doc.text(`Page ${i} of ${pageCount}`, pageW/2, 287, { align:'center' });
+}
+const filename = `Unified_Statement_${viewMode}_${periodFilter}_${new Date().toISOString().split('T')[0]}.pdf`;
+doc.save(filename);
+showToast('PDF exported successfully!', 'success');
+} catch (error) {
+showToast('Error generating PDF: ' + error.message, 'error');
+}
+}
 function formatExpenseDate(dateString) {
 const date = new Date(dateString);
 const month = date.toLocaleDateString('en-US', { month: 'short' });
@@ -10125,10 +11467,10 @@ const qAmount = document.getElementById('quickExpenseAmount');
 const qDesc = document.getElementById('quickExpenseDescription');
 if (qAmount) qAmount.value = '';
 if (qDesc) qDesc.value = '';
-const rangeEl = document.getElementById('expenseDateFrom');
-const rangeToEl = document.getElementById('expenseDateTo');
-if (rangeEl) rangeEl.value = '';
-if (rangeToEl) rangeToEl.value = '';
+const _fromReset = document.getElementById('expenseDateFrom');
+const _toReset   = document.getElementById('expenseDateTo');
+if (_fromReset) _fromReset.value = '';
+if (_toReset)   _toReset.value   = '';
 requestAnimationFrame(() => {
 document.body.style.overflow = 'hidden';
 document.documentElement.style.overflow = 'hidden';
@@ -10154,21 +11496,20 @@ const expenseName = currentExpenseOverlayName;
 if (!expenseName) return;
 const titleEl = document.getElementById('expenseOverlayTitle');
 if (titleEl) titleEl.innerText = expenseName;
-const rangeEl = document.getElementById('expenseDateFrom');
-const rangeToEl = document.getElementById('expenseDateTo');
-const fromVal = rangeEl ? rangeEl.value : '';
-const toVal = rangeToEl ? rangeToEl.value : '';
+const _fromVal = (document.getElementById('expenseDateFrom') || {}).value || '';
+const _toVal   = (document.getElementById('expenseDateTo')   || {}).value || '';
 const now = new Date();
+const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 let relatedExpenses = expenseRecords.filter(e =>
 e.category === 'operating' &&
 e.name.toLowerCase() === expenseName.toLowerCase()
 );
-if (fromVal || toVal) {
+if (_fromVal || _toVal) {
 relatedExpenses = relatedExpenses.filter(e => {
 if (!e.date) return false;
 const d = e.date.slice(0, 10);
-if (fromVal && d < fromVal) return false;
-if (toVal && d > toVal) return false;
+if (_fromVal && d < _fromVal) return false;
+if (_toVal   && d > _toVal)   return false;
 return true;
 });
 }
@@ -10328,6 +11669,184 @@ if (typeof renderRecentExpenses === 'function') renderRecentExpenses();
 showToast('Failed to delete all expense records. Please try again.', 'error');
 }
 }
+async function exportExpenseOverlayToPDF() {
+const expenseRecords = ensureArray(await sqliteStore.get('expenses'));
+const expenseName = currentExpenseOverlayName;
+if (!expenseName) { showToast('No expense selected', 'warning'); return; }
+const _fromVal = (document.getElementById('expenseDateFrom') || {}).value || '';
+const _toVal   = (document.getElementById('expenseDateTo')   || {}).value || '';
+showToast('Generating PDF...', 'info');
+try {
+if (!window.jspdf) {
+await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js');
+}
+if (!window.jspdf || !window.jspdf.jsPDF) throw new Error('Failed to load PDF library.');
+const now = new Date();
+const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+let records = expenseRecords.filter(e =>
+e.category === 'operating' &&
+e.name && e.name.toLowerCase() === expenseName.toLowerCase()
+);
+if (_fromVal || _toVal) {
+records = records.filter(e => {
+if (!e.date) return false;
+const d = e.date.slice(0, 10);
+if (_fromVal && d < _fromVal) return false;
+if (_toVal   && d > _toVal)   return false;
+return true;
+});
+}
+records.sort((a, b) => new Date(a.date) - new Date(b.date));
+const total = records.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+const rangeName = (_fromVal && _toVal) ? (_fromVal + ' to ' + _toVal)
+  : _fromVal ? ('From ' + _fromVal) : _toVal ? ('To ' + _toVal) : 'All Time';
+const { jsPDF } = window.jspdf;
+const _dpiScale = 0.2646; // 1px at 96dpi in mm
+const _swMm = Math.min(window.screen.width  * _dpiScale, 210); // max A4 width
+const _shMm = Math.min(window.screen.height * _dpiScale, 297); // max A4 height
+const _pgW  = Math.round(_swMm * 10) / 10;
+const _pgH  = Math.round(_shMm * 10) / 10;
+const doc = new jsPDF({ orientation:'p', unit:'mm', format:[_pgW, _pgH] });
+const pageW = doc.internal.pageSize.getWidth();
+const hdrColor = [255, 149, 0];
+doc.setFillColor(...hdrColor);
+doc.rect(0, 0, pageW, 22, 'F');
+doc.setFontSize(15); doc.setFont(undefined,'bold'); doc.setTextColor(255,255,255);
+doc.text('GULL AND ZUBAIR NASWAR DEALERS', pageW/2, 10, { align:'center' });
+doc.setFontSize(9); doc.setFont(undefined,'normal');
+doc.text('Naswar Manufacturers & Dealers', pageW/2, 17, { align:'center' });
+doc.setFontSize(12); doc.setFont(undefined,'bold'); doc.setTextColor(50,50,50);
+doc.text(`Expense History: ${expenseName}`, pageW/2, 30, { align:'center' });
+doc.setFontSize(9); doc.setFont(undefined,'normal'); doc.setTextColor(80,80,80);
+doc.setFont(undefined,'bold'); doc.text('Period:', 14, 38);
+doc.setFont(undefined,'normal'); doc.text(rangeName, 34, 38);
+doc.setFont(undefined,'bold'); doc.text('Records:', 75, 38);
+doc.setFont(undefined,'normal'); doc.text(String(records.length), 98, 38);
+doc.setFont(undefined,'bold'); doc.text('Total:', 120, 38);
+doc.setFont(undefined,'normal'); doc.setTextColor(...hdrColor); doc.setFont(undefined,'bold');
+doc.text('Rs ' + fmtAmt(total), 138, 38);
+doc.setTextColor(80,80,80); doc.setFont(undefined,'normal');
+doc.setFont(undefined,'bold'); doc.text('Generated:', 14, 44);
+doc.setFont(undefined,'normal'); doc.text(now.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}) + ' at ' + now.toLocaleTimeString('en-US'), 42, 44);
+doc.setDrawColor(...hdrColor); doc.setLineWidth(0.5);
+doc.line(14, 47, pageW - 14, 47);
+if (records.length > 0) {
+const mergedExpRecs = records.filter(e => e.isMerged === true);
+const normalExpRecs = records.filter(e => !e.isMerged);
+let tableStartY = 51;
+if (mergedExpRecs.length > 0) {
+  tableStartY = _pdfDrawMergedSectionHeader(doc, tableStartY, pageW, 'YEAR-END EXPENSE SUMMARIES (Carried Forward)');
+  const mergedRows = mergedExpRecs.map(e => {
+    const ms = e.mergedSummary || {};
+    const period = _pdfMergedPeriodLabel(e);
+    const count  = _pdfMergedCountLabel(e);
+    return [
+      period,
+      `${count} — ${(e.description||'Year-end merged total').substring(0,45)}`,
+      'Rs ' + fmtAmt(parseFloat(e.amount)||0),
+      '\u2605 MERGED'
+    ];
+  });
+  const mTot = mergedExpRecs.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+  mergedRows.push(['','SUBTOTAL ('+mergedExpRecs.length+' year periods)','Rs '+fmtAmt(mTot),'']);
+  doc.autoTable({startY:tableStartY,head:[['Year Period','Summary','Amount','Note']],body:mergedRows,theme:'grid',
+    headStyles:{fillColor:PDF_MERGED_HDR_COLOR,textColor:255,fontSize:9,fontStyle:'bold',halign:'center'},
+    styles:{fontSize:8.5,cellPadding:3,lineWidth:0.15,lineColor:[200,180,230],overflow:'linebreak'},
+    columnStyles:{0:{cellWidth:30,halign:'center'},1:{cellWidth:85},2:{cellWidth:30,halign:'right',fontStyle:'bold'},3:{cellWidth:31,halign:'center',fontStyle:'bold'}},
+    didParseCell:function(data){const isSub=data.row.index===mergedRows.length-1;if(isSub){data.cell.styles.fillColor=[230,210,255];data.cell.styles.fontStyle='bold';data.cell.styles.fontSize=9.5;}else{data.cell.styles.fillColor=PDF_MERGED_ROW_COLOR;data.cell.styles.textColor=[80,40,120];}if(data.column.index===2)data.cell.styles.textColor=isSub?[126,34,206]:[140,60,180];if(data.column.index===3&&!isSub)data.cell.styles.textColor=[126,34,206];},
+    margin:{left:14,right:14}});
+  tableStartY = doc.lastAutoTable.finalY + 8;
+  if (tableStartY > 240) { doc.addPage(); tableStartY = 20; }
+}
+if (normalExpRecs.length > 0) {
+  if (mergedExpRecs.length > 0) {
+    doc.setFontSize(8.5); doc.setFont(undefined,'bold'); doc.setTextColor(...hdrColor);
+    doc.text('INDIVIDUAL EXPENSE RECORDS', 14, tableStartY);
+    doc.setTextColor(80,80,80); doc.setFont(undefined,'normal');
+    tableStartY += 5;
+  }
+}
+let runningTotal = 0;
+const expenseRows = normalExpRecs.map(e => {
+runningTotal += parseFloat(e.amount) || 0;
+return [
+formatDisplayDate(e.date) || e.date || '-',
+(e.description || 'No description').substring(0, 55),
+'Rs ' + fmtAmt(parseFloat(e.amount) || 0),
+'Rs ' + fmtAmt(runningTotal)
+];
+});
+expenseRows.push(['', 'TOTAL (' + records.length + ' entries)', 'Rs ' + fmtAmt(total), '']);
+doc.autoTable({
+startY: tableStartY,
+head: [['Date', 'Description', 'Amount', 'Cumulative Total']],
+body: expenseRows,
+theme: 'grid',
+headStyles: { fillColor: hdrColor, textColor: 255, fontSize: 9, fontStyle:'bold', halign:'center' },
+styles: { fontSize: 8.5, cellPadding: 3, lineWidth: 0.15, lineColor:[180,180,180], overflow:'linebreak' },
+columnStyles: {
+0: { cellWidth: 24, halign:'center' },
+1: { cellWidth: 90 },
+2: { cellWidth: 30, halign:'right', textColor:[220,53,69], fontStyle:'bold' },
+3: { cellWidth: 32, halign:'right', textColor:[255,149,0], fontStyle:'bold' }
+},
+didParseCell: function(data) {
+const isTotal = data.row.index === expenseRows.length - 1;
+if (isTotal) {
+data.cell.styles.fontStyle = 'bold';
+data.cell.styles.fillColor = [255, 245, 235];
+data.cell.styles.fontSize = 9.5;
+if (data.column.index === 2) data.cell.styles.textColor = [220, 53, 69];
+}
+},
+margin: { left: 14, right: 14 }
+});
+if (range === 'all' && records.length > 5) {
+const afterY = doc.lastAutoTable.finalY + 8;
+if (afterY < 258) {
+const monthTotals = {};
+records.forEach(e => {
+if (!e.date) return;
+const d = new Date(e.date);
+const key = d.toLocaleDateString('en-US',{year:'numeric',month:'short'});
+monthTotals[key] = (monthTotals[key] || 0) + (parseFloat(e.amount) || 0);
+});
+doc.setFontSize(9); doc.setFont(undefined,'bold'); doc.setTextColor(50,50,50);
+doc.text('Monthly Breakdown:', 14, afterY);
+let bkY = afterY + 5;
+doc.setFont(undefined,'normal'); doc.setFontSize(8.5);
+Object.entries(monthTotals).forEach(([month, amt]) => {
+if (bkY > 278) return;
+doc.setTextColor(80,80,80); doc.text(month, 14, bkY);
+doc.setTextColor(220,53,69); doc.setFont(undefined,'bold');
+doc.text('Rs ' + fmtAmt(amt), 60, bkY);
+doc.setFont(undefined,'normal');
+bkY += 5;
+});
+}
+}
+} else {
+doc.setFont(undefined,'normal'); doc.setFontSize(10); doc.setTextColor(150);
+doc.text(`No expense records found for "${expenseName}" in the selected period.`, pageW/2, 70, { align:'center' });
+}
+const pageCount = doc.internal.getNumberOfPages();
+for (let i = 1; i <= pageCount; i++) {
+doc.setPage(i);
+doc.setFontSize(7); doc.setTextColor(160);
+doc.text(
+`Generated on ${now.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})} at ${now.toLocaleTimeString('en-US')} | GULL AND ZUBAIR NASWAR DEALERS`,
+pageW/2, 291, { align:'center' }
+);
+doc.text(`Page ${i} of ${pageCount}`, pageW/2, 287, { align:'center' });
+}
+doc.save(`Expense_${expenseName.replace(/\s+/g,'_')}_${range}_${new Date().toISOString().split('T')[0]}.pdf`);
+showToast('PDF exported successfully', 'success');
+} catch (error) {
+showToast('Failed to export PDF: ' + error.message, 'error');
+}
+}
+
 async function deleteExpense(expenseId) {
 const factoryInventoryData = ensureArray(await sqliteStore.get('factory_inventory_data'));
 const expenseRecords = ensureArray(await sqliteStore.get('expenses'));

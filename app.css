@@ -1278,13 +1278,21 @@ gap: 10px;
 .overlay-header__row3 { display:flex; align-items:center; gap:8px; padding-top:2px; }
 .overlay-header__row3 select.store-selector { flex:1; font-size:0.75rem; padding:6px 10px; }
 .overlay-header__row3 .btn-pdf { flex-shrink:0; padding:6px 12px; font-size:0.75rem; }
-.date-range-picker { display:flex; align-items:center; gap:6px; flex:1; min-width:0; }
-.date-range-field { display:flex; flex-direction:column; gap:2px; flex:1; min-width:0; }
-.date-range-label { font-size:0.62rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-muted); padding-left:2px; }
-.date-range-input { width:100%; background:var(--glass-bg,rgba(255,255,255,0.08)); color:var(--text-primary,#fff); border:1px solid var(--glass-border,rgba(255,255,255,0.15)); border-radius:8px; padding:5px 8px; font-size:0.75rem; font-weight:600; outline:none; cursor:pointer; transition:border-color 0.2s, box-shadow 0.2s; backdrop-filter:var(--backdrop-blur); box-sizing:border-box; }
-.date-range-input:focus { border-color:var(--accent,#3b82f6); box-shadow:0 0 0 2px rgba(59,130,246,0.25); }
-.date-range-input::-webkit-calendar-picker-indicator { filter:invert(1) opacity(0.7); cursor:pointer; }
-.date-range-sep { font-size:0.75rem; color:var(--text-muted); flex-shrink:0; font-weight:700; padding-top:14px; }
+/* Date-range picker pair inside overlay row3 */
+.date-range-input {
+  flex: 1;
+  min-width: 90px;
+  max-width: 140px;
+  font-size: 0.72rem;
+  padding: 5px 6px;
+  box-sizing: border-box;
+}
+.date-range-sep {
+  font-size: 0.70rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 #sales-summary-card { transition: background 0.25s, border-color 0.25s; }
 #sales-summary-toggle, #perf-overview-toggle { flex-shrink: 0; }
 .grid-inputs {
