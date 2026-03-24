@@ -2146,22 +2146,34 @@ await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/
 await new Promise(r => setTimeout(r, 200));
 }
 if (!window.jspdf || !window.jspdf.jsPDF) throw new Error("Failed to load PDF library. Please refresh and try again.");
-let transactions = paymentTransactions.filter(t => String(t.entityId) === String(entity.id) && !t.isExpense);
+// All transactions for this entity (all time)
+const allEntityTxns = paymentTransactions.filter(t => String(t.entityId) === String(entity.id) && !t.isExpense);
 const now = new Date();
 const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+// Determine cutoff date for the selected period
+let periodCutoff = null; // null means 'all' — no prior-balance concept
 if (range !== 'all') {
-transactions = transactions.filter(t => {
-if (!t.date) return false;
-const d = new Date(t.date);
-switch(range) {
-case 'today': return d >= today;
-case 'week': { const w = new Date(today); w.setDate(w.getDate() - 7); return d >= w; }
-case 'month': { const m = new Date(today); m.setMonth(m.getMonth() - 1); return d >= m; }
-case 'year': { const y = new Date(today); y.setFullYear(y.getFullYear() - 1); return d >= y; }
-default: return true;
+  switch(range) {
+    case 'today':  periodCutoff = today; break;
+    case 'week':   { const w = new Date(today); w.setDate(w.getDate() - 7);       periodCutoff = w; break; }
+    case 'month':  { const m = new Date(today); m.setMonth(m.getMonth() - 1);     periodCutoff = m; break; }
+    case 'year':   { const y = new Date(today); y.setFullYear(y.getFullYear()-1);  periodCutoff = y; break; }
+  }
 }
-});
-}
+// priorTxns  = transactions BEFORE the period → used to compute opening balance
+// transactions = transactions WITHIN the period → shown in the table
+const priorTxns = periodCutoff
+  ? allEntityTxns.filter(t => { if (!t.date) return false; return new Date(t.date) < periodCutoff; })
+  : [];
+let transactions = periodCutoff
+  ? allEntityTxns.filter(t => { if (!t.date) return false; return new Date(t.date) >= periodCutoff; })
+  : allEntityTxns;
+// Opening balance: net of all activity strictly before the selected period.
+// Positive = net IN (they owe us / credit balance); Negative = net OUT (we owe them).
+const openingBalance = priorTxns.reduce((bal, t) => {
+  const amt = parseFloat(t.amount) || 0;
+  return t.type === 'OUT' ? bal - amt : bal + amt;
+}, 0);
 transactions.sort((a, b) => {
 const da = toSafeDate(a.date);
 const db = toSafeDate(b.date);
@@ -2205,7 +2217,7 @@ yPos += 18;
 doc.setDrawColor(...headerColor); doc.setLineWidth(0.5);
 doc.line(14, yPos, pageW - 14, yPos);
 yPos += 5;
-if (transactions.length > 0) {
+if (transactions.length > 0 || priorTxns.length > 0) {
 doc.setFontSize(9); doc.setFont(undefined, 'bold'); doc.setTextColor(...headerColor);
 doc.text('PAYMENT TRANSACTIONS', 14, yPos);
 doc.setTextColor(80, 80, 80); doc.setFont(undefined, 'normal');
@@ -2293,18 +2305,41 @@ if (mergedTxns.length > 0) {
   yPos = doc.lastAutoTable.finalY + 6;
   if (yPos > 255) { doc.addPage(); yPos = 20; }
 }
-let runningBalance = 0;
-const txRunBal = { val: 0 };
+// ── Opening balance row (only when a time period is selected & prior txns exist) ──
+const hasPriorBalance = periodCutoff !== null && priorTxns.length > 0;
+// txRunBal starts at the opening balance so every subsequent row reflects the
+// true cumulative balance from the beginning of the account history.
+const txRunBal = { val: hasPriorBalance ? openingBalance : 0 };
 const txRows = normalTxns.map(t => buildTxRow(t, txRunBal));
+
+// Prepend the "Prior Balance" opening row when relevant
+if (hasPriorBalance) {
+  const obAbs = Math.abs(openingBalance);
+  const obDisplay = obAbs < 0.01 ? 'SETTLED' : fmtAmt(obAbs);
+  const obLabel = obAbs < 0.01
+    ? 'Settled'
+    : openingBalance > 0 ? 'Receivable (they owe)' : 'Payable (we owe)';
+  txRows.unshift([
+    'Prior',
+    `Opening Balance\n(All activity before this period)`,
+    '—',
+    '-',
+    '-',
+    obDisplay
+  ]);
+}
+
 const totalOut          = normalTxns.filter(t => t.type === 'OUT').reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
 const totalCashIn       = normalTxns.filter(t => t.type === 'IN' && !t.isPayable).reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
 const totalCreditPurch  = normalTxns.filter(t => t.type === 'IN' && t.isPayable).reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
 const totalIn           = totalCashIn + totalCreditPurch;
-const finalBal          = totalIn - totalOut;
+// Final balance = opening balance + period IN - period OUT
+const finalBal          = (hasPriorBalance ? openingBalance : 0) + totalIn - totalOut;
 let finalBalDisplay;
 if (Math.abs(finalBal) < 0.01) finalBalDisplay = 'SETTLED';
 else finalBalDisplay = fmtAmt(Math.abs(finalBal));
-if (normalTxns.length > 0) {
+const openingRowOffset  = hasPriorBalance ? 1 : 0; // row index shift for styling
+if (normalTxns.length > 0 || hasPriorBalance) {
   doc.setFontSize(8.5); doc.setFont(undefined, 'bold');
   doc.setTextColor(...headerColor);
   doc.text('INDIVIDUAL TRANSACTIONS', 14, yPos);
@@ -2327,29 +2362,53 @@ if (normalTxns.length > 0) {
       5: { cellWidth: 30, halign: 'center', fontStyle: 'bold' }
     },
     didParseCell: function(data) {
-      const isTotal = data.row.index === txRows.length - 1;
-      if (isTotal) { data.cell.styles.fontStyle='bold'; data.cell.styles.fillColor=[240,240,240]; data.cell.styles.fontSize=9; }
-      if (data.column.index===2 && !isTotal)
-        data.cell.styles.textColor = data.cell.text[0]==='OUT'?[220,53,69]:data.cell.text[0]==='CR'?[200,100,0]:[40,167,69];
-      if (data.column.index===5 && !isTotal) {
-        const txt=(data.cell.text||[]).join('');
-        if (txt.includes('SETTLED')) data.cell.styles.textColor=[100,100,100];
-        else if (txt.includes('OWE')) data.cell.styles.textColor=[220,53,69];
-        else data.cell.styles.textColor=[40,167,69];
+      const isOpeningRow = hasPriorBalance && data.row.index === 0;
+      const isTotal      = data.row.index === txRows.length - 1;
+      // Style the opening balance row distinctively
+      if (isOpeningRow) {
+        data.cell.styles.fillColor  = [220, 235, 255];
+        data.cell.styles.fontStyle  = 'bold';
+        data.cell.styles.textColor  = [30, 80, 160];
+        data.cell.styles.fontSize   = 8;
+      } else if (isTotal) {
+        data.cell.styles.fontStyle  = 'bold';
+        data.cell.styles.fillColor  = [240, 240, 240];
+        data.cell.styles.fontSize   = 9;
+      }
+      if (!isOpeningRow && !isTotal) {
+        if (data.column.index===2)
+          data.cell.styles.textColor = data.cell.text[0]==='OUT'?[220,53,69]:data.cell.text[0]==='CR'?[200,100,0]:[40,167,69];
+        if (data.column.index===5) {
+          const txt=(data.cell.text||[]).join('');
+          if (txt.includes('SETTLED')) data.cell.styles.textColor=[100,100,100];
+          else if (txt.includes('OWE')) data.cell.styles.textColor=[220,53,69];
+          else data.cell.styles.textColor=[40,167,69];
+        }
       }
     },
     margin: { left: 14, right: 14 }
   });
 }
-const afterTx = (normalTxns.length > 0 ? doc.lastAutoTable.finalY : yPos - 5) + 5;
+const afterTx = ((normalTxns.length > 0 || hasPriorBalance) ? doc.lastAutoTable.finalY : yPos - 5) + 5;
 if (afterTx < 270) {
 doc.setFillColor(245, 245, 245);
-doc.roundedRect(14, afterTx, pageW - 28, totalCreditPurch > 0 ? 20 : 14, 2, 2, 'F');
+const summaryRows = totalCreditPurch > 0 ? 2 : 1;
+doc.roundedRect(14, afterTx, pageW - 28, summaryRows * 11 + 3, 2, 2, 'F');
 doc.setFontSize(8.5); doc.setFont(undefined, 'normal');
-doc.setTextColor(220, 53, 69);
-doc.text(`Total OUT: ${fmtAmt(totalOut)}`, 20, afterTx + 9);
-doc.setTextColor(40, 167, 69);
-doc.text(`Cash IN: ${fmtAmt(totalCashIn)}`, 75, afterTx + 9);
+if (hasPriorBalance && Math.abs(openingBalance) >= 0.01) {
+  doc.setTextColor(30, 80, 160);
+  const obSign = openingBalance > 0 ? '+' : '-';
+  doc.text(`Opening Bal: ${obSign}${fmtAmt(Math.abs(openingBalance))}`, 20, afterTx + 9);
+  doc.setTextColor(220, 53, 69);
+  doc.text(`Period OUT: ${fmtAmt(totalOut)}`, 75, afterTx + 9);
+  doc.setTextColor(40, 167, 69);
+  doc.text(`Period IN: ${fmtAmt(totalIn)}`, 125, afterTx + 9);
+} else {
+  doc.setTextColor(220, 53, 69);
+  doc.text(`Total OUT: ${fmtAmt(totalOut)}`, 20, afterTx + 9);
+  doc.setTextColor(40, 167, 69);
+  doc.text(`Cash IN: ${fmtAmt(totalCashIn)}`, 75, afterTx + 9);
+}
 if (totalCreditPurch > 0) {
 doc.setTextColor(200, 100, 0);
 doc.text(`Credit Purchases: ${fmtAmt(totalCreditPurch)}`, 20, afterTx + 17);
@@ -2359,7 +2418,7 @@ Math.abs(finalBal) < 0.01 ? 100 : finalBal < 0 ? 53 : 167,
 Math.abs(finalBal) < 0.01 ? 100 : finalBal < 0 ? 69 : 69);
 doc.setFont(undefined, 'bold');
 doc.text(`Net Balance: ${finalBalDisplay}`, 138, afterTx + 9);
-yPos = afterTx + (totalCreditPurch > 0 ? 24 : 18);
+yPos = afterTx + (summaryRows * 11 + 7);
 } else {
 yPos = afterTx + 5;
 }
@@ -2513,26 +2572,53 @@ await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/
 await new Promise(r => setTimeout(r, 200));
 }
 if (!window.jspdf || !window.jspdf.jsPDF) throw new Error("Failed to load PDF library. Please refresh and try again.");
-let transactions = customerSales.filter(s =>
-s &&
-s.customerName === customerName
-);
+// All transactions for this customer (all time, un-filtered)
+const allCustTxns = customerSales.filter(s => s && s.customerName === customerName);
 const now = new Date();
 const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+// Determine cutoff date for the selected period
+let custPeriodCutoff = null;
 if (range !== 'all') {
-transactions = transactions.filter(t => {
-if (t.transactionType === 'OLD_DEBT') return true;
-if (!t.date) return false;
-const d = new Date(t.date);
-switch(range) {
-case 'today': return d >= today;
-case 'week': { const w = new Date(today); w.setDate(w.getDate() - 7); return d >= w; }
-case 'month': { const m = new Date(today); m.setMonth(m.getMonth() - 1); return d >= m; }
-case 'year': { const y = new Date(today); y.setFullYear(y.getFullYear() - 1); return d >= y; }
-default: return true;
+  switch(range) {
+    case 'today':  custPeriodCutoff = today; break;
+    case 'week':   { const w = new Date(today); w.setDate(w.getDate() - 7);      custPeriodCutoff = w; break; }
+    case 'month':  { const m = new Date(today); m.setMonth(m.getMonth() - 1);    custPeriodCutoff = m; break; }
+    case 'year':   { const y = new Date(today); y.setFullYear(y.getFullYear()-1); custPeriodCutoff = y; break; }
+  }
 }
-});
-}
+// OLD_DEBT rows always belong to the opening of history, never to a period slice
+const custPriorTxns = custPeriodCutoff
+  ? allCustTxns.filter(t => {
+      if (t.transactionType === 'OLD_DEBT') return true; // always treated as prior
+      if (!t.date) return false;
+      return new Date(t.date) < custPeriodCutoff;
+    })
+  : [];
+let transactions = custPeriodCutoff
+  ? allCustTxns.filter(t => {
+      if (t.transactionType === 'OLD_DEBT') return false; // already in prior
+      if (!t.date) return false;
+      return new Date(t.date) >= custPeriodCutoff;
+    })
+  : allCustTxns;
+// Compute opening balance from prior transactions (debit = what they owe, credit = what they paid)
+const custOpeningBalance = custPriorTxns.reduce((bal, t) => {
+  const pt = t.paymentType || 'CASH';
+  const isOldDebt = t.transactionType === 'OLD_DEBT';
+  let debit = 0, credit = 0;
+  if (isOldDebt) {
+    debit = parseFloat(t.totalValue) || 0;
+    credit = parseFloat(t.partialPaymentReceived) || 0;
+  } else if (pt === 'CASH' || (pt === 'CREDIT' && t.creditReceived)) {
+    // settled — net zero effect on balance
+  } else if (pt === 'CREDIT' && !t.creditReceived) {
+    debit = parseFloat(t.totalValue) || 0;
+    credit = parseFloat(t.partialPaymentReceived) || 0;
+  } else if (pt === 'COLLECTION' || pt === 'PARTIAL_PAYMENT') {
+    credit = parseFloat(t.totalValue) || 0;
+  }
+  return bal + (debit - credit);
+}, 0);
 transactions.sort((a, b) => {
 if (a.isMerged && !b.isMerged) return -1;
 if (!a.isMerged && b.isMerged) return 1;
@@ -2683,8 +2769,9 @@ if (mergedSalesTxns.length > 0) {
   yPos = doc.lastAutoTable.finalY + 6;
   if (yPos > 255) { doc.addPage(); yPos = 20; }
 }
+const custHasPrior = custPeriodCutoff !== null && custPriorTxns.length > 0;
+const txRunBal = { val: custHasPrior ? custOpeningBalance : 0 };
 const txRows = [];
-const txRunBal = { val: 0 };
 let totDebit = 0, totCredit = 0, totQty = 0;
 for (const t of normalSalesTxns) {
   const r = await buildSaleRow(t, txRunBal);
@@ -2693,8 +2780,18 @@ for (const t of normalSalesTxns) {
   totCredit += r.credit;
   totQty    += r.qty;
 }
-const finalBal = totDebit - totCredit;
-if (normalSalesTxns.length > 0) {
+// Prepend opening balance row when a period is selected and prior data exists
+if (custHasPrior) {
+  const obAbs = Math.abs(custOpeningBalance);
+  const obDisplay = obAbs < 0.01 ? 'SETTLED' : fmtAmt(obAbs);
+  txRows.unshift([
+    'Prior', '—',
+    'Opening Balance\n(All activity before this period)',
+    '-', '-', obDisplay
+  ]);
+}
+const finalBal = (custHasPrior ? custOpeningBalance : 0) + totDebit - totCredit;
+if (normalSalesTxns.length > 0 || custHasPrior) {
   doc.setFontSize(8.5); doc.setFont(undefined,'bold');
   doc.setTextColor(...hdrColor);
   doc.text('INDIVIDUAL TRANSACTIONS', 14, yPos);
@@ -2716,37 +2813,58 @@ if (normalSalesTxns.length > 0) {
       4:{cellWidth:27,halign:'right',textColor:[40,167,69],fontStyle:'bold'},5:{cellWidth:26,halign:'center',fontStyle:'bold'}
     },
     didParseCell: function(data) {
+      const isOpeningRow = custHasPrior && data.row.index === 0;
       const isTotal = data.row.index === txRows.length - 1;
-      if (isTotal) { data.cell.styles.fontStyle='bold'; data.cell.styles.fillColor=[235,255,235]; data.cell.styles.fontSize=9; }
-      if (data.column.index===1&&!isTotal){
-        const txt=(data.cell.text||[]).join('');
-        if(txt.includes('CASH')) data.cell.styles.textColor=[40,167,69];
-        if(txt.includes('CREDIT')) data.cell.styles.textColor=[200,100,0];
-        if(txt.includes('COLLECTION')) data.cell.styles.textColor=[40,167,69];
-        if(txt.includes('PARTIAL')) data.cell.styles.textColor=[200,100,0];
-        if(txt.includes('OLD DEBT')) data.cell.styles.textColor=[220,53,69];
+      if (isOpeningRow) {
+        data.cell.styles.fillColor = [220, 235, 255];
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.textColor = [30, 80, 160];
+        data.cell.styles.fontSize  = 8;
+      } else if (isTotal) {
+        data.cell.styles.fontStyle='bold'; data.cell.styles.fillColor=[235,255,235]; data.cell.styles.fontSize=9;
       }
-      if (data.column.index===5&&!isTotal){
-        const txt=(data.cell.text||[]).join('');
-        if(txt==='SETTLED') data.cell.styles.textColor=[100,100,100];
-        else if(txt.includes('OVERPAID')) data.cell.styles.textColor=[40,167,69];
-        else data.cell.styles.textColor=[220,53,69];
+      if (!isOpeningRow && !isTotal) {
+        if (data.column.index===1){
+          const txt=(data.cell.text||[]).join('');
+          if(txt.includes('CASH')) data.cell.styles.textColor=[40,167,69];
+          if(txt.includes('CREDIT')) data.cell.styles.textColor=[200,100,0];
+          if(txt.includes('COLLECTION')) data.cell.styles.textColor=[40,167,69];
+          if(txt.includes('PARTIAL')) data.cell.styles.textColor=[200,100,0];
+          if(txt.includes('OLD DEBT')) data.cell.styles.textColor=[220,53,69];
+        }
+        if (data.column.index===5){
+          const txt=(data.cell.text||[]).join('');
+          if(txt==='SETTLED') data.cell.styles.textColor=[100,100,100];
+          else if(txt.includes('OVERPAID')) data.cell.styles.textColor=[40,167,69];
+          else data.cell.styles.textColor=[220,53,69];
+        }
       }
     },
     margin: { left: 14, right: 14 }
   });
 }
-const afterY = (normalSalesTxns.length > 0 ? doc.lastAutoTable.finalY : yPos - 5) + 5;
+const afterY = ((normalSalesTxns.length > 0 || custHasPrior) ? doc.lastAutoTable.finalY : yPos - 5) + 5;
 if (afterY < 268) {
+const custSummaryH = 20;
 doc.setFillColor(245, 255, 245);
-doc.roundedRect(14, afterY, pageW - 28, 20, 2, 2, 'F');
+doc.roundedRect(14, afterY, pageW - 28, custSummaryH, 2, 2, 'F');
 doc.setDrawColor(...hdrColor); doc.setLineWidth(0.3);
-doc.roundedRect(14, afterY, pageW - 28, 20, 2, 2, 'S');
+doc.roundedRect(14, afterY, pageW - 28, custSummaryH, 2, 2, 'S');
 doc.setFontSize(8); doc.setFont(undefined, 'normal');
-doc.setTextColor(220, 53, 69);
-doc.text(`Total Debit (Sales): ${fmtAmt(totDebit)}`, 20, afterY + 7);
-doc.setTextColor(40, 167, 69);
-doc.text(`Total Credit (Rcvd): ${fmtAmt(totCredit)}`, 20, afterY + 14);
+if (custHasPrior && Math.abs(custOpeningBalance) >= 0.01) {
+  const obSign = custOpeningBalance > 0 ? '+' : '-';
+  doc.setTextColor(30, 80, 160);
+  doc.text(`Opening Bal: ${obSign}${fmtAmt(Math.abs(custOpeningBalance))}`, 20, afterY + 7);
+  doc.setTextColor(220, 53, 69);
+  doc.text(`Period Debit: ${fmtAmt(totDebit)}`, 75, afterY + 7);
+  doc.setTextColor(40, 167, 69);
+  doc.text(`Period Credit: ${fmtAmt(totCredit)}`, 130, afterY + 7);
+} else {
+  doc.setTextColor(220, 53, 69);
+  doc.text(`Total Debit (Sales): ${fmtAmt(totDebit)}`, 20, afterY + 7);
+  doc.setTextColor(40, 167, 69);
+  doc.text(`Total Credit (Rcvd): ${fmtAmt(totCredit)}`, 20, afterY + 14);
+}
 doc.setTextColor(Math.abs(finalBal) < 0.01 ? 100 : finalBal > 0 ? 220 : 40,
 Math.abs(finalBal) < 0.01 ? 100 : finalBal > 0 ? 53 : 167,
 Math.abs(finalBal) < 0.01 ? 100 : finalBal > 0 ? 69 : 69);
@@ -2754,7 +2872,7 @@ doc.setFont(undefined, 'bold');
 const balStr = Math.abs(finalBal) < 0.01 ? 'SETTLED'
 : finalBal > 0 ? `Outstanding Due: ${fmtAmt(finalBal)}`
 : `Overpaid by: ${fmtAmt(Math.abs(finalBal))}`;
-doc.text(balStr, 110, afterY + 10.5);
+doc.text(balStr, 110, afterY + (custHasPrior ? 7 : 10.5));
 }
 } else {
 doc.setFont(undefined, 'normal'); doc.setFontSize(10); doc.setTextColor(150);

@@ -1137,25 +1137,52 @@ await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/
 await new Promise(r => setTimeout(r, 200));
 }
 if (!window.jspdf || !window.jspdf.jsPDF) throw new Error('Failed to load PDF library. Please refresh and try again.');
-let transactions = repSales.filter(s =>
-s.customerName === customerName && s.salesRep === currentRepProfile
-);
+// All transactions for this rep customer (all time, un-filtered)
+const allRepCustTxns = repSales.filter(s => s.customerName === customerName && s.salesRep === currentRepProfile);
 const now = new Date();
 const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+// Determine cutoff date for the selected period
+let repPeriodCutoff = null;
 if (range !== 'all') {
-transactions = transactions.filter(t => {
-if (t.transactionType === 'OLD_DEBT') return true;
-if (!t.date) return false;
-const d = new Date(t.date);
-switch(range) {
-case 'today': return d >= today;
-case 'week': { const w = new Date(today); w.setDate(w.getDate() - 7); return d >= w; }
-case 'month': { const m = new Date(today); m.setMonth(m.getMonth() - 1); return d >= m; }
-case 'year': { const y = new Date(today); y.setFullYear(y.getFullYear() - 1); return d >= y; }
-default: return true;
+  switch(range) {
+    case 'today':  repPeriodCutoff = today; break;
+    case 'week':   { const w = new Date(today); w.setDate(w.getDate() - 7);      repPeriodCutoff = w; break; }
+    case 'month':  { const m = new Date(today); m.setMonth(m.getMonth() - 1);    repPeriodCutoff = m; break; }
+    case 'year':   { const y = new Date(today); y.setFullYear(y.getFullYear()-1); repPeriodCutoff = y; break; }
+  }
 }
-});
-}
+const repPriorTxns = repPeriodCutoff
+  ? allRepCustTxns.filter(t => {
+      if (t.transactionType === 'OLD_DEBT') return true; // always treated as prior
+      if (!t.date) return false;
+      return new Date(t.date) < repPeriodCutoff;
+    })
+  : [];
+let transactions = repPeriodCutoff
+  ? allRepCustTxns.filter(t => {
+      if (t.transactionType === 'OLD_DEBT') return false; // already in prior
+      if (!t.date) return false;
+      return new Date(t.date) >= repPeriodCutoff;
+    })
+  : allRepCustTxns;
+// Compute opening balance from prior transactions
+const repOpeningBalance = repPriorTxns.reduce((bal, t) => {
+  const pt = t.paymentType || 'CASH';
+  const isOldDebt = t.transactionType === 'OLD_DEBT';
+  let debit = 0, credit = 0;
+  if (isOldDebt) {
+    debit = parseFloat(t.totalValue) || 0;
+    credit = parseFloat(t.partialPaymentReceived) || 0;
+  } else if (pt === 'CASH' || (pt === 'CREDIT' && t.creditReceived)) {
+    // settled — net zero
+  } else if (pt === 'CREDIT' && !t.creditReceived) {
+    debit = parseFloat(t.totalValue) || 0;
+    credit = parseFloat(t.partialPaymentReceived) || 0;
+  } else if (pt === 'COLLECTION' || pt === 'PARTIAL_PAYMENT') {
+    credit = parseFloat(t.totalValue) || 0;
+  }
+  return bal + (debit - credit);
+}, 0);
 transactions.sort((a, b) => {
 if (a.isMerged && !b.isMerged) return -1;
 if (!a.isMerged && b.isMerged) return 1;
@@ -1246,8 +1273,9 @@ debit>0?'Rs '+fmtAmt(debit):'-', credit>0?'Rs '+fmtAmt(credit):'-', balDisplay],
 debit, credit, qty: t.quantity||0 };
 };
 const normalTxns = transactions.filter(t => !t.isMerged);
+const repHasPrior = repPeriodCutoff !== null && repPriorTxns.length > 0;
+const txRunBal = { val: repHasPrior ? repOpeningBalance : 0 };
 const txRows = [];
-const txRunBal = { val: 0 };
 let totDebit = 0, totCredit = 0, totQty = 0;
 for (const t of normalTxns) {
 const r = buildRow(t, txRunBal);
@@ -1256,7 +1284,17 @@ totDebit += r.debit;
 totCredit += r.credit;
 totQty += r.qty;
 }
-const finalBal = totDebit - totCredit;
+// Prepend opening balance row when a period is selected and prior data exists
+if (repHasPrior) {
+  const obAbs = Math.abs(repOpeningBalance);
+  const obDisplay = obAbs < 0.01 ? 'SETTLED' : 'Rs ' + fmtAmt(obAbs);
+  txRows.unshift([
+    'Prior', '—',
+    'Opening Balance\n(All activity before this period)',
+    '-', '-', obDisplay
+  ]);
+}
+const finalBal = (repHasPrior ? repOpeningBalance : 0) + totDebit - totCredit;
 txRows.push(['TOTALS', '', `${fmtAmt(totQty)} kg total`,
 'Rs '+fmtAmt(totDebit), 'Rs '+fmtAmt(totCredit),
 Math.abs(finalBal)<0.01?'SETTLED':(finalBal>0?'DUE\nRs '+fmtAmt(finalBal):'OVERPAID\nRs '+fmtAmt(Math.abs(finalBal)))]);
@@ -1273,36 +1311,56 @@ columnStyles: {
 4:{cellWidth:27,halign:'right',textColor:[40,167,69],fontStyle:'bold'},5:{cellWidth:26,halign:'center',fontStyle:'bold'}
 },
 didParseCell: function(data) {
+const isOpeningRow = repHasPrior && data.row.index === 0;
 const isTotal = data.row.index === txRows.length - 1;
-if (isTotal) { data.cell.styles.fontStyle='bold'; data.cell.styles.fillColor=[235,230,255]; data.cell.styles.fontSize=9; }
-if (data.column.index===1&&!isTotal){
-const txt=(data.cell.text||[]).join('');
-if(txt.includes('CASH')) data.cell.styles.textColor=[40,167,69];
-if(txt.includes('CREDIT')) data.cell.styles.textColor=[200,100,0];
-if(txt.includes('COLLECTION')) data.cell.styles.textColor=[40,167,69];
-if(txt.includes('PARTIAL')) data.cell.styles.textColor=[200,100,0];
-if(txt.includes('OLD DEBT')) data.cell.styles.textColor=[220,53,69];
+if (isOpeningRow) {
+  data.cell.styles.fillColor = [220, 235, 255];
+  data.cell.styles.fontStyle = 'bold';
+  data.cell.styles.textColor = [30, 80, 160];
+  data.cell.styles.fontSize  = 8;
+} else if (isTotal) {
+  data.cell.styles.fontStyle='bold'; data.cell.styles.fillColor=[235,230,255]; data.cell.styles.fontSize=9;
 }
-if (data.column.index===5&&!isTotal){
-const txt=(data.cell.text||[]).join('');
-if(txt==='SETTLED') data.cell.styles.textColor=[100,100,100];
-else if(txt.includes('OVERPAID')) data.cell.styles.textColor=[40,167,69];
-else data.cell.styles.textColor=[220,53,69];
+if (!isOpeningRow && !isTotal) {
+  if (data.column.index===1){
+    const txt=(data.cell.text||[]).join('');
+    if(txt.includes('CASH')) data.cell.styles.textColor=[40,167,69];
+    if(txt.includes('CREDIT')) data.cell.styles.textColor=[200,100,0];
+    if(txt.includes('COLLECTION')) data.cell.styles.textColor=[40,167,69];
+    if(txt.includes('PARTIAL')) data.cell.styles.textColor=[200,100,0];
+    if(txt.includes('OLD DEBT')) data.cell.styles.textColor=[220,53,69];
+  }
+  if (data.column.index===5){
+    const txt=(data.cell.text||[]).join('');
+    if(txt==='SETTLED') data.cell.styles.textColor=[100,100,100];
+    else if(txt.includes('OVERPAID')) data.cell.styles.textColor=[40,167,69];
+    else data.cell.styles.textColor=[220,53,69];
+  }
 }
 },
 margin: { left: 14, right: 14 }
 });
-const afterY = doc.lastAutoTable.finalY + 5;
+const afterY = ((normalTxns.length > 0 || repHasPrior) ? doc.lastAutoTable.finalY : yPos - 5) + 5;
 if (afterY < 268) {
 doc.setFillColor(240, 235, 255);
 doc.roundedRect(14, afterY, pageW - 28, 20, 2, 2, 'F');
 doc.setDrawColor(...hdrColor); doc.setLineWidth(0.3);
 doc.roundedRect(14, afterY, pageW - 28, 20, 2, 2, 'S');
 doc.setFontSize(8); doc.setFont(undefined, 'normal');
-doc.setTextColor(220, 53, 69);
-doc.text(`Total Debit (Sales): Rs ${fmtAmt(totDebit)}`, 20, afterY + 7);
-doc.setTextColor(40, 167, 69);
-doc.text(`Total Credit (Rcvd): Rs ${fmtAmt(totCredit)}`, 20, afterY + 14);
+if (repHasPrior && Math.abs(repOpeningBalance) >= 0.01) {
+  const repObSign = repOpeningBalance > 0 ? '+' : '-';
+  doc.setTextColor(30, 80, 160);
+  doc.text(`Opening Bal: ${repObSign}Rs ${fmtAmt(Math.abs(repOpeningBalance))}`, 20, afterY + 7);
+  doc.setTextColor(220, 53, 69);
+  doc.text(`Period Debit: Rs ${fmtAmt(totDebit)}`, 75, afterY + 7);
+  doc.setTextColor(40, 167, 69);
+  doc.text(`Period Credit: Rs ${fmtAmt(totCredit)}`, 130, afterY + 7);
+} else {
+  doc.setTextColor(220, 53, 69);
+  doc.text(`Total Debit (Sales): Rs ${fmtAmt(totDebit)}`, 20, afterY + 7);
+  doc.setTextColor(40, 167, 69);
+  doc.text(`Total Credit (Rcvd): Rs ${fmtAmt(totCredit)}`, 20, afterY + 14);
+}
 doc.setFont(undefined, 'bold');
 const balStr = Math.abs(finalBal) < 0.01 ? 'SETTLED'
 : finalBal > 0 ? `Outstanding Due: Rs ${fmtAmt(finalBal)}`
@@ -1310,7 +1368,7 @@ const balStr = Math.abs(finalBal) < 0.01 ? 'SETTLED'
 doc.setTextColor(Math.abs(finalBal)<0.01?100:finalBal>0?220:40,
 Math.abs(finalBal)<0.01?100:finalBal>0?53:167,
 Math.abs(finalBal)<0.01?100:69);
-doc.text(balStr, 110, afterY + 10.5);
+doc.text(balStr, 110, afterY + (repHasPrior ? 7 : 10.5));
 }
 } else {
 doc.setFont(undefined, 'normal'); doc.setFontSize(10); doc.setTextColor(150);
