@@ -1123,9 +1123,8 @@ if (btn) btn.disabled = false;
 async function exportRepCustomerToPDF() {
 const repSales = ensureArray(await sqliteStore.get('rep_sales'));
 const repCustomers = ensureArray(await sqliteStore.get('rep_customers'));
-const titleElement = document.getElementById('repManageCustomerTitle');
-if (!titleElement) { showToast('No rep customer selected', 'warning'); return; }
-const customerName = titleElement.innerText.trim();
+if (!currentManagingRepCustomer) { showToast('No rep customer selected', 'warning'); return; }
+const customerName = currentManagingRepCustomer.trim();
 if (!customerName) { showToast('No rep customer selected', 'warning'); return; }
 const rangeSelect = document.getElementById('repCustomerPdfRange');
 const range = rangeSelect ? rangeSelect.value : 'all';
@@ -1341,7 +1340,7 @@ if (!isOpeningRow && !isTotal) {
 margin: { left: 14, right: 14 }
 });
 const afterY = ((normalTxns.length > 0 || repHasPrior) ? doc.lastAutoTable.finalY : yPos - 5) + 5;
-if (afterY < 268) {
+if (afterY < 258) {
 doc.setFillColor(240, 235, 255);
 doc.roundedRect(14, afterY, pageW - 28, 20, 2, 2, 'F');
 doc.setDrawColor(...hdrColor); doc.setLineWidth(0.3);

@@ -2390,7 +2390,7 @@ if (normalTxns.length > 0 || hasPriorBalance) {
   });
 }
 const afterTx = ((normalTxns.length > 0 || hasPriorBalance) ? doc.lastAutoTable.finalY : yPos - 5) + 5;
-if (afterTx < 270) {
+if (afterTx < 255) {
 doc.setFillColor(245, 245, 245);
 const summaryRows = totalCreditPurch > 0 ? 2 : 1;
 doc.roundedRect(14, afterTx, pageW - 28, summaryRows * 11 + 3, 2, 2, 'F');
@@ -2511,7 +2511,7 @@ if (txt === 'PENDING') data.cell.styles.textColor = [220, 53, 69];
 margin: { left: 14, right: 14 }
 });
 const afterMat = doc.lastAutoTable.finalY + 5;
-if (afterMat < 272) {
+if (afterMat < 265) {
 doc.setFillColor(255, 245, 230);
 doc.roundedRect(14, afterMat, pageW - 28, 14, 2, 2, 'F');
 doc.setFontSize(8.5); doc.setFont(undefined, 'normal');
@@ -2844,7 +2844,7 @@ if (normalSalesTxns.length > 0 || custHasPrior) {
   });
 }
 const afterY = ((normalSalesTxns.length > 0 || custHasPrior) ? doc.lastAutoTable.finalY : yPos - 5) + 5;
-if (afterY < 268) {
+if (afterY < 258) {
 const custSummaryH = 20;
 doc.setFillColor(245, 255, 245);
 doc.roundedRect(14, afterY, pageW - 28, custSummaryH, 2, 2, 'F');
@@ -11394,14 +11394,14 @@ else if (txt === 'PAYOR') data.cell.styles.textColor = [40,167,69];
 margin: { left: 14, right: 14 }
 });
 const afterY = doc.lastAutoTable.finalY + 6;
-if (afterY < 275) {
+if (afterY < 265) {
 doc.setFontSize(8); doc.setFont(undefined,'normal'); doc.setTextColor(100,100,100);
 doc.text(
 `Total Payables: ${fmtAmt(totPayable)} | Total Receivables: ${fmtAmt(totReceivable)} | Net Position: ${fmtAmt(Math.abs(totReceivable - totPayable))} ${totReceivable > totPayable ? '(IN OUR FAVOR)' : '(NET PAYABLE)'}`,
 14, afterY
 );
 const hasMergedEntries = Object.keys(entityMergedInfo).length > 0;
-if (hasMergedEntries && afterY + 7 < 280) {
+if (hasMergedEntries && afterY + 7 < 272) {
 doc.setFillColor(245, 235, 255);
 doc.roundedRect(14, afterY + 6, pageW - 28, 9, 1.5, 1.5, 'F');
 doc.setFontSize(7.5); doc.setFont(undefined,'bold'); doc.setTextColor(126, 34, 206);
