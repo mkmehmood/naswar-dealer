@@ -1246,10 +1246,6 @@ const sqliteStore = (() => {
     _schedulePersist(PERSIST_NORMAL_MS);
   }
 
-  function _cachedGet(fullKey) {
-    return _rawGet(fullKey);
-  }
-
   async function _decrypt(key, rawData) {
     if (rawData === null || rawData === undefined) return null;
     const isPlain = _PLAINTEXT_KEYS.has(key);
@@ -1427,7 +1423,7 @@ const sqliteStore = (() => {
 
     async get(key, defaultValue = null) {
       await this.init();
-      const row = _cachedGet(_fullKey(key));
+      const row = _rawGet(_fullKey(key));
       if (!row) return defaultValue;
       try {
         if (row.encrypted) {
@@ -1515,7 +1511,7 @@ const sqliteStore = (() => {
       await SQLiteCrypto.restoreSessionKeyFromStorage();
 
       for (const key of keys) {
-        const row = _cachedGet(_fullKey(key));
+        const row = _rawGet(_fullKey(key));
         if (!row) { results.set(key, null); continue; }
         try {
           if (row.encrypted) {
@@ -2616,18 +2612,6 @@ return record;
 }
 if (!record.id) {
 record.id = generateUUID('repair');
-if (!isMigration) {
-const hasUserData = Object.keys(record).some(key =>
-!['id', 'createdAt', 'updatedAt', 'timestamp', 'deletedAt', 'tombstoned_at'].includes(key)
-);
-if (hasUserData) {
-}
-}
-} else if (!validateUUID(record.id)) {
-const oldId = record.id;
-record.id = generateUUID('repair');
-if (!isMigration) {
-}
 }
 const now = getTimestamp();
 if (isMigration) {

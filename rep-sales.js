@@ -637,25 +637,41 @@ const filteredCustomers = sortedCustomers.filter(name => {
 if (!filter) return true;
 return name && typeof name === 'string' && name.toLowerCase().includes(filter);
 });
-const pageCustomers = filteredCustomers;
-const validPage = 1;
-const totalPages = 1;
 const totalItems = filteredCustomers.length;
-const startIndex = 0;
-const endIndex = filteredCustomers.length;
-const repCustomersData = {
-pageCustomers,
-custMap,
-totalItems,
-totalPages,
-validPage,
-repSales,
-repCustomers
-};
-if (repCustomersData && repCustomersData.pageCustomers) {
-renderRepCustomersFromCache(repCustomersData, tbody);
+if (!filteredCustomers || !Array.isArray(filteredCustomers) || !custMap) {
+tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--danger);">Invalid customer data</td></tr>`;
+} else if (totalItems === 0) {
+if (Object.keys(custMap).length === 0) {
+tbody.innerHTML = `<tr><td class="u-empty-state-md" colspan="5" >No customers yet. Add your first sale to get started!</td></tr>`;
 } else {
-tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px; color:var(--danger);">Failed to load customer data</td></tr>`;
+const filterInput = document.getElementById('rep-filter');
+const filter = filterInput ? filterInput.value : '';
+tbody.innerHTML = `<tr><td class="u-empty-state-md" colspan="5" >No customers match "${esc(filter)}"</td></tr>`;
+}
+} else {
+function buildRepCustomerRow(name) {
+const customerData = custMap[name];
+const customerTransactions = repSales.filter(s =>
+s.customerName === name &&
+s.salesRep === currentRepProfile
+);
+const latestTransaction = customerTransactions.sort((a, b) => b.timestamp - a.timestamp)[0];
+const displayDate = latestTransaction?.date ? formatDisplayDate(latestTransaction.date) : '-';
+const repContact = repCustomers.find(c => c && c.name && c.name.toLowerCase() === name.toLowerCase());
+const phone = repContact?.phone || latestTransaction?.customerPhone || '-';
+const tr = document.createElement('tr');
+tr.style.borderBottom = '1px solid var(--glass-border)';
+const safeNameForAttr = name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+tr.innerHTML = `
+<td class="u-table-td">${displayDate}</td>
+<td style="padding: 8px 2px; font-size: 0.8rem; color: var(--accent); font-weight: 600; cursor:pointer;" onclick="event.stopPropagation(); openRepCustomerManagement('${safeNameForAttr}')">${esc(name)}</td>
+<td class="u-table-td">${phoneActionHTML(phone)}</td>
+<td style="padding: 8px 2px; text-align: right; font-size: 0.8rem; color: ${customerData.debt > 1 ? 'var(--warning)' : 'var(--accent-emerald)'}; font-weight: 700;">
+${customerData.debt.toLocaleString()}
+</td>`;
+return tr;
+}
+GNDVirtualScroll.mount('vs-scroller-rep-customers', filteredCustomers, buildRepCustomerRow, tbody);
 }
 let repTotalCreditSales = 0;
 let repTotalCollections = 0;
@@ -672,78 +688,17 @@ _setRepH('rep-customers-total-credit', fmtAmt(totalOutstanding));
 _setRepH('rep-customers-total-credit-sales', fmtAmt(repTotalCreditSales));
 _setRepH('rep-customers-total-collections', fmtAmt(repTotalCollections));
 }
-async function renderRepCustomersFromCache(data, tbody) {
-if (!data) {
-tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--danger);">Error loading customers</td></tr>`;
-return;
-}
-const { pageCustomers, custMap, totalItems, totalPages, validPage, repSales, repCustomers } = data;
-if (!pageCustomers || !Array.isArray(pageCustomers) || !custMap) {
-tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--danger);">Invalid customer data</td></tr>`;
-return;
-}
-if (totalItems === 0) {
-if (Object.keys(custMap).length === 0) {
-tbody.innerHTML = `<tr><td class="u-empty-state-md" colspan="5" >No customers yet. Add your first sale to get started!</td></tr>`;
-} else {
-const filterInput = document.getElementById('rep-filter');
-const filter = filterInput ? filterInput.value : '';
-tbody.innerHTML = `<tr><td class="u-empty-state-md" colspan="5" >No customers match "${esc(filter)}"</td></tr>`;
-}
-return;
-}
-function buildRepCustomerRow(name) {
-const customerData = custMap[name];
-const customerTransactions = repSales.filter(s =>
-s.customerName === name &&
-s.salesRep === currentRepProfile
-);
-const latestTransaction = customerTransactions.sort((a, b) => b.timestamp - a.timestamp)[0];
-const displayDate = latestTransaction?.date ? formatDisplayDate(latestTransaction.date) : '-';
-const repContact = repCustomers.find(c => c && c.name && c.name.toLowerCase() === name.toLowerCase());
-const phone = repContact?.phone || latestTransaction?.customerPhone || '-';
-const tr = document.createElement('tr');
-tr.style.borderBottom = '1px solid var(--glass-border)';
-const safeNameForAttr = name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-tr.innerHTML = `
-<td class="u-table-td">${displayDate}</td>
-<td style="padding: 8px 2px; font-size: 0.8rem; color: var(--text-main); font-weight: 600;">${esc(name)}</td>
-<td class="u-table-td">${phoneActionHTML(phone)}</td>
-<td style="padding: 8px 2px; text-align: right; font-size: 0.8rem; color: ${customerData.debt > 1 ? 'var(--warning)' : 'var(--accent-emerald)'}; font-weight: 700;">
-${customerData.debt.toLocaleString()}
-</td>
-<td style="padding: 6px 2px; text-align: center;">
-<button class="tbl-action-btn" onclick="event.stopPropagation(); openRepCustomerManagement('${safeNameForAttr}')">View</button>
-</td>`;
-return tr;
-}
-GNDVirtualScroll.mount('vs-scroller-rep-customers', pageCustomers, buildRepCustomerRow, tbody);
-}
+
 async function openRepCustomerManagement(customerName) {
-const repSales = ensureArray(await sqliteStore.get('rep_sales'));
-const repCustomers = ensureArray(await sqliteStore.get('rep_customers'));
 currentManagingRepCustomer = customerName;
 const _repMCT = document.getElementById('repManageCustomerTitle'); if (_repMCT) _repMCT.innerText = customerName;
 const _repBulk = document.getElementById('repBulkPaymentAmount'); if (_repBulk) _repBulk.value = '';
-requestAnimationFrame(() => {
-document.body.style.overflow = 'hidden';
-document.documentElement.style.overflow = 'hidden';
-requestAnimationFrame(() => {
-document.body.style.overflow = 'hidden';
-document.documentElement.style.overflow = 'hidden';
-const _rcmOverlay = document.getElementById('repCustomerManagementOverlay');
-if (_rcmOverlay) _rcmOverlay.style.display = 'flex';
-});
-});
+if (typeof openStandaloneScreen === 'function') openStandaloneScreen('rep-customer-management-screen');
 await renderRepCustomerTransactions(customerName);
 }
 async function closeRepCustomerManagement() {
 const repSales = ensureArray(await sqliteStore.get('rep_sales'));
-requestAnimationFrame(() => {
-document.body.style.overflow = '';
-document.documentElement.style.overflow = '';
-document.getElementById('repCustomerManagementOverlay').style.display = 'none';
-});
+if (typeof closeStandaloneScreen === 'function') closeStandaloneScreen('rep-customer-management-screen');
 currentManagingRepCustomer = null;
 setTimeout(async () => {
 try {
@@ -827,14 +782,17 @@ console.error('Rep sales operation failed.', _safeErr(e));
 showToast('Rep sales operation failed.', 'error');
 transactions = repSales.filter(s => s.customerName === name && s.salesRep === currentRepProfile);
 }
-const _fromVal = (document.getElementById('repCustomerDateFrom') || {}).value || '';
-const _toVal   = (document.getElementById('repCustomerDateTo')   || {}).value || '';
-if (_fromVal || _toVal) {
+const rangeSelect = document.getElementById('repCustomerPdfRange');
+const range = rangeSelect ? rangeSelect.value : 'all';
+if (range !== 'all') {
+const today = new Date(); today.setHours(0,0,0,0);
 transactions = transactions.filter(t => {
 if (!t.date) return false;
-const d = t.date.slice(0, 10);
-if (_fromVal && d < _fromVal) return false;
-if (_toVal   && d > _toVal)   return false;
+const d = new Date(t.date);
+if (range === 'today') return d >= today;
+if (range === 'week') { const w = new Date(today); w.setDate(w.getDate() - 7); return d >= w; }
+if (range === 'month') { const m = new Date(today); m.setMonth(m.getMonth() - 1); return d >= m; }
+if (range === 'year') { const y = new Date(today); y.setFullYear(y.getFullYear() - 1); return d >= y; }
 return true;
 });
 }
@@ -847,8 +805,7 @@ const headerTitle = document.getElementById('repManageCustomerTitle');
 headerTitle.innerHTML = `
 <div style="display:flex; align-items:center; gap:8px;">
 <span>${esc(name)}</span>
-<button class="btn-theme" style="padding:2px 6px; font-size:0.8rem; border:1px solid var(--accent); color:var(--accent); border-radius:50%;"
-onclick="openRepCustomerEditModal('${esc(name).split("'").join("\\\'")}')" title="Edit Contact Info"></button>
+<button class="sidebar-settings-btn" style="width:auto;padding:5px 10px;font-size:0.75rem;color:var(--accent);background:rgba(29,233,182,0.07);border-radius:8px;border:1px solid rgba(29,233,182,0.25);display:inline-flex;align-items:center;gap:5px;" onclick="openRepCustomerEditModal('${esc(name).split("'").join("\\'")}')" title="Edit Contact Info"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</button>
 </div>
 <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: normal; margin-top:4px;">
 ${phone ? phoneActionHTML(phone) : 'No Phone'} ${address ? `| ◆ ${esc(address)}` : ''}
@@ -974,18 +931,10 @@ const oldDebitValue = existingOldDebtTx ? (existingOldDebtTx.totalValue || 0) : 
 document.getElementById('rep-edit-cust-phone').value = contact?.phone || saleRecord?.customerPhone || '';
 document.getElementById('rep-edit-cust-address').value = contact?.address || '';
 document.getElementById('rep-edit-cust-old-debit').value = oldDebitValue;
-requestAnimationFrame(() => {
-document.body.style.overflow = 'hidden';
-document.documentElement.style.overflow = 'hidden';
-document.getElementById('repCustomerEditOverlay').style.display = 'flex';
-});
+if (typeof openStandaloneScreen === 'function') openStandaloneScreen('rep-customer-edit-screen');
 }
 function closeRepCustomerEditModal() {
-requestAnimationFrame(() => {
-document.body.style.overflow = '';
-document.documentElement.style.overflow = '';
-document.getElementById('repCustomerEditOverlay').style.display = 'none';
-});
+if (typeof closeStandaloneScreen === 'function') closeStandaloneScreen('rep-customer-edit-screen');
 }
 async function saveRepCustomerDetails() {
 const repSales = ensureArray(await sqliteStore.get('rep_sales'));
@@ -1095,8 +1044,8 @@ await new Promise(r => setTimeout(r, 350));
 if (nameChanged && currentManagingRepCustomer && currentManagingRepCustomer.toLowerCase() === originalName.toLowerCase()) {
 currentManagingRepCustomer = name;
 }
-const overlay = document.getElementById('repCustomerManagementOverlay');
-if (overlay && overlay.style.display === 'flex') await renderRepCustomerTransactions(currentManagingRepCustomer || name);
+const overlay = document.getElementById('rep-customer-management-screen');
+if (overlay && overlay.style.display !== 'none') await renderRepCustomerTransactions(currentManagingRepCustomer || name);
 if (typeof renderRepCustomerTable === 'function') renderRepCustomerTable();
 notifyDataChange('rep');
 triggerAutoSync();
@@ -1178,8 +1127,8 @@ const titleElement = document.getElementById('repManageCustomerTitle');
 if (!titleElement) { showToast('No rep customer selected', 'warning'); return; }
 const customerName = titleElement.innerText.trim();
 if (!customerName) { showToast('No rep customer selected', 'warning'); return; }
-const _fromVal = (document.getElementById('repCustomerDateFrom') || {}).value || '';
-const _toVal   = (document.getElementById('repCustomerDateTo')   || {}).value || '';
+const rangeSelect = document.getElementById('repCustomerPdfRange');
+const range = rangeSelect ? rangeSelect.value : 'all';
 showToast('Generating PDF...', 'info');
 try {
 if (!window.jspdf) {
@@ -1193,14 +1142,18 @@ s.customerName === customerName && s.salesRep === currentRepProfile
 );
 const now = new Date();
 const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-if (_fromVal || _toVal) {
+if (range !== 'all') {
 transactions = transactions.filter(t => {
 if (t.transactionType === 'OLD_DEBT') return true;
 if (!t.date) return false;
-const d = t.date.slice(0, 10);
-if (_fromVal && d < _fromVal) return false;
-if (_toVal   && d > _toVal)   return false;
-return true;
+const d = new Date(t.date);
+switch(range) {
+case 'today': return d >= today;
+case 'week': { const w = new Date(today); w.setDate(w.getDate() - 7); return d >= w; }
+case 'month': { const m = new Date(today); m.setMonth(m.getMonth() - 1); return d >= m; }
+case 'year': { const y = new Date(today); y.setFullYear(y.getFullYear() - 1); return d >= y; }
+default: return true;
+}
 });
 }
 transactions.sort((a, b) => {
@@ -1215,12 +1168,7 @@ const repContact = repCustomers.find(c => c && c.name && c.name.toLowerCase() ==
 const phone = repContact?.phone || transactions.find(t => t.customerPhone)?.customerPhone || 'N/A';
 const address = repContact?.address || 'N/A';
 const { jsPDF } = window.jspdf;
-const _dpiScale = 0.2646;
-const _swMm = Math.min(window.screen.width  * _dpiScale, 210);
-const _shMm = Math.min(window.screen.height * _dpiScale, 297);
-const _pgW  = Math.round(_swMm * 10) / 10;
-const _pgH  = Math.round(_shMm * 10) / 10;
-const doc = new jsPDF({ orientation:'p', unit:'mm', format:[_pgW, _pgH] });
+const doc = new jsPDF('p', 'mm', 'a4');
 const pageW = doc.internal.pageSize.getWidth();
 const hdrColor = [79, 70, 229];
 doc.setFillColor(...hdrColor);
@@ -1229,8 +1177,8 @@ doc.setFontSize(16); doc.setFont(undefined, 'bold'); doc.setTextColor(255, 255, 
 doc.text('GULL AND ZUBAIR NASWAR DEALERS', pageW / 2, 10, { align: 'center' });
 doc.setFontSize(9); doc.setFont(undefined, 'normal');
 doc.text('Naswar Manufacturers & Dealers · Rep Sales Statement', pageW / 2, 17, { align: 'center' });
-const rangeName = (_fromVal && _toVal) ? (_fromVal + ' to ' + _toVal)
-  : _fromVal ? ('From ' + _fromVal) : _toVal ? ('To ' + _toVal) : 'All Time';
+const rangeName = range === 'all' ? 'All Time' : range === 'today' ? 'Today' :
+range === 'week' ? 'This Week' : range === 'month' ? 'This Month' : 'This Year';
 doc.setFontSize(12); doc.setFont(undefined, 'bold'); doc.setTextColor(50, 50, 50);
 doc.text(`Rep Customer Account Statement · ${rangeName}`, pageW / 2, 30, { align: 'center' });
 doc.setFontSize(9); doc.setFont(undefined, 'normal'); doc.setTextColor(80, 80, 80);
@@ -1382,7 +1330,6 @@ await new Promise(r => setTimeout(r, 100));
 const dateStamp  = new Date().toISOString().split('T')[0];
 const safeRepName = customerName.replace(/[^a-z0-9]/gi, '_');
 if (pageCount === 1) {
-  // ── Single page → image + WhatsApp ──────────────────────────────────────
   showToast('Single-page statement — converting to image…', 'info');
   await _exportDocAsImageAndOpenWhatsApp(
     doc,
@@ -1390,7 +1337,6 @@ if (pageCount === 1) {
     `Rep_Customer_Statement_${safeRepName}_${dateStamp}`
   );
 } else {
-  // ── Multi-page → regular PDF download ───────────────────────────────────
   doc.save(`Rep_Customer_Statement_${safeRepName}_${dateStamp}.pdf`);
   showToast('PDF exported successfully', 'success');
 }

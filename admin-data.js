@@ -53,7 +53,7 @@ if (statsInitialized) {
 }
 const loadingModal = document.createElement('div');
 loadingModal.id = 'delta-stats-modal';
-loadingModal.style.cssText = 'position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 10000;';
+loadingModal.style.cssText = 'position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 10300;';
 loadingModal.innerHTML = `
 <div style="background: var(--glass); padding: 40px; border-radius: 100px; text-align: center;">
 <div style="margin-bottom: 15px; font-size: 4rem; line-height: 1;">🐦‍🔥</div>
@@ -145,19 +145,7 @@ let html = `
 users/${currentUser.uid}/
 </div>
 </div>
-<div id="device-manager-section" style="margin-bottom: 20px; padding: 15px; background: var(--input-bg); border-radius: 16px; border: 2px solid var(--accent);">
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-<h4 style="margin: 0; color: var(--accent); font-size: 0.9rem; display:flex; align-items:center; gap:6px;"> Connected Devices</h4>
-<button onclick="refreshDeviceList()" style="padding: 5px 10px; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 12px; color: var(--text); cursor: pointer; font-size: 0.7rem; display:flex; align-items:center; gap:4px;">
-Refresh
-</button>
-</div>
-<div id="device-list-container" style="max-height: 300px; overflow-y: auto;">
-<div class="u-empty-state-sm" >
-Loading devices...
-</div>
-</div>
-</div>
+
 <div class="u-mb-20" >
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
 <h4 style="margin: 0; color: var(--text); font-size: 0.9rem;"> Collections (${collections.length})</h4>
@@ -319,30 +307,10 @@ ${collections.filter(c => c.name !== 'deletions').length} collection listeners +
 Updates sync automatically in background when data changes in Firestore
 </div>
 </div>
-<button onclick="(async()=>{ await DeltaSync.clearAllTimestamps(); await updateDeltaSyncStatsDisplay(); document.getElementById('delta-stats-modal').remove(); })()"
-style="width: 100%; padding: 10px; margin-bottom: 10px; background: rgba(255, 69, 58, 0.1); border: 1px solid rgba(255, 69, 58, 0.3); border-radius: 16px; color: #ff453a; cursor: pointer; font-size: 0.75rem;">
-Reset Sync History
-</button>
-<button onclick="(async()=>{ document.getElementById('delta-stats-modal').remove(); setTimeout(() => showCloseFinancialYearDialog(), 300); })()"
-style="width: 100%; padding: 10px; margin-bottom: 10px; background: rgba(175, 82, 222, 0.1); border: 1px solid rgba(175, 82, 222, 0.3); border-radius: 16px; color: #af52de; cursor: pointer; font-size: 0.75rem;">
-Close Financial Year
-</button>
-<button onclick="(async()=>{ document.getElementById('delta-stats-modal').remove(); setTimeout(async () => { if(typeof signOut === 'function') await signOut(); }, 200); })()"
-style="width: 100%; padding: 10px; margin-bottom: 10px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 16px; color: #ef4444; cursor: pointer; font-size: 0.75rem;">
-Log Out
-</button>
-<button onclick="document.getElementById('delta-stats-modal').remove();"
-style="width: 100%; padding: 10px; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 16px; color: var(--text); cursor: pointer; font-size: 0.75rem;">
-Close
-</button>
+
 </div>
 `;
 loadingModal.innerHTML = html;
-setTimeout(() => {
-if (typeof loadDeviceList === 'function') {
-loadDeviceList();
-}
-}, 500);
 } catch (error) {
 console.error('An unexpected error occurred.', _safeErr(error));
 showToast('An unexpected error occurred.', 'error');
@@ -384,10 +352,11 @@ showToast('Close Financial Year is already in progress', 'warning');
 return;
 }
 const summary = await generateCloseYearSummary();
-const modal = document.createElement('div');
-modal.id = 'close-year-modal';
-modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.72);display:flex;align-items:center;justify-content:center;z-index:100000;overflow-y:auto;padding:16px;backdrop-filter:blur(3px) saturate(0.8);-webkit-backdrop-filter:blur(3px) saturate(0.8);animation:confirmBackdropIn 0.20s ease;';
-modal.innerHTML = `
+const _cyScreen = document.getElementById('close-financial-year-screen');
+const _cyBody = _cyScreen ? _cyScreen.querySelector('.screen-body') : null;
+if (!_cyBody) { showToast('Close Financial Year screen not found','error'); return; }
+if (typeof openStandaloneScreen === 'function') openStandaloneScreen('close-financial-year-screen');
+_cyBody.innerHTML = `
 <style>
 @keyframes _cyModalIn {
   from { opacity:0; transform:scale(0.88) translateY(24px); filter:blur(6px); }
@@ -753,6 +722,29 @@ modal.innerHTML = `
   box-shadow: 0 1px 0 rgba(255,255,255,0.20) inset, 0 7px 22px rgba(105,240,174,0.32);
 }
 #cy-continue-btn:active { transform: translateY(0); }
+/* ── Standalone-screen flatten overrides ── */
+#cy-panel {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  max-width: 100% !important;
+  max-height: none !important;
+  overflow-y: visible !important;
+  padding: 0 !important;
+  animation: none !important;
+}
+#cy-panel::after, #cy-panel::before { display: none !important; }
+#cy-header {
+  border-radius: 0 !important;
+  background: var(--glass) !important;
+  border-bottom: 1px solid var(--glass-border) !important;
+  margin: 0 !important;
+  padding: 14px 16px !important;
+}
+[data-theme="light"] #cy-header {
+  background: var(--glass) !important;
+}
 </style>
 <div id="cy-panel">
   <div id="cy-header">
@@ -812,8 +804,10 @@ modal.innerHTML = `
   <div id="close-year-complete"></div>
 </div>
 `;
-document.body.appendChild(modal);
-document.getElementById('close-year-confirm-input').focus();
+setTimeout(() => {
+  const inp = document.getElementById('close-year-confirm-input');
+  if (inp) inp.focus();
+}, 80);
 }
 function validateCloseYearInput(value) {
 const confirmBtn = document.getElementById('close-year-confirm-btn');
@@ -876,10 +870,10 @@ _fyVerifiedPassword = pwd;
 executeCloseFinancialYear();
 }
 function closeCloseYearDialog() {
-const modal = document.getElementById('close-year-modal');
-if (modal) {
-modal.remove();
-}
+if (typeof closeStandaloneScreen === 'function') closeStandaloneScreen('close-financial-year-screen');
+const _cyScreen = document.getElementById('close-financial-year-screen');
+const _cyBody = _cyScreen ? _cyScreen.querySelector('.screen-body') : null;
+if (_cyBody) _cyBody.innerHTML = '';
 if (closeYearAbortController) {
 closeYearAbortController.abort();
 closeYearAbortController = null;

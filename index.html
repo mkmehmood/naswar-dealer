@@ -206,463 +206,926 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<style>
+#sidebar-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: var(--z-sidebar-backdrop, 10100);
+  display: none;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: opacity 0.3s ease;
+}
+#sidebar-backdrop.open { display: block; }
+#app-sidebar {
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  width: 288px;
+  z-index: var(--z-sidebar, 10101);
+  background: var(--glass);
+  border-right: 1px solid var(--glass-border);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(-100%);
+  transition: transform 0.32s cubic-bezier(0.4,0,0.2,1);
+  overflow: hidden;
+  padding-top: env(safe-area-inset-top);
+}
+#app-sidebar.open { transform: translateX(0); }
+.sidebar-topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--glass-border);
+  flex-shrink: 0;
+}
+.sidebar-brand {
+  font-size: 0.72rem; font-weight: 800; color: var(--accent);
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.sidebar-scroll {
+  flex: 1; overflow-y: auto; padding: 10px 10px 24px;
+  -webkit-overflow-scrolling: touch;
+}
+.sidebar-section-label {
+  font-size: 0.58rem; font-weight: 800; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.1em;
+  padding: 12px 6px 6px;
+}
+.sidebar-nav-btn, .sidebar-settings-btn {
+  width: 100%; display: flex; align-items: center; gap: 12px;
+  padding: 11px 12px; border: none;
+  background: transparent; color: var(--text-muted);
+  cursor: pointer; border-radius: var(--radius-lg);
+  font-family: inherit; font-size: 0.78rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  text-align: left; transition: background 0.15s, color 0.15s;
+}
+.sidebar-nav-btn:hover, .sidebar-settings-btn:hover {
+  background: var(--glass-raised); color: var(--text-main);
+}
+.sidebar-nav-btn.active {
+  background: rgba(29,233,182,0.12); color: var(--accent);
+}
+.sidebar-nav-btn svg, .sidebar-settings-btn svg {
+  width: 16px; height: 16px; flex-shrink: 0; opacity: 0.7;
+}
+.sidebar-nav-btn.active svg { opacity: 1; }
+.sidebar-divider {
+  height: 1px; background: var(--glass-border); margin: 6px 0;
+}
+.sidebar-hamburger {
+  width: 36px; height: 36px; border: 1px solid var(--glass-border);
+  background: transparent; color: var(--text-main);
+  border-radius: var(--radius-base); cursor: pointer;
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 4px; padding: 0;
+  transition: background 0.15s;
+}
+.sidebar-hamburger:hover { background: var(--glass-raised); }
+.sidebar-hamburger span {
+  display: block; width: 16px; height: 1.5px;
+  background: currentColor; border-radius: 2px;
+}
+
+.standalone-screen {
+  position: fixed; inset: 0;
+  z-index: var(--z-screen, 10200);
+  background: var(--bg-gradient, #121212);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.screen-topbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px;
+  padding-top: calc(10px + env(safe-area-inset-top));
+  background: var(--glass);
+  border-bottom: 1px solid var(--glass-border);
+  flex-shrink: 0; min-height: 52px;
+}
+/* .screen-back-btn removed — navigation handled by device back button via History API */
+.screen-back-btn { display: none !important; }
+.screen-title {
+  font-size: 0.9rem; font-weight: 800; color: var(--text-main);
+  margin: 0; text-transform: uppercase; letter-spacing: 0.04em;
+  flex: 1;
+}
+.screen-body {
+  flex: 1; overflow-y: auto;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+  -webkit-overflow-scrolling: touch;
+}
+.settings-list-item {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 16px; margin-bottom: 4px;
+  background: var(--glass); border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg); cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.settings-list-item:hover { background: var(--glass-raised); border-color: var(--accent); }
+.settings-list-item-icon {
+  width: 36px; height: 36px; border-radius: var(--radius-base);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; font-size: 0.9rem;
+}
+.settings-list-item-info { flex: 1; min-width: 0; }
+.settings-list-item-title {
+  font-size: 0.82rem; font-weight: 700; color: var(--text-main);
+  margin: 0 0 2px;
+}
+.settings-list-item-desc {
+  font-size: 0.68rem; color: var(--text-muted); margin: 0;
+}
+.settings-list-item-chevron {
+  color: var(--text-secondary); flex-shrink: 0;
+}
+.settings-group-label {
+  font-size: 0.62rem; font-weight: 800; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.1em;
+  padding: 16px 4px 6px; margin: 0;
+}
+.screen-theme-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; background: var(--glass);
+  border: 1px solid var(--glass-border); border-radius: var(--radius-lg);
+  margin-bottom: 4px;
+}
+.theme-toggle-switch {
+  position: relative; width: 48px; height: 26px;
+}
+.theme-toggle-switch input { opacity: 0; width: 0; height: 0; }
+.theme-toggle-track {
+  position: absolute; inset: 0; background: var(--toggle-bg);
+  border-radius: var(--radius-full); cursor: pointer;
+  transition: background 0.2s;
+}
+.theme-toggle-track::before {
+  content: ''; position: absolute;
+  width: 20px; height: 20px; left: 3px; bottom: 3px;
+  background: var(--toggle-knob); border-radius: 50%;
+  transition: transform 0.2s;
+}
+input:checked + .theme-toggle-track { background: var(--accent); }
+input:checked + .theme-toggle-track::before { transform: translateX(22px); }
+</style>
 </head>
 <body>
 <div class="liquid-bg-element liquid-1"></div>
+<div id="sidebar-backdrop" onclick="closeSidebar()"></div>
+<div id="app-sidebar">
+  <div class="sidebar-topbar">
+    <span class="sidebar-brand">GULL AND ZUBAIR</span>
+  </div>
+  <div class="sidebar-scroll">
+    <div class="sidebar-section-label">Navigation</div>
+    <button class="sidebar-nav-btn" id="snav-prod" onclick="sidebarNav('prod')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 3H8L2 7h20l-6-4z"/></svg>
+      Production
+    </button>
+    <button class="sidebar-nav-btn" id="snav-sales" onclick="sidebarNav('sales')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+      Sales
+    </button>
+    <button class="sidebar-nav-btn" id="snav-calc" onclick="sidebarNav('calc')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/><line x1="8" y1="18" x2="12" y2="18"/></svg>
+      Calculator
+    </button>
+    <button class="sidebar-nav-btn" id="snav-factory" onclick="sidebarNav('factory')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7-6-7 6v2l-6 3"/><line x1="2" y1="14" x2="10" y2="14"/></svg>
+      Factory
+    </button>
+    <button class="sidebar-nav-btn" id="snav-payments" onclick="sidebarNav('payments')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+      Payments
+    </button>
+    <button class="sidebar-nav-btn" id="snav-rep" onclick="sidebarNav('rep')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Rep Sales
+    </button>
+    <div class="sidebar-divider"></div>
+    <div id="sidebar-settings-section">
+    <div class="sidebar-section-label">Settings</div>
+    <div class="sidebar-section-label" style="padding-top:6px;color:var(--text-secondary);font-size:0.55rem;">DATA</div>
+    <button class="sidebar-settings-btn" onclick="closeSidebar();performOneClickSync&&performOneClickSync().catch(e=>console.error(e))">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      Sync Data
+    </button>
+    <button class="sidebar-settings-btn" onclick="closeSidebar();openStandaloneScreen('backup-restore-screen')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Backup &amp; Restore
+    </button>
+    <button class="sidebar-settings-btn" onclick="closeSidebar();openRecycleBin()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+      Recycle Bin
+    </button>
+    <div class="sidebar-section-label" style="padding-top:6px;color:var(--text-secondary);font-size:0.55rem;">APPEARANCE</div>
+    <button class="sidebar-settings-btn" onclick="closeSidebar();(async()=>{await toggleDarkMode();})()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      Theme
+    </button>
+    <div class="sidebar-section-label" style="padding-top:6px;color:var(--text-secondary);font-size:0.55rem;">BUSINESS</div>
+    <button class="sidebar-settings-btn" onclick="closeSidebar();openStandaloneScreen('add-entity-screen');if(typeof prepareAddEntityScreen==='function')prepareAddEntityScreen()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/><line x1="12" y1="14" x2="12" y2="22"/><line x1="8" y1="18" x2="16" y2="18"/></svg>
+      Add Entity
+    </button>
+    <button class="sidebar-settings-btn" onclick="closeSidebar();openStandaloneScreen('raw-material-screen');if(typeof prepareRawMaterialScreen==='function')prepareRawMaterialScreen()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+      Add Raw Materials
+    </button>
+    <div class="sidebar-section-label" style="padding-top:6px;color:var(--text-secondary);font-size:0.55rem;">FACTORY</div>
+    <button class="sidebar-settings-btn" onclick="closeSidebar();openStandaloneScreen('formula-standard-screen');if(typeof openFactorySettings==='function')openFactorySettings('standard')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      Formula - Standard
+    </button>
+    <button class="sidebar-settings-btn" onclick="closeSidebar();openStandaloneScreen('formula-asaan-screen');if(typeof openFactorySettings==='function')openFactorySettings('asaan')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="15" y2="18"/></svg>
+      Formula - Asaan
+    </button>
+    <div class="sidebar-section-label" style="padding-top:6px;color:var(--text-secondary);font-size:0.55rem;">TEAM</div>
+    <button class="sidebar-settings-btn" onclick="closeSidebar();openStandaloneScreen('sales-rep-screen');if(typeof loadManageRepsContent==='function')loadManageRepsContent()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Sales Representatives
+    </button>
+    <button class="sidebar-settings-btn" onclick="closeSidebar();openStandaloneScreen('user-roles-screen');if(typeof loadUserRolesContent==='function')loadUserRolesContent()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      User Roles
+    </button>
+    <button class="sidebar-settings-btn" onclick="closeSidebar();openStandaloneScreen('app-accounts-screen');if(typeof loadAccountsList==='function')loadAccountsList()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      App Accounts
+    </button>
+    <div class="sidebar-section-label" style="padding-top:6px;color:var(--text-secondary);font-size:0.55rem;">SYSTEM</div>
+    <button class="sidebar-settings-btn" onclick="closeSidebar();openStandaloneScreen('device-display-screen')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12" y2="18"/></svg>
+      Device Display
+    </button>
+    <button class="sidebar-settings-btn" onclick="closeSidebar();if(typeof window._showCloseFinancialYearDialog==='function'){window._showCloseFinancialYearDialog();}else if(typeof showCloseFinancialYearDialog==='function'){showCloseFinancialYearDialog();}else{showToast('Feature not available','warning')}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Close Financial Year
+    </button>
+    <button class="sidebar-settings-btn" onclick="closeSidebar();openStandaloneScreen('db-structure-screen');setTimeout(loadDbStructureScreen,80)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+      Database Structure
+    </button>
+    <button class="sidebar-settings-btn" onclick="closeSidebar();_showLogoutConfirmDialog();" style="color:var(--danger);">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Logout
+    </button>
+    </div>
+  </div>
+</div>
+
+<div id="backup-restore-screen" class="standalone-screen" style="display:none">
+  <div class="screen-topbar">
+    <h2 class="screen-title">Backup &amp; Restore</h2>
+  </div>
+  <div class="screen-body">
+    <p class="settings-group-label">Backup</p>
+    <div class="settings-list-item" onclick="triggerLocalBackup()">
+      <div class="settings-list-item-icon" style="background:rgba(29,233,182,0.1);">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      </div>
+      <div class="settings-list-item-info">
+        <p class="settings-list-item-title">Backup to Phone</p>
+        <p class="settings-list-item-desc">Save a local copy of all data to your device</p>
+      </div>
+      <svg class="settings-list-item-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>
+    <p class="settings-group-label">Restore</p>
+    <div class="settings-list-item" onclick="document.getElementById('restoreInput').click()">
+      <div class="settings-list-item-icon" style="background:rgba(255,179,0,0.1);">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </div>
+      <div class="settings-list-item-info">
+        <p class="settings-list-item-title">Restore from Phone</p>
+        <p class="settings-list-item-desc">Load a previously saved backup file</p>
+      </div>
+      <svg class="settings-list-item-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>
+  </div>
+</div>
+
+<div id="recycle-bin-screen" class="standalone-screen" style="display:none">
+  <div class="screen-topbar">
+    <h2 class="screen-title">Recycle Bin</h2>
+  </div>
+  <div class="screen-body" style="display:flex;flex-direction:column;gap:10px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+      <div id="recycleBinStats" style="font-size:0.75rem;color:var(--text-muted);"></div>
+      <select id="recycleBinFilter" onchange="renderRecycleBin(this.value)" style="padding:5px 10px;border-radius:999px;border:1px solid var(--glass-border);background:var(--input-bg);color:var(--text-main);font-size:0.78rem;cursor:pointer;">
+        <option value="all">All Tabs</option>
+        <option value="tab_sales">Sales Tab</option>
+        <option value="tab_rep">Rep Tab</option>
+        <option value="tab_production">Manufacturing Tab</option>
+        <option value="tab_calculator">Calculator Tab</option>
+        <option value="tab_factory">Factory Tab</option>
+        <option value="tab_payments">Payments Tab</option>
+      </select>
+    </div>
+    <div style="background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.18);border-radius:10px;padding:9px 13px;font-size:0.73rem;color:var(--text-muted);line-height:1.5;">
+      Recover restores the record to its original collection. Records expire after <strong style="color:var(--text-main);">90 days</strong>.
+    </div>
+    <div id="recycleBinList" style="flex:1;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<div id="raw-material-screen" class="standalone-screen" style="display:none">
+  <div class="screen-topbar">
+    <h2 class="screen-title" id="factoryInventoryModalTitle">Add Raw Material</h2>
+  </div>
+  <div class="screen-body">
+    <div class="grid-inputs">
+      <div class="field">
+        <label>Material Name</label>
+        <input type="text" id="factoryMaterialName" placeholder="Material Name">
+      </div>
+      <div class="field">
+        <label>Purchase Unit Name</label>
+        <input type="text" id="factoryMaterialUnitName" placeholder="e.g., bag, box, carton">
+        <div class="u-field-hint-xxs">Name of your purchase unit (optional)</div>
+      </div>
+    </div>
+    <div class="grid-inputs">
+      <div class="field">
+        <label>Units Quantity</label>
+        <input type="number" id="factoryMaterialQuantity" placeholder="0">
+      </div>
+      <div class="field">
+        <label>kgs per unit</label>
+        <input type="number" id="factoryMaterialConversionFactor" placeholder="1" value="1" step="0.01">
+        <div class="u-field-hint-xxs">Example: 1 bag = 60 kg, enter 60</div>
+      </div>
+    </div>
+    <div class="grid-inputs">
+      <div class="field">
+        <label>Cost Price Per Unit</label>
+        <input type="number" id="factoryMaterialCost" placeholder="0.00">
+      </div>
+      <div class="field u-calc-block">
+        <div class="u-row-between">
+          <span class="u-fs-sm2 u-text-muted">Total in kg:</span>
+          <span class="u-accent-num" id="factoryCalculatedKg">0 kg</span>
+        </div>
+        <div class="u-inline-divider">
+          <span class="u-fs-sm2 u-text-muted">Total Amount:</span>
+          <span class="u-emerald-num" id="factoryCalculatedAmount">0.00</span>
+        </div>
+      </div>
+    </div>
+    <div class="u-info-block">
+      <h4 style="color:var(--accent);margin:0 0 10px 0;font-size:0.9rem;">Supplier Information</h4>
+      <div class="grid-inputs">
+        <div class="field">
+          <label>Supplier Action</label>
+          <select id="factoryMaterialSupplierType" onchange="toggleSupplierFields()">
+            <option value="none">No Supplier Link</option>
+            <option value="existing">Select Existing Entity</option>
+            <option value="new">Add New Supplier Entity</option>
+          </select>
+        </div>
+      </div>
+      <div id="existingSupplierSection" class="hidden">
+        <div class="field u-pos-relative">
+          <label>Select Supplier</label>
+          <input type="text" id="factoryExistingSupplier" list="supplier-list" placeholder="Search or select supplier..."
+            oninput="handleUniversalSearch('factoryExistingSupplier','factory-supplier-search-results','suppliers')" autocomplete="off" class="store-selector">
+          <div id="factory-supplier-search-results" class="hidden u-search-dropdown"></div>
+          <datalist id="supplier-list"></datalist>
+        </div>
+      </div>
+      <div id="newSupplierSection" class="hidden">
+        <div class="grid-inputs">
+          <div class="field">
+            <label>Supplier Name</label>
+            <input type="text" id="factorySupplierName" placeholder="Company/Person Name">
+          </div>
+          <div class="field">
+            <label>Contact (Phone)</label>
+            <input type="tel" id="factorySupplierPhone" placeholder="Phone Number">
+          </div>
+        </div>
+        <div class="field u-success-field">
+          <label class="u-checkbox-accent">
+            <input class="u-checkbox-16" type="checkbox" id="factorySupplierAutoEntity" checked disabled>
+            <span class="u-fs-sm3 u-fw-700 u-text-emerald">Add to Quick Entity Selection</span>
+          </label>
+          <div class="u-field-hint u-ml-26">This will automatically create a <strong>PAYEE</strong> entity.</div>
+        </div>
+      </div>
+    </div>
+    <div class="u-action-row">
+      <button class="btn btn-danger u-flex-1" id="deleteFactoryInventoryBtn" style="display:none;" onclick="(async()=>{await deleteFactoryInventoryItem()})()">Delete material</button>
+      <button class="btn btn-noman u-flex-2" onclick="(async()=>{await saveFactoryInventoryItem()})()">Save Material &amp; Entity</button>
+    </div>
+  </div>
+</div>
+
+<div id="formula-standard-screen" class="standalone-screen" style="display:none">
+  <div class="screen-topbar">
+    <h2 class="screen-title">Formula - Standard</h2>
+  </div>
+  <div class="screen-body" id="formula-standard-body">
+    <div class="grid-inputs u-mb-15">
+      <div class="field">
+        <label>Additional Cost (Per Unit)</label>
+        <input type="number" id="additional-cost-per-unit" step="0.01" min="0" value="0" oninput="updateFactoryFormulasSummary()">
+      </div>
+      <div class="field">
+        <label>Cost Adjustment for Sales &amp; Calc (X)</label>
+        <input type="number" id="cost-adjustment-factor" step="0.01" min="1" value="1" oninput="updateFactoryFormulasSummary()">
+        <div class="u-field-hint-xs">Cost per kg = (Raw Material Cost + Additional Cost) / X</div>
+      </div>
+    </div>
+    <div class="grid-inputs u-mb-15">
+      <div class="field">
+        <label>Sale Price - Standard (per kg)</label>
+        <input type="number" id="sale-price-standard" step="0.01" min="0" value="0" oninput="updateFactoryFormulasSummary()">
+        <div class="u-field-hint-xs">Used by Zubair, Mahmood stores and Calculator</div>
+      </div>
+      <div class="field">
+        <label>Sale Price - Asaan (per kg)</label>
+        <input type="number" id="sale-price-asaan" step="0.01" min="0" value="0" oninput="updateFactoryFormulasSummary()">
+        <div class="u-field-hint-xs">Used by Asaan store and Sales tab</div>
+      </div>
+    </div>
+    <div class="factory-formula-header">
+      <span>Material</span>
+      <span>Cost / Unit</span>
+      <span>Qty (kg)</span>
+      <span></span>
+    </div>
+    <div id="factoryRawMaterialsContainer"></div>
+    <button class="btn btn-theme u-add-row-btn" onclick="addFactoryMaterialRow()">+ Add Ingredient Row</button>
+    <div class="u-bg-accent-5 u-p-10 u-rounded-8 u-mb-15" style="margin-top:12px;">
+      <div class="factory-summary-row"><span class="factory-summary-label">Unit Weight:</span><span class="qty-val" id="factorySettingsUnitWeight">0.00 kg</span></div>
+      <div class="factory-summary-row"><span class="factory-summary-label">Raw Material Cost per Unit:</span><span class="cost-val" id="factorySettingsRawCostPerUnit">0.00</span></div>
+      <div class="factory-summary-row"><span class="factory-summary-label">Total Cost per Unit:</span><span class="cost-val" id="factorySettingsPerUnit">0.00</span></div>
+      <div class="factory-summary-row"><span class="factory-summary-label">Available Units:</span><span class="qty-val" id="factorySettingsAvailableUnits">0</span></div>
+      <div class="factory-summary-row"><span class="factory-summary-label">Cost per kg (Sales/Calc):</span><span class="cost-val" id="factorySettingsSalesCostPerKg">0.00</span></div>
+    </div>
+    <button class="btn btn-noman" style="width:100%;" onclick="(async()=>{await saveFactoryFormulas()})()">Save Standard Formula</button>
+  </div>
+</div>
+
+<div id="formula-asaan-screen" class="standalone-screen" style="display:none">
+  <div class="screen-topbar">
+    <h2 class="screen-title">Formula - Asaan</h2>
+  </div>
+  <div class="screen-body" id="formula-asaan-body">
+    <div class="grid-inputs u-mb-15">
+      <div class="field">
+        <label>Additional Cost (Per Unit)</label>
+        <input type="number" id="additional-cost-per-unit-asaan" step="0.01" min="0" value="0" oninput="updateFactoryFormulasSummaryAsaan()">
+      </div>
+      <div class="field">
+        <label>Cost Adjustment for Sales &amp; Calc (X)</label>
+        <input type="number" id="cost-adjustment-factor-asaan" step="0.01" min="1" value="1" oninput="updateFactoryFormulasSummaryAsaan()">
+        <div class="u-field-hint-xs">Cost per kg = (Raw Material Cost + Additional Cost) / X</div>
+      </div>
+    </div>
+    <div class="grid-inputs u-mb-15">
+      <div class="field">
+        <label>Sale Price - Standard (per kg)</label>
+        <input type="number" id="sale-price-standard-asaan" step="0.01" min="0" value="0" oninput="updateFactoryFormulasSummaryAsaan()">
+        <div class="u-field-hint-xs">Used by Zubair, Mahmood stores and Calculator</div>
+      </div>
+      <div class="field">
+        <label>Sale Price - Asaan (per kg)</label>
+        <input type="number" id="sale-price-asaan-only" step="0.01" min="0" value="0" oninput="updateFactoryFormulasSummaryAsaan()">
+        <div class="u-field-hint-xs">Used by Asaan store and Sales tab</div>
+      </div>
+    </div>
+    <div class="factory-formula-header">
+      <span>Material</span>
+      <span>Cost / Unit</span>
+      <span>Qty (kg)</span>
+      <span></span>
+    </div>
+    <div id="factoryRawMaterialsContainerAsaan"></div>
+    <button class="btn btn-theme u-add-row-btn" onclick="addFactoryMaterialRowAsaan()">+ Add Ingredient Row</button>
+    <div class="u-bg-accent-5 u-p-10 u-rounded-8 u-mb-15" style="margin-top:12px;">
+      <div class="factory-summary-row"><span class="factory-summary-label">Unit Weight:</span><span class="qty-val" id="factorySettingsUnitWeightAsaan">0.00 kg</span></div>
+      <div class="factory-summary-row"><span class="factory-summary-label">Raw Material Cost per Unit:</span><span class="cost-val" id="factorySettingsRawCostPerUnitAsaan">0.00</span></div>
+      <div class="factory-summary-row"><span class="factory-summary-label">Total Cost per Unit:</span><span class="cost-val" id="factorySettingsPerUnitAsaan">0.00</span></div>
+      <div class="factory-summary-row"><span class="factory-summary-label">Available Units:</span><span class="qty-val" id="factorySettingsAvailableUnitsAsaan">0</span></div>
+      <div class="factory-summary-row"><span class="factory-summary-label">Cost per kg (Sales/Calc):</span><span class="cost-val" id="factorySettingsSalesCostPerKgAsaan">0.00</span></div>
+    </div>
+    <button class="btn btn-noman" style="width:100%;" onclick="(async()=>{await saveFactoryFormulasAsaan()})()">Save Asaan Formula</button>
+  </div>
+</div>
+
+<div id="sales-rep-screen" class="standalone-screen" style="display:none">
+  <div class="screen-topbar">
+    <h2 class="screen-title">Sales Representatives</h2>
+  </div>
+  <div class="screen-body">
+    <div class="grid-inputs u-mb-20">
+      <div class="field">
+        <label>Representative Name</label>
+        <input type="text" id="new-rep-name-input" placeholder="sales representative name" oninput="this.value=this.value.toUpperCase()">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:20px;">
+      <button class="btn btn-main u-h-42 u-fs-md2 u-fw-700" onclick="addNewSalesRep()">Add Representative</button>
+    </div>
+    <div style="border-top:1px solid var(--glass-border);padding-top:16px;">
+      <label style="font-size:0.72rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:10px;">Current Representatives</label>
+      <div id="manage-reps-list"></div>
+    </div>
+  </div>
+</div>
+
+<div id="user-roles-screen" class="standalone-screen" style="display:none">
+  <div class="screen-topbar">
+    <h2 class="screen-title">User Roles</h2>
+  </div>
+  <div class="screen-body">
+    <div class="grid-inputs u-mb-15">
+      <div class="field">
+        <label>User Name</label>
+        <input type="text" id="new-userrole-name-input" placeholder="user name" oninput="this.value=this.value.toUpperCase()">
+      </div>
+    </div>
+    <div style="margin-bottom:15px;">
+      <label style="font-size:0.72rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:8px;">Assign Tab Access</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button id="userrole-tab-factory" class="toggle-opt" onclick="toggleUserRoleTabAccess('factory')" style="flex:1;min-width:80px;font-size:0.72rem;padding:8px 6px;border-radius:var(--radius-full);">Factory</button>
+        <button id="userrole-tab-prod" class="toggle-opt" onclick="toggleUserRoleTabAccess('prod')" style="flex:1;min-width:80px;font-size:0.72rem;padding:8px 6px;border-radius:var(--radius-full);">Production</button>
+        <button id="userrole-tab-payments" class="toggle-opt" onclick="toggleUserRoleTabAccess('payments')" style="flex:1;min-width:80px;font-size:0.72rem;padding:8px 6px;border-radius:var(--radius-full);">Payments</button>
+        <button id="userrole-tab-sales" class="toggle-opt" onclick="toggleUserRoleTabAccess('sales')" style="flex:1;min-width:80px;font-size:0.72rem;padding:8px 6px;border-radius:var(--radius-full);">Sales</button>
+      </div>
+      <div id="userrole-access-hint" style="font-size:0.65rem;color:var(--text-secondary);margin-top:6px;text-align:center;">Select one or more tabs to assign</div>
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:20px;">
+      <button class="btn btn-main u-h-42 u-fs-md2 u-fw-700" onclick="addNewUserRole()">Add User</button>
+    </div>
+    <div style="border-top:1px solid var(--glass-border);padding-top:16px;">
+      <label style="font-size:0.72rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:10px;">Current Users</label>
+      <div id="manage-userrole-list"></div>
+    </div>
+  </div>
+</div>
+
+<div id="app-accounts-screen" class="standalone-screen" style="display:none">
+  <div class="screen-topbar">
+    <h2 class="screen-title">App Accounts</h2>
+  </div>
+  <div class="screen-body">
+    <div style="margin-bottom:14px;">
+      <label style="font-size:0.72rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:10px;">Add New Account</label>
+      <div class="grid-inputs" style="margin-bottom:10px;">
+        <div class="field"><label>Email</label><input type="email" id="acct-new-email" placeholder="user@example.com" autocomplete="off"></div>
+        <div class="field"><label>Password</label><input type="password" id="acct-new-password" placeholder="min 8 characters" autocomplete="new-password"></div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <label style="font-size:0.72rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:8px;">Role</label>
+        <div style="display:flex;gap:6px;background:var(--glass-raised);border-radius:var(--radius-full);padding:4px;">
+          <button id="acct-role-user" class="toggle-opt active" onclick="setNewAccountRole('user')" style="flex:1;font-size:0.72rem;padding:7px 4px;border-radius:var(--radius-full);">User</button>
+          <button id="acct-role-admin" class="toggle-opt" onclick="setNewAccountRole('admin')" style="flex:1;font-size:0.72rem;padding:7px 4px;border-radius:var(--radius-full);">Admin</button>
+        </div>
+      </div>
+      <div id="acct-add-msg" style="font-size:0.75rem;min-height:18px;margin-bottom:8px;"></div>
+      <button class="btn btn-main u-h-42 u-fs-md2 u-fw-700" onclick="adminAddAccount()" id="acct-add-btn">Add Account</button>
+    </div>
+    <div style="border-top:1px solid var(--glass-border);padding-top:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <label style="font-size:0.72rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Registered Accounts</label>
+        <button class="btn-theme" style="font-size:0.7rem;padding:4px 10px;" onclick="loadAccountsList()">&#8635; Refresh</button>
+      </div>
+      <div id="manage-accounts-list"><div style="color:var(--text-muted);font-size:0.8rem;text-align:center;padding:16px;">Loading...</div></div>
+    </div>
+  </div>
+</div>
+
+<div id="device-display-screen" class="standalone-screen" style="display:none">
+  <div class="screen-topbar">
+    <h2 class="screen-title">Connected Devices</h2>
+    <button class="btn-theme" style="padding:6px 10px;margin-left:auto;" onclick="refreshDeviceList()" title="Refresh">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+    </button>
+  </div>
+  <div class="screen-body">
+    <div id="device-list-container" style="min-height:80px;">
+      <div class="u-empty-state-sm">Loading devices...</div>
+    </div>
+  </div>
+</div>
+
+<div id="close-financial-year-screen" class="standalone-screen" style="display:none">
+  <div class="screen-topbar">
+    <h2 class="screen-title">Close Financial Year</h2>
+  </div>
+  <div class="screen-body"></div>
+</div>
+
+<div id="db-structure-screen" class="standalone-screen" style="display:none">
+  <div class="screen-topbar">
+    <h2 class="screen-title">Database Structure</h2>
+    <button class="btn-theme" style="padding:6px 10px;font-size:0.7rem;margin-left:auto;" onclick="loadDbStructureScreen()" title="Refresh">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+    </button>
+  </div>
+  <div class="screen-body">
+    <div id="delta-sync-details-container" style="font-size:0.8rem;">
+      <div style="text-align:center;padding:40px 20px;color:var(--text-muted);">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:12px;opacity:0.4;"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        <div style="font-size:0.82rem;font-weight:600;margin-bottom:8px;">Loading database structure…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+window._showLogoutConfirmDialog = async function() {
+  if (typeof window.showGlassConfirm !== 'function') {
+    if (typeof signOut === 'function') { signOut(); return; }
+    if (typeof firebase !== 'undefined' && firebase.auth) { firebase.auth().signOut().catch(console.error); return; }
+    showToast('Sign out failed', 'error'); return;
+  }
+  const confirmed = await window.showGlassConfirm(
+    'You will be signed out of this device.\nYour data remains saved locally and in the cloud.',
+    {
+      title: 'Sign Out?',
+      confirmText: 'Sign Out',
+      cancelText: 'Cancel',
+      danger: true,
+      icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>'
+    }
+  );
+  if (confirmed) {
+    if (typeof signOut === 'function') { signOut(); }
+    else if (typeof firebase !== 'undefined' && firebase.auth) { firebase.auth().signOut().catch(console.error); }
+    else { showToast('Sign out failed', 'error'); }
+  }
+};
+</script>
+
 <div class="liquid-bg-element liquid-2"></div>
 <div class="liquid-bg-element liquid-3"></div>
-<div id="factorySettingsOverlay" class="factory-overlay">
-<div class="factory-overlay-card liquid-card">
-<div class="section-header">
-<h3 id="factorySettingsModalTitle">Factory Formulas</h3>
-<button class="btn-theme" onclick="closeFactorySettings()"></button>
-</div>
-<div class="factory-store-selector">
-<div class="factory-store-opt active" onclick="selectFactoryStore('standard', this)">STANDARD</div>
-<div class="factory-store-opt" onclick="selectFactoryStore('asaan', this)">ASAAN</div>
-</div>
-<div class="grid-inputs u-mb-15" >
-<div class="field">
-<label>Additional Cost (Per Unit)</label>
-<input type="number" id="additional-cost-per-unit" step="0.01" min="0" value="0" oninput="updateFactoryFormulasSummary()">
-</div>
-</div>
-<div class="grid-inputs u-mb-15" >
-<div class="field">
-<label>Cost Adjustment for Sales & Calculator (X)</label>
-<input type="number" id="cost-adjustment-factor" step="0.01" min="1" value="1" oninput="updateFactoryFormulasSummary()">
-<div class="u-field-hint-xs" >
-Used in Sales & Calculator tabs: Cost per kg = (Raw Material Cost + Additional Cost) / X
-</div>
-</div>
-</div>
-<div class="grid-inputs u-mb-15" >
-<div class="field">
-<label>Sale Price - Standard (per kg)</label>
-<input type="number" id="sale-price-standard" step="0.01" min="0" value="0" oninput="updateFactoryFormulasSummary()">
-<div class="u-field-hint-xs" >
-Used by Zubair, Mahmood stores and Calculator
-</div>
-</div>
-<div class="field">
-<label>Sale Price - Asaan (per kg)</label>
-<input type="number" id="sale-price-asaan" step="0.01" min="0" value="0" oninput="updateFactoryFormulasSummary()">
-<div class="u-field-hint-xs" >
-Used by Asaan store and Sales tab
-</div>
-</div>
-</div>
-<div id="factoryRawMaterialsContainer">
-</div>
-<button class="btn btn-theme u-add-row-btn" onclick="addFactoryMaterialRow()">+ Add Ingredient Row</button>
-<div class="u-bg-accent-5 u-p-10 u-rounded-8 u-mb-15" >
-<div class="factory-summary-row">
-<span class="factory-summary-label">Unit Weight:</span>
-<span class="qty-val" id="factorySettingsUnitWeight">0.00 kg</span>
-</div>
-<div class="factory-summary-row">
-<span class="factory-summary-label">Raw Material Cost per Unit:</span>
-<span class="cost-val" id="factorySettingsRawCostPerUnit">0.00 </span>
-</div>
-<div class="factory-summary-row">
-<span class="factory-summary-label">Total Cost per Unit:</span>
-<span class="cost-val" id="factorySettingsPerUnit">0.00 </span>
-</div>
-<div class="factory-summary-row">
-<span class="factory-summary-label">Available Units:</span>
-<span class="qty-val" id="factorySettingsAvailableUnits">0</span>
-</div>
-<div class="factory-summary-row">
-<span class="factory-summary-label">Cost per kg for Sales/Calculator:</span>
-<span class="cost-val" id="factorySettingsSalesCostPerKg">0.00 </span>
-</div>
-</div>
-<button class="btn btn-noman" onclick="(async () => { await saveFactoryFormulas() })()">Save Formula Settings</button>
-</div>
-</div>
-<div id="factoryInventoryOverlay" class="factory-overlay">
-<div class="factory-overlay-card liquid-card">
-<div class="section-header">
-<h3 id="factoryInventoryModalTitle">Add Raw Material</h3>
-<button class="btn-theme" onclick="closeFactoryInventoryModal()"></button>
-</div>
-<div class="grid-inputs">
-<div class="field">
-<label>Material Name</label>
-<input type="text" id="factoryMaterialName" placeholder="Material Name">
-</div>
-<div class="field">
-<label>Purchase Unit Name</label>
-<input type="text" id="factoryMaterialUnitName" placeholder="e.g., bag, box, carton">
-<div class="u-field-hint-xxs" >
-Name of your purchase unit (optional)
-</div>
-</div>
-</div>
-<div class="grid-inputs">
-<div class="field">
-<label>units Quantity</label>
-<input type="number" id="factoryMaterialQuantity" placeholder="0">
-</div>
-<div class="field">
-<label>kgs per unit</label>
-<input type="number" id="factoryMaterialConversionFactor" placeholder="1" value="1" step="0.01">
-<div class="u-field-hint-xxs" >
-Example: 1 bag = 60 kg, enter 60
-</div>
-</div>
-</div>
-<div class="grid-inputs">
-<div class="field">
-<label>Cost Price Per Unit</label>
-<input type="number" id="factoryMaterialCost" placeholder="0.00">
-</div>
-<div class="field u-calc-block" >
-<div class="u-row-between" >
-<span class="u-fs-sm2 u-text-muted" >Total in kg:</span>
-<span class="u-accent-num" id="factoryCalculatedKg" >0 kg</span>
-</div>
-<div class="u-inline-divider" >
-<span class="u-fs-sm2 u-text-muted" >Total Amount:</span>
-<span class="u-emerald-num" id="factoryCalculatedAmount" >0.00</span>
-</div>
-</div>
-</div>
-<div class="u-info-block" >
-<h4 style="color: var(--accent); margin: 0 0 10px 0; font-size: 0.9rem;">Supplier Information</h4>
-<div class="grid-inputs">
-<div class="field">
-<label>Supplier Action</label>
-<select id="factoryMaterialSupplierType" onchange="toggleSupplierFields()">
-<option value="none">No Supplier Link</option>
-<option value="existing">Select Existing Entity</option>
-<option value="new">Add New Supplier Entity</option>
-</select>
-</div>
-</div>
-<div id="existingSupplierSection" class="hidden">
-<div class="field u-pos-relative" >
-<label>Select Supplier</label>
-<input type="text" id="factoryExistingSupplier" list="supplier-list" placeholder="Search or select supplier..."
-oninput="handleUniversalSearch('factoryExistingSupplier', 'factory-supplier-search-results', 'suppliers')" autocomplete="off" class="store-selector">
-<div id="factory-supplier-search-results" class="hidden u-search-dropdown" ></div>
-<datalist id="supplier-list"></datalist>
-</div>
-</div>
-<div id="newSupplierSection" class="hidden">
-<div class="grid-inputs">
-<div class="field">
-<label>Supplier Name</label>
-<input type="text" id="factorySupplierName" placeholder="Company/Person Name">
-</div>
-<div class="field">
-<label>Contact (Phone)</label>
-<input type="tel" id="factorySupplierPhone" placeholder="Phone Number">
-</div>
-</div>
-<div class="field u-success-field" >
-<label class="u-checkbox-accent" >
-<input class="u-checkbox-16" type="checkbox" id="factorySupplierAutoEntity" checked disabled >
-<span class="u-fs-sm3 u-fw-700 u-text-emerald" >
-Add to Quick Entity Selection
-</span>
-</label>
-<div class="u-field-hint u-ml-26" >
-This will automatically create a <strong>PAYEE</strong> entity. Any debts to this supplier will appear in "Supplier Payables" in the Economic Dashboard.
-</div>
-</div>
-</div>
-</div>
-<div class="u-action-row" >
-<button class="btn btn-danger u-flex-1" id="deleteFactoryInventoryBtn" style="display:none;" onclick="(async () => { await deleteFactoryInventoryItem() })()">Delete material</button>
-<button class="btn btn-noman u-flex-2" onclick="(async () => { await saveFactoryInventoryItem() })()" >Save Material & Entity</button>
-</div>
-</div>
-</div>
-<div id="entityManagementOverlay" class="factory-overlay" >
-<div class="factory-overlay-card liquid-card">
-<div class="section-header">
-<h3 id="entityManagementModalTitle">Add Entity</h3>
-<button class="btn-theme" onclick="closeEntityManagement()"></button>
-</div>
-<div class="grid-inputs">
-<div class="field">
-<label>Entity Name</label>
-<input type="text" id="entityName" placeholder="Name">
-</div>
-</div>
-<div class="grid-inputs">
-<div class="field">
-<label>Phone Number</label>
-<input type="tel" id="entityPhone" placeholder="Phone">
-</div>
-<div class="field">
-<label>Wallet Details</label>
-<input type="text" id="entityWallet" placeholder="Wallet/Account Details">
-</div>
-</div>
-<div class="u-action-row" >
-<button class="btn btn-danger u-hidden u-flex-1" id="deleteEntityBtn" onclick="(async () => { await deleteCurrentEntity() })()" >Delete</button>
-<button class="btn btn-noman u-flex-2" onclick="(async () => { await saveEntity() })()" >Save Entity</button>
-</div>
-</div>
-</div>
-<div id="entityDetailsOverlay" class="factory-overlay">
-<div class="factory-overlay-card liquid-card u-overlay-card-lg" >
-<div class="overlay-header">
-<div class="overlay-header__row1">
-<div class="u-title-row" >
-<h3 class="u-m-0" id="manageEntityTitle" >Entity Name</h3>
-<button class="btn-theme u-edit-btn-inline" onclick="openEditEntityFromDetails()" title="Edit Entity" ></button>
-</div>
-<button class="btn-theme" onclick="closeEntityDetailsOverlay()"></button>
-</div>
-<div class="overlay-header__row2">
-<span id="manageEntityStats">Current Balance: 0.00</span>
-</div>
-<div class="overlay-header__row3">
-<input type="date" id="entityDateFrom" class="store-selector date-range-input" onchange="if(currentEntityId){const entity=paymentEntities.find(e=>String(e.id)===String(currentEntityId));if(entity)renderEntityOverlayContent(entity);}"><span class="date-range-sep">to</span><input type="date" id="entityDateTo" class="store-selector date-range-input" onchange="if(currentEntityId){const entity=paymentEntities.find(e=>String(e.id)===String(currentEntityId));if(entity)renderEntityOverlayContent(entity);}">
-<button class="btn btn-noran btn-sm btn-pdf" onclick="exportEntityToPDF()" title="Export to PDF">📄</button>
-</div>
-</div>
-<div class="debt-panel u-debt-header" >
-<h4 class="u-heading-accent" >Quick Transaction</h4>
-<div class="u-quick-row" >
-<div class="field u-field-flex-1-min" >
-<label>Amount ()</label>
-<input class="u-w-full" type="number" id="quickEntityAmount" placeholder="0.00" >
-</div>
-<div class="field u-field-flex-1-5" >
-<label>Type</label>
-<div class="toggle-group u-toggle-full" >
-<div class="toggle-opt active u-flex-1" id="quick-type-out" onclick="setQuickEntityType('OUT')" >Payment OUT</div>
-<div class="toggle-opt u-flex-1" id="quick-type-in" onclick="setQuickEntityType('IN')" >Payment IN</div>
-</div>
-</div>
-<button class="btn btn-noman u-quick-btn" onclick="(async () => { await saveQuickEntityTransaction() })()">Save</button>
-</div>
-<div class="u-field-hint" >
-* "Payment OUT" reduces what you owe. "Payment IN" reduces what they owe you.
-</div>
-</div>
-<div class="u-debt-title" >
-<input type="text" id="entity-trans-search" class="search-bar" placeholder="Search history..." oninput="filterEntityManagementHistory()">
-</div>
-<div class="u-overlay-scroll" id="entityManagementHistoryList">
-</div>
-<div class="u-summary-row" >
-<button class="btn btn-danger btn-sm" onclick="deleteCurrentEntity()">Delete Entity Permanently</button>
-</div>
-</div>
-</div>
-<div id="expenseDetailsOverlay" class="factory-overlay">
-<div class="factory-overlay-card liquid-card u-overlay-card-lg" >
-<div class="overlay-header">
-<div class="overlay-header__row1">
-<h3 id="expenseOverlayTitle">Expense Name</h3>
-<button class="btn-theme" onclick="closeExpenseDetailsOverlay()"></button>
-</div>
-<div class="overlay-header__row2">
-<span id="expenseOverlayStats">Total: 0.00</span>
-</div>
-<div class="overlay-header__row3">
-<input type="date" id="expenseDateFrom" class="store-selector date-range-input" onchange="renderExpenseOverlayContent()"><span class="date-range-sep">to</span><input type="date" id="expenseDateTo" class="store-selector date-range-input" onchange="renderExpenseOverlayContent()">
-<button class="btn btn-noran btn-sm btn-pdf" onclick="exportExpenseOverlayToPDF()" title="Export to PDF">📄</button>
-</div>
-</div>
-<div class="debt-panel u-debt-header" >
-<h4 class="u-heading-accent" >Quick Add Expense</h4>
-<div class="u-quick-row" >
-<div class="field u-field-flex-1-min" >
-<label>Amount (Rs)</label>
-<input class="u-w-full" type="number" id="quickExpenseAmount" placeholder="0.00" >
-</div>
-<div class="field u-field-flex-1-5b" >
-<label>Description (optional)</label>
-<input class="u-w-full" type="text" id="quickExpenseDescription" placeholder="e.g. Monthly rent" >
-</div>
-<button class="btn btn-noman u-quick-btn" onclick="(async () => { await saveQuickExpenseEntry() })()">Save</button>
-</div>
-<div class="u-field-hint" >
-* Adds a new expense record under "<span class="u-text-warning u-fw-600" id="quickExpenseNameLabel" ></span>" for today's date.
-</div>
-</div>
-<div class="u-debt-title" >
-<input type="text" id="expense-history-search" class="search-bar" placeholder="Search history..." oninput="filterExpenseManagementHistory()">
-</div>
-<div class="u-overlay-scroll" id="expenseManagementHistoryList">
-</div>
-<div class="u-summary-row" >
-<button class="btn btn-danger btn-sm" onclick="deleteAllExpensesByName()">Delete All Records Permanently</button>
-</div>
-</div>
-</div>
-<div id="customerManagementOverlay" class="factory-overlay">
-<div class="factory-overlay-card liquid-card u-overlay-card-lg" >
-<div class="overlay-header">
-<div class="overlay-header__row1">
-<h3 id="manageCustomerTitle">Customer Name</h3>
-<button class="btn-theme" onclick="closeCustomerManagement()"></button>
-</div>
-<div class="overlay-header__row2">
-<span id="manageCustomerStats">Current Debt: 0.00</span>
-</div>
-<div class="overlay-header__row3">
-<input type="date" id="customerDateFrom" class="store-selector date-range-input" onchange="if(currentManagingCustomer)renderCustomerTransactions(currentManagingCustomer);"><span class="date-range-sep">to</span><input type="date" id="customerDateTo" class="store-selector date-range-input" onchange="if(currentManagingCustomer)renderCustomerTransactions(currentManagingCustomer);">
-<button class="btn btn-noman btn-sm btn-pdf" onclick="exportCustomerToPDF()" title="Export to PDF">📄</button>
-</div>
-</div>
-<div class="debt-panel u-debt-header" >
-<h4 class="u-heading-accent" >Credit Payment</h4>
-<div class="u-quick-row-stretch" >
-<div class="field u-field-m0" >
-<label class="u-label-block" >Amount Received</label>
-<input class="u-input-full-tall" type="number" id="bulkPaymentAmount" placeholder="Enter amount..." >
-</div>
-<div class="u-flex-col-end" >
-<button class="btn btn-noman u-quick-btn u-nowrap u-px-18" onclick="(async () => { await processBulkPayment() })()">Process Payment</button>
-</div>
-</div>
-<div class="u-field-hint" >
-* This will mark oldest credit transactions as fully or partially paid up to this amount.
-</div>
-</div>
-<div class="u-debt-title" >
-<input type="text" id="cust-trans-search" class="search-bar" placeholder="Search history..." oninput="filterCustomerManagementHistory()">
-</div>
-<div class="u-overlay-scroll" id="customerManagementHistoryList">
-</div>
-<div class="u-summary-row" >
-<button class="btn btn-danger btn-sm" onclick="(async () => { await deleteCurrentCustomer() })()">Delete Customer Permanently</button>
-</div>
-</div>
-</div>
-<div id="customerEditOverlay" class="factory-overlay" style="z-index: 10002;">
-<div class="factory-overlay-card liquid-card u-overlay-card-sm" >
-<div class="section-header">
-<h3 class="u-heading-main" >Edit Customer Details</h3>
-<button class="btn-theme" onclick="closeCustomerEditModal()"></button>
-</div>
-<div class="grid-inputs u-mb-20" >
-<div class="field">
-<label>Customer Name</label>
-<input type="text" id="edit-cust-name" placeholder="Customer name" style="font-weight: 700;">
-<div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px;">
-Editing the name will update all records for this customer
-</div>
-</div>
-<div class="field">
-<label>Phone Number</label>
-<input type="tel" id="edit-cust-phone" placeholder="03XX-XXXXXXX">
-</div>
-<div class="field">
-<label>Previous Balance / Old Debt</label>
-<input type="number" id="edit-cust-old-debit" placeholder="Enter previous balance amount" step="0.01" min="0">
-<div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px;">
-Will be added as a debt transaction in customer history
-</div>
-</div>
-<div class="field">
-<label>Address / Location</label>
-<div style="display: flex; gap: 5px;">
-<input class="u-flex-1" type="text" id="edit-cust-address" placeholder="Area, Shop #, etc." >
-<button class="btn-theme" onclick="fetchDeviceLocation()" title="Auto-Fetch Location" style="border: 1px solid var(--accent); color: var(--accent); padding: 0 10px;">
-</button>
-</div>
-<div id="location-status" style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px; font-style: italic;"></div>
-</div>
-<div class="field">
-<label>Custom Sale Price (Rs/kg)</label>
-<input type="number" id="edit-cust-custom-price" placeholder="Leave blank to use factory default"
-step="1" min="0"
-style="font-family:'Geist Mono',monospace;">
-<div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px;">
-Override the default sale price for this customer. Leave blank to use the standard rate.
-</div>
-</div>
-</div>
-<div style="display:flex; gap:10px; margin-top: 4px;">
-<button class="btn btn-main u-h-42 u-fs-md2 u-fw-700" onclick="(async () => { await saveCustomerDetails() })()">Update Details</button>
-</div>
-</div>
-</div>
-<div id="repCustomerManagementOverlay" class="factory-overlay">
-<div class="factory-overlay-card liquid-card u-overlay-card-lg" >
-<div class="overlay-header">
-<div class="overlay-header__row1">
-<h3 id="repManageCustomerTitle">Rep Customer</h3>
-<button class="btn-theme" onclick="closeRepCustomerManagement()"></button>
-</div>
-<div class="overlay-header__row2">
-<span id="repManageCustomerStats">Current Debt: 0.00</span>
-</div>
-<div class="overlay-header__row3">
-<input type="date" id="repCustomerDateFrom" class="store-selector date-range-input" onchange="if(currentManagingRepCustomer)renderRepCustomerTransactions(currentManagingRepCustomer);"><span class="date-range-sep">to</span><input type="date" id="repCustomerDateTo" class="store-selector date-range-input" onchange="if(currentManagingRepCustomer)renderRepCustomerTransactions(currentManagingRepCustomer);">
-<button class="btn btn-noman btn-sm btn-pdf" onclick="exportRepCustomerToPDF()" title="Export to PDF">📄</button>
-</div>
-</div>
-<div class="debt-panel u-debt-header" >
-<h4 class="u-heading-accent" >Credit Payment</h4>
-<div class="u-quick-row-stretch" >
-<div class="field u-field-m0" >
-<label class="u-label-block" >Amount Received</label>
-<input class="u-input-full-tall" type="number" id="repBulkPaymentAmount" placeholder="Enter amount..." >
-</div>
-<div class="u-flex-col-end" >
-<button class="btn btn-noman u-quick-btn u-nowrap u-px-18" onclick="(async () => { await processRepBulkPayment() })()">Process Payment</button>
-</div>
-</div>
-<div class="u-field-hint" >
-* This will mark oldest credit transactions as fully or partially paid up to this amount.
-</div>
-</div>
-<div class="u-debt-title" >
-<input type="text" id="rep-cust-trans-search" class="search-bar" placeholder="Search history..." oninput="filterRepCustomerManagementHistory()">
-</div>
-<div class="u-overlay-scroll" id="repCustomerManagementHistoryList"></div>
-<div class="u-summary-row" >
-<button class="btn btn-danger btn-sm" onclick="(async () => { await deleteCurrentRepCustomer() })()">Delete Customer Permanently</button>
-</div>
-</div>
-</div>
-<div id="repCustomerEditOverlay" class="factory-overlay" style="z-index: 10002;">
-<div class="factory-overlay-card liquid-card u-overlay-card-sm" >
-<div class="section-header">
-<h3 class="u-heading-main" >Edit Rep Customer Details</h3>
-<button class="btn-theme" onclick="closeRepCustomerEditModal()"></button>
-</div>
-<div class="grid-inputs u-mb-20" >
-<div class="field">
-<label>Customer Name</label>
-<input type="text" id="rep-edit-cust-name" placeholder="Customer name" style="font-weight: 700;">
-<div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px;">
-Editing the name will update all records for this customer
-</div>
-</div>
-<div class="field">
-<label>Phone Number</label>
-<input type="tel" id="rep-edit-cust-phone" placeholder="03XX-XXXXXXX">
-</div>
-<div class="field">
-<label>Previous Balance / Old Debt</label>
-<input type="number" id="rep-edit-cust-old-debit" placeholder="Enter previous balance amount" step="0.01" min="0">
-<div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px;">
-Will be added as a debt transaction in rep customer history
-</div>
-</div>
-<div class="field">
-<label>Address / Location</label>
-<div style="display: flex; gap: 5px;">
-<input class="u-flex-1" type="text" id="rep-edit-cust-address" placeholder="Area, Shop #, etc." >
-<button class="btn-theme" onclick="fetchRepDeviceLocation()" title="Auto-Fetch Location" style="border: 1px solid var(--accent); color: var(--accent); padding: 0 10px;"></button>
-</div>
-<div id="rep-location-status" style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px; font-style: italic;"></div>
-</div>
-</div>
-<div style="display:flex; gap:10px; margin-top: 4px;">
-<button class="btn btn-main u-h-42 u-fs-md2 u-fw-700" onclick="(async () => { await saveRepCustomerDetails() })()">Update Details</button>
-</div>
-</div>
+
+<div id="entity-details-screen" class="standalone-screen" style="display:none">
+  <div class="screen-topbar">
+    <div style="flex:1;min-width:0;">
+      <div class="screen-title" id="manageEntityTitle" style="font-size:0.88rem;">Entity Name</div>
+      <div style="font-size:0.68rem;color:var(--text-muted);margin-top:1px;" id="manageEntityStats">Current Balance: 0.00</div>
+    </div>
+  </div>
+  <div class="screen-body">
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;">
+      <select id="entityPdfRange" class="store-selector" style="flex:1;" onchange="if(currentEntityId){const entity=paymentEntities.find(e=>String(e.id)===String(currentEntityId));if(entity)renderEntityOverlayContent(entity);}">
+        <option value="today">Today</option>
+        <option value="week">This Week</option>
+        <option value="month">This Month</option>
+        <option value="year">This Year</option>
+        <option value="all" selected>All Time</option>
+      </select>
+      <button class="btn btn-noran btn-sm btn-pdf" onclick="exportEntityToPDF()" title="Export to PDF" style="padding:8px 12px;">PDF</button>
+    </div>
+    <div class="debt-panel u-debt-header liquid-card" style="margin-bottom:14px;">
+      <h4 class="u-heading-accent">Quick Transaction</h4>
+      <div class="u-quick-row">
+        <div class="field u-field-flex-1-min">
+          <label>Amount</label>
+          <input class="u-w-full" type="number" id="quickEntityAmount" placeholder="0.00">
+        </div>
+        <div class="field u-field-flex-1-5">
+          <label>Type</label>
+          <div class="toggle-group u-toggle-full">
+            <div class="toggle-opt active u-flex-1" id="quick-type-out" onclick="setQuickEntityType('OUT')">Payment OUT</div>
+            <div class="toggle-opt u-flex-1" id="quick-type-in" onclick="setQuickEntityType('IN')">Payment IN</div>
+          </div>
+        </div>
+        <button class="btn btn-noman u-quick-btn" onclick="(async()=>{await saveQuickEntityTransaction()})()">Save</button>
+      </div>
+      <div class="u-field-hint">* "Payment OUT" reduces what you owe. "Payment IN" reduces what they owe you.</div>
+    </div>
+    <input type="text" id="entity-trans-search" class="search-bar" placeholder="Search history..." oninput="filterEntityManagementHistory()" style="margin-bottom:10px;width:100%;box-sizing:border-box;">
+    <div id="entityManagementHistoryList"></div>
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--glass-border);">
+      <button class="btn btn-danger btn-sm" style="width:100%;" onclick="deleteCurrentEntity()">Delete Entity Permanently</button>
+    </div>
+  </div>
+</div>
+
+<div id="add-entity-screen" class="standalone-screen" style="display:none">
+  <div class="screen-topbar">
+    <h2 class="screen-title" id="entityManagementModalTitle">Add Entity</h2>
+  </div>
+  <div class="screen-body">
+    <div class="grid-inputs">
+      <div class="field">
+        <label>Entity Name</label>
+        <input type="text" id="entityName" placeholder="Name">
+      </div>
+    </div>
+    <div class="grid-inputs">
+      <div class="field">
+        <label>Phone Number</label>
+        <input type="tel" id="entityPhone" placeholder="Phone">
+      </div>
+      <div class="field">
+        <label>Wallet Details</label>
+        <input type="text" id="entityWallet" placeholder="Wallet/Account Details">
+      </div>
+    </div>
+    <div class="u-action-row">
+      <button class="btn btn-danger u-hidden u-flex-1" id="deleteEntityBtn" onclick="(async()=>{await deleteCurrentEntity()})()">Delete</button>
+      <button class="btn btn-noman u-flex-2" onclick="(async()=>{await saveEntity()})()">Save Entity</button>
+    </div>
+  </div>
+</div>
+
+<div id="expense-details-screen" class="standalone-screen" style="display:none">
+  <div class="screen-topbar">
+    <div style="flex:1;min-width:0;">
+      <div class="screen-title" id="expenseOverlayTitle" style="font-size:0.88rem;">Expense Name</div>
+      <div style="font-size:0.68rem;color:var(--text-muted);margin-top:1px;" id="expenseOverlayStats">Total: 0.00</div>
+    </div>
+  </div>
+  <div class="screen-body">
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;">
+      <select id="expenseOverlayRange" class="store-selector" style="flex:1;" onchange="renderExpenseOverlayContent()">
+        <option value="today">Today</option>
+        <option value="week">This Week</option>
+        <option value="month">This Month</option>
+        <option value="year">This Year</option>
+        <option value="all" selected>All Time</option>
+      </select>
+      <button class="btn btn-noran btn-sm btn-pdf" onclick="exportExpenseOverlayToPDF()" title="Export to PDF" style="padding:8px 12px;">PDF</button>
+    </div>
+    <div class="debt-panel u-debt-header liquid-card" style="margin-bottom:14px;">
+      <h4 class="u-heading-accent">Quick Add Expense</h4>
+      <div class="u-quick-row">
+        <div class="field u-field-flex-1-min">
+          <label>Amount (Rs)</label>
+          <input class="u-w-full" type="number" id="quickExpenseAmount" placeholder="0.00">
+        </div>
+        <div class="field u-field-flex-1-5b">
+          <label>Description (optional)</label>
+          <input class="u-w-full" type="text" id="quickExpenseDescription" placeholder="e.g. Monthly rent">
+        </div>
+        <button class="btn btn-noman u-quick-btn" onclick="(async()=>{await saveQuickExpenseEntry()})()">Save</button>
+      </div>
+      <div class="u-field-hint">* Adds a new expense record under "<span class="u-text-warning u-fw-600" id="quickExpenseNameLabel"></span>" for today's date.</div>
+    </div>
+    <input type="text" id="expense-history-search" class="search-bar" placeholder="Search history..." oninput="filterExpenseManagementHistory()" style="margin-bottom:10px;width:100%;box-sizing:border-box;">
+    <div id="expenseManagementHistoryList"></div>
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--glass-border);">
+      <button class="btn btn-danger btn-sm" style="width:100%;" onclick="deleteAllExpensesByName()">Delete All Records Permanently</button>
+    </div>
+  </div>
+</div>
+
+<div id="customer-management-screen" class="standalone-screen" style="display:none">
+  <div class="screen-topbar">
+    <div style="flex:1;min-width:0;">
+      <div class="screen-title" id="manageCustomerTitle" style="font-size:0.88rem;">Customer Name</div>
+      <div style="font-size:0.68rem;color:var(--text-muted);margin-top:1px;" id="manageCustomerStats">Current Debt: 0.00</div>
+    </div>
+  </div>
+  <div class="screen-body">
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;">
+      <select id="customerPdfRange" class="store-selector" style="flex:1;" onchange="if(currentManagingCustomer)renderCustomerTransactions(currentManagingCustomer);">
+        <option value="today">Today</option>
+        <option value="week">This Week</option>
+        <option value="month">This Month</option>
+        <option value="year">This Year</option>
+        <option value="all" selected>All Time</option>
+      </select>
+      <button class="btn btn-noman btn-sm btn-pdf" onclick="exportCustomerToPDF()" title="Export to PDF" style="padding:8px 12px;">PDF</button>
+    </div>
+    <div class="debt-panel u-debt-header liquid-card" style="margin-bottom:14px;">
+      <h4 class="u-heading-accent">Credit Payment</h4>
+      <div class="u-quick-row-stretch">
+        <div class="field u-field-m0">
+          <label class="u-label-block">Amount Received</label>
+          <input class="u-input-full-tall" type="number" id="bulkPaymentAmount" placeholder="Enter amount...">
+        </div>
+        <div class="u-flex-col-end">
+          <button class="btn btn-noman u-quick-btn u-nowrap u-px-18" onclick="(async()=>{await processBulkPayment()})()">Process Payment</button>
+        </div>
+      </div>
+      <div class="u-field-hint">* This will mark oldest credit transactions as fully or partially paid up to this amount.</div>
+    </div>
+    <input type="text" id="cust-trans-search" class="search-bar" placeholder="Search history..." oninput="filterCustomerManagementHistory()" style="margin-bottom:10px;width:100%;box-sizing:border-box;">
+    <div id="customerManagementHistoryList"></div>
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--glass-border);">
+      <button class="btn btn-danger btn-sm" style="width:100%;" onclick="(async()=>{await deleteCurrentCustomer()})()">Delete Customer Permanently</button>
+    </div>
+  </div>
+</div>
+
+<div id="customer-edit-screen" class="standalone-screen" style="display:none">
+  <div class="screen-topbar">
+    <h2 class="screen-title">Edit Customer</h2>
+  </div>
+  <div class="screen-body">
+    <div class="grid-inputs u-mb-20">
+      <div class="field">
+        <label>Customer Name</label>
+        <input type="text" id="edit-cust-name" placeholder="Customer name" style="font-weight:700;">
+        <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Editing the name will update all records for this customer</div>
+      </div>
+      <div class="field">
+        <label>Phone Number</label>
+        <input type="tel" id="edit-cust-phone" placeholder="03XX-XXXXXXX">
+      </div>
+      <div class="field">
+        <label>Previous Balance / Old Debt</label>
+        <input type="number" id="edit-cust-old-debit" placeholder="Enter previous balance amount" step="0.01" min="0">
+        <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Will be added as a debt transaction in customer history</div>
+      </div>
+      <div class="field">
+        <label>Address / Location</label>
+        <div style="display:flex;gap:5px;">
+          <input class="u-flex-1" type="text" id="edit-cust-address" placeholder="Area, Shop #, etc.">
+          <button class="btn-theme" onclick="fetchDeviceLocation()" title="Auto-Fetch Location" style="border:1px solid var(--accent);color:var(--accent);padding:0 10px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg>
+          </button>
+        </div>
+        <div id="location-status" style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;font-style:italic;"></div>
+      </div>
+      <div class="field">
+        <label>Custom Sale Price (Rs/kg)</label>
+        <input type="number" id="edit-cust-custom-price" placeholder="Leave blank to use factory default" step="1" min="0" style="font-family:'Geist Mono',monospace;">
+        <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Override the default sale price for this customer. Leave blank to use the standard rate.</div>
+      </div>
+    </div>
+    <button class="btn btn-main u-h-42 u-fs-md2 u-fw-700" style="width:100%;" onclick="(async()=>{await saveCustomerDetails()})()">Update Details</button>
+  </div>
+</div>
+
+<div id="rep-customer-management-screen" class="standalone-screen" style="display:none">
+  <div class="screen-topbar">
+    <div style="flex:1;min-width:0;">
+      <div class="screen-title" id="repManageCustomerTitle" style="font-size:0.88rem;">Rep Customer</div>
+      <div style="font-size:0.68rem;color:var(--text-muted);margin-top:1px;" id="repManageCustomerStats">Current Debt: 0.00</div>
+    </div>
+  </div>
+  <div class="screen-body">
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;">
+      <select id="repCustomerPdfRange" class="store-selector" style="flex:1;" onchange="if(currentManagingRepCustomer)renderRepCustomerTransactions(currentManagingRepCustomer);">
+        <option value="today">Today</option>
+        <option value="week">This Week</option>
+        <option value="month">This Month</option>
+        <option value="year">This Year</option>
+        <option value="all" selected>All Time</option>
+      </select>
+      <button class="btn btn-noman btn-sm btn-pdf" onclick="exportRepCustomerToPDF()" title="Export to PDF" style="padding:8px 12px;">PDF</button>
+    </div>
+    <div class="debt-panel u-debt-header liquid-card" style="margin-bottom:14px;">
+      <h4 class="u-heading-accent">Credit Payment</h4>
+      <div class="u-quick-row-stretch">
+        <div class="field u-field-m0">
+          <label class="u-label-block">Amount Received</label>
+          <input class="u-input-full-tall" type="number" id="repBulkPaymentAmount" placeholder="Enter amount...">
+        </div>
+        <div class="u-flex-col-end">
+          <button class="btn btn-noman u-quick-btn u-nowrap u-px-18" onclick="(async()=>{await processRepBulkPayment()})()">Process Payment</button>
+        </div>
+      </div>
+      <div class="u-field-hint">* This will mark oldest credit transactions as fully or partially paid up to this amount.</div>
+    </div>
+    <input type="text" id="rep-cust-trans-search" class="search-bar" placeholder="Search history..." oninput="filterRepCustomerManagementHistory()" style="margin-bottom:10px;width:100%;box-sizing:border-box;">
+    <div id="repCustomerManagementHistoryList"></div>
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--glass-border);">
+      <button class="btn btn-danger btn-sm" style="width:100%;" onclick="(async()=>{await deleteCurrentRepCustomer()})()">Delete Customer Permanently</button>
+    </div>
+  </div>
+</div>
+
+<div id="rep-customer-edit-screen" class="standalone-screen" style="display:none">
+  <div class="screen-topbar">
+    <h2 class="screen-title">Edit Rep Customer</h2>
+  </div>
+  <div class="screen-body">
+    <div class="grid-inputs u-mb-20">
+      <div class="field">
+        <label>Customer Name</label>
+        <input type="text" id="rep-edit-cust-name" placeholder="Customer name" style="font-weight:700;">
+        <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Editing the name will update all records for this customer</div>
+      </div>
+      <div class="field">
+        <label>Phone Number</label>
+        <input type="tel" id="rep-edit-cust-phone" placeholder="03XX-XXXXXXX">
+      </div>
+      <div class="field">
+        <label>Previous Balance / Old Debt</label>
+        <input type="number" id="rep-edit-cust-old-debit" placeholder="Enter previous balance amount" step="0.01" min="0">
+        <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Will be added as a debt transaction in rep customer history</div>
+      </div>
+      <div class="field">
+        <label>Address / Location</label>
+        <div style="display:flex;gap:5px;">
+          <input class="u-flex-1" type="text" id="rep-edit-cust-address" placeholder="Area, Shop #, etc.">
+          <button class="btn-theme" onclick="fetchRepDeviceLocation()" title="Auto-Fetch Location" style="border:1px solid var(--accent);color:var(--accent);padding:0 10px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg>
+          </button>
+        </div>
+        <div id="rep-location-status" style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;font-style:italic;"></div>
+      </div>
+    </div>
+    <button class="btn btn-main u-h-42 u-fs-md2 u-fw-700" style="width:100%;" onclick="(async()=>{await saveRepCustomerDetails()})()">Update Details</button>
+  </div>
 </div>
 <div id="splash-screen">
 <div class="flower flower1">🌸</div>
@@ -686,106 +1149,18 @@ Will be added as a debt transaction in rep customer history
 <div class="splash-ornament ornament-bottom"></div>
 </div>
 <div class="system-controls">
+<button class="sidebar-hamburger" onclick="openSidebar()" aria-label="Open menu" title="Menu">
+  <span></span>
+  <span></span>
+  <span></span>
+</button>
 <span style="font-weight:800; font-size:0.85rem; color:var(--accent);" class="shimmer-text">MAHMOOD KHAN</span>
-<div style="display:flex; gap:8px; align-items: center;">
-<button class="btn-theme" id="themeToggle" onclick="(async () => { await toggleDarkMode() })()" title="Toggle Dark Mode"></button>
-<button class="btn-theme" id="cloudMenuBtn" onclick="(async () => { await openDataMenu() })()" title="Data Management" style="display: none;"></button>
-</div>
 </div>
 <input type="file" id="restoreInput" class="hidden" accept=".json,.gznd" onchange="(async () => { await unifiedRestore(event) })()">
-<div id="dataMenuOverlay" class="factory-overlay">
-<div class="factory-overlay-card liquid-card" style="max-width: 350px; text-align: center;">
-<div class="section-header">
-<h3 class="u-heading-main" >Data Options</h3>
-<button class="btn-theme" onclick="closeDataMenu()"></button>
-</div>
-<hr style="width: 100%; border: 0; border-top: 1px solid var(--glass-border); margin: 5px 0;">
-<button class="btn" id="bio-toggle-btn" style="background: rgba(37, 99, 235, 0.1); color: var(--text-main); border: 1px solid var(--glass-border);" onclick="enableBiometricLock()">
-Enable Biometric Lock
-</button>
-<hr style="width: 100%; border: 0; border-top: 1px solid var(--glass-border); margin: 5px 0;">
-<div style="display: flex; flex-direction: column; gap: 12px; margin-top: 15px;">
-<button class="btn btn-main" id="sync-btn" onclick="performOneClickSync().catch(err => console.error('Sync error:', err))" style="background: var(--accent); font-size: 1rem; padding: 15px;">
-SYNC DATA
-</button>
-<div style="font-size: 0.7rem; color: var(--text-muted); text-align: center; margin-bottom: 10px;">
-</div>
-</div>
-<div class="field">
-<hr style="width: 100%; border: 0; border-top: 1px solid var(--glass-border); margin: 5px 0;">
-<button class="btn" style="background: rgba(37, 99, 235, 0.1); color: var(--text-main); border: 1px solid var(--glass-border); display:flex; align-items:center; justify-content:center; gap:6px;" onclick="(async () => { await triggerLocalBackup() })()">
-Backup to Phone
-</button>
-<button class="btn" style="background: rgba(37, 99, 235, 0.1); color: var(--text-main); border: 1px solid var(--glass-border); display:flex; align-items:center; justify-content:center; gap:6px;" onclick="document.getElementById('restoreInput').click(); closeDataMenu();">
-Restore from Phone
-</button>
-<button class="btn" style="background: rgba(239,68,68,0.08); color: #ef4444; border: 1px solid rgba(239,68,68,0.25); display:flex; align-items:center; justify-content:center; gap:8px; font-weight:700;" onclick="openRecycleBin()">
- Recycle Bin
-</button>
-</div>
-<div id="lastSyncDisplay" style="margin-top: 15px; font-size: 0.7rem; color: var(--text-muted);">
-Last Synced: Checking...
-</div>
-<div style="margin-top: 20px; padding: 15px; background: var(--input-bg); border-radius: 12px; border: 1px solid var(--glass-border);">
-<button onclick="showDeltaSyncDetails()"
-style="width: 100%; padding: 12px; background: var(--accent); border: none; border-radius: 999px; color: white; cursor: pointer; font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px;">
-View Database Structure
-</button>
 
-</div>
-</div>
-</div>
-
-<div id="recycleBinOverlay" class="factory-overlay" style="display:none;">
-  <div class="factory-overlay-card liquid-card" style="max-width:520px;width:100%;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;">
-
-    <div class="section-header" style="flex-shrink:0;">
-      <h3 class="u-heading-main" style="display:flex;align-items:center;gap:8px;"> Recycle Bin</h3>
-      <button class="btn-theme" onclick="closeRecycleBin()">✕</button>
-    </div>
-    <hr style="width:100%;border:0;border-top:1px solid var(--glass-border);margin:4px 0;flex-shrink:0;">
-
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0 4px;flex-shrink:0;flex-wrap:wrap;">
-      <div id="recycleBinStats" style="font-size:0.75rem;color:var(--text-muted);"></div>
-      <select id="recycleBinFilter"
-        onchange="renderRecycleBin(this.value)"
-        style="padding:5px 10px;border-radius:999px;border:1px solid var(--glass-border);background:var(--input-bg);color:var(--text-main);font-size:0.78rem;cursor:pointer;">
-        <option value="all">All Tabs</option>
-        <option value="tab_sales">Sales Tab</option>
-        <option value="tab_rep">Rep Tab</option>
-        <option value="tab_production">Manufacturing Tab</option>
-        <option value="tab_calculator">Calculator Tab</option>
-        <option value="tab_factory">Factory Tab</option>
-        <option value="tab_payments">Payments Tab</option>
-      </select>
-    </div>
-
-    <div style="background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.18);border-radius:10px;padding:9px 13px;font-size:0.73rem;color:var(--text-muted);line-height:1.5;margin-bottom:10px;flex-shrink:0;">
-      ↩ <strong style="color:var(--text-main);">Recover</strong> restores the record to its original collection and re-activates it in all views &amp; balances.
-      Records marked <span style="color:#ef4444;font-weight:600;">local only</span> may not have a full snapshot to restore from — balance adjustments may be needed manually.
-      All records expire after <strong style="color:var(--text-main);">90 days</strong>.
-    </div>
-
-    <div id="recycleBinList" style="flex:1;min-height:0;overflow-y:auto;padding-right:4px;"></div>
-
-    <div style="flex-shrink:0;padding-top:12px;border-top:1px solid var(--glass-border);margin-top:8px;display:flex;justify-content:flex-end;">
-      <button onclick="closeRecycleBin()" style="padding:9px 22px;border-radius:999px;background:var(--input-bg);border:1px solid var(--glass-border);color:var(--text-main);font-size:0.85rem;cursor:pointer;">Close</button>
-    </div>
-  </div>
-</div>
-
-<div class="nav-tabs">
-<button class="tab-btn active" onclick="showTab('prod')">PRODUCTION</button>
-<button class="tab-btn" onclick="showTab('sales')">SALES</button>
-<button class="tab-btn" onclick="showTab('calc')">CALCULATOR</button>
-<button class="tab-btn" onclick="showTab('factory')">FACTORY</button>
-<button class="tab-btn" onclick="showTab('payments')">PAYMENTS</button>
-<button class="tab-btn" onclick="showTab('rep')">REP SALES</button>
-</div>
 <div id="tab-rep" class="hidden">
 <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
 <h1 class="shimmer-text u-heading-bold">Rep Sales</h1>
-<button id="btn-manage-reps" class="btn-theme" onclick="openManageRepsModal()" title="Add / Manage Sales Representatives" style="font-size:1.25rem; font-weight:300; line-height:1;"></button>
 </header>
 <div id="admin-rep-controls" class="section liquid-card hidden">
 <div class="section-header">
@@ -903,15 +1278,14 @@ style="color: var(--accent-emerald); border-color: var(--accent-emerald); flex-s
 <thead class="u-thead-sticky" >
 <tr class="u-thead-bg" >
 <th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 15%;">Date</th>
-<th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 30%;">Name</th>
-<th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 20%;">Contact</th>
-<th style="padding: 8px 2px; text-align: right; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 20%;">Amount</th>
-<th style="padding: 8px 2px; text-align: center; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 15%;">Action</th>
+<th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 35%;">Name</th>
+<th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 25%;">Contact</th>
+<th style="padding: 8px 2px; text-align: right; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 25%;">Amount</th>
 </tr>
 </thead>
 <tbody id="rep-customers-table-body">
 <tr>
-<td class="u-empty-state-md" colspan="5" >
+<td class="u-empty-state-md" colspan="4" >
 No records found
 </td>
 </tr>
@@ -1185,15 +1559,14 @@ oninput="filterCustomers()">
 <thead class="u-thead-sticky" >
 <tr class="u-thead-bg" >
 <th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 15%;">Date</th>
-<th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 30%;">Name</th>
-<th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 20%;">Contact</th>
-<th style="padding: 8px 2px; text-align: right; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 20%;">Amount</th>
-<th style="padding: 8px 2px; text-align: center; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 15%;">Action</th>
+<th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 35%;">Name</th>
+<th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 25%;">Contact</th>
+<th style="padding: 8px 2px; text-align: right; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 25%;">Amount</th>
 </tr>
 </thead>
 <tbody id="customers-table-body">
 <tr>
-<td class="u-empty-state-md" colspan="5" >
+<td class="u-empty-state-md" colspan="4" >
 No records found
 </td>
 </tr>
@@ -1425,9 +1798,6 @@ No records found
 <div id="tab-factory" class="hidden">
 <header id="factory-tab-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
 <h1 class="shimmer-text u-heading-bold">Factory</h1>
-<div style="display:flex; gap:10px;">
-<button id="factory-settings-btn" class="btn-theme" onclick="openFactorySettings()"></button>
-</div>
 </header>
 <div id="factory-locked-header" class="locked-mode-header" style="display:none;"><div style="display:inline-flex;align-items:center;gap:9px;padding:6px 14px 6px 7px;border-radius:9999px;background:rgba(206,147,216,0.10);border:1px solid rgba(206,147,216,0.30);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);position:relative;overflow:hidden;max-width:calc(100% - 32px);"><div style="position:absolute;inset:0 0 auto 0;height:1px;background:linear-gradient(90deg,transparent,rgba(206,147,216,0.55),transparent);pointer-events:none;"></div><div style="width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:rgba(206,147,216,0.22);color:var(--accent-purple);font-size:0.68rem;font-weight:800;letter-spacing:0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div style="min-width:0;display:flex;flex-direction:column;gap:0px;"><div style="font-size:0.52rem;font-weight:600;text-transform:uppercase;letter-spacing:0.09em;color:var(--text-secondary);line-height:1.2;">Factory</div><div id="factory-locked-name-display" style="font-size:0.80rem;font-weight:700;color:var(--accent-purple);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;line-height:1.3;">—</div></div><span style="font-size:0.56rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:2px 7px;border-radius:9999px;flex-shrink:0;border:1px solid rgba(206,147,216,0.38);background:rgba(206,147,216,0.14);color:var(--accent-purple);">USER</span></div></div>
 <div id="factory-entry-section" class="section">
@@ -1581,17 +1951,15 @@ Select a store...
 <div class="section liquid-card">
 <div class="section-header">
 <h3 class="u-heading-main" >Raw Material Inventory</h3>
-<button class="btn-theme" style="font-size:0.8rem;" onclick="openFactoryInventoryModal()"></button>
 </div>
 <div id="vs-scroller-factory-inventory" style="overflow-x: auto; overflow-y: auto; max-height: 500px; margin-top: 10px;">
 <table class="u-table-full" >
 <thead class="u-thead-sticky" >
 <tr class="u-thead-bg" >
-<th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 30%;">Material</th>
-<th style="padding: 8px 2px; text-align: center; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 15%;">Stock</th>
-<th style="padding: 8px 2px; text-align: right; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 15%;">Cost/Unit</th>
-<th style="padding: 8px 2px; text-align: right; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 20%;">Total Value</th>
-<th style="padding: 8px 2px; text-align: center; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 20%;">Action</th>
+<th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 35%;">Material</th>
+<th style="padding: 8px 2px; text-align: center; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 20%;">Stock</th>
+<th style="padding: 8px 2px; text-align: right; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 20%;">Cost/Unit</th>
+<th style="padding: 8px 2px; text-align: right; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 25%;">Total Value</th>
 </tr>
 </thead>
 <tbody id="factoryInventoryTableBody">
@@ -1682,7 +2050,6 @@ Select a store...
 <div id="tab-payments" class="hidden">
 <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
 <h1 class="shimmer-text u-heading-bold">Payments</h1>
-<button class="btn-theme" onclick="openEntityManagement()"></button>
 </header>
 <div id="payments-locked-header" class="locked-mode-header" style="display:none;"><div style="display:inline-flex;align-items:center;gap:9px;padding:6px 14px 6px 7px;border-radius:9999px;background:rgba(128,222,234,0.10);border:1px solid rgba(128,222,234,0.30);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);position:relative;overflow:hidden;max-width:calc(100% - 32px);"><div style="position:absolute;inset:0 0 auto 0;height:1px;background:linear-gradient(90deg,transparent,rgba(128,222,234,0.55),transparent);pointer-events:none;"></div><div style="width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:rgba(128,222,234,0.22);color:var(--accent-cyan);font-size:0.68rem;font-weight:800;letter-spacing:0;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><div style="min-width:0;display:flex;flex-direction:column;gap:0px;"><div style="font-size:0.52rem;font-weight:600;text-transform:uppercase;letter-spacing:0.09em;color:var(--text-secondary);line-height:1.2;">Payments</div><div id="payments-locked-name-display" style="font-size:0.80rem;font-weight:700;color:var(--accent-cyan);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;line-height:1.3;">—</div></div><span style="font-size:0.56rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:2px 7px;border-radius:9999px;flex-shrink:0;border:1px solid rgba(128,222,234,0.38);background:rgba(128,222,234,0.14);color:var(--accent-cyan);">USER</span></div></div>
 <div class="section liquid-card">
@@ -1717,7 +2084,7 @@ style="width: 100%; font-size: 0.85rem; padding: 8px;"
 >
 <div id="expense-search-results" class="hidden" style="
 position: absolute;
-z-index: 1000;
+z-index: var(--z-modal, 1000);
 width: 100%;
 max-height: 200px;
 overflow-y: auto;
@@ -1942,15 +2309,14 @@ style="color: var(--accent-emerald); border-color: var(--accent-emerald); paddin
 <thead class="u-thead-sticky" >
 <tr class="u-thead-bg" >
 <th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 15%;">Date</th>
-<th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 30%;">Name</th>
-<th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 20%;">Contact</th>
-<th style="padding: 8px 2px; text-align: right; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 20%;">Amount</th>
-<th style="padding: 8px 2px; text-align: center; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 15%;">Action</th>
+<th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 35%;">Name</th>
+<th style="padding: 8px 2px; text-align: left; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 25%;">Contact</th>
+<th style="padding: 8px 2px; text-align: right; font-weight: 700; font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; width: 25%;">Amount</th>
 </tr>
 </thead>
 <tbody id="unified-table-body">
 <tr>
-<td class="u-empty-state-md" colspan="5" >
+<td class="u-empty-state-md" colspan="4" >
 No records found
 </td>
 </tr>
@@ -1999,92 +2365,7 @@ No records found
 <span> Offline — changes saved locally</span>
 <span id="offline-queue-badge" title="Pending uploads when back online">0 pending</span>
 </div>
-<div id="manage-reps-modal">
-<div id="manage-reps-card" class="liquid-card">
-<div class="section-header">
-<h3 class="u-heading-main">Manage Team</h3>
-<button class="btn-theme" onclick="closeManageRepsModal()"></button>
-</div>
-<div style="display:flex; gap:6px; margin-bottom:18px; background:var(--glass-raised); border-radius:var(--radius-full); padding:4px;">
-<button id="team-tab-rep" class="toggle-opt active" onclick="switchManageTeamTab('rep')" style="flex:1; font-size:0.68rem; padding:7px 4px; border-radius:var(--radius-full);">Sales Rep</button>
-<button id="team-tab-userrole" class="toggle-opt" onclick="switchManageTeamTab('userrole')" style="flex:1; font-size:0.68rem; padding:7px 4px; border-radius:var(--radius-full);">User Roles</button>
-<button id="team-tab-accounts" class="toggle-opt" onclick="switchManageTeamTab('accounts')" style="flex:1; font-size:0.68rem; padding:7px 4px; border-radius:var(--radius-full);">App Accounts</button>
-</div>
-<div id="team-panel-rep">
-<div class="grid-inputs u-mb-20">
-<div class="field">
-<label>Representative Name</label>
-<input type="text" id="new-rep-name-input" placeholder="sales representative name" oninput="this.value=this.value.toUpperCase()">
-</div>
-</div>
-<div style="display:flex; gap:10px; margin-bottom: 20px;">
-<button class="btn btn-main u-h-42 u-fs-md2 u-fw-700" onclick="addNewSalesRep()">Add Representative</button>
-</div>
-<div style="border-top: 1px solid var(--glass-border); padding-top: 16px;">
-<label style="font-size:0.72rem; color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:10px;">Current Representatives</label>
-<div id="manage-reps-list"></div>
-</div>
-</div>
-<div id="team-panel-userrole" style="display:none;">
-<div class="grid-inputs u-mb-15">
-<div class="field">
-<label>User Name</label>
-<input type="text" id="new-userrole-name-input" placeholder="user name" oninput="this.value=this.value.toUpperCase()">
-</div>
-</div>
-<div style="margin-bottom:15px;">
-<label style="font-size:0.72rem; color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:8px;">Assign Tab Access</label>
-<div style="display:flex; gap:6px; flex-wrap:wrap;">
-<button id="userrole-tab-factory" class="toggle-opt" onclick="toggleUserRoleTabAccess('factory')" style="flex:1; min-width:80px; font-size:0.72rem; padding:8px 6px; border-radius:var(--radius-full);">Factory</button>
-<button id="userrole-tab-prod" class="toggle-opt" onclick="toggleUserRoleTabAccess('prod')" style="flex:1; min-width:80px; font-size:0.72rem; padding:8px 6px; border-radius:var(--radius-full);">Production</button>
-<button id="userrole-tab-payments" class="toggle-opt" onclick="toggleUserRoleTabAccess('payments')" style="flex:1; min-width:80px; font-size:0.72rem; padding:8px 6px; border-radius:var(--radius-full);">Payments</button>
-<button id="userrole-tab-sales" class="toggle-opt" onclick="toggleUserRoleTabAccess('sales')" style="flex:1; min-width:80px; font-size:0.72rem; padding:8px 6px; border-radius:var(--radius-full);">Sales</button>
-</div>
-<div id="userrole-access-hint" style="font-size:0.65rem;color:var(--text-secondary);margin-top:6px;text-align:center;">Select one or more tabs to assign</div>
-</div>
-<div style="display:flex; gap:10px; margin-bottom: 20px;">
-<button class="btn btn-main u-h-42 u-fs-md2 u-fw-700" onclick="addNewUserRole()">Add User</button>
-</div>
-<div style="border-top: 1px solid var(--glass-border); padding-top: 16px;">
-<label style="font-size:0.72rem; color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:10px;">Current Users</label>
-<div id="manage-userrole-list"></div>
-</div>
-</div>
 
-<div id="team-panel-accounts" style="display:none;">
-  <div style="margin-bottom:14px;">
-    <label style="font-size:0.72rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:10px;">Add New Account</label>
-    <div class="grid-inputs" style="margin-bottom:10px;">
-      <div class="field">
-        <label>Email</label>
-        <input type="email" id="acct-new-email" placeholder="user@example.com" autocomplete="off">
-      </div>
-      <div class="field">
-        <label>Password</label>
-        <input type="password" id="acct-new-password" placeholder="min 8 characters" autocomplete="new-password">
-      </div>
-    </div>
-    <div style="margin-bottom:10px;">
-      <label style="font-size:0.72rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:8px;">Role</label>
-      <div style="display:flex;gap:6px;background:var(--glass-raised);border-radius:var(--radius-full);padding:4px;">
-        <button id="acct-role-user" class="toggle-opt active" onclick="setNewAccountRole('user')" style="flex:1;font-size:0.72rem;padding:7px 4px;border-radius:var(--radius-full);">User</button>
-        <button id="acct-role-admin" class="toggle-opt" onclick="setNewAccountRole('admin')" style="flex:1;font-size:0.72rem;padding:7px 4px;border-radius:var(--radius-full);">Admin</button>
-      </div>
-    </div>
-    <div id="acct-add-msg" style="font-size:0.75rem;min-height:18px;margin-bottom:8px;"></div>
-    <button class="btn btn-main u-h-42 u-fs-md2 u-fw-700" onclick="adminAddAccount()" id="acct-add-btn">Add Account</button>
-  </div>
-  <div style="border-top:1px solid var(--glass-border);padding-top:14px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-      <label style="font-size:0.72rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Registered Accounts</label>
-      <button class="btn-theme" style="font-size:0.7rem;padding:4px 10px;" onclick="loadAccountsList()">&#8635; Refresh</button>
-    </div>
-    <div id="manage-accounts-list"><div style="color:var(--text-muted);font-size:0.8rem;text-align:center;padding:16px;">Loading...</div></div>
-  </div>
-</div>
-
-</div>
-</div>
 </div>
 <script src="constants.js" defer></script>
 <script src="business.js" defer></script>
@@ -2094,5 +2375,397 @@ No records found
 <script src="factory.js" defer></script>
 <script src="customers.js" defer></script>
 <script src="rep-sales.js" defer></script>
+
+<script>
+(function() {
+
+function openSidebar() {
+  var mode = window.appMode || 'admin';
+  var settingsSection = document.getElementById('sidebar-settings-section');
+  if (settingsSection) settingsSection.style.display = (mode === 'admin') ? '' : 'none';
+  document.getElementById('sidebar-backdrop').classList.add('open');
+  document.getElementById('app-sidebar').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeSidebar() {
+  document.getElementById('sidebar-backdrop').classList.remove('open');
+  document.getElementById('app-sidebar').classList.remove('open');
+  document.body.style.overflow = '';
+}
+window.openSidebar = openSidebar;
+window.closeSidebar = closeSidebar;
+
+/* ── Standalone screen navigation — device back button via History API ── */
+var _standaloneHistoryDepth = 0;
+var _standaloneClosingFromPopstate = false;
+
+function openStandaloneScreen(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  document.documentElement.style.overflow = 'hidden';
+  // Push a history entry so the device back button can close this screen
+  _standaloneHistoryDepth++;
+  history.pushState({ _standaloneScreen: id, _depth: _standaloneHistoryDepth }, '');
+}
+
+function closeStandaloneScreen(id, _fromPopstate) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.style.display = 'none';
+  var anyOpen = false;
+  document.querySelectorAll('.standalone-screen').forEach(function(s) {
+    if (s.style.display !== 'none') anyOpen = true;
+  });
+  if (!anyOpen) {
+    document.body.style.overflow = '';
+    document.documentElement.style.overflow = '';
+  }
+  // If closed programmatically (not by popstate), pop the history entry we pushed
+  if (!_fromPopstate && _standaloneHistoryDepth > 0) {
+    _standaloneHistoryDepth--;
+    _standaloneClosingFromPopstate = true; // suppress re-entrant close on the back()
+    history.back();
+    setTimeout(function() { _standaloneClosingFromPopstate = false; }, 100);
+  }
+}
+
+// Handle device back button (Android) and browser/PWA swipe-back (iOS)
+window.addEventListener('popstate', function(e) {
+  if (_standaloneClosingFromPopstate) return;
+  if (e.state && e.state._standaloneScreen) {
+    _standaloneHistoryDepth = Math.max(0, _standaloneHistoryDepth - 1);
+    var id = e.state._standaloneScreen;
+    closeStandaloneScreen(id, true /* _fromPopstate */);
+  }
+});
+window.openStandaloneScreen = openStandaloneScreen;
+window.closeStandaloneScreen = closeStandaloneScreen;
+
+function sidebarNav(tab) {
+  closeSidebar();
+  if (typeof showTab === 'function') showTab(tab);
+  document.querySelectorAll('.sidebar-nav-btn').forEach(function(b) { b.classList.remove('active'); });
+  var btn = document.getElementById('snav-' + tab);
+  if (btn) btn.classList.add('active');
+}
+window.sidebarNav = sidebarNav;
+
+window.openDataMenu = function() { if(typeof performOneClickSync==='function') performOneClickSync().catch(e=>console.error(e)); };
+window.closeDataMenu = function() { /* sync-data-screen removed; no-op */ };
+
+window.openRecycleBin = function() {
+  openStandaloneScreen('recycle-bin-screen');
+  if (typeof renderRecycleBin === 'function') renderRecycleBin('all');
+};
+window.closeRecycleBin = function() { closeStandaloneScreen('recycle-bin-screen'); };
+
+window.openEntityManagement = function() {
+  prepareAddEntityScreen();
+  openStandaloneScreen('add-entity-screen');
+};
+window.closeEntityManagement = function() { closeStandaloneScreen('add-entity-screen'); };
+
+window.prepareAddEntityScreen = function() {
+  var titleEl = document.getElementById('entityManagementModalTitle');
+  if (titleEl) titleEl.textContent = 'Add Entity';
+  var deleteBtn = document.getElementById('deleteEntityBtn');
+  if (deleteBtn) { deleteBtn.classList.add('u-hidden'); deleteBtn.style.display = 'none'; }
+  ['entityName','entityPhone','entityWallet'].forEach(function(id) {
+    var el = document.getElementById(id); if (el) el.value = '';
+  });
+};
+
+window.prepareRawMaterialScreen = function() {
+  var titleEl = document.getElementById('factoryInventoryModalTitle');
+  if (titleEl) titleEl.textContent = 'Add Raw Material';
+  var delBtn = document.getElementById('deleteFactoryInventoryBtn');
+  if (delBtn) delBtn.style.display = 'none';
+  if (typeof clearFactoryInventoryForm === 'function') clearFactoryInventoryForm();
+  var qtyInput = document.getElementById('factoryMaterialQuantity');
+  var conversionInput = document.getElementById('factoryMaterialConversionFactor');
+  var costInput = document.getElementById('factoryMaterialCost');
+  if (qtyInput && conversionInput && costInput && typeof updateFactoryKgCalculation === 'function') {
+    qtyInput.removeEventListener('input', updateFactoryKgCalculation);
+    conversionInput.removeEventListener('input', updateFactoryKgCalculation);
+    costInput.removeEventListener('input', updateFactoryKgCalculation);
+    qtyInput.addEventListener('input', updateFactoryKgCalculation);
+    conversionInput.addEventListener('input', updateFactoryKgCalculation);
+    costInput.addEventListener('input', updateFactoryKgCalculation);
+  }
+};
+
+window._origOpenFactoryInventoryModal = window.openFactoryInventoryModal;
+window.openFactoryInventoryModal = function() {
+  prepareRawMaterialScreen();
+  openStandaloneScreen('raw-material-screen');
+};
+window.closeFactoryInventoryModal = function() { closeStandaloneScreen('raw-material-screen'); };
+
+window._origOpenFactorySettings = window.openFactorySettings;
+
+async function _loadFormulaScreen(store) {
+  window.currentFactorySettingsStore = store;
+  if (typeof selectFactoryStore === 'function') selectFactoryStore(store, null);
+
+  if (store === 'asaan') {
+    // Load all formula data directly from SQLite for the asaan screen
+    try {
+      var loadedFormulas = await sqliteStore.get('factory_default_formulas');
+      var loadedCosts    = await sqliteStore.get('factory_additional_costs');
+      var loadedFactor   = await sqliteStore.get('factory_cost_adjustment_factor');
+      var loadedPrices   = await sqliteStore.get('factory_sale_prices');
+      var loadedTracking = await sqliteStore.get('factory_unit_tracking');
+      var inventoryData  = await sqliteStore.get('factory_inventory_data');
+
+      var asaanFormula    = (loadedFormulas && loadedFormulas.asaan)   || [];
+      var asaanAddlCost   = (loadedCosts   && loadedCosts.asaan   != null) ? loadedCosts.asaan   : 0;
+      var asaanFactor     = (loadedFactor  && loadedFactor.asaan  != null) ? loadedFactor.asaan  : 1;
+      var stdPrice        = (loadedPrices  && loadedPrices.standard != null) ? loadedPrices.standard : 0;
+      var asaanPrice      = (loadedPrices  && loadedPrices.asaan   != null) ? loadedPrices.asaan   : 0;
+      var asaanAvailable  = (loadedTracking && loadedTracking.asaan) ? loadedTracking.asaan.available : 0;
+
+      // Populate asaan input fields
+      var acpuA = document.getElementById('additional-cost-per-unit-asaan');
+      var cafA  = document.getElementById('cost-adjustment-factor-asaan');
+      var spSA  = document.getElementById('sale-price-standard-asaan');
+      var spAO  = document.getElementById('sale-price-asaan-only');
+      if (acpuA) acpuA.value = asaanAddlCost;
+      if (cafA)  cafA.value  = asaanFactor;
+      if (spSA)  spSA.value  = stdPrice;
+      if (spAO)  spAO.value  = asaanPrice;
+
+      // Populate asaan material rows directly from saved asaan formula
+      var dstContainer = document.getElementById('factoryRawMaterialsContainerAsaan');
+      if (dstContainer) {
+        dstContainer.replaceChildren();
+        var safeInventory = Array.isArray(inventoryData) ? inventoryData : [];
+        for (var ing of asaanFormula) {
+          if (typeof createFactorySettingRow === 'function') {
+            await createFactorySettingRow(dstContainer, ing.id, ing.quantity, ing.cost, ing.name, safeInventory);
+          }
+        }
+      }
+
+      // Update summary stats
+      var totalRawCost = 0, totalWeight = 0;
+      asaanFormula.forEach(function(ing) {
+        totalRawCost += (ing.cost * ing.quantity);
+        totalWeight  += ing.quantity;
+      });
+      var perUnitCost    = totalRawCost + asaanAddlCost;
+      var salesCostPerKg = asaanFactor > 0 ? perUnitCost / asaanFactor : perUnitCost;
+      var _set = function(id, val) { var el = document.getElementById(id); if (el) el.innerText = val; };
+      _set('factorySettingsUnitWeightAsaan',    (parseFloat(totalWeight) || 0).toFixed(2) + ' kg');
+      _set('factorySettingsRawCostPerUnitAsaan', totalRawCost.toFixed(2));
+      _set('factorySettingsPerUnitAsaan',        perUnitCost.toFixed(2));
+      _set('factorySettingsAvailableUnitsAsaan', asaanAvailable);
+      _set('factorySettingsSalesCostPerKgAsaan', salesCostPerKg.toFixed(2));
+    } catch(e) {
+      console.error('[_loadFormulaScreen asaan]', e);
+    }
+  } else {
+    // Standard screen — use the existing factory.js logic
+    if (window._origOpenFactorySettings) {
+      try { await window._origOpenFactorySettings.call(window); } catch(e) {}
+    }
+  }
+}
+
+window.openFactorySettings = async function(store) {
+  var targetScreen = (store === 'asaan') ? 'formula-asaan-screen' : 'formula-standard-screen';
+  openStandaloneScreen(targetScreen);
+  await _loadFormulaScreen(store || 'standard');
+};
+window.closeFactorySettings = function() {
+  closeStandaloneScreen('formula-standard-screen');
+  closeStandaloneScreen('formula-asaan-screen');
+};
+
+window.saveFactoryFormulasAsaan = async function() {
+  try {
+    var acpuA = document.getElementById('additional-cost-per-unit-asaan');
+    var cafA  = document.getElementById('cost-adjustment-factor-asaan');
+    var spSA  = document.getElementById('sale-price-standard-asaan');
+    var spAO  = document.getElementById('sale-price-asaan-only');
+    var container = document.getElementById('factoryRawMaterialsContainerAsaan');
+
+    // Read asaan formula rows directly from the DOM
+    var newAsaanFormula = [];
+    if (container) {
+      var inventoryData = await sqliteStore.get('factory_inventory_data') || [];
+      container.querySelectorAll('.factory-formula-grid').forEach(function(row) {
+        var sel    = row.querySelector('.factory-mat-select');
+        var costIn = row.querySelector('.factory-mat-cost');
+        var qtyIn  = row.querySelector('.factory-mat-qty');
+        if (sel && sel.value && qtyIn && parseFloat(qtyIn.value) > 0) {
+          var selectedOpt = sel.options[sel.selectedIndex];
+          var itemName = selectedOpt ? selectedOpt.textContent.trim() : '';
+          if (itemName) {
+            var resolvedId = sel.value;
+            var liveMatch = inventoryData.find(function(i) { return String(i.id) === String(sel.value); });
+            if (!liveMatch && itemName) {
+              var nameMatch = inventoryData.find(function(i) { return i.name && i.name.trim().toLowerCase() === itemName.toLowerCase(); });
+              if (nameMatch) resolvedId = nameMatch.id;
+            }
+            newAsaanFormula.push({
+              id: resolvedId,
+              name: itemName,
+              cost: parseFloat(costIn ? costIn.value : 0) || 0,
+              quantity: parseFloat(qtyIn.value)
+            });
+          }
+        }
+      });
+    }
+
+    // Load existing data and update only asaan keys
+    var _rawFormulas = await sqliteStore.get('factory_default_formulas') || {};
+    var _rawCosts    = await sqliteStore.get('factory_additional_costs')  || {};
+    var _rawFactor   = await sqliteStore.get('factory_cost_adjustment_factor') || {};
+    var _rawPrices   = await sqliteStore.get('factory_sale_prices') || {};
+
+    _rawFormulas.asaan = newAsaanFormula;
+    _rawCosts.asaan    = parseFloat(acpuA ? acpuA.value : 0) || 0;
+    _rawFactor.asaan   = parseFloat(cafA  ? cafA.value  : 1) || 1;
+    _rawPrices.standard = parseFloat(spSA ? spSA.value : 0) || 0;
+    _rawPrices.asaan    = parseFloat(spAO ? spAO.value : 0) || 0;
+
+    await sqliteStore.set('factory_default_formulas',       _rawFormulas);
+    await sqliteStore.set('factory_additional_costs',       _rawCosts);
+    await sqliteStore.set('factory_cost_adjustment_factor', _rawFactor);
+    await sqliteStore.set('factory_sale_prices',            _rawPrices);
+
+    if (typeof showToast === 'function') showToast('Asaan formula saved.', 'success');
+    if (typeof triggerAutoSync === 'function') triggerAutoSync();
+  } catch(e) {
+    console.error('[saveFactoryFormulasAsaan]', e);
+    if (typeof showToast === 'function') showToast('Failed to save Asaan formula.', 'error');
+  }
+};
+
+window.addFactoryMaterialRowAsaan = async function() {
+  var container = document.getElementById('factoryRawMaterialsContainerAsaan');
+  if (!container) return;
+  if (typeof createFactorySettingRow === 'function') {
+    await createFactorySettingRow(container);
+  }
+};
+
+window.updateFactoryFormulasSummaryAsaan = function() {
+  var acpuA = document.getElementById('additional-cost-per-unit-asaan');
+  var cafA  = document.getElementById('cost-adjustment-factor-asaan');
+  var srcContainer = document.getElementById('factoryRawMaterialsContainerAsaan');
+  var rawCost = 0, weight = 0;
+  if (srcContainer) {
+    srcContainer.querySelectorAll('.factory-formula-grid').forEach(function(row) {
+      var costEl = row.querySelector('.factory-mat-cost');
+      var qtyEl  = row.querySelector('.factory-mat-qty');
+      if (costEl && qtyEl) {
+        rawCost += (parseFloat(costEl.value) || 0) * (parseFloat(qtyEl.value) || 0);
+        weight  += parseFloat(qtyEl.value) || 0;
+      }
+    });
+  }
+  var additionalCost   = parseFloat(acpuA ? acpuA.value : 0) || 0;
+  var adjustmentFactor = parseFloat(cafA  ? cafA.value  : 1) || 1;
+  var perUnitCost      = rawCost + additionalCost;
+  var salesCostPerKg   = adjustmentFactor > 0 ? perUnitCost / adjustmentFactor : perUnitCost;
+  var setVal = function(id, val) { var el = document.getElementById(id); if (el) el.innerText = val; };
+  setVal('factorySettingsUnitWeightAsaan',    weight.toFixed(2) + ' kg');
+  setVal('factorySettingsRawCostPerUnitAsaan', rawCost.toFixed(2));
+  setVal('factorySettingsPerUnitAsaan',        perUnitCost.toFixed(2));
+  setVal('factorySettingsSalesCostPerKgAsaan', salesCostPerKg.toFixed(2));
+};
+
+window.openManageRepsModal = function() {
+  openStandaloneScreen('sales-rep-screen');
+  if (typeof renderManageRepsList === 'function') renderManageRepsList();
+};
+window.closeManageRepsModal = function() {
+  closeStandaloneScreen('sales-rep-screen');
+  closeStandaloneScreen('user-roles-screen');
+  closeStandaloneScreen('app-accounts-screen');
+};
+window.loadManageRepsContent = function() {
+  if (typeof renderManageRepsList === 'function') renderManageRepsList();
+};
+
+window.loadDbStructureScreen = async function() {
+  var container = document.getElementById('delta-sync-details-container');
+  if (!container) return;
+  container.innerHTML = '<div style="color:var(--text-muted);padding:32px 20px;text-align:center;font-size:0.82rem;"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:block;margin:0 auto 12px;opacity:0.4"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>Loading database structure…</div>';
+  var showFn = window._showDeltaSyncDetails || window.showDeltaSyncDetails;
+  if (!showFn) {
+    container.innerHTML = '<div style="color:var(--text-muted);padding:20px;text-align:center;font-size:0.82rem;">Requires an active Firestore connection.</div>';
+    return;
+  }
+  var originalAppend = document.body.appendChild.bind(document.body);
+  var capturedModal = null;
+  document.body.appendChild = function(el) {
+    if (el && el.id === 'delta-stats-modal') {
+      document.body.appendChild = originalAppend;
+      el.style.display = 'none';
+      capturedModal = el;
+      return originalAppend(el);
+    }
+    return originalAppend(el);
+  };
+  try {
+    await showFn();
+    if (capturedModal) {
+      var inner = capturedModal.querySelector('[style*="background: var(--glass)"]') || capturedModal.firstElementChild;
+      if (inner) {
+        container.innerHTML = inner.innerHTML;
+      } else {
+        container.innerHTML = '<div style="color:var(--text-muted);padding:20px;text-align:center;">No content returned.</div>';
+      }
+      capturedModal.remove();
+    } else {
+      container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text-muted);"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:block;margin:0 auto 12px;opacity:0.35"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg><div style="font-size:0.82rem;font-weight:600;margin-bottom:6px;">Sign in required</div><div style="font-size:0.73rem;">Database structure requires an active Firestore connection.</div></div>';
+    }
+  } catch(e) {
+    document.body.appendChild = originalAppend;
+    container.innerHTML = '<div style="color:var(--danger);padding:20px;font-size:0.82rem;">Error: ' + (e.message || 'Unknown error') + '</div>';
+    if (capturedModal) capturedModal.remove();
+  }
+  setTimeout(function() { document.body.appendChild = originalAppend; }, 2000);
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+  var platEl = document.getElementById('device-platform-display');
+  if (platEl) platEl.textContent = /Mobile|Android|iPhone|iPad/.test(navigator.userAgent) ? 'Mobile' : 'Desktop';
+  var screenEl = document.getElementById('device-screen-display');
+  if (screenEl) screenEl.textContent = window.screen.width + 'x' + window.screen.height;
+
+  document.querySelectorAll('.sidebar-nav-btn').forEach(function(b) { b.classList.remove('active'); });
+  var firstActive = document.getElementById('snav-prod');
+  if (firstActive) firstActive.classList.add('active');
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      closeSidebar();
+    }
+  });
+
+  window.addEventListener('popstate', function(e) {
+    if (e.state && e.state._standaloneScreen) return; // handled by standalone screen nav
+    closeSidebar();
+  });
+
+  var origOpenDevice = window.openStandaloneScreen;
+  window.openStandaloneScreen = function(id) {
+    origOpenDevice(id);
+    if (id === 'device-display-screen') {
+      setTimeout(function() {
+        if (typeof loadDeviceList === 'function') loadDeviceList();
+      }, 150);
+    }
+  };
+});
+
+})();
+</script>
 </body>
 </html>

@@ -127,18 +127,24 @@ var Eb=(a,b)=>(Eb=Z.Ba)(a,b),ua=a=>(ua=Z.Ca)(a),y=a=>(y=Z.Da)(a),ra=()=>(ra=Z.Ea
 function Yc(){function a(){if(!Wc&&(Wc=!0,f.calledRun=!0,!Ka)){f.noFSInit||ec||(ec=!0,f.stdin=f.stdin,f.stdout=f.stdout,f.stderr=f.stderr,f.stdin?Fc("stdin",f.stdin):Xb("/dev/tty","/dev/stdin"),f.stdout?Fc("stdout",null,f.stdout):Xb("/dev/tty","/dev/stdout"),f.stderr?Fc("stderr",null,f.stderr):Xb("/dev/tty1","/dev/stderr"),na("/dev/stdin",0),na("/dev/stdout",1),na("/dev/stderr",1));Jb=!1;cb(Qa);f.onRuntimeInitialized?.();if(f.postRun)for("function"==typeof f.postRun&&(f.postRun=[f.postRun]);f.postRun.length;){var b=
 f.postRun.shift();Sa.unshift(b)}cb(Sa)}}if(!(0<Ua)){if(f.preRun)for("function"==typeof f.preRun&&(f.preRun=[f.preRun]);f.preRun.length;)Ta();cb(Pa);0<Ua||(f.setStatus?(f.setStatus("Running..."),setTimeout(function(){setTimeout(function(){f.setStatus("")},1);a()},1)):a())}}if(f.preInit)for("function"==typeof f.preInit&&(f.preInit=[f.preInit]);0<f.preInit.length;)f.preInit.pop()();Yc();
 
-        // The shell-pre.js and emcc-generated code goes above
+        
+
         return Module;
-    }); // The end of the promise being returned
+    }); 
+
 
   return initSqlJsPromise;
-} // The end of our initSqlJs function
+} 
 
-// This bit below is copied almost exactly from what you get when you use the MODULARIZE=1 flag with emcc
-// However, we don't want to use the emcc modularization. See shell-pre.js
+
+
+
+
+
 if (typeof exports === 'object' && typeof module === 'object'){
     module.exports = initSqlJs;
-    // This will allow the module to be used in ES6 or CommonJS
+    
+
     module.exports.default = initSqlJs;
 }
 else if (typeof define === 'function' && define['amd']) {

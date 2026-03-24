@@ -218,11 +218,6 @@ if (opts.strict !== true) {
 }
 await saveWithTracking(sqliteKey, dataArray);
 const collectionName = getFirestoreCollection(sqliteKey);
-// IMPORTANT: registerDeletion must be awaited OUTSIDE _syncQueue.run() because it
-// internally acquires _syncQueue itself. Calling it from within _syncQueue.run()
-// creates a promise-chain deadlock — the outer block awaits something that can only
-// run after the outer block completes — so deleted_records never gets updated and
-// deleteRecordFromFirestore never runs, leaving the record alive in Firestore.
 if (collectionName && typeof window.registerDeletion === 'function') {
   try {
     await window.registerDeletion(deletedRecordId, collectionName, preDeletedRecord || null);
@@ -231,7 +226,6 @@ if (collectionName && typeof window.registerDeletion === 'function') {
   }
 }
 
-// Only the Firestore delete goes in the queue — it has no nested queue calls.
 _syncQueue.run(async () => {
   try {
     await deleteRecordFromFirestore(sqliteKey, deletedRecordId);
@@ -1129,7 +1123,7 @@ emitSyncUpdate({ [col.sqliteKey]: null});
 if (col.tabSyncFn === 'syncFactoryTab' && typeof renderFactoryInventory === 'function') {
 renderFactoryInventory();
 } else if ((col.tabSyncFn === 'syncPaymentsTab' || col.tabSyncFn === 'refreshPaymentTab') && typeof renderUnifiedTable === 'function') {
-renderUnifiedTable();
+await renderUnifiedTable();
 } else if (col.tabSyncFn && typeof window[col.tabSyncFn] === 'function') {
 window[col.tabSyncFn]();
 }
@@ -1161,10 +1155,9 @@ _syncQueue.run(async () => {
 
 function _updateArray(array, docData, collectionName) {
   if (docData._placeholder || docData.id === '_placeholder_') return array;
-  if (!docData.id || !validateUUID(String(docData.id))) {
+  if (!docData.id) {
     docData = ensureRecordIntegrity(docData, false, true);
   }
-  docData = ensureRecordIntegrity(docData, false, true);
   const sid = String(docData.id);
 
   const existingIdx_pre = array.findIndex(item => item && item.id === docData.id);
@@ -2590,9 +2583,9 @@ async function _doPushDataToCloud(silent = false) {
 
   try {
     if (!silent) {
-      const menuBtn = document.querySelector('#dataMenuOverlay .btn-main');
-      if (menuBtn) { btn = menuBtn; originalText = btn.innerText; btn.textContent = ' Uploading...'; btn.disabled = true; }
-      else showToast(' Starting upload...', 'info');
+      const menuBtn = document.getElementById('sync-btn') || document.querySelector('#sync-data-screen .btn-main');
+      if (menuBtn) { btn = menuBtn; originalText = btn.innerText; btn.textContent = 'Uploading...'; btn.disabled = true; }
+      else showToast('Starting upload...', 'info');
     }
 
     await sqliteStore.init();
@@ -2756,7 +2749,7 @@ async function showSyncHealthPanel() {
     panel.id = 'sync-health-panel';
     panel.setAttribute('role', 'dialog');
     panel.style.cssText = `
-      position:fixed;bottom:20px;right:20px;z-index:9999;
+      position:fixed;bottom:20px;right:20px;z-index:10300;
       background:var(--glass-bg,#1e293b);border:1px solid var(--glass-border,#334155);
       border-radius:16px;padding:20px 24px;min-width:280px;max-width:360px;
       box-shadow:0 8px 32px rgba(0,0,0,.4);color:var(--text-main,#f1f5f9);font-size:.85rem;
@@ -2764,8 +2757,6 @@ async function showSyncHealthPanel() {
     panel.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <strong style="font-size:.95rem">Sync Health</strong>
-        <button onclick="document.getElementById('sync-health-panel').remove()"
-          style="background:none;border:none;color:var(--text-muted,#94a3b8);cursor:pointer;font-size:1.1rem">✕</button>
       </div>
       <div style="margin-bottom:8px">
         <span style="color:#10b981">✔ ${ok} collections OK</span>
