@@ -1123,8 +1123,9 @@ if (btn) btn.disabled = false;
 async function exportRepCustomerToPDF() {
 const repSales = ensureArray(await sqliteStore.get('rep_sales'));
 const repCustomers = ensureArray(await sqliteStore.get('rep_customers'));
-if (!currentManagingRepCustomer) { showToast('No rep customer selected', 'warning'); return; }
-const customerName = currentManagingRepCustomer.trim();
+const titleElement = document.getElementById('repManageCustomerTitle');
+if (!titleElement) { showToast('No rep customer selected', 'warning'); return; }
+const customerName = titleElement.innerText.trim();
 if (!customerName) { showToast('No rep customer selected', 'warning'); return; }
 const rangeSelect = document.getElementById('repCustomerPdfRange');
 const range = rangeSelect ? rangeSelect.value : 'all';
@@ -1195,29 +1196,28 @@ const phone = repContact?.phone || transactions.find(t => t.customerPhone)?.cust
 const address = repContact?.address || 'N/A';
 const { jsPDF } = window.jspdf;
 const doc = new jsPDF('p', 'mm', 'a4');
-setupUrduFont(doc);
 const pageW = doc.internal.pageSize.getWidth();
 const hdrColor = [79, 70, 229];
 doc.setFillColor(...hdrColor);
 doc.rect(0, 0, pageW, 22, 'F');
-doc.setFontSize(16); doc.setFont('FreeSerifUrdu', 'bold'); doc.setTextColor(255, 255, 255);
+doc.setFontSize(16); doc.setFont(undefined, 'bold'); doc.setTextColor(255, 255, 255);
 doc.text('GULL AND ZUBAIR NASWAR DEALERS', pageW / 2, 10, { align: 'center' });
-doc.setFontSize(9); doc.setFont('FreeSerifUrdu', 'normal');
-doc.text('Naswar Manufacturers & Dealers', pageW / 2, 17, { align: 'center' });
+doc.setFontSize(9); doc.setFont(undefined, 'normal');
+doc.text('Naswar Manufacturers & Dealers · Rep Sales Statement', pageW / 2, 17, { align: 'center' });
 const rangeName = range === 'all' ? 'All Time' : range === 'today' ? 'Today' :
 range === 'week' ? 'This Week' : range === 'month' ? 'This Month' : 'This Year';
-doc.setFontSize(12); doc.setFont('FreeSerifUrdu', 'bold'); doc.setTextColor(50, 50, 50);
+doc.setFontSize(12); doc.setFont(undefined, 'bold'); doc.setTextColor(50, 50, 50);
 doc.text(`Rep Customer Account Statement · ${rangeName}`, pageW / 2, 30, { align: 'center' });
-doc.setFontSize(9); doc.setFont('FreeSerifUrdu', 'normal'); doc.setTextColor(80, 80, 80);
+doc.setFontSize(9); doc.setFont(undefined, 'normal'); doc.setTextColor(80, 80, 80);
 let yPos = 38;
-doc.setFont('FreeSerifUrdu', 'bold'); doc.text('Customer:', 14, yPos);
-doc.setFont('FreeSerifUrdu', 'normal'); doc.text(customerName, 36, yPos);
-doc.setFont('FreeSerifUrdu', 'bold'); doc.text('Phone:', 14, yPos + 5);
-doc.setFont('FreeSerifUrdu', 'normal'); doc.text(phone, 36, yPos + 5);
-doc.setFont('FreeSerifUrdu', 'bold'); doc.text('Sales Rep:', 14, yPos + 10);
-doc.setFont('FreeSerifUrdu', 'normal'); doc.text(currentRepProfile || 'N/A', 36, yPos + 10);
-doc.setFont('FreeSerifUrdu', 'bold'); doc.text('Generated:', pageW / 2, yPos);
-doc.setFont('FreeSerifUrdu', 'normal');
+doc.setFont(undefined, 'bold'); doc.text('Customer:', 14, yPos);
+doc.setFont(undefined, 'normal'); doc.text(customerName, 36, yPos);
+doc.setFont(undefined, 'bold'); doc.text('Phone:', 14, yPos + 5);
+doc.setFont(undefined, 'normal'); doc.text(phone, 36, yPos + 5);
+doc.setFont(undefined, 'bold'); doc.text('Sales Rep:', 14, yPos + 10);
+doc.setFont(undefined, 'normal'); doc.text(currentRepProfile || 'N/A', 36, yPos + 10);
+doc.setFont(undefined, 'bold'); doc.text('Generated:', pageW / 2, yPos);
+doc.setFont(undefined, 'normal');
 doc.text(now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }), pageW / 2 + 22, yPos);
 yPos += 18;
 doc.setDrawColor(...hdrColor); doc.setLineWidth(0.5);
@@ -1232,42 +1232,42 @@ const unitPrice = (t.unitPrice && t.unitPrice > 0) ? t.unitPrice : getSalePriceF
 if (isOldDebt) {
 debit = parseFloat(t.totalValue) || 0;
 credit = parseFloat(t.partialPaymentReceived) || 0;
-typeLabel = shapeUrdu('پرانا قرض');
-detailLabel = t.notes || shapeUrdu('پرانے ریکارڈ سے لایا گیا');
+typeLabel = 'OLD DEBT';
+detailLabel = t.notes || 'Brought forward from previous records';
 } else if (pt === 'CASH') {
 const val = t.totalValue || 0;
 debit = val; credit = val;
-typeLabel = shapeUrdu('نقد');
+typeLabel = 'CASH';
 detailLabel = `${fmtAmt(t.quantity||0)} kg × Rs ${fmtAmt(unitPrice)}`;
 } else if (pt === 'CREDIT' && !t.creditReceived) {
 const val = t.totalValue || 0;
 const partial = parseFloat(t.partialPaymentReceived) || 0;
 debit = val; credit = partial;
-typeLabel = partial > 0 ? shapeUrdu('ادھار\n(کچھ ادا)') : shapeUrdu('ادھار');
+typeLabel = partial > 0 ? 'CREDIT\n(PARTIAL)' : 'CREDIT';
 detailLabel = `${fmtAmt(t.quantity||0)} kg × Rs ${fmtAmt(unitPrice)}`;
-if (partial > 0) detailLabel += shapeUrdu(`\nدیا: Rs ${fmtAmt(partial)} | باقی: Rs ${fmtAmt(val-partial)}`);
+if (partial > 0) detailLabel += `\nPaid: Rs ${fmtAmt(partial)} | Due: Rs ${fmtAmt(val-partial)}`;
 } else if (pt === 'CREDIT' && t.creditReceived) {
 const val = t.totalValue || 0;
 debit = val; credit = val;
-typeLabel = shapeUrdu('ادھار\n(ادا)');
+typeLabel = 'CREDIT\n(PAID)';
 detailLabel = `${fmtAmt(t.quantity||0)} kg × Rs ${fmtAmt(unitPrice)}`;
 displayDate = formatDisplayDate(t.creditReceivedDate || t.date);
 } else if (pt === 'COLLECTION') {
 credit = parseFloat(t.totalValue) || 0;
-typeLabel = shapeUrdu('وصولی');
-detailLabel = shapeUrdu('نقد رقم ملی');
+typeLabel = 'COLLECTION';
+detailLabel = 'Cash payment received';
 displayDate = formatDisplayDate(t.creditReceivedDate || t.date);
 } else if (pt === 'PARTIAL_PAYMENT') {
 credit = parseFloat(t.totalValue) || 0;
-typeLabel = shapeUrdu('کچھ\nادائیگی');
-detailLabel = shapeUrdu('کچھ رقم ملی');
+typeLabel = 'PARTIAL\nPAYMENT';
+detailLabel = 'Partial payment received';
 displayDate = formatDisplayDate(t.creditReceivedDate || t.date);
 }
 runBal.val += (debit - credit);
 let balDisplay;
-if (Math.abs(runBal.val) < 0.01) balDisplay = shapeUrdu('چکتا');
+if (Math.abs(runBal.val) < 0.01) balDisplay = 'SETTLED';
 else if (runBal.val > 0) balDisplay = 'Rs ' + fmtAmt(runBal.val);
-else balDisplay = shapeUrdu('زیادہ دیا\nRs ') + fmtAmt(Math.abs(runBal.val));
+else balDisplay = 'OVERPAID\nRs ' + fmtAmt(Math.abs(runBal.val));
 return { row: [displayDate, typeLabel, detailLabel.substring(0,55),
 debit>0?'Rs '+fmtAmt(debit):'-', credit>0?'Rs '+fmtAmt(credit):'-', balDisplay],
 debit, credit, qty: t.quantity||0 };
@@ -1287,20 +1287,20 @@ totQty += r.qty;
 // Prepend opening balance row when a period is selected and prior data exists
 if (repHasPrior) {
   const obAbs = Math.abs(repOpeningBalance);
-  const obDisplay = obAbs < 0.01 ? shapeUrdu('چکتا') : 'Rs ' + fmtAmt(obAbs);
+  const obDisplay = obAbs < 0.01 ? 'SETTLED' : 'Rs ' + fmtAmt(obAbs);
   txRows.unshift([
-    shapeUrdu('پہلے کا'), '—',
-    shapeUrdu('پرانا باقی\n(اس مدت سے پہلے کے سب لین دین)'),
+    'Prior', '—',
+    'Opening Balance\n(All activity before this period)',
     '-', '-', obDisplay
   ]);
 }
 const finalBal = (repHasPrior ? repOpeningBalance : 0) + totDebit - totCredit;
-txRows.push([shapeUrdu('کل'), '', shapeUrdu(`${fmtAmt(totQty)} kg کل`),
+txRows.push(['TOTALS', '', `${fmtAmt(totQty)} kg total`,
 'Rs '+fmtAmt(totDebit), 'Rs '+fmtAmt(totCredit),
-Math.abs(finalBal)<0.01?shapeUrdu('چکتا'):(finalBal>0?'Rs '+fmtAmt(finalBal):shapeUrdu('زیادہ دیا\nRs ')+fmtAmt(Math.abs(finalBal)))]);
+Math.abs(finalBal)<0.01?'SETTLED':(finalBal>0?'DUE\nRs '+fmtAmt(finalBal):'OVERPAID\nRs '+fmtAmt(Math.abs(finalBal)))]);
 doc.autoTable({
 startY: yPos,
-head: [[shapeUrdu('تاریخ'), shapeUrdu('قسم'), shapeUrdu('تفصیل'), shapeUrdu('ادھار (فروخت)'), shapeUrdu('جمع (ملی)'), shapeUrdu('باقی')]],
+head: [['Date', 'Type', 'Details', 'Debit (Sale)', 'Credit (Rcvd)', 'Balance']],
 body: txRows,
 theme: 'grid',
 headStyles: { fillColor: hdrColor, textColor: 255, fontSize: 8.5, fontStyle: 'bold', halign: 'center' },
@@ -1324,16 +1324,16 @@ if (isOpeningRow) {
 if (!isOpeningRow && !isTotal) {
   if (data.column.index===1){
     const txt=(data.cell.text||[]).join('');
-    if(txt.includes(shapeUrdu('نقد'))) data.cell.styles.textColor=[40,167,69];
-    if(txt.includes(shapeUrdu('ادھار'))) data.cell.styles.textColor=[200,100,0];
-    if(txt.includes(shapeUrdu('وصولی'))) data.cell.styles.textColor=[40,167,69];
-    if(txt.includes(shapeUrdu('کچھ'))) data.cell.styles.textColor=[200,100,0];
-    if(txt.includes(shapeUrdu('پرانا قرض'))) data.cell.styles.textColor=[220,53,69];
+    if(txt.includes('CASH')) data.cell.styles.textColor=[40,167,69];
+    if(txt.includes('CREDIT')) data.cell.styles.textColor=[200,100,0];
+    if(txt.includes('COLLECTION')) data.cell.styles.textColor=[40,167,69];
+    if(txt.includes('PARTIAL')) data.cell.styles.textColor=[200,100,0];
+    if(txt.includes('OLD DEBT')) data.cell.styles.textColor=[220,53,69];
   }
   if (data.column.index===5){
     const txt=(data.cell.text||[]).join('');
-    if(txt===shapeUrdu('چکتا')) data.cell.styles.textColor=[100,100,100];
-    else if(txt.includes(shapeUrdu('زیادہ دیا'))) data.cell.styles.textColor=[40,167,69];
+    if(txt==='SETTLED') data.cell.styles.textColor=[100,100,100];
+    else if(txt.includes('OVERPAID')) data.cell.styles.textColor=[40,167,69];
     else data.cell.styles.textColor=[220,53,69];
   }
 }
@@ -1341,39 +1341,38 @@ if (!isOpeningRow && !isTotal) {
 margin: { left: 14, right: 14 }
 });
 const afterY = ((normalTxns.length > 0 || repHasPrior) ? doc.lastAutoTable.finalY : yPos - 5) + 5;
-if (afterY < 252) {
-const repBoxH = repHasPrior && Math.abs(repOpeningBalance) >= 0.01 ? 28 : 20;
+if (afterY < 268) {
 doc.setFillColor(240, 235, 255);
-doc.roundedRect(14, afterY, pageW - 28, repBoxH, 2, 2, 'F');
+doc.roundedRect(14, afterY, pageW - 28, 20, 2, 2, 'F');
 doc.setDrawColor(...hdrColor); doc.setLineWidth(0.3);
-doc.roundedRect(14, afterY, pageW - 28, repBoxH, 2, 2, 'S');
-doc.setFontSize(8); doc.setFont('FreeSerifUrdu', 'normal');
+doc.roundedRect(14, afterY, pageW - 28, 20, 2, 2, 'S');
+doc.setFontSize(8); doc.setFont(undefined, 'normal');
 if (repHasPrior && Math.abs(repOpeningBalance) >= 0.01) {
   const repObSign = repOpeningBalance > 0 ? '+' : '-';
   doc.setTextColor(30, 80, 160);
-  doc.text(shapeUrdu(`پرانا باقی: ${repObSign}Rs ${fmtAmt(Math.abs(repOpeningBalance))}`), pageW / 2, afterY + 7, { align: 'center' });
+  doc.text(`Opening Bal: ${repObSign}Rs ${fmtAmt(Math.abs(repOpeningBalance))}`, 20, afterY + 7);
   doc.setTextColor(220, 53, 69);
-  doc.text(shapeUrdu(`اس مدت میں ادھار: Rs ${fmtAmt(totDebit)}`), pageW / 4, afterY + 15, { align: 'center' });
+  doc.text(`Period Debit: Rs ${fmtAmt(totDebit)}`, 75, afterY + 7);
   doc.setTextColor(40, 167, 69);
-  doc.text(shapeUrdu(`اس مدت میں ملی: Rs ${fmtAmt(totCredit)}`), (pageW * 3) / 4, afterY + 15, { align: 'center' });
+  doc.text(`Period Credit: Rs ${fmtAmt(totCredit)}`, 130, afterY + 7);
 } else {
   doc.setTextColor(220, 53, 69);
-  doc.text(shapeUrdu(`کل ادھار (فروخت): Rs ${fmtAmt(totDebit)}`), pageW / 4, afterY + 8, { align: 'center' });
+  doc.text(`Total Debit (Sales): Rs ${fmtAmt(totDebit)}`, 20, afterY + 7);
   doc.setTextColor(40, 167, 69);
-  doc.text(shapeUrdu(`کل ملی (وصولی): Rs ${fmtAmt(totCredit)}`), (pageW * 3) / 4, afterY + 8, { align: 'center' });
+  doc.text(`Total Credit (Rcvd): Rs ${fmtAmt(totCredit)}`, 20, afterY + 14);
 }
-doc.setFont('FreeSerifUrdu', 'bold');
-const balStr = Math.abs(finalBal) < 0.01 ? shapeUrdu('چکتا')
-: finalBal > 0 ? shapeUrdu(`باقی واجب الادا: Rs ${fmtAmt(finalBal)}`)
-: shapeUrdu(`زیادہ ادا: Rs ${fmtAmt(Math.abs(finalBal))}`);
+doc.setFont(undefined, 'bold');
+const balStr = Math.abs(finalBal) < 0.01 ? 'SETTLED'
+: finalBal > 0 ? `Outstanding Due: Rs ${fmtAmt(finalBal)}`
+: `Overpaid by: Rs ${fmtAmt(Math.abs(finalBal))}`;
 doc.setTextColor(Math.abs(finalBal)<0.01?100:finalBal>0?220:40,
 Math.abs(finalBal)<0.01?100:finalBal>0?53:167,
 Math.abs(finalBal)<0.01?100:69);
-doc.text(balStr, pageW / 2, afterY + (repHasPrior && Math.abs(repOpeningBalance) >= 0.01 ? 23 : 15), { align: 'center' });
+doc.text(balStr, 110, afterY + (repHasPrior ? 7 : 10.5));
 }
 } else {
-doc.setFont('FreeSerifUrdu', 'normal'); doc.setFontSize(10); doc.setTextColor(150);
-doc.text(shapeUrdu('اس وقت کے لیے کوئی لین دین نہیں ملا۔'), pageW / 2, yPos + 15, { align: 'center' });
+doc.setFont(undefined, 'normal'); doc.setFontSize(10); doc.setTextColor(150);
+doc.text('No transactions recorded for this period.', pageW / 2, yPos + 15, { align: 'center' });
 }
 const pageCount = doc.internal.getNumberOfPages();
 for (let i = 1; i <= pageCount; i++) {
@@ -1383,7 +1382,7 @@ doc.text(
 `Generated on ${now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} at ${now.toLocaleTimeString('en-US')} | GULL AND ZUBAIR NASWAR DEALERS`,
 pageW / 2, 291, { align: 'center' }
 );
-doc.text(shapeUrdu(`صفحہ ${i} از ${pageCount}`), pageW / 2, 287, { align: 'center' });
+doc.text(`Page ${i} of ${pageCount}`, pageW / 2, 287, { align: 'center' });
 }
 await new Promise(r => setTimeout(r, 100));
 const dateStamp  = new Date().toISOString().split('T')[0];

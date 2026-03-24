@@ -2038,7 +2038,7 @@ function _pdfMergedPeriodLabel(record) {
 }
 function _pdfMergedCountLabel(record) {
   const cnt = record.mergedRecordCount || (record.mergedSummary && record.mergedSummary.recordCount);
-  return cnt ? shapeUrdu(`${cnt} لین دین اکٹھے`) : shapeUrdu('سال کے آخر میں ملائے');
+  return cnt ? `${cnt} txn${cnt !== 1 ? 's' : ''} merged` : 'year-end merge';
 }
 function _pdfDrawMergedSectionHeader(doc, yPos, pageW, label) {
   const purpleLight = [245, 235, 255];
@@ -2050,10 +2050,10 @@ function _pdfDrawMergedSectionHeader(doc, yPos, pageW, label) {
   doc.setLineWidth(0.4);
   doc.roundedRect(14, yPos, pageW - 28, 12, 2, 2, 'S');
   doc.setFontSize(8.5);
-  doc.setFont('FreeSerifUrdu', 'bold');
+  doc.setFont(undefined, 'bold');
   doc.setTextColor(...purpleDark);
-  doc.text('\u2605 ' + (label || shapeUrdu('سال کے آخر کا پرانا باقی — ملائے گئے')), 20, yPos + 8);
-  doc.setFont('FreeSerifUrdu', 'normal');
+  doc.text('\u2605 ' + (label || 'YEAR-END OPENING BALANCE — MERGED RECORDS'), 20, yPos + 8);
+  doc.setFont(undefined, 'normal');
   doc.setTextColor(80, 80, 80);
   return yPos + 16;
 }
@@ -2189,39 +2189,38 @@ const supplierMaterials = isSupplier
 : [];
 const { jsPDF } = window.jspdf;
 const doc = new jsPDF('p', 'mm', 'a4');
-setupUrduFont(doc);
 const pageW = doc.internal.pageSize.getWidth();
 doc.setFillColor(...headerColor);
 doc.rect(0, 0, pageW, 22, 'F');
-doc.setFontSize(16); doc.setFont('FreeSerifUrdu', 'bold'); doc.setTextColor(255, 255, 255);
+doc.setFontSize(16); doc.setFont(undefined, 'bold'); doc.setTextColor(255, 255, 255);
 doc.text('GULL AND ZUBAIR NASWAR DEALERS', pageW / 2, 10, { align: 'center' });
-doc.setFontSize(9); doc.setFont('FreeSerifUrdu', 'normal');
+doc.setFontSize(9); doc.setFont(undefined, 'normal');
 doc.text('Naswar Manufacturers & Dealers', pageW / 2, 17, { align: 'center' });
 const rangeName = range === 'all' ? 'All Time' : range === 'today' ? 'Today' :
 range === 'week' ? 'This Week' : range === 'month' ? 'This Month' : 'This Year';
-doc.setFontSize(12); doc.setFont('FreeSerifUrdu', 'bold'); doc.setTextColor(50, 50, 50);
+doc.setFontSize(12); doc.setFont(undefined, 'bold'); doc.setTextColor(50, 50, 50);
 doc.text(`Account Statement · ${rangeName}`, pageW / 2, 30, { align: 'center' });
-doc.setFontSize(9); doc.setFont('FreeSerifUrdu', 'normal'); doc.setTextColor(80, 80, 80);
+doc.setFontSize(9); doc.setFont(undefined, 'normal'); doc.setTextColor(80, 80, 80);
 let yPos = 38;
-doc.setFont('FreeSerifUrdu', 'bold'); doc.text('Name:', 14, yPos);
-doc.setFont('FreeSerifUrdu', 'normal'); doc.text(entity.name, 32, yPos);
-doc.setFont('FreeSerifUrdu', 'bold'); doc.text('Phone:', 14, yPos + 5);
-doc.setFont('FreeSerifUrdu', 'normal'); doc.text(entity.phone || 'N/A', 32, yPos + 5);
+doc.setFont(undefined, 'bold'); doc.text('Name:', 14, yPos);
+doc.setFont(undefined, 'normal'); doc.text(entity.name, 32, yPos);
+doc.setFont(undefined, 'bold'); doc.text('Phone:', 14, yPos + 5);
+doc.setFont(undefined, 'normal'); doc.text(entity.phone || 'N/A', 32, yPos + 5);
 if (entity.wallet) {
-doc.setFont('FreeSerifUrdu', 'bold'); doc.text('Wallet/Account:', pageW / 2, yPos);
-doc.setFont('FreeSerifUrdu', 'normal'); doc.text(entity.wallet, pageW / 2 + 30, yPos);
+doc.setFont(undefined, 'bold'); doc.text('Wallet/Account:', pageW / 2, yPos);
+doc.setFont(undefined, 'normal'); doc.text(entity.wallet, pageW / 2 + 30, yPos);
 }
-doc.setFont('FreeSerifUrdu', 'bold'); doc.text('Generated:', pageW / 2, yPos + 5);
-doc.setFont('FreeSerifUrdu', 'normal');
+doc.setFont(undefined, 'bold'); doc.text('Generated:', pageW / 2, yPos + 5);
+doc.setFont(undefined, 'normal');
 doc.text(now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }), pageW / 2 + 22, yPos + 5);
 yPos += 18;
 doc.setDrawColor(...headerColor); doc.setLineWidth(0.5);
 doc.line(14, yPos, pageW - 14, yPos);
 yPos += 5;
 if (transactions.length > 0 || priorTxns.length > 0) {
-doc.setFontSize(9); doc.setFont('FreeSerifUrdu', 'bold'); doc.setTextColor(...headerColor);
-doc.text(shapeUrdu('ادائیگیاں'), 14, yPos);
-doc.setTextColor(80, 80, 80); doc.setFont('FreeSerifUrdu', 'normal');
+doc.setFontSize(9); doc.setFont(undefined, 'bold'); doc.setTextColor(...headerColor);
+doc.text('PAYMENT TRANSACTIONS', 14, yPos);
+doc.setTextColor(80, 80, 80); doc.setFont(undefined, 'normal');
 yPos += 5;
 const mergedTxns  = transactions.filter(t => t.isMerged === true);
 const normalTxns  = transactions.filter(t => !t.isMerged);
@@ -2231,11 +2230,11 @@ const buildTxRow = (t, runBal) => {
   const isPayableTx = t.isPayable === true;
   runBal.val += isOut ? -amt : amt;
   let balDisplay;
-  if (Math.abs(runBal.val) < 0.01) balDisplay = shapeUrdu('چکتا');
+  if (Math.abs(runBal.val) < 0.01) balDisplay = 'SETTLED';
   else balDisplay = fmtAmt(Math.abs(runBal.val));
   let desc = (t.description || '-').substring(0, 35);
-  if (isPayableTx && !isOut) desc = shapeUrdu('\u21a9 ادھار خرید\n') + desc;
-  else if (isPayableTx && isOut) desc = shapeUrdu('\u2714 سپلائر ادائیگی\n') + desc;
+  if (isPayableTx && !isOut) desc = '\u21a9 Credit Purchase\n' + desc;
+  else if (isPayableTx && isOut) desc = '\u2714 Supplier Pmt\n' + desc;
   const typeLabel = isPayableTx && !isOut ? 'CR' : t.type;
   return [
     formatDisplayDate(t.date),
@@ -2247,15 +2246,15 @@ const buildTxRow = (t, runBal) => {
   ];
 };
 if (mergedTxns.length > 0) {
-  yPos = _pdfDrawMergedSectionHeader(doc, yPos, pageW, shapeUrdu('سال کے آخر کا پرانا باقی (آگے لایا گیا)'));
+  yPos = _pdfDrawMergedSectionHeader(doc, yPos, pageW, 'YEAR-END OPENING BALANCES (Carried Forward)');
   const mergedRunBal = { val: 0 };
   const mergedRows = mergedTxns.map(t => {
     const row = buildTxRow(t, mergedRunBal);
     const ms = t.mergedSummary || {};
     const periodLabel = _pdfMergedPeriodLabel(t);
     const countLabel  = _pdfMergedCountLabel(t);
-    const origIn  = ms.originalIn  != null ? shapeUrdu('آئی: ') + fmtAmt(ms.originalIn) : '';
-    const origOut = ms.originalOut != null ? shapeUrdu('گئی: ') + fmtAmt(ms.originalOut) : '';
+    const origIn  = ms.originalIn  != null ? 'In: ' + fmtAmt(ms.originalIn) : '';
+    const origOut = ms.originalOut != null ? 'Out: ' + fmtAmt(ms.originalOut) : '';
     const summary = [periodLabel, countLabel, origIn, origOut].filter(Boolean).join('\n');
     row[1] = summary.substring(0, 70);
     return row;
@@ -2265,11 +2264,11 @@ if (mergedTxns.length > 0) {
   const mTotCredit   = mergedTxns.filter(t => t.type === 'IN' && t.isPayable).reduce((s,t) => s+(parseFloat(t.amount)||0), 0);
   const mTotIn       = mTotCashIn + mTotCredit;
   const mFin         = mTotIn - mTotOut;
-  mergedRows.push(['', shapeUrdu('ذیلی کل'), '', fmtAmt(mTotOut), fmtAmt(mTotIn),
-    Math.abs(mFin)<0.01?shapeUrdu('چکتا'):fmtAmt(Math.abs(mFin))]);
+  mergedRows.push(['', 'SUBTOTAL', '', fmtAmt(mTotOut), fmtAmt(mTotIn),
+    Math.abs(mFin)<0.01?'SETTLED':fmtAmt(Math.abs(mFin))]);
   doc.autoTable({
     startY: yPos,
-    head: [[shapeUrdu('تاریخ'), shapeUrdu('سالانہ دور / خلاصہ'), shapeUrdu('قسم'), shapeUrdu('رقم گئی'), shapeUrdu('رقم آئی'), shapeUrdu('باقی')]],
+    head: [['Date', 'Year Period / Summary', 'Type', 'Payment OUT', 'Payment IN', 'Balance']],
     body: mergedRows,
     theme: 'grid',
     headStyles: { fillColor: PDF_MERGED_HDR_COLOR, textColor: 255, fontSize: 8.5, fontStyle: 'bold', halign: 'center' },
@@ -2298,7 +2297,7 @@ if (mergedTxns.length > 0) {
       if (data.column.index === 4 && !isSubtotal) data.cell.styles.textColor = [40, 130, 60];
       if (data.column.index === 5 && !isSubtotal) {
         const txt = (data.cell.text||[]).join('');
-        data.cell.styles.textColor = txt===shapeUrdu('چکتا')?[100,100,100]:[126,34,206];
+        data.cell.styles.textColor = txt==='SETTLED'?[100,100,100]:[126,34,206];
       }
     },
     margin: { left: 14, right: 14 }
@@ -2316,13 +2315,13 @@ const txRows = normalTxns.map(t => buildTxRow(t, txRunBal));
 // Prepend the "Prior Balance" opening row when relevant
 if (hasPriorBalance) {
   const obAbs = Math.abs(openingBalance);
-  const obDisplay = obAbs < 0.01 ? shapeUrdu('چکتا') : fmtAmt(obAbs);
+  const obDisplay = obAbs < 0.01 ? 'SETTLED' : fmtAmt(obAbs);
   const obLabel = obAbs < 0.01
-    ? shapeUrdu('چکتا')
-    : openingBalance > 0 ? shapeUrdu('وصول کرنا ہے (وہ دینے والے ہیں)') : shapeUrdu('دینا ہے (ہم دینے والے ہیں)');
+    ? 'Settled'
+    : openingBalance > 0 ? 'Receivable (they owe)' : 'Payable (we owe)';
   txRows.unshift([
-    shapeUrdu('پہلے کا'),
-    shapeUrdu(`پرانا باقی\n(اس مدت سے پہلے کے سب لین دین)`),
+    'Prior',
+    `Opening Balance\n(All activity before this period)`,
     '—',
     '-',
     '-',
@@ -2337,19 +2336,19 @@ const totalIn           = totalCashIn + totalCreditPurch;
 // Final balance = opening balance + period IN - period OUT
 const finalBal          = (hasPriorBalance ? openingBalance : 0) + totalIn - totalOut;
 let finalBalDisplay;
-if (Math.abs(finalBal) < 0.01) finalBalDisplay = shapeUrdu('چکتا');
+if (Math.abs(finalBal) < 0.01) finalBalDisplay = 'SETTLED';
 else finalBalDisplay = fmtAmt(Math.abs(finalBal));
 const openingRowOffset  = hasPriorBalance ? 1 : 0; // row index shift for styling
 if (normalTxns.length > 0 || hasPriorBalance) {
-  doc.setFontSize(8.5); doc.setFont('FreeSerifUrdu', 'bold');
+  doc.setFontSize(8.5); doc.setFont(undefined, 'bold');
   doc.setTextColor(...headerColor);
-  doc.text(shapeUrdu('الگ الگ لین دین'), 14, yPos);
-  doc.setTextColor(80, 80, 80); doc.setFont('FreeSerifUrdu', 'normal');
+  doc.text('INDIVIDUAL TRANSACTIONS', 14, yPos);
+  doc.setTextColor(80, 80, 80); doc.setFont(undefined, 'normal');
   yPos += 5;
-  txRows.push(['', shapeUrdu('کل'), '', fmtAmt(totalOut), fmtAmt(totalIn), finalBalDisplay]);
+  txRows.push(['', 'TOTAL', '', fmtAmt(totalOut), fmtAmt(totalIn), finalBalDisplay]);
   doc.autoTable({
     startY: yPos,
-    head: [[shapeUrdu('تاریخ'), shapeUrdu('تفصیل'), shapeUrdu('قسم'), shapeUrdu('رقم گئی'), shapeUrdu('رقم آئی'), shapeUrdu('باقی رقم')]],
+    head: [['Date', 'Description', 'Type', 'Payment OUT', 'Payment IN', 'Running Balance']],
     body: txRows,
     theme: 'grid',
     headStyles: { fillColor: headerColor, textColor: 255, fontSize: 8.5, fontStyle: 'bold', halign: 'center' },
@@ -2381,8 +2380,8 @@ if (normalTxns.length > 0 || hasPriorBalance) {
           data.cell.styles.textColor = data.cell.text[0]==='OUT'?[220,53,69]:data.cell.text[0]==='CR'?[200,100,0]:[40,167,69];
         if (data.column.index===5) {
           const txt=(data.cell.text||[]).join('');
-          if (txt.includes(shapeUrdu('تصفیہ شدہ'))) data.cell.styles.textColor=[100,100,100];
-          else if (txt.includes(shapeUrdu('واجب'))) data.cell.styles.textColor=[220,53,69];
+          if (txt.includes('SETTLED')) data.cell.styles.textColor=[100,100,100];
+          else if (txt.includes('OWE')) data.cell.styles.textColor=[220,53,69];
           else data.cell.styles.textColor=[40,167,69];
         }
       }
@@ -2391,49 +2390,49 @@ if (normalTxns.length > 0 || hasPriorBalance) {
   });
 }
 const afterTx = ((normalTxns.length > 0 || hasPriorBalance) ? doc.lastAutoTable.finalY : yPos - 5) + 5;
-if (afterTx < 255) {
+if (afterTx < 270) {
 doc.setFillColor(245, 245, 245);
 const summaryRows = totalCreditPurch > 0 ? 2 : 1;
 doc.roundedRect(14, afterTx, pageW - 28, summaryRows * 11 + 3, 2, 2, 'F');
-doc.setFontSize(8.5); doc.setFont('FreeSerifUrdu', 'normal');
+doc.setFontSize(8.5); doc.setFont(undefined, 'normal');
 if (hasPriorBalance && Math.abs(openingBalance) >= 0.01) {
   doc.setTextColor(30, 80, 160);
   const obSign = openingBalance > 0 ? '+' : '-';
-  doc.text(shapeUrdu(`پرانا باقی: ${obSign}${fmtAmt(Math.abs(openingBalance))}`), 20, afterTx + 9);
+  doc.text(`Opening Bal: ${obSign}${fmtAmt(Math.abs(openingBalance))}`, 20, afterTx + 9);
   doc.setTextColor(220, 53, 69);
-  doc.text(shapeUrdu(`اس مدت میں گئی: ${fmtAmt(totalOut)}`), 75, afterTx + 9);
+  doc.text(`Period OUT: ${fmtAmt(totalOut)}`, 75, afterTx + 9);
   doc.setTextColor(40, 167, 69);
-  doc.text(shapeUrdu(`اس مدت میں آئی: ${fmtAmt(totalIn)}`), 125, afterTx + 9);
+  doc.text(`Period IN: ${fmtAmt(totalIn)}`, 125, afterTx + 9);
 } else {
   doc.setTextColor(220, 53, 69);
-  doc.text(shapeUrdu(`کل گئی رقم: ${fmtAmt(totalOut)}`), 20, afterTx + 9);
+  doc.text(`Total OUT: ${fmtAmt(totalOut)}`, 20, afterTx + 9);
   doc.setTextColor(40, 167, 69);
-  doc.text(shapeUrdu(`نقد آئی رقم: ${fmtAmt(totalCashIn)}`), 75, afterTx + 9);
+  doc.text(`Cash IN: ${fmtAmt(totalCashIn)}`, 75, afterTx + 9);
 }
 if (totalCreditPurch > 0) {
 doc.setTextColor(200, 100, 0);
-doc.text(shapeUrdu(`ادھار خرید: ${fmtAmt(totalCreditPurch)}`), 20, afterTx + 17);
+doc.text(`Credit Purchases: ${fmtAmt(totalCreditPurch)}`, 20, afterTx + 17);
 }
 doc.setTextColor(Math.abs(finalBal) < 0.01 ? 100 : finalBal < 0 ? 220 : 40,
 Math.abs(finalBal) < 0.01 ? 100 : finalBal < 0 ? 53 : 167,
 Math.abs(finalBal) < 0.01 ? 100 : finalBal < 0 ? 69 : 69);
-doc.setFont('FreeSerifUrdu', 'bold');
-doc.text(shapeUrdu(`خالص باقی: ${finalBalDisplay}`), 138, afterTx + 9);
+doc.setFont(undefined, 'bold');
+doc.text(`Net Balance: ${finalBalDisplay}`, 138, afterTx + 9);
 yPos = afterTx + (summaryRows * 11 + 7);
 } else {
 yPos = afterTx + 5;
 }
 } else {
-doc.setFont('FreeSerifUrdu', 'normal'); doc.setFontSize(9); doc.setTextColor(150);
-doc.text(shapeUrdu('اس وقت کے لیے کوئی ادائیگی نہیں ملی۔'), pageW / 2, yPos + 8, { align: 'center' });
+doc.setFont(undefined, 'normal'); doc.setFontSize(9); doc.setTextColor(150);
+doc.text('No payment transactions recorded for this period.', pageW / 2, yPos + 8, { align: 'center' });
 yPos += 15;
 }
 if (isSupplier && supplierMaterials.length > 0) {
 if (yPos > 240) { doc.addPage(); yPos = 20; }
-doc.setFontSize(9); doc.setFont('FreeSerifUrdu', 'bold'); doc.setTextColor(...headerColor);
-doc.text(shapeUrdu('سپلائر کے بل — خام مال کی ادائیگی'), 14, yPos);
-doc.setFontSize(7.5); doc.setFont('FreeSerifUrdu', 'normal'); doc.setTextColor(120, 120, 120);
-doc.text(shapeUrdu('ہر لائن ایک بل ہے۔ ادائیگی پرانے بل سے شروع ہوتی ہے۔'), 14, yPos + 4.5);
+doc.setFontSize(9); doc.setFont(undefined, 'bold'); doc.setTextColor(...headerColor);
+doc.text('SUPPLIER INVOICES — RAW MATERIAL PAYABLES', 14, yPos);
+doc.setFontSize(7.5); doc.setFont(undefined, 'normal'); doc.setTextColor(120, 120, 120);
+doc.text('Each row = one material invoice. Payments are applied FIFO (oldest invoice first).', 14, yPos + 4.5);
 doc.setTextColor(80, 80, 80);
 yPos += 9;
 let totalInvoice = 0, totalPaid = 0, totalRemaining = 0;
@@ -2455,10 +2454,10 @@ totalInvoice += originalAmt;
 totalPaid += paid;
 totalRemaining += remaining;
 const status = mat.paymentStatus === 'paid' || remaining <= 0
-? shapeUrdu('ادا')
+? 'PAID'
 : remaining < originalAmt
-? shapeUrdu('کچھ ادا')
-: shapeUrdu('باقی ہے');
+? 'PARTIAL'
+: 'PENDING';
 const qtyStr = mat.purchaseQuantity && mat.purchaseUnitName && mat.conversionFactor && mat.conversionFactor !== 1
 ? `${fmtAmt(mat.purchaseQuantity)} ${mat.purchaseUnitName}\n(${fmtAmt(mat.quantity || 0)} kg)`
 : `${fmtAmt(mat.quantity || 0)} kg`;
@@ -2473,15 +2472,15 @@ status
 ];
 });
 matRows.push([
-'', shapeUrdu('مجموعہ'), '',
+'', 'TOTAL', '',
 fmtAmt(totalInvoice),
 fmtAmt(totalPaid),
 fmtAmt(totalRemaining),
-totalRemaining <= 0 ? shapeUrdu('صاف') : ''
+totalRemaining <= 0 ? 'CLEARED' : ''
 ]);
 doc.autoTable({
 startY: yPos,
-head: [[shapeUrdu('بل تاریخ'), shapeUrdu('مال'), shapeUrdu('مقدار'), shapeUrdu('بل رقم'), shapeUrdu('ادا کی'), shapeUrdu('باقی'), shapeUrdu('حال')]],
+head: [['Invoice Date', 'Material', 'Qty', 'Invoice Amt', 'Paid So Far', 'Remaining', 'Status']],
 body: matRows,
 theme: 'grid',
 headStyles: { fillColor: headerColor, textColor: 255, fontSize: 8, fontStyle: 'bold', halign: 'center' },
@@ -2504,25 +2503,25 @@ data.cell.styles.fontSize = 9;
 }
 if (data.column.index === 6 && !isTotal) {
 const txt = (data.cell.text || []).join('');
-if (txt === shapeUrdu('ادا')) data.cell.styles.textColor = [40, 167, 69];
-if (txt === shapeUrdu('کچھ ادا')) data.cell.styles.textColor = [200, 100, 0];
-if (txt === shapeUrdu('باقی ہے')) data.cell.styles.textColor = [220, 53, 69];
+if (txt === 'PAID') data.cell.styles.textColor = [40, 167, 69];
+if (txt === 'PARTIAL') data.cell.styles.textColor = [200, 100, 0];
+if (txt === 'PENDING') data.cell.styles.textColor = [220, 53, 69];
 }
 },
 margin: { left: 14, right: 14 }
 });
 const afterMat = doc.lastAutoTable.finalY + 5;
-if (afterMat < 265) {
+if (afterMat < 272) {
 doc.setFillColor(255, 245, 230);
 doc.roundedRect(14, afterMat, pageW - 28, 14, 2, 2, 'F');
-doc.setFontSize(8.5); doc.setFont('FreeSerifUrdu', 'normal');
+doc.setFontSize(8.5); doc.setFont(undefined, 'normal');
 doc.setTextColor(50, 50, 50);
-doc.text(shapeUrdu(`کل بل: ${fmtAmt(totalInvoice)}`), 20, afterMat + 9);
+doc.text(`Total Invoiced: ${fmtAmt(totalInvoice)}`, 20, afterMat + 9);
 doc.setTextColor(40, 167, 69);
-doc.text(shapeUrdu(`ادا کی: ${fmtAmt(totalPaid)}`), 88, afterMat + 9);
+doc.text(`Paid: ${fmtAmt(totalPaid)}`, 88, afterMat + 9);
 doc.setTextColor(totalRemaining > 0 ? 220 : 100, totalRemaining > 0 ? 53 : 100, totalRemaining > 0 ? 69 : 100);
-doc.setFont('FreeSerifUrdu', 'bold');
-doc.text(shapeUrdu(`ابھی باقی: ${fmtAmt(totalRemaining)}`), 138, afterMat + 9);
+doc.setFont(undefined, 'bold');
+doc.text(`Outstanding Payable: ${fmtAmt(totalRemaining)}`, 138, afterMat + 9);
 }
 }
 const pageCount = doc.internal.getNumberOfPages();
@@ -2533,7 +2532,7 @@ doc.text(
 `Generated on ${now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} at ${now.toLocaleTimeString('en-US')} | GULL AND ZUBAIR NASWAR DEALERS`,
 pageW / 2, 291, { align: 'center' }
 );
-doc.text(shapeUrdu(`صفحہ ${i} از ${pageCount}`), pageW / 2, 287, { align: 'center' });
+doc.text(`Page ${i} of ${pageCount}`, pageW / 2, 287, { align: 'center' });
 }
 await new Promise(r => setTimeout(r, 100));
 const dateStamp  = new Date().toISOString().split('T')[0];
@@ -2633,29 +2632,28 @@ const phone = salesContact?.phone || transactions.find(t => t.customerPhone)?.cu
 const address = salesContact?.address || transactions.find(t => t.customerAddress)?.customerAddress || 'N/A';
 const { jsPDF } = window.jspdf;
 const doc = new jsPDF('p', 'mm', 'a4');
-setupUrduFont(doc);
 const pageW = doc.internal.pageSize.getWidth();
 const hdrColor = [40, 167, 69];
 doc.setFillColor(...hdrColor);
 doc.rect(0, 0, pageW, 22, 'F');
-doc.setFontSize(16); doc.setFont('FreeSerifUrdu', 'bold'); doc.setTextColor(255, 255, 255);
+doc.setFontSize(16); doc.setFont(undefined, 'bold'); doc.setTextColor(255, 255, 255);
 doc.text('GULL AND ZUBAIR NASWAR DEALERS', pageW / 2, 10, { align: 'center' });
-doc.setFontSize(9); doc.setFont('FreeSerifUrdu', 'normal');
-doc.text('Naswar Manufacturers & Dealers', pageW / 2, 17, { align: 'center' });
+doc.setFontSize(9); doc.setFont(undefined, 'normal');
+doc.text('Naswar Manufacturers & Dealers · Sales Tab Statement', pageW / 2, 17, { align: 'center' });
 const rangeName = range === 'all' ? 'All Time' : range === 'today' ? 'Today' :
 range === 'week' ? 'This Week' : range === 'month' ? 'This Month' : 'This Year';
-doc.setFontSize(12); doc.setFont('FreeSerifUrdu', 'bold'); doc.setTextColor(50, 50, 50);
+doc.setFontSize(12); doc.setFont(undefined, 'bold'); doc.setTextColor(50, 50, 50);
 doc.text(`Customer Account Statement · ${rangeName}`, pageW / 2, 30, { align: 'center' });
-doc.setFontSize(9); doc.setFont('FreeSerifUrdu', 'normal'); doc.setTextColor(80, 80, 80);
+doc.setFontSize(9); doc.setFont(undefined, 'normal'); doc.setTextColor(80, 80, 80);
 let yPos = 38;
-doc.setFont('FreeSerifUrdu', 'bold'); doc.text('Customer:', 14, yPos);
-doc.setFont('FreeSerifUrdu', 'normal'); doc.text(customerName, 36, yPos);
-doc.setFont('FreeSerifUrdu', 'bold'); doc.text('Phone:', 14, yPos + 5);
-doc.setFont('FreeSerifUrdu', 'normal'); doc.text(phone, 36, yPos + 5);
-doc.setFont('FreeSerifUrdu', 'bold'); doc.text('Address:', 14, yPos + 10);
-doc.setFont('FreeSerifUrdu', 'normal'); doc.text(address.substring(0, 60), 36, yPos + 10);
-doc.setFont('FreeSerifUrdu', 'bold'); doc.text('Generated:', pageW / 2, yPos);
-doc.setFont('FreeSerifUrdu', 'normal');
+doc.setFont(undefined, 'bold'); doc.text('Customer:', 14, yPos);
+doc.setFont(undefined, 'normal'); doc.text(customerName, 36, yPos);
+doc.setFont(undefined, 'bold'); doc.text('Phone:', 14, yPos + 5);
+doc.setFont(undefined, 'normal'); doc.text(phone, 36, yPos + 5);
+doc.setFont(undefined, 'bold'); doc.text('Address:', 14, yPos + 10);
+doc.setFont(undefined, 'normal'); doc.text(address.substring(0, 60), 36, yPos + 10);
+doc.setFont(undefined, 'bold'); doc.text('Generated:', pageW / 2, yPos);
+doc.setFont(undefined, 'normal');
 doc.text(now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }), pageW / 2 + 22, yPos);
 yPos += 18;
 doc.setDrawColor(...hdrColor); doc.setLineWidth(0.5);
@@ -2673,42 +2671,42 @@ const buildSaleRow = async (t, runBal) => {
   if (isOldDebt) {
     debit = parseFloat(t.totalValue) || 0;
     credit = parseFloat(t.partialPaymentReceived) || 0;
-    typeLabel = shapeUrdu('پرانا قرض');
-    detailLabel = t.notes || shapeUrdu('پرانے ریکارڈ سے لایا گیا');
+    typeLabel = 'OLD DEBT';
+    detailLabel = t.notes || 'Brought forward from previous records';
   } else if (pt === 'CASH') {
     const val = await getSaleTransactionValue(t);
     debit = val; credit = val;
-    typeLabel = shapeUrdu('نقد');
+    typeLabel = 'CASH';
     detailLabel = `${fmtAmt(t.quantity||0)} kg \xd7 ${fmtAmt(await getSalePrice(t))}\n${t.supplyStore?getStoreLabel(t.supplyStore):''}`;
   } else if (pt === 'CREDIT' && !t.creditReceived) {
     const val = await getSaleTransactionValue(t);
     const partial = parseFloat(t.partialPaymentReceived) || 0;
     debit = val; credit = partial;
-    typeLabel = partial > 0 ? shapeUrdu('ادھار\n(کچھ ادا)') : shapeUrdu('ادھار');
+    typeLabel = partial > 0 ? 'CREDIT\n(PARTIAL)' : 'CREDIT';
     detailLabel = `${fmtAmt(t.quantity||0)} kg \xd7 ${fmtAmt(await getSalePrice(t))}`;
-    if (partial > 0) detailLabel += shapeUrdu(`\nدیا: ${fmtAmt(partial)} | باقی: ${fmtAmt(val-partial)}`);
+    if (partial > 0) detailLabel += `\nPaid: ${fmtAmt(partial)} | Due: ${fmtAmt(val-partial)}`;
   } else if (pt === 'CREDIT' && t.creditReceived) {
     const val = await getSaleTransactionValue(t);
     debit = val; credit = val;
-    typeLabel = shapeUrdu('ادھار\n(ادا)');
+    typeLabel = 'CREDIT\n(PAID)';
     detailLabel = `${fmtAmt(t.quantity||0)} kg \xd7 ${fmtAmt(await getSalePrice(t))}`;
     displayDate = formatDisplayDate(t.creditReceivedDate || t.date);
   } else if (pt === 'COLLECTION') {
     credit = parseFloat(t.totalValue) || 0;
-    typeLabel = shapeUrdu('وصولی');
-    detailLabel = shapeUrdu('نقد رقم ملی');
+    typeLabel = 'COLLECTION';
+    detailLabel = 'Cash payment received';
     displayDate = formatDisplayDate(t.creditReceivedDate || t.date);
   } else if (pt === 'PARTIAL_PAYMENT') {
     credit = parseFloat(t.totalValue) || 0;
-    typeLabel = shapeUrdu('کچھ\nادائیگی');
-    detailLabel = shapeUrdu('کچھ رقم ملی');
+    typeLabel = 'PARTIAL\nPAYMENT';
+    detailLabel = 'Partial payment received';
     displayDate = formatDisplayDate(t.creditReceivedDate || t.date);
   }
   runBal.val += (debit - credit);
   let balDisplay;
-  if (Math.abs(runBal.val) < 0.01) balDisplay = shapeUrdu('چکتا');
+  if (Math.abs(runBal.val) < 0.01) balDisplay = 'SETTLED';
   else if (runBal.val > 0) balDisplay = fmtAmt(runBal.val);
-  else balDisplay = shapeUrdu('زیادہ دیا\n') + fmtAmt(Math.abs(runBal.val));
+  else balDisplay = 'OVERPAID\n' + fmtAmt(Math.abs(runBal.val));
   return { row: [displayDate, typeLabel, detailLabel.substring(0,55),
     debit>0?fmtAmt(debit):'-', credit>0?fmtAmt(credit):'-', balDisplay],
     debit, credit, qty: t.quantity||0 };
@@ -2716,7 +2714,7 @@ const buildSaleRow = async (t, runBal) => {
 const mergedSalesTxns = transactions.filter(t => t.isMerged === true);
 const normalSalesTxns = transactions.filter(t => !t.isMerged);
 if (mergedSalesTxns.length > 0) {
-  yPos = _pdfDrawMergedSectionHeader(doc, yPos, pageW, shapeUrdu('سال کے آخر کا پرانا باقی (آگے لایا گیا)'));
+  yPos = _pdfDrawMergedSectionHeader(doc, yPos, pageW, 'YEAR-END OPENING BALANCES (Carried Forward)');
   const mRunBal = { val: 0 };
   const mergedRows = mergedSalesTxns.map(t => {
     const ms = t.mergedSummary || {};
@@ -2728,24 +2726,24 @@ if (mergedSalesTxns.length > 0) {
     const details = [
       periodLabel,
       countLabel,
-      cashS > 0 ? shapeUrdu(`نقد فروخت: ${fmtAmt(cashS)}`) : '',
-      !isSettled ? shapeUrdu(`باقی: ${fmtAmt(netOut)}`) : shapeUrdu('چکتا')
+      cashS > 0 ? `Cash sales: ${fmtAmt(cashS)}` : '',
+      !isSettled ? `Net due: ${fmtAmt(netOut)}` : 'Settled'
     ].filter(Boolean).join('\n');
     mRunBal.val += netOut;
-    const balTxt = isSettled ? shapeUrdu('چکتا') : fmtAmt(netOut);
+    const balTxt = isSettled ? 'SETTLED' : fmtAmt(netOut);
     const pt = t.paymentType || 'CASH';
-    const typeLabel = isSettled ? shapeUrdu('چکتا\n(ملایا)') : (pt === 'CREDIT' ? shapeUrdu('ادھار\n(ملایا)') : shapeUrdu('نقد\n(ملایا)'));
+    const typeLabel = isSettled ? 'SETTLED\n(MERGED)' : (pt === 'CREDIT' ? 'CREDIT\n(MERGED)' : 'CASH\n(MERGED)');
     return [formatDisplayDate(t.date), typeLabel, details.substring(0,70),
       netOut>0?fmtAmt(netOut):'-', isSettled?fmtAmt(cashS):'-', balTxt];
   });
   const mNetTotal = mergedSalesTxns.reduce((s,t)=>{
     const ms=t.mergedSummary||{}; return s+(ms.netOutstanding||t.totalValue||0);},0);
-  mergedRows.push(['',shapeUrdu('ذیلی کل'),shapeUrdu(`${mergedSalesTxns.length} سالانہ ریکارڈ`),
+  mergedRows.push(['','SUBTOTAL',`${mergedSalesTxns.length} year-end record${mergedSalesTxns.length!==1?'s':''}`,
     mNetTotal>0?fmtAmt(mNetTotal):'-','',
-    mNetTotal<=0.01?shapeUrdu('چکتا'):fmtAmt(mNetTotal)]);
+    mNetTotal<=0.01?'SETTLED':fmtAmt(mNetTotal)]);
   doc.autoTable({
     startY: yPos,
-    head: [[shapeUrdu('تاریخ'), shapeUrdu('قسم'), shapeUrdu('سالانہ دور / خلاصہ'), shapeUrdu('باقی'), shapeUrdu('چکتا'), shapeUrdu('باقی رقم')]],
+    head: [['Date', 'Type', 'Year Period / Summary', 'Outstanding', 'Settled', 'Balance']],
     body: mergedRows,
     theme: 'grid',
     headStyles: { fillColor: PDF_MERGED_HDR_COLOR, textColor: 255, fontSize: 8.5, fontStyle: 'bold', halign: 'center' },
@@ -2763,7 +2761,7 @@ if (mergedSalesTxns.length > 0) {
       if (data.column.index===4&&!isSubtotal) data.cell.styles.textColor=[40,130,60];
       if (data.column.index===5&&!isSubtotal) {
         const txt=(data.cell.text||[]).join('');
-        data.cell.styles.textColor = txt===shapeUrdu('چکتا')?[100,100,100]:[126,34,206];
+        data.cell.styles.textColor = txt==='SETTLED'?[100,100,100]:[126,34,206];
       }
     },
     margin: { left: 14, right: 14 }
@@ -2785,26 +2783,26 @@ for (const t of normalSalesTxns) {
 // Prepend opening balance row when a period is selected and prior data exists
 if (custHasPrior) {
   const obAbs = Math.abs(custOpeningBalance);
-  const obDisplay = obAbs < 0.01 ? shapeUrdu('چکتا') : fmtAmt(obAbs);
+  const obDisplay = obAbs < 0.01 ? 'SETTLED' : fmtAmt(obAbs);
   txRows.unshift([
-    shapeUrdu('پہلے کا'), '—',
-    shapeUrdu('پرانا باقی\n(اس مدت سے پہلے کے سب لین دین)'),
+    'Prior', '—',
+    'Opening Balance\n(All activity before this period)',
     '-', '-', obDisplay
   ]);
 }
 const finalBal = (custHasPrior ? custOpeningBalance : 0) + totDebit - totCredit;
 if (normalSalesTxns.length > 0 || custHasPrior) {
-  doc.setFontSize(8.5); doc.setFont('FreeSerifUrdu','bold');
+  doc.setFontSize(8.5); doc.setFont(undefined,'bold');
   doc.setTextColor(...hdrColor);
-  doc.text(shapeUrdu('الگ الگ لین دین'), 14, yPos);
-  doc.setTextColor(80,80,80); doc.setFont('FreeSerifUrdu','normal');
+  doc.text('INDIVIDUAL TRANSACTIONS', 14, yPos);
+  doc.setTextColor(80,80,80); doc.setFont(undefined,'normal');
   yPos += 5;
-  txRows.push([shapeUrdu('کل'),'',shapeUrdu(`${fmtAmt(totQty)} kg کل`),
+  txRows.push(['TOTALS','',`${fmtAmt(totQty)} kg total`,
     fmtAmt(totDebit),fmtAmt(totCredit),
-    Math.abs(finalBal)<0.01?shapeUrdu('چکتا'):(finalBal>0?fmtAmt(finalBal):shapeUrdu('زیادہ دیا\n') +fmtAmt(Math.abs(finalBal)))]);
+    Math.abs(finalBal)<0.01?'SETTLED':(finalBal>0?'DUE\n' +fmtAmt(finalBal):'OVERPAID\n' +fmtAmt(Math.abs(finalBal)))]);
   doc.autoTable({
     startY: yPos,
-    head: [[shapeUrdu('تاریخ'), shapeUrdu('قسم'), shapeUrdu('تفصیل'), shapeUrdu('ادھار (فروخت)'), shapeUrdu('جمع (ملی)'), shapeUrdu('باقی')]],
+    head: [['Date', 'Type', 'Details', 'Debit (Sale)', 'Credit (Rcvd)', 'Balance']],
     body: txRows,
     theme: 'grid',
     headStyles: { fillColor: hdrColor, textColor: 255, fontSize: 8.5, fontStyle: 'bold', halign: 'center' },
@@ -2828,16 +2826,16 @@ if (normalSalesTxns.length > 0 || custHasPrior) {
       if (!isOpeningRow && !isTotal) {
         if (data.column.index===1){
           const txt=(data.cell.text||[]).join('');
-          if(txt.includes(shapeUrdu('نقد'))) data.cell.styles.textColor=[40,167,69];
-          if(txt.includes(shapeUrdu('ادھار'))) data.cell.styles.textColor=[200,100,0];
-          if(txt.includes(shapeUrdu('وصولی'))) data.cell.styles.textColor=[40,167,69];
-          if(txt.includes(shapeUrdu('کچھ'))) data.cell.styles.textColor=[200,100,0];
-          if(txt.includes(shapeUrdu('پرانا قرض'))) data.cell.styles.textColor=[220,53,69];
+          if(txt.includes('CASH')) data.cell.styles.textColor=[40,167,69];
+          if(txt.includes('CREDIT')) data.cell.styles.textColor=[200,100,0];
+          if(txt.includes('COLLECTION')) data.cell.styles.textColor=[40,167,69];
+          if(txt.includes('PARTIAL')) data.cell.styles.textColor=[200,100,0];
+          if(txt.includes('OLD DEBT')) data.cell.styles.textColor=[220,53,69];
         }
         if (data.column.index===5){
           const txt=(data.cell.text||[]).join('');
-          if(txt===shapeUrdu('چکتا')) data.cell.styles.textColor=[100,100,100];
-          else if(txt.includes(shapeUrdu('زیادہ دیا'))) data.cell.styles.textColor=[40,167,69];
+          if(txt==='SETTLED') data.cell.styles.textColor=[100,100,100];
+          else if(txt.includes('OVERPAID')) data.cell.styles.textColor=[40,167,69];
           else data.cell.styles.textColor=[220,53,69];
         }
       }
@@ -2846,39 +2844,39 @@ if (normalSalesTxns.length > 0 || custHasPrior) {
   });
 }
 const afterY = ((normalSalesTxns.length > 0 || custHasPrior) ? doc.lastAutoTable.finalY : yPos - 5) + 5;
-if (afterY < 252) {
-const custSummaryH = custHasPrior && Math.abs(custOpeningBalance) >= 0.01 ? 28 : 20;
+if (afterY < 268) {
+const custSummaryH = 20;
 doc.setFillColor(245, 255, 245);
 doc.roundedRect(14, afterY, pageW - 28, custSummaryH, 2, 2, 'F');
 doc.setDrawColor(...hdrColor); doc.setLineWidth(0.3);
 doc.roundedRect(14, afterY, pageW - 28, custSummaryH, 2, 2, 'S');
-doc.setFontSize(8); doc.setFont('FreeSerifUrdu', 'normal');
+doc.setFontSize(8); doc.setFont(undefined, 'normal');
 if (custHasPrior && Math.abs(custOpeningBalance) >= 0.01) {
   const obSign = custOpeningBalance > 0 ? '+' : '-';
   doc.setTextColor(30, 80, 160);
-  doc.text(shapeUrdu(`پرانا باقی: ${obSign}${fmtAmt(Math.abs(custOpeningBalance))}`), pageW / 2, afterY + 7, { align: 'center' });
+  doc.text(`Opening Bal: ${obSign}${fmtAmt(Math.abs(custOpeningBalance))}`, 20, afterY + 7);
   doc.setTextColor(220, 53, 69);
-  doc.text(shapeUrdu(`اس مدت میں ادھار: ${fmtAmt(totDebit)}`), pageW / 4, afterY + 15, { align: 'center' });
+  doc.text(`Period Debit: ${fmtAmt(totDebit)}`, 75, afterY + 7);
   doc.setTextColor(40, 167, 69);
-  doc.text(shapeUrdu(`اس مدت میں ملی: ${fmtAmt(totCredit)}`), (pageW * 3) / 4, afterY + 15, { align: 'center' });
+  doc.text(`Period Credit: ${fmtAmt(totCredit)}`, 130, afterY + 7);
 } else {
   doc.setTextColor(220, 53, 69);
-  doc.text(shapeUrdu(`کل ادھار (فروخت): ${fmtAmt(totDebit)}`), pageW / 4, afterY + 8, { align: 'center' });
+  doc.text(`Total Debit (Sales): ${fmtAmt(totDebit)}`, 20, afterY + 7);
   doc.setTextColor(40, 167, 69);
-  doc.text(shapeUrdu(`کل ملی (وصولی): ${fmtAmt(totCredit)}`), (pageW * 3) / 4, afterY + 8, { align: 'center' });
+  doc.text(`Total Credit (Rcvd): ${fmtAmt(totCredit)}`, 20, afterY + 14);
 }
 doc.setTextColor(Math.abs(finalBal) < 0.01 ? 100 : finalBal > 0 ? 220 : 40,
 Math.abs(finalBal) < 0.01 ? 100 : finalBal > 0 ? 53 : 167,
 Math.abs(finalBal) < 0.01 ? 100 : finalBal > 0 ? 69 : 69);
-doc.setFont('FreeSerifUrdu', 'bold');
-const balStr = Math.abs(finalBal) < 0.01 ? shapeUrdu('چکتا')
-: finalBal > 0 ? shapeUrdu(`باقی واجب الادا: ${fmtAmt(finalBal)}`)
-: shapeUrdu(`زیادہ ادا: ${fmtAmt(Math.abs(finalBal))}`);
-doc.text(balStr, pageW / 2, afterY + (custHasPrior && Math.abs(custOpeningBalance) >= 0.01 ? 23 : 15), { align: 'center' });
+doc.setFont(undefined, 'bold');
+const balStr = Math.abs(finalBal) < 0.01 ? 'SETTLED'
+: finalBal > 0 ? `Outstanding Due: ${fmtAmt(finalBal)}`
+: `Overpaid by: ${fmtAmt(Math.abs(finalBal))}`;
+doc.text(balStr, 110, afterY + (custHasPrior ? 7 : 10.5));
 }
 } else {
-doc.setFont('FreeSerifUrdu', 'normal'); doc.setFontSize(10); doc.setTextColor(150);
-doc.text(shapeUrdu('اس وقت کے لیے کوئی فروخت نہیں ملی۔'), pageW / 2, yPos + 15, { align: 'center' });
+doc.setFont(undefined, 'normal'); doc.setFontSize(10); doc.setTextColor(150);
+doc.text('No sales recorded for this period.', pageW / 2, yPos + 15, { align: 'center' });
 }
 const pageCount = doc.internal.getNumberOfPages();
 for (let i = 1; i <= pageCount; i++) {
@@ -2888,7 +2886,7 @@ doc.text(
 `Generated on ${now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })} at ${now.toLocaleTimeString('en-US')} | GULL AND ZUBAIR NASWAR DEALERS`,
 pageW / 2, 291, { align: 'center' }
 );
-doc.text(shapeUrdu(`صفحہ ${i} از ${pageCount}`), pageW / 2, 287, { align: 'center' });
+doc.text(`Page ${i} of ${pageCount}`, pageW / 2, 287, { align: 'center' });
 }
 await new Promise(r => setTimeout(r, 100));
 const dateStamp    = new Date().toISOString().split('T')[0];
@@ -5441,20 +5439,19 @@ if (ex.address === "N/A" && entity.address) ex.address = entity.address;
 if (customerMap.size === 0) { showToast("No customers found to export.", "warning"); return; }
 const { jsPDF } = window.jspdf;
 const doc = new jsPDF('l', 'mm', 'a4');
-setupUrduFont(doc);
 const pageW = doc.internal.pageSize.getWidth();
 const pageH = doc.internal.pageSize.getHeight();
 const hdrColor = [40, 167, 69];
 doc.setFillColor(...hdrColor);
 doc.rect(0, 0, pageW, 22, 'F');
-doc.setFontSize(16); doc.setFont('FreeSerifUrdu','bold'); doc.setTextColor(255,255,255);
+doc.setFontSize(16); doc.setFont(undefined,'bold'); doc.setTextColor(255,255,255);
 doc.text('GULL AND ZUBAIR NASWAR DEALERS', pageW/2, 10, { align:'center' });
-doc.setFontSize(9); doc.setFont('FreeSerifUrdu','normal');
+doc.setFontSize(9); doc.setFont(undefined,'normal');
 doc.text('Naswar Manufacturers & Dealers', pageW/2, 17, { align:'center' });
-doc.setFontSize(12); doc.setFont('FreeSerifUrdu','bold'); doc.setTextColor(50,50,50);
+doc.setFontSize(12); doc.setFont(undefined,'bold'); doc.setTextColor(50,50,50);
 const titleText = type === 'rep' ? `My Customers — ${currentRepProfile || ''}` : 'All Customers — Complete List';
 doc.text(titleText, pageW/2, 30, { align:'center' });
-doc.setFontSize(8.5); doc.setFont('FreeSerifUrdu','normal'); doc.setTextColor(100,100,100);
+doc.setFontSize(8.5); doc.setFont(undefined,'normal'); doc.setTextColor(100,100,100);
 doc.text(`Generated: ${new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})} at ${new Date().toLocaleTimeString('en-US')}`, pageW/2, 36, { align:'center' });
 doc.setDrawColor(...hdrColor); doc.setLineWidth(0.5);
 doc.line(14, 39, pageW - 14, 39);
@@ -5472,24 +5469,24 @@ cust.phone,
 cust.address.substring(0, 35),
 cust.debt > 0 ? fmtAmt(cust.debt) : '-',
 cust.paid > 0 ? fmtAmt(cust.paid) : '-',
-Math.abs(net) < 0.01 ? shapeUrdu('چکتا')
-: (net > 0 ? fmtAmt(net) : shapeUrdu('زیادہ دیا\n') + fmtAmt(Math.abs(net))),
+Math.abs(net) < 0.01 ? 'SETTLED'
+: (net > 0 ? fmtAmt(net) : 'OVERPAID\n' + fmtAmt(Math.abs(net))),
 fmtAmt(cust.qty),
 formatDisplayDate(cust.lastDate) || '-'
 ]);
 });
 customerRows.push([
-shapeUrdu('کل (') + customerMap.size + shapeUrdu(' گاہک)'),
+'TOTAL (' + customerMap.size + ' customers)',
 '', '',
 fmtAmt(totDebt),
 fmtAmt(totPaid),
-fmtAmt(Math.abs(totNet)) + (totNet > 0 ? '' : totNet < 0 ? '' : shapeUrdu('چکتا')),
+fmtAmt(Math.abs(totNet)) + (totNet > 0 ? '' : totNet < 0 ? '' : 'SETTLED'),
 fmtAmt(totQty),
 ''
 ]);
 doc.autoTable({
 startY: 43,
-head: [[shapeUrdu('گاہک کا نام'), shapeUrdu('فون'), shapeUrdu('پتہ'), shapeUrdu('کل ادھار'), shapeUrdu('کل وصولی'), shapeUrdu('خالص باقی'), shapeUrdu('مقدار (kg)'), shapeUrdu('آخری فروخت')]],
+head: [['Customer Name', 'Phone', 'Address', 'Total Debit', 'Total Credit', 'Net Balance', 'Qty (kg)', 'Last Sale']],
 body: customerRows,
 theme: 'grid',
 headStyles: { fillColor: hdrColor, textColor: 255, fontSize: 8.5, fontStyle:'bold', halign:'center' },
@@ -5513,8 +5510,8 @@ data.cell.styles.fontSize = 8.5;
 }
 if (data.column.index === 5 && !isTotal) {
 const txt = (data.cell.text || []).join('');
-if (txt === shapeUrdu('چکتا')) data.cell.styles.textColor = [100,100,100];
-else if (txt.includes(shapeUrdu('زیادہ دیا'))) data.cell.styles.textColor = [40,167,69];
+if (txt === 'SETTLED') data.cell.styles.textColor = [100,100,100];
+else if (txt.includes('OVERPAID')) data.cell.styles.textColor = [40,167,69];
 else data.cell.styles.textColor = [220,53,69];
 }
 },
@@ -5522,16 +5519,16 @@ margin: { left: 14, right: 14 }
 });
 const afterY = doc.lastAutoTable.finalY + 6;
 if (afterY < pageH - 25) {
-doc.setFontSize(8); doc.setFont('FreeSerifUrdu','normal'); doc.setTextColor(100,100,100);
-doc.text(shapeUrdu(`باقی والے گاہک: ${cntDebtors} | چکتا کھاتے: ${cntSettled} | کل باقی رقم: ${fmtAmt(Math.max(totNet), 2)}`), 14, afterY);
+doc.setFontSize(8); doc.setFont(undefined,'normal'); doc.setTextColor(100,100,100);
+doc.text(`Customers with outstanding debt: ${cntDebtors} | Settled accounts: ${cntSettled} | Total outstanding: ${fmtAmt(Math.max(totNet), 2)}`, 14, afterY);
 if (hasMergedEntries) {
   const noteY = afterY + 6;
   if (noteY < pageH - 12) {
     doc.setFillColor(245, 235, 255);
     doc.roundedRect(14, noteY, pageW - 28, 9, 1.5, 1.5, 'F');
-    doc.setFontSize(7.5); doc.setFont('FreeSerifUrdu','bold'); doc.setTextColor(126, 34, 206);
-    doc.text(shapeUrdu('\u2605 بقایا میں سال کے آخر کے ملائے گئے ریکارڈ شامل ہیں — یہ آگے لائی گئی رقمیں ہیں۔'), 18, noteY + 6);
-    doc.setFont('FreeSerifUrdu','normal'); doc.setTextColor(80,80,80);
+    doc.setFontSize(7.5); doc.setFont(undefined,'bold'); doc.setTextColor(126, 34, 206);
+    doc.text('\u2605 Balances include year-end opening balance records (MERGED) from Close Financial Year — these represent carried-forward net positions.', 18, noteY + 6);
+    doc.setFont(undefined,'normal'); doc.setTextColor(80,80,80);
   }
 }
 }
@@ -5543,7 +5540,7 @@ doc.text(
 `Generated on ${new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})} at ${new Date().toLocaleTimeString('en-US')} | GULL AND ZUBAIR NASWAR DEALERS`,
 pageW/2, pageH - 5, { align:'center' }
 );
-doc.text(shapeUrdu(`صفحہ ${i} از ${pageCount}`), pageW/2, pageH - 9, { align:'center' });
+doc.text(`Page ${i} of ${pageCount}`, pageW/2, pageH - 9, { align:'center' });
 }
 doc.save(fileName);
 showToast(`Exported ${customerMap.size} customers successfully!`, "success");
@@ -11252,7 +11249,6 @@ throw new Error("Failed to load PDF library. Please refresh and try again.");
 }
 const { jsPDF } = window.jspdf;
 const doc = new jsPDF('p', 'mm', 'a4');
-setupUrduFont(doc);
 const pageW = doc.internal.pageSize.getWidth();
 const now = new Date();
 const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -11266,14 +11262,14 @@ const isEntities = viewMode === 'entities';
 const hdrColor = isEntities ? [0, 150, 136] : [255, 149, 0];
 doc.setFillColor(...hdrColor);
 doc.rect(0, 0, pageW, 22, 'F');
-doc.setFontSize(15); doc.setFont('FreeSerifUrdu','bold'); doc.setTextColor(255,255,255);
+doc.setFontSize(15); doc.setFont(undefined,'bold'); doc.setTextColor(255,255,255);
 doc.text('GULL AND ZUBAIR NASWAR DEALERS', pageW/2, 10, { align:'center' });
-doc.setFontSize(9); doc.setFont('FreeSerifUrdu','normal');
+doc.setFontSize(9); doc.setFont(undefined,'normal');
 doc.text('Naswar Manufacturers & Dealers', pageW/2, 17, { align:'center' });
-doc.setFontSize(12); doc.setFont('FreeSerifUrdu','bold'); doc.setTextColor(50,50,50);
+doc.setFontSize(12); doc.setFont(undefined,'bold'); doc.setTextColor(50,50,50);
 const titleText = isEntities ? 'Payment Entities — Balances & Ledger' : 'Expenses — Transaction Records';
 doc.text(`${titleText} · ${periodName}`, pageW/2, 30, { align:'center' });
-doc.setFontSize(8); doc.setFont('FreeSerifUrdu','normal'); doc.setTextColor(120,120,120);
+doc.setFontSize(8); doc.setFont(undefined,'normal'); doc.setTextColor(120,120,120);
 doc.text(`Generated: ${now.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})} at ${now.toLocaleTimeString('en-US')}`, pageW/2, 36, { align:'center' });
 doc.setDrawColor(...hdrColor); doc.setLineWidth(0.5);
 doc.line(14, 39, pageW - 14, 39);
@@ -11341,21 +11337,21 @@ entityRows.push([
 entity.name + (hasMergedTx ? '\n\u2605 Has year-end balance' : ''),
 isSupplier ? 'SUPPLIER' : (entity.type === 'payee' ? 'PAYEE' : 'PAYOR'),
 entity.phone || 'N/A',
-hasMergedTx ? shapeUrdu('سال آخر\n') + source : source,
+hasMergedTx ? 'Year-End\n' + source : source,
 balDisplay,
 balNote
 ]);
 pdfEntityMeta.push({ entity, balNote, hasMergedTx });
 });
 entityRows.push([
-shapeUrdu(`کل (${pdfEntityMeta.length} فریق)`), '', '', '',
-shapeUrdu('دینا ہے: ') + fmtAmt(totPayable) + shapeUrdu('\nلینا ہے: ') + fmtAmt(totReceivable),
-shapeUrdu('خالص: ') + fmtAmt(Math.abs(totReceivable - totPayable))
+`TOTAL (${pdfEntityMeta.length} entities)`, '', '', '',
+'Payable: ' + fmtAmt(totPayable) + '\nReceivable: ' + fmtAmt(totReceivable),
+'Net: ' + fmtAmt(Math.abs(totReceivable - totPayable))
 ]);
 if (entityRows.length > 1) {
 doc.autoTable({
 startY: yPos,
-head: [[shapeUrdu('نام'), shapeUrdu('قسم'), shapeUrdu('فون'), shapeUrdu('بقایا ذریعہ'), shapeUrdu('بقایا'), shapeUrdu('حال')]],
+head: [['Name', 'Type', 'Phone', 'Balance Source', 'Balance', 'Status']],
 body: entityRows,
 theme: 'grid',
 headStyles: { fillColor: hdrColor, textColor: 255, fontSize: 9, fontStyle:'bold', halign:'center' },
@@ -11384,38 +11380,38 @@ else if (meta.balNote === 'RECEIVABLE') data.cell.styles.textColor = [40,167,69]
 else data.cell.styles.textColor = [100,100,100];
 }
 if (data.column.index === 5 && meta) {
-if (meta.balNote === 'SETTLED' || meta.balNote === shapeUrdu('چکتا')) data.cell.styles.textColor = [100,100,100];
+if (meta.balNote === 'SETTLED') data.cell.styles.textColor = [100,100,100];
 else if (meta.balNote === 'RECEIVABLE') data.cell.styles.textColor = [40,167,69];
 else if (meta.balNote === 'PAYABLE') data.cell.styles.textColor = [220,53,69];
 }
 if (data.column.index === 1) {
 const txt = (data.cell.text || []).join('');
-if (txt === 'SUPPLIER' || txt === shapeUrdu('سپلائر')) data.cell.styles.textColor = [200,100,0];
-else if (txt === 'PAYEE' || txt === shapeUrdu('لینے والا')) data.cell.styles.textColor = [220,53,69];
-else if (txt === 'PAYOR' || txt === shapeUrdu('دینے والا')) data.cell.styles.textColor = [40,167,69];
+if (txt === 'SUPPLIER') data.cell.styles.textColor = [200,100,0];
+else if (txt === 'PAYEE') data.cell.styles.textColor = [220,53,69];
+else if (txt === 'PAYOR') data.cell.styles.textColor = [40,167,69];
 }
 },
 margin: { left: 14, right: 14 }
 });
 const afterY = doc.lastAutoTable.finalY + 6;
-if (afterY < 265) {
-doc.setFontSize(8); doc.setFont('FreeSerifUrdu','normal'); doc.setTextColor(100,100,100);
+if (afterY < 275) {
+doc.setFontSize(8); doc.setFont(undefined,'normal'); doc.setTextColor(100,100,100);
 doc.text(
-shapeUrdu(`کل دینا: ${fmtAmt(totPayable)} | کل لینا: ${fmtAmt(totReceivable)} | خالص: ${fmtAmt(Math.abs(totReceivable - totPayable))} ${totReceivable > totPayable ? '(ہمارے حق میں)' : '(ہمیں دینا ہے)'}`),
+`Total Payables: ${fmtAmt(totPayable)} | Total Receivables: ${fmtAmt(totReceivable)} | Net Position: ${fmtAmt(Math.abs(totReceivable - totPayable))} ${totReceivable > totPayable ? '(IN OUR FAVOR)' : '(NET PAYABLE)'}`,
 14, afterY
 );
 const hasMergedEntries = Object.keys(entityMergedInfo).length > 0;
-if (hasMergedEntries && afterY + 7 < 272) {
+if (hasMergedEntries && afterY + 7 < 280) {
 doc.setFillColor(245, 235, 255);
 doc.roundedRect(14, afterY + 6, pageW - 28, 9, 1.5, 1.5, 'F');
-doc.setFontSize(7.5); doc.setFont('FreeSerifUrdu','bold'); doc.setTextColor(126, 34, 206);
-doc.text(shapeUrdu('\u2605 رنگین قطاریں سال کے آخر کے ملائے گئے بقایا ریکارڈ ہیں۔'), 18, afterY + 12.5);
-doc.setFont('FreeSerifUrdu','normal'); doc.setTextColor(80,80,80);
+doc.setFontSize(7.5); doc.setFont(undefined,'bold'); doc.setTextColor(126, 34, 206);
+doc.text('\u2605 Highlighted rows contain year-end opening balances (MERGED) from Close Financial Year.', 18, afterY + 12.5);
+doc.setFont(undefined,'normal'); doc.setTextColor(80,80,80);
 }
 }
 } else {
-doc.setFont('FreeSerifUrdu','normal'); doc.setFontSize(10); doc.setTextColor(150);
-doc.text(shapeUrdu('کوئی فریق نہیں ملا۔'), pageW/2, yPos + 10, { align:'center' });
+doc.setFont(undefined,'normal'); doc.setFontSize(10); doc.setTextColor(150);
+doc.text('No entities found.', pageW/2, yPos + 10, { align:'center' });
 }
 }
 if (!isEntities) {
@@ -11433,7 +11429,7 @@ nameGroups[key] = (nameGroups[key] || 0) + (parseFloat(exp.amount) || 0);
 const mergedExpenses = expenses.filter(e => e.isMerged === true);
 const normalExpenses = expenses.filter(e => !e.isMerged);
 if (mergedExpenses.length > 0) {
-yPos = _pdfDrawMergedSectionHeader(doc, yPos, pageW, shapeUrdu('سال کے آخر کے خرچے (آگے لائے گئے)'));
+yPos = _pdfDrawMergedSectionHeader(doc, yPos, pageW, 'YEAR-END EXPENSE SUMMARIES (Carried Forward)');
 const mergedExpRows = mergedExpenses.map(exp => {
 const period = _pdfMergedPeriodLabel(exp);
 const count = _pdfMergedCountLabel(exp);
@@ -11446,8 +11442,8 @@ fmtAmt(parseFloat(exp.amount)||0)
 ];
 });
 const mExpTotal = mergedExpenses.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
-mergedExpRows.push(['','','',shapeUrdu('ذیلی کل (')+mergedExpenses.length+shapeUrdu(' گروپ)'),fmtAmt(mExpTotal)]);
-doc.autoTable({startY:yPos,head:[[shapeUrdu('سالانہ دور'),shapeUrdu('نام / وینڈر'),shapeUrdu('زمرہ'),shapeUrdu('خلاصہ'),shapeUrdu('کل رقم')]],body:mergedExpRows,theme:'grid',
+mergedExpRows.push(['','','','SUBTOTAL ('+mergedExpenses.length+' groups)',fmtAmt(mExpTotal)]);
+doc.autoTable({startY:yPos,head:[['Year Period','Name / Vendor','Category','Summary','Total Amount']],body:mergedExpRows,theme:'grid',
 headStyles:{fillColor:PDF_MERGED_HDR_COLOR,textColor:255,fontSize:9,fontStyle:'bold',halign:'center'},
 styles:{fontSize:8,cellPadding:2.5,lineWidth:0.15,lineColor:[200,180,230],overflow:'linebreak'},
 columnStyles:{0:{cellWidth:30,halign:'center'},1:{cellWidth:34},2:{cellWidth:22,halign:'center',fontSize:7.5},3:{cellWidth:58},4:{cellWidth:28,halign:'right',fontStyle:'bold'}},
@@ -11465,16 +11461,16 @@ fmtAmt(parseFloat(exp.amount) || 0)
 ]);
 const totalAmt = expenses.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
 if (normalExpenses.length > 0) {
-doc.setFontSize(8.5); doc.setFont('FreeSerifUrdu','bold');
+doc.setFontSize(8.5); doc.setFont(undefined,'bold');
 doc.setTextColor(...hdrColor);
-doc.text(shapeUrdu('الگ الگ خرچے'), 14, yPos);
-doc.setTextColor(80,80,80); doc.setFont('FreeSerifUrdu','normal');
+doc.text('INDIVIDUAL EXPENSE RECORDS', 14, yPos);
+doc.setTextColor(80,80,80); doc.setFont(undefined,'normal');
 yPos += 5;
 }
-expenseRows.push(['', '', '', shapeUrdu('کل (') + expenses.length + shapeUrdu(' اندراج)'), fmtAmt(totalAmt)]);
+expenseRows.push(['', '', '', 'TOTAL (' + expenses.length + ' records)', fmtAmt(totalAmt)]);
 doc.autoTable({
 startY: yPos,
-head: [[shapeUrdu('تاریخ'), shapeUrdu('نام / وینڈر'), shapeUrdu('زمرہ'), shapeUrdu('تفصیل'), shapeUrdu('رقم')]],
+head: [['Date', 'Name / Vendor', 'Category', 'Description', 'Amount']],
 body: expenseRows,
 theme: 'grid',
 headStyles: { fillColor: hdrColor, textColor: 255, fontSize: 9, fontStyle:'bold', halign:'center' },
@@ -11499,25 +11495,25 @@ margin: { left: 14, right: 14 }
 });
 const afterY = doc.lastAutoTable.finalY + 8;
 if (afterY < 265 && Object.keys(nameGroups).length > 1) {
-doc.setFontSize(9); doc.setFont('FreeSerifUrdu','bold'); doc.setTextColor(50,50,50);
-doc.text(shapeUrdu('خرچے کے نام کے مطابق:'), 14, afterY);
+doc.setFontSize(9); doc.setFont(undefined,'bold'); doc.setTextColor(50,50,50);
+doc.text('Breakdown by Expense Name:', 14, afterY);
 let bkY = afterY + 5;
-doc.setFont('FreeSerifUrdu','normal'); doc.setFontSize(8);
+doc.setFont(undefined,'normal'); doc.setFontSize(8);
 Object.entries(nameGroups)
 .sort(([,a],[,b]) => b - a)
 .forEach(([name, total]) => {
 if (bkY > 275) return;
 doc.setTextColor(80,80,80);
 doc.text(name.substring(0, 30), 14, bkY);
-doc.setTextColor(220,53,69); doc.setFont('FreeSerifUrdu','bold');
+doc.setTextColor(220,53,69); doc.setFont(undefined,'bold');
 doc.text(fmtAmt(total), 130, bkY, { align:'right' });
-doc.setFont('FreeSerifUrdu','normal');
+doc.setFont(undefined,'normal');
 bkY += 5;
 });
 }
 } else {
-doc.setFont('FreeSerifUrdu','normal'); doc.setFontSize(10); doc.setTextColor(150);
-doc.text(shapeUrdu('اس وقت کے لیے کوئی خرچہ نہیں ملا۔'), pageW/2, yPos + 10, { align:'center' });
+doc.setFont(undefined,'normal'); doc.setFontSize(10); doc.setTextColor(150);
+doc.text('No expense records found for this period.', pageW/2, yPos + 10, { align:'center' });
 }
 }
 const pageCount = doc.internal.getNumberOfPages();
@@ -11528,7 +11524,7 @@ doc.text(
 `Generated on ${now.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})} at ${now.toLocaleTimeString('en-US')} | GULL AND ZUBAIR NASWAR DEALERS`,
 pageW/2, 291, { align:'center' }
 );
-doc.text(shapeUrdu(`صفحہ ${i} از ${pageCount}`), pageW/2, 287, { align:'center' });
+doc.text(`Page ${i} of ${pageCount}`, pageW/2, 287, { align:'center' });
 }
 const filename = `Unified_Statement_${viewMode}_${periodFilter}_${now.toISOString().split('T')[0]}.pdf`;
 doc.save(filename);
@@ -11826,28 +11822,27 @@ const total = records.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
 const rangeName = range === 'all' ? 'All Time' : range.charAt(0).toUpperCase() + range.slice(1);
 const { jsPDF } = window.jspdf;
 const doc = new jsPDF('p', 'mm', 'a4');
-setupUrduFont(doc);
 const pageW = doc.internal.pageSize.getWidth();
 const hdrColor = [255, 149, 0];
 doc.setFillColor(...hdrColor);
 doc.rect(0, 0, pageW, 22, 'F');
-doc.setFontSize(15); doc.setFont('FreeSerifUrdu','bold'); doc.setTextColor(255,255,255);
+doc.setFontSize(15); doc.setFont(undefined,'bold'); doc.setTextColor(255,255,255);
 doc.text('GULL AND ZUBAIR NASWAR DEALERS', pageW/2, 10, { align:'center' });
-doc.setFontSize(9); doc.setFont('FreeSerifUrdu','normal');
+doc.setFontSize(9); doc.setFont(undefined,'normal');
 doc.text('Naswar Manufacturers & Dealers', pageW/2, 17, { align:'center' });
-doc.setFontSize(12); doc.setFont('FreeSerifUrdu','bold'); doc.setTextColor(50,50,50);
+doc.setFontSize(12); doc.setFont(undefined,'bold'); doc.setTextColor(50,50,50);
 doc.text(`Expense History: ${expenseName}`, pageW/2, 30, { align:'center' });
-doc.setFontSize(9); doc.setFont('FreeSerifUrdu','normal'); doc.setTextColor(80,80,80);
-doc.setFont('FreeSerifUrdu','bold'); doc.text('Period:', 14, 38);
-doc.setFont('FreeSerifUrdu','normal'); doc.text(rangeName, 34, 38);
-doc.setFont('FreeSerifUrdu','bold'); doc.text('Records:', 75, 38);
-doc.setFont('FreeSerifUrdu','normal'); doc.text(String(records.length), 98, 38);
-doc.setFont('FreeSerifUrdu','bold'); doc.text('Total:', 120, 38);
-doc.setFont('FreeSerifUrdu','normal'); doc.setTextColor(...hdrColor); doc.setFont('FreeSerifUrdu','bold');
+doc.setFontSize(9); doc.setFont(undefined,'normal'); doc.setTextColor(80,80,80);
+doc.setFont(undefined,'bold'); doc.text('Period:', 14, 38);
+doc.setFont(undefined,'normal'); doc.text(rangeName, 34, 38);
+doc.setFont(undefined,'bold'); doc.text('Records:', 75, 38);
+doc.setFont(undefined,'normal'); doc.text(String(records.length), 98, 38);
+doc.setFont(undefined,'bold'); doc.text('Total:', 120, 38);
+doc.setFont(undefined,'normal'); doc.setTextColor(...hdrColor); doc.setFont(undefined,'bold');
 doc.text(fmtAmt(total), 138, 38);
-doc.setTextColor(80,80,80); doc.setFont('FreeSerifUrdu','normal');
-doc.setFont('FreeSerifUrdu','bold'); doc.text('Generated:', 14, 44);
-doc.setFont('FreeSerifUrdu','normal'); doc.text(now.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}) + ' at ' + now.toLocaleTimeString('en-US'), 42, 44);
+doc.setTextColor(80,80,80); doc.setFont(undefined,'normal');
+doc.setFont(undefined,'bold'); doc.text('Generated:', 14, 44);
+doc.setFont(undefined,'normal'); doc.text(now.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}) + ' at ' + now.toLocaleTimeString('en-US'), 42, 44);
 doc.setDrawColor(...hdrColor); doc.setLineWidth(0.5);
 doc.line(14, 47, pageW - 14, 47);
 if (records.length > 0) {
@@ -11855,7 +11850,7 @@ const mergedExpRecs = records.filter(e => e.isMerged === true);
 const normalExpRecs = records.filter(e => !e.isMerged);
 let tableStartY = 51;
 if (mergedExpRecs.length > 0) {
-  tableStartY = _pdfDrawMergedSectionHeader(doc, tableStartY, pageW, shapeUrdu('سال کے آخر کے خرچے (آگے لائے گئے)'));
+  tableStartY = _pdfDrawMergedSectionHeader(doc, tableStartY, pageW, 'YEAR-END EXPENSE SUMMARIES (Carried Forward)');
   const mergedRows = mergedExpRecs.map(e => {
     const ms = e.mergedSummary || {};
     const period = _pdfMergedPeriodLabel(e);
@@ -11864,12 +11859,12 @@ if (mergedExpRecs.length > 0) {
       period,
       `${count} — ${(e.description||'Year-end merged total').substring(0,45)}`,
       fmtAmt(parseFloat(e.amount)||0),
-      shapeUrdu('\u2605 ملایا')
+      '\u2605 MERGED'
     ];
   });
   const mTot = mergedExpRecs.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
-  mergedRows.push(['',shapeUrdu('ذیلی کل (')+mergedExpRecs.length+shapeUrdu(' سالانہ دور)'),fmtAmt(mTot),'']);
-  doc.autoTable({startY:tableStartY,head:[[shapeUrdu('سالانہ دور'),shapeUrdu('خلاصہ'),shapeUrdu('رقم'),shapeUrdu('نوٹ')]],body:mergedRows,theme:'grid',
+  mergedRows.push(['','SUBTOTAL ('+mergedExpRecs.length+' year periods)',fmtAmt(mTot),'']);
+  doc.autoTable({startY:tableStartY,head:[['Year Period','Summary','Amount','Note']],body:mergedRows,theme:'grid',
     headStyles:{fillColor:PDF_MERGED_HDR_COLOR,textColor:255,fontSize:9,fontStyle:'bold',halign:'center'},
     styles:{fontSize:8.5,cellPadding:3,lineWidth:0.15,lineColor:[200,180,230],overflow:'linebreak'},
     columnStyles:{0:{cellWidth:30,halign:'center'},1:{cellWidth:85},2:{cellWidth:30,halign:'right',fontStyle:'bold'},3:{cellWidth:31,halign:'center',fontStyle:'bold'}},
@@ -11880,9 +11875,9 @@ if (mergedExpRecs.length > 0) {
 }
 if (normalExpRecs.length > 0) {
   if (mergedExpRecs.length > 0) {
-    doc.setFontSize(8.5); doc.setFont('FreeSerifUrdu','bold'); doc.setTextColor(...hdrColor);
-    doc.text(shapeUrdu('الگ الگ خرچے'), 14, tableStartY);
-    doc.setTextColor(80,80,80); doc.setFont('FreeSerifUrdu','normal');
+    doc.setFontSize(8.5); doc.setFont(undefined,'bold'); doc.setTextColor(...hdrColor);
+    doc.text('INDIVIDUAL EXPENSE RECORDS', 14, tableStartY);
+    doc.setTextColor(80,80,80); doc.setFont(undefined,'normal');
     tableStartY += 5;
   }
 }
@@ -11896,10 +11891,10 @@ fmtAmt(parseFloat(e.amount) || 0),
 fmtAmt(runningTotal)
 ];
 });
-expenseRows.push(['', shapeUrdu('کل (') + records.length + shapeUrdu(' اندراج)'), fmtAmt(total), '']);
+expenseRows.push(['', 'TOTAL (' + records.length + ' entries)', fmtAmt(total), '']);
 doc.autoTable({
 startY: tableStartY,
-head: [[shapeUrdu('تاریخ'), shapeUrdu('تفصیل'), shapeUrdu('رقم'), shapeUrdu('مجموعی کل')]],
+head: [['Date', 'Description', 'Amount', 'Cumulative Total']],
 body: expenseRows,
 theme: 'grid',
 headStyles: { fillColor: hdrColor, textColor: 255, fontSize: 9, fontStyle:'bold', halign:'center' },
@@ -11931,23 +11926,23 @@ const d = new Date(e.date);
 const key = d.toLocaleDateString('en-US',{year:'numeric',month:'short'});
 monthTotals[key] = (monthTotals[key] || 0) + (parseFloat(e.amount) || 0);
 });
-doc.setFontSize(9); doc.setFont('FreeSerifUrdu','bold'); doc.setTextColor(50,50,50);
-doc.text(shapeUrdu('مہینے کے مطابق:'), 14, afterY);
+doc.setFontSize(9); doc.setFont(undefined,'bold'); doc.setTextColor(50,50,50);
+doc.text('Monthly Breakdown:', 14, afterY);
 let bkY = afterY + 5;
-doc.setFont('FreeSerifUrdu','normal'); doc.setFontSize(8.5);
+doc.setFont(undefined,'normal'); doc.setFontSize(8.5);
 Object.entries(monthTotals).forEach(([month, amt]) => {
 if (bkY > 278) return;
 doc.setTextColor(80,80,80); doc.text(month, 14, bkY);
-doc.setTextColor(220,53,69); doc.setFont('FreeSerifUrdu','bold');
+doc.setTextColor(220,53,69); doc.setFont(undefined,'bold');
 doc.text(fmtAmt(amt), 60, bkY);
-doc.setFont('FreeSerifUrdu','normal');
+doc.setFont(undefined,'normal');
 bkY += 5;
 });
 }
 }
 } else {
-doc.setFont('FreeSerifUrdu','normal'); doc.setFontSize(10); doc.setTextColor(150);
-doc.text(shapeUrdu(`"${expenseName}" کے لیے اس وقت میں کوئی خرچہ نہیں ملا۔`), pageW/2, 70, { align:'center' });
+doc.setFont(undefined,'normal'); doc.setFontSize(10); doc.setTextColor(150);
+doc.text(`No expense records found for "${expenseName}" in the selected period.`, pageW/2, 70, { align:'center' });
 }
 const pageCount = doc.internal.getNumberOfPages();
 for (let i = 1; i <= pageCount; i++) {
@@ -11957,7 +11952,7 @@ doc.text(
 `Generated on ${now.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})} at ${now.toLocaleTimeString('en-US')} | GULL AND ZUBAIR NASWAR DEALERS`,
 pageW/2, 291, { align:'center' }
 );
-doc.text(shapeUrdu(`صفحہ ${i} از ${pageCount}`), pageW/2, 287, { align:'center' });
+doc.text(`Page ${i} of ${pageCount}`, pageW/2, 287, { align:'center' });
 }
 doc.save(`Expense_${expenseName.replace(/\s+/g,'_')}_${range}_${new Date().toISOString().split('T')[0]}.pdf`);
 showToast('PDF exported successfully', 'success');
