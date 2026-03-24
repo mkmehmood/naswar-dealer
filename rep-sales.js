@@ -1123,9 +1123,8 @@ if (btn) btn.disabled = false;
 async function exportRepCustomerToPDF() {
 const repSales = ensureArray(await sqliteStore.get('rep_sales'));
 const repCustomers = ensureArray(await sqliteStore.get('rep_customers'));
-const titleElement = document.getElementById('repManageCustomerTitle');
-if (!titleElement) { showToast('No rep customer selected', 'warning'); return; }
-const customerName = titleElement.innerText.trim();
+if (!currentManagingRepCustomer) { showToast('No rep customer selected', 'warning'); return; }
+const customerName = currentManagingRepCustomer.trim();
 if (!customerName) { showToast('No rep customer selected', 'warning'); return; }
 const rangeSelect = document.getElementById('repCustomerPdfRange');
 const range = rangeSelect ? rangeSelect.value : 'all';
@@ -1203,7 +1202,7 @@ doc.rect(0, 0, pageW, 22, 'F');
 doc.setFontSize(16); doc.setFont(undefined, 'bold'); doc.setTextColor(255, 255, 255);
 doc.text('GULL AND ZUBAIR NASWAR DEALERS', pageW / 2, 10, { align: 'center' });
 doc.setFontSize(9); doc.setFont(undefined, 'normal');
-doc.text('Naswar Manufacturers & Dealers · Rep Sales Statement', pageW / 2, 17, { align: 'center' });
+doc.text('Naswar Manufacturers & Dealers', pageW / 2, 17, { align: 'center' });
 const rangeName = range === 'all' ? 'All Time' : range === 'today' ? 'Today' :
 range === 'week' ? 'This Week' : range === 'month' ? 'This Month' : 'This Year';
 doc.setFontSize(12); doc.setFont(undefined, 'bold'); doc.setTextColor(50, 50, 50);
@@ -1297,7 +1296,7 @@ if (repHasPrior) {
 const finalBal = (repHasPrior ? repOpeningBalance : 0) + totDebit - totCredit;
 txRows.push(['TOTALS', '', `${fmtAmt(totQty)} kg total`,
 'Rs '+fmtAmt(totDebit), 'Rs '+fmtAmt(totCredit),
-Math.abs(finalBal)<0.01?'SETTLED':(finalBal>0?'DUE\nRs '+fmtAmt(finalBal):'OVERPAID\nRs '+fmtAmt(Math.abs(finalBal)))]);
+Math.abs(finalBal)<0.01?'SETTLED':(finalBal>0?'Rs '+fmtAmt(finalBal):'OVERPAID\nRs '+fmtAmt(Math.abs(finalBal)))]);
 doc.autoTable({
 startY: yPos,
 head: [['Date', 'Type', 'Details', 'Debit (Sale)', 'Credit (Rcvd)', 'Balance']],
@@ -1341,25 +1340,26 @@ if (!isOpeningRow && !isTotal) {
 margin: { left: 14, right: 14 }
 });
 const afterY = ((normalTxns.length > 0 || repHasPrior) ? doc.lastAutoTable.finalY : yPos - 5) + 5;
-if (afterY < 268) {
+if (afterY < 252) {
+const repBoxH = repHasPrior && Math.abs(repOpeningBalance) >= 0.01 ? 28 : 20;
 doc.setFillColor(240, 235, 255);
-doc.roundedRect(14, afterY, pageW - 28, 20, 2, 2, 'F');
+doc.roundedRect(14, afterY, pageW - 28, repBoxH, 2, 2, 'F');
 doc.setDrawColor(...hdrColor); doc.setLineWidth(0.3);
-doc.roundedRect(14, afterY, pageW - 28, 20, 2, 2, 'S');
+doc.roundedRect(14, afterY, pageW - 28, repBoxH, 2, 2, 'S');
 doc.setFontSize(8); doc.setFont(undefined, 'normal');
 if (repHasPrior && Math.abs(repOpeningBalance) >= 0.01) {
   const repObSign = repOpeningBalance > 0 ? '+' : '-';
   doc.setTextColor(30, 80, 160);
-  doc.text(`Opening Bal: ${repObSign}Rs ${fmtAmt(Math.abs(repOpeningBalance))}`, 20, afterY + 7);
+  doc.text(`Opening Balance: ${repObSign}Rs ${fmtAmt(Math.abs(repOpeningBalance))}`, pageW / 2, afterY + 7, { align: 'center' });
   doc.setTextColor(220, 53, 69);
-  doc.text(`Period Debit: Rs ${fmtAmt(totDebit)}`, 75, afterY + 7);
+  doc.text(`Period Debit: Rs ${fmtAmt(totDebit)}`, pageW / 4, afterY + 15, { align: 'center' });
   doc.setTextColor(40, 167, 69);
-  doc.text(`Period Credit: Rs ${fmtAmt(totCredit)}`, 130, afterY + 7);
+  doc.text(`Period Credit: Rs ${fmtAmt(totCredit)}`, (pageW * 3) / 4, afterY + 15, { align: 'center' });
 } else {
   doc.setTextColor(220, 53, 69);
-  doc.text(`Total Debit (Sales): Rs ${fmtAmt(totDebit)}`, 20, afterY + 7);
+  doc.text(`Total Debit (Sales): Rs ${fmtAmt(totDebit)}`, pageW / 4, afterY + 8, { align: 'center' });
   doc.setTextColor(40, 167, 69);
-  doc.text(`Total Credit (Rcvd): Rs ${fmtAmt(totCredit)}`, 20, afterY + 14);
+  doc.text(`Total Credit (Rcvd): Rs ${fmtAmt(totCredit)}`, (pageW * 3) / 4, afterY + 8, { align: 'center' });
 }
 doc.setFont(undefined, 'bold');
 const balStr = Math.abs(finalBal) < 0.01 ? 'SETTLED'
@@ -1368,7 +1368,7 @@ const balStr = Math.abs(finalBal) < 0.01 ? 'SETTLED'
 doc.setTextColor(Math.abs(finalBal)<0.01?100:finalBal>0?220:40,
 Math.abs(finalBal)<0.01?100:finalBal>0?53:167,
 Math.abs(finalBal)<0.01?100:69);
-doc.text(balStr, 110, afterY + (repHasPrior ? 7 : 10.5));
+doc.text(balStr, pageW / 2, afterY + (repHasPrior && Math.abs(repOpeningBalance) >= 0.01 ? 23 : 15), { align: 'center' });
 }
 } else {
 doc.setFont(undefined, 'normal'); doc.setFontSize(10); doc.setTextColor(150);

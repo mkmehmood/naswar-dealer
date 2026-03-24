@@ -2390,7 +2390,7 @@ if (normalTxns.length > 0 || hasPriorBalance) {
   });
 }
 const afterTx = ((normalTxns.length > 0 || hasPriorBalance) ? doc.lastAutoTable.finalY : yPos - 5) + 5;
-if (afterTx < 270) {
+if (afterTx < 255) {
 doc.setFillColor(245, 245, 245);
 const summaryRows = totalCreditPurch > 0 ? 2 : 1;
 doc.roundedRect(14, afterTx, pageW - 28, summaryRows * 11 + 3, 2, 2, 'F');
@@ -2511,7 +2511,7 @@ if (txt === 'PENDING') data.cell.styles.textColor = [220, 53, 69];
 margin: { left: 14, right: 14 }
 });
 const afterMat = doc.lastAutoTable.finalY + 5;
-if (afterMat < 272) {
+if (afterMat < 265) {
 doc.setFillColor(255, 245, 230);
 doc.roundedRect(14, afterMat, pageW - 28, 14, 2, 2, 'F');
 doc.setFontSize(8.5); doc.setFont(undefined, 'normal');
@@ -2639,7 +2639,7 @@ doc.rect(0, 0, pageW, 22, 'F');
 doc.setFontSize(16); doc.setFont(undefined, 'bold'); doc.setTextColor(255, 255, 255);
 doc.text('GULL AND ZUBAIR NASWAR DEALERS', pageW / 2, 10, { align: 'center' });
 doc.setFontSize(9); doc.setFont(undefined, 'normal');
-doc.text('Naswar Manufacturers & Dealers · Sales Tab Statement', pageW / 2, 17, { align: 'center' });
+doc.text('Naswar Manufacturers & Dealers', pageW / 2, 17, { align: 'center' });
 const rangeName = range === 'all' ? 'All Time' : range === 'today' ? 'Today' :
 range === 'week' ? 'This Week' : range === 'month' ? 'This Month' : 'This Year';
 doc.setFontSize(12); doc.setFont(undefined, 'bold'); doc.setTextColor(50, 50, 50);
@@ -2799,7 +2799,7 @@ if (normalSalesTxns.length > 0 || custHasPrior) {
   yPos += 5;
   txRows.push(['TOTALS','',`${fmtAmt(totQty)} kg total`,
     fmtAmt(totDebit),fmtAmt(totCredit),
-    Math.abs(finalBal)<0.01?'SETTLED':(finalBal>0?'DUE\n' +fmtAmt(finalBal):'OVERPAID\n' +fmtAmt(Math.abs(finalBal)))]);
+    Math.abs(finalBal)<0.01?'SETTLED':(finalBal>0?fmtAmt(finalBal):'OVERPAID\n' +fmtAmt(Math.abs(finalBal)))]);
   doc.autoTable({
     startY: yPos,
     head: [['Date', 'Type', 'Details', 'Debit (Sale)', 'Credit (Rcvd)', 'Balance']],
@@ -2844,8 +2844,8 @@ if (normalSalesTxns.length > 0 || custHasPrior) {
   });
 }
 const afterY = ((normalSalesTxns.length > 0 || custHasPrior) ? doc.lastAutoTable.finalY : yPos - 5) + 5;
-if (afterY < 268) {
-const custSummaryH = 20;
+if (afterY < 252) {
+const custSummaryH = custHasPrior && Math.abs(custOpeningBalance) >= 0.01 ? 28 : 20;
 doc.setFillColor(245, 255, 245);
 doc.roundedRect(14, afterY, pageW - 28, custSummaryH, 2, 2, 'F');
 doc.setDrawColor(...hdrColor); doc.setLineWidth(0.3);
@@ -2854,16 +2854,16 @@ doc.setFontSize(8); doc.setFont(undefined, 'normal');
 if (custHasPrior && Math.abs(custOpeningBalance) >= 0.01) {
   const obSign = custOpeningBalance > 0 ? '+' : '-';
   doc.setTextColor(30, 80, 160);
-  doc.text(`Opening Bal: ${obSign}${fmtAmt(Math.abs(custOpeningBalance))}`, 20, afterY + 7);
+  doc.text(`Opening Balance: ${obSign}${fmtAmt(Math.abs(custOpeningBalance))}`, pageW / 2, afterY + 7, { align: 'center' });
   doc.setTextColor(220, 53, 69);
-  doc.text(`Period Debit: ${fmtAmt(totDebit)}`, 75, afterY + 7);
+  doc.text(`Period Debit: ${fmtAmt(totDebit)}`, pageW / 4, afterY + 15, { align: 'center' });
   doc.setTextColor(40, 167, 69);
-  doc.text(`Period Credit: ${fmtAmt(totCredit)}`, 130, afterY + 7);
+  doc.text(`Period Credit: ${fmtAmt(totCredit)}`, (pageW * 3) / 4, afterY + 15, { align: 'center' });
 } else {
   doc.setTextColor(220, 53, 69);
-  doc.text(`Total Debit (Sales): ${fmtAmt(totDebit)}`, 20, afterY + 7);
+  doc.text(`Total Debit (Sales): ${fmtAmt(totDebit)}`, pageW / 4, afterY + 8, { align: 'center' });
   doc.setTextColor(40, 167, 69);
-  doc.text(`Total Credit (Rcvd): ${fmtAmt(totCredit)}`, 20, afterY + 14);
+  doc.text(`Total Credit (Rcvd): ${fmtAmt(totCredit)}`, (pageW * 3) / 4, afterY + 8, { align: 'center' });
 }
 doc.setTextColor(Math.abs(finalBal) < 0.01 ? 100 : finalBal > 0 ? 220 : 40,
 Math.abs(finalBal) < 0.01 ? 100 : finalBal > 0 ? 53 : 167,
@@ -2872,7 +2872,7 @@ doc.setFont(undefined, 'bold');
 const balStr = Math.abs(finalBal) < 0.01 ? 'SETTLED'
 : finalBal > 0 ? `Outstanding Due: ${fmtAmt(finalBal)}`
 : `Overpaid by: ${fmtAmt(Math.abs(finalBal))}`;
-doc.text(balStr, 110, afterY + (custHasPrior ? 7 : 10.5));
+doc.text(balStr, pageW / 2, afterY + (custHasPrior && Math.abs(custOpeningBalance) >= 0.01 ? 23 : 15), { align: 'center' });
 }
 } else {
 doc.setFont(undefined, 'normal'); doc.setFontSize(10); doc.setTextColor(150);
@@ -11394,14 +11394,14 @@ else if (txt === 'PAYOR') data.cell.styles.textColor = [40,167,69];
 margin: { left: 14, right: 14 }
 });
 const afterY = doc.lastAutoTable.finalY + 6;
-if (afterY < 275) {
+if (afterY < 265) {
 doc.setFontSize(8); doc.setFont(undefined,'normal'); doc.setTextColor(100,100,100);
 doc.text(
 `Total Payables: ${fmtAmt(totPayable)} | Total Receivables: ${fmtAmt(totReceivable)} | Net Position: ${fmtAmt(Math.abs(totReceivable - totPayable))} ${totReceivable > totPayable ? '(IN OUR FAVOR)' : '(NET PAYABLE)'}`,
 14, afterY
 );
 const hasMergedEntries = Object.keys(entityMergedInfo).length > 0;
-if (hasMergedEntries && afterY + 7 < 280) {
+if (hasMergedEntries && afterY + 7 < 272) {
 doc.setFillColor(245, 235, 255);
 doc.roundedRect(14, afterY + 6, pageW - 28, 9, 1.5, 1.5, 'F');
 doc.setFontSize(7.5); doc.setFont(undefined,'bold'); doc.setTextColor(126, 34, 206);
