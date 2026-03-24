@@ -2379,6 +2379,7 @@ No records found
 <script>
 (function() {
 
+var _sidebarHistoryPushed = false;
 function openSidebar() {
   var mode = window.appMode || 'admin';
   var settingsSection = document.getElementById('sidebar-settings-section');
@@ -2386,11 +2387,21 @@ function openSidebar() {
   document.getElementById('sidebar-backdrop').classList.add('open');
   document.getElementById('app-sidebar').classList.add('open');
   document.body.style.overflow = 'hidden';
+  if (!_sidebarHistoryPushed) {
+    _sidebarHistoryPushed = true;
+    history.pushState({ _sidebar: true }, '');
+  }
 }
-function closeSidebar() {
+function closeSidebar(_fromPopstate) {
   document.getElementById('sidebar-backdrop').classList.remove('open');
   document.getElementById('app-sidebar').classList.remove('open');
   document.body.style.overflow = '';
+  if (!_fromPopstate && _sidebarHistoryPushed) {
+    _sidebarHistoryPushed = false;
+    history.back();
+  } else {
+    _sidebarHistoryPushed = false;
+  }
 }
 window.openSidebar = openSidebar;
 window.closeSidebar = closeSidebar;
@@ -2431,14 +2442,36 @@ function closeStandaloneScreen(id, _fromPopstate) {
   }
 }
 
-// Handle device back button (Android) and browser/PWA swipe-back (iOS)
+// Unified back-button handler: Android/iOS/desktop back, swipe-back, keyboard Alt+Left.
+// Single back  → closes topmost screen or sidebar.
+// Double back  → (within 2 s, nothing left to close) exits / closes the app.
+var _lastBackAttempt = 0;
+var _DOUBLE_BACK_MS  = 2000;
 window.addEventListener('popstate', function(e) {
   if (_standaloneClosingFromPopstate) return;
+
+  // 1. Close the topmost standalone screen
   if (e.state && e.state._standaloneScreen) {
     _standaloneHistoryDepth = Math.max(0, _standaloneHistoryDepth - 1);
-    var id = e.state._standaloneScreen;
-    closeStandaloneScreen(id, true /* _fromPopstate */);
+    closeStandaloneScreen(e.state._standaloneScreen, true /* _fromPopstate */);
+    return;
   }
+
+  // 2. Close the sidebar
+  if (e.state && e.state._sidebar) {
+    closeSidebar(true /* _fromPopstate */);
+    return;
+  }
+
+  // 3. Back past all app-owned states — double-tap-to-exit
+  var now = Date.now();
+  if (now - _lastBackAttempt < _DOUBLE_BACK_MS) {
+    // Second tap within 2 s — let the browser/OS close the app naturally
+    return;
+  }
+  // First tap — stay in app; re-push sentinel so the next back triggers again
+  _lastBackAttempt = now;
+  history.pushState({ _appBase: true }, '');
 });
 window.openStandaloneScreen = openStandaloneScreen;
 window.closeStandaloneScreen = closeStandaloneScreen;
@@ -2749,10 +2782,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  window.addEventListener('popstate', function(e) {
-    if (e.state && e.state._standaloneScreen) return; // handled by standalone screen nav
-    closeSidebar();
-  });
+  // Push the app-base sentinel once so the very first back press can be caught
+  // by the unified popstate handler (double-tap-to-exit pattern).
+  history.pushState({ _appBase: true }, '');
 
   var origOpenDevice = window.openStandaloneScreen;
   window.openStandaloneScreen = function(id) {
