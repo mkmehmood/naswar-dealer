@@ -2639,7 +2639,7 @@ doc.rect(0, 0, pageW, 22, 'F');
 doc.setFontSize(16); doc.setFont(undefined, 'bold'); doc.setTextColor(255, 255, 255);
 doc.text('GULL AND ZUBAIR NASWAR DEALERS', pageW / 2, 10, { align: 'center' });
 doc.setFontSize(9); doc.setFont(undefined, 'normal');
-doc.text('Naswar Manufacturers & Dealers · Sales Tab Statement', pageW / 2, 17, { align: 'center' });
+doc.text('Naswar Manufacturers & Dealers', pageW / 2, 17, { align: 'center' });
 const rangeName = range === 'all' ? 'All Time' : range === 'today' ? 'Today' :
 range === 'week' ? 'This Week' : range === 'month' ? 'This Month' : 'This Year';
 doc.setFontSize(12); doc.setFont(undefined, 'bold'); doc.setTextColor(50, 50, 50);
@@ -2799,7 +2799,7 @@ if (normalSalesTxns.length > 0 || custHasPrior) {
   yPos += 5;
   txRows.push(['TOTALS','',`${fmtAmt(totQty)} kg total`,
     fmtAmt(totDebit),fmtAmt(totCredit),
-    Math.abs(finalBal)<0.01?'SETTLED':(finalBal>0?'DUE\n' +fmtAmt(finalBal):'OVERPAID\n' +fmtAmt(Math.abs(finalBal)))]);
+    Math.abs(finalBal)<0.01?'SETTLED':(finalBal>0?fmtAmt(finalBal):'OVERPAID\n' +fmtAmt(Math.abs(finalBal)))]);
   doc.autoTable({
     startY: yPos,
     head: [['Date', 'Type', 'Details', 'Debit (Sale)', 'Credit (Rcvd)', 'Balance']],
@@ -2861,9 +2861,9 @@ if (custHasPrior && Math.abs(custOpeningBalance) >= 0.01) {
   doc.text(`Period Credit: ${fmtAmt(totCredit)}`, 130, afterY + 7);
 } else {
   doc.setTextColor(220, 53, 69);
-  doc.text(`Total Debit (Sales): ${fmtAmt(totDebit)}`, 20, afterY + 7);
+  doc.text(`Total Debit (Sales): ${fmtAmt(totDebit)}`, 20, afterY + 8);
   doc.setTextColor(40, 167, 69);
-  doc.text(`Total Credit (Rcvd): ${fmtAmt(totCredit)}`, 20, afterY + 14);
+  doc.text(`Total Credit (Rcvd): ${fmtAmt(totCredit)}`, 110, afterY + 8);
 }
 doc.setTextColor(Math.abs(finalBal) < 0.01 ? 100 : finalBal > 0 ? 220 : 40,
 Math.abs(finalBal) < 0.01 ? 100 : finalBal > 0 ? 53 : 167,
@@ -2872,7 +2872,7 @@ doc.setFont(undefined, 'bold');
 const balStr = Math.abs(finalBal) < 0.01 ? 'SETTLED'
 : finalBal > 0 ? `Outstanding Due: ${fmtAmt(finalBal)}`
 : `Overpaid by: ${fmtAmt(Math.abs(finalBal))}`;
-doc.text(balStr, 110, afterY + (custHasPrior ? 7 : 10.5));
+doc.text(balStr, pageW / 2, afterY + 15, { align: 'center' });
 }
 } else {
 doc.setFont(undefined, 'normal'); doc.setFontSize(10); doc.setTextColor(150);
