@@ -13214,9 +13214,9 @@ timeout: 60000
 };
 const credential = await navigator.credentials.create({ publicKey });
 const credId = BiometricAuth._bufToBase64(credential.rawId);
-const transports = credential.response?.getTransports?.() || ["internal", "hybrid"];
+const transports = Array.from(credential.response?.getTransports?.() || ["internal", "hybrid"]);
 await sqliteStore.set('bio_cred_id', credId);
-await sqliteStore.set('bio_cred_transports', JSON.stringify(transports));
+await sqliteStore.set('bio_cred_transports', transports);
 await sqliteStore.set('bio_enabled', 'true');
 notifyDataChange('all');
 triggerAutoSync();
@@ -13232,7 +13232,18 @@ try {
 const savedCredId = await sqliteStore.get('bio_cred_id');
 if (!savedCredId) throw new Error("No credential found. Please disable and re-enable Fingerprint Lock.");
 const storedTransports = await sqliteStore.get('bio_cred_transports');
-const transports = storedTransports ? JSON.parse(storedTransports) : ["internal", "hybrid"];
+let transports = ["internal", "hybrid"];
+if (Array.isArray(storedTransports) && storedTransports.length) {
+transports = storedTransports;
+} else if (typeof storedTransports === 'string' && storedTransports) {
+// Legacy fallback: plain comma-string or JSON string
+try {
+const parsed = JSON.parse(storedTransports);
+if (Array.isArray(parsed)) transports = parsed;
+} catch (_) {
+transports = storedTransports.split(',').map(s => s.trim()).filter(Boolean);
+}
+}
 const challenge = new Uint8Array(32);
 window.crypto.getRandomValues(challenge);
 const publicKey = {
