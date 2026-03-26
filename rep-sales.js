@@ -141,9 +141,16 @@ lockScreen.innerHTML = `
 </div>
 `;
 document.body.appendChild(lockScreen);
-// Do NOT auto-trigger — WebAuthn requires a user gesture and Firebase must be ready.
-// The user taps the button to authenticate.
-window.triggerUnlock = async () => {
+// Auto-trigger after the lock screen has painted.
+// rAF ensures the DOM is rendered first; the 320ms delay lets the entrance
+// animation start so the user sees the screen before the system prompt appears.
+// Page-load activation context is valid for ~5 seconds on iOS/Android PWA.
+requestAnimationFrame(() => {
+  setTimeout(() => {
+    if (typeof window.triggerUnlock === 'function') window.triggerUnlock();
+  }, 320);
+});
+window.triggerUnlock = async (isAutoTrigger = false) => {
 const btn = document.getElementById('_lock-btn');
 if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
 try {
@@ -156,15 +163,16 @@ setTimeout(() => screen.remove(), 300);
 }
 showToast("Unlocked Successfully", "success");
 } catch (e) {
-const iconWrap = document.getElementById('_lock-icon-wrap');
-if (iconWrap) { iconWrap.style.animation = '_lockShake 0.5s ease'; setTimeout(() => { iconWrap.style.animation = ''; }, 520); }
 const errName = e && e.name ? e.name : '';
 const errMsg  = e && e.message ? e.message : 'Unknown error';
-// User cancelled — silent, just re-enable button
+// NotAllowedError = user cancelled OR browser blocked auto-trigger gesture
+// In both cases silently re-enable the button — no shake, no toast
 if (errName === 'NotAllowedError') {
 if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
 return;
 }
+const iconWrap = document.getElementById('_lock-icon-wrap');
+if (iconWrap) { iconWrap.style.animation = '_lockShake 0.5s ease'; setTimeout(() => { iconWrap.style.animation = ''; }, 520); }
 // Credential not found — prompt re-setup
 if (errName === 'InvalidStateError' || errMsg.includes('credential') || errMsg.includes('Credential')) {
 showToast("Credential not found. Disable and re-enable Fingerprint Lock.", "error", 6000);
