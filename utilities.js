@@ -13195,7 +13195,7 @@ const userId = new Uint8Array(16);
 window.crypto.getRandomValues(userId);
 const publicKey = {
 challenge: challenge,
-rp: { name: "Sarim App" },
+rp: { name: "Sarim App", id: window.location.hostname },
 user: {
 id: userId,
 name: username,

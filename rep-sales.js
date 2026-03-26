@@ -142,6 +142,8 @@ lockScreen.innerHTML = `
 </div>
 `;
 document.body.appendChild(lockScreen);
+// Do NOT auto-trigger — WebAuthn requires a user gesture and Firebase must be ready.
+// The user taps the button to authenticate.
 window.triggerUnlock = async () => {
 const btn = document.getElementById('_lock-btn');
 if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
@@ -168,7 +170,6 @@ showToast("Biometric Error: " + e.message, "error");
 if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
 }
 };
-setTimeout(() => window.triggerUnlock(), 500);
 }
 }
 async function setRepMode(mode) {

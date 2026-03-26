@@ -826,6 +826,7 @@ const sqliteStore = (() => {
     'appMode', 'appMode_timestamp',
     'repProfile', 'repProfile_timestamp',
     'assignedManager', 'assignedUserTabs',
+    'bio_enabled', 'bio_cred_id', 'bio_cred_transports',
   ]);
 
   const _PLAINTEXT_KEYS = new Set([
