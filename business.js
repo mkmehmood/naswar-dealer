@@ -1902,6 +1902,21 @@ try { return sessionStorage.getItem(key) || null; } catch (e) { return null; }
 function _writeSession(key, value) {
 try { sessionStorage.setItem(key, value); } catch (e) {  }
 }
+/**
+ * Extracts the first-login timestamp embedded in a composite device ID.
+ * Composite format: "<prefix>-<uuid>_<epochMs>"  e.g. "dev-abc123..._1711234567890"
+ * Returns a Date if the suffix is present, otherwise null.
+ */
+function _extractDeviceFirstLoginTime(deviceId) {
+  if (!deviceId || typeof deviceId !== 'string') return null;
+  const match = deviceId.match(/_(\d{13})$/);
+  if (!match) return null;
+  const ms = parseInt(match[1], 10);
+  if (!isFinite(ms) || ms < 1577836800000 || ms > 4102358400000) return null;
+  return new Date(ms);
+}
+window._extractDeviceFirstLoginTime = _extractDeviceFirstLoginTime;
+
 async function _persistDeviceId(deviceId) {
 _writeCookie(DEVICE_ID_COOKIE, deviceId);
 try { localStorage.setItem('persistent_device_id', deviceId); } catch (e) {  }
@@ -1909,6 +1924,44 @@ _writeSession('gz_did_session', deviceId);
 try { await sqliteStore.set('device_id', deviceId); } catch (e) {  }
 await _writeCacheAnchor(deviceId);
 }
+
+/**
+ * Wipes every storage location that holds the device ID and install token so
+ * a brand-new composite ID (uuid + first-login timestamp) is generated on the
+ * next login. Does NOT touch appMode, repProfile, or any other device-global
+ * key — those are intentionally preserved across logouts.
+ */
+async function _clearDeviceIdStorage() {
+  // Expire cookies immediately
+  try {
+    document.cookie = `${DEVICE_ID_COOKIE}=; max-age=0; path=/; SameSite=Strict`;
+  } catch(_) {}
+  try {
+    document.cookie = `${INSTALL_TOKEN_COOKIE}=; max-age=0; path=/; SameSite=Strict`;
+  } catch(_) {}
+  // localStorage
+  try { localStorage.removeItem('persistent_device_id'); } catch(_) {}
+  // sessionStorage (belt-and-suspenders — signOut also calls sessionStorage.clear())
+  try {
+    sessionStorage.removeItem('gz_did_session');
+    sessionStorage.removeItem('gz_itk_session');
+  } catch(_) {}
+  // Cache API anchor
+  try {
+    if ('caches' in window) {
+      const cache = await caches.open(_CACHE_STORE_NAME);
+      await cache.delete(_CACHE_DEVICE_KEY);
+    }
+  } catch(_) {}
+  // SQLite device_id row
+  try { await sqliteStore.set('device_id', null); } catch(_) {}
+  // Reset in-memory cached shard so the next UUID batch picks up the new shard
+  _cachedDeviceShard = null;
+  // Reset UID ownership so the next login is always treated as a fresh session
+  _deviceIdOwnerUid = null;
+}
+window._clearDeviceIdStorage = _clearDeviceIdStorage;
+
 async function _recoverDeviceIdByFingerprint() {
 if (!firebaseDB || !currentUser) return null;
 try {
@@ -1950,31 +2003,77 @@ console.warn('Token-based device ID recovery failed:', _safeErr(e));
 return null;
 }
 async function getDeviceId() {
-let deviceId = _readCookie(DEVICE_ID_COOKIE);
-if (!deviceId) deviceId = _readSession('gz_did_session');
+// ── Login-timestamp self-expiry ───────────────────────────────────────────
+// Every genuine login stamps _gznd_login_ts = Date.now() into sessionStorage
+// (sync.js onAuthStateChanged).  sessionStorage survives page reloads but
+// is cleared by signOut() and wiped between browser sessions.
+//
+// The device ID format is "<uuid>_<epochMs>" — the suffix IS the session
+// birth time.  We compare it against _gznd_login_ts:
+//   • suffix >= login_ts  → ID belongs to this login session, keep it
+//   • suffix <  login_ts  → ID is from a previous session, discard it
+//     (this also skips Firestore fingerprint/token recovery, so the old
+//      shard can never be pulled back from the cloud)
+//
+// If _gznd_login_ts is absent (auth-state restore on hard reload without an
+// explicit login flow) we treat any stored ID as valid — the session is
+// genuinely continuing.
+let _loginTs = 0;
+try { _loginTs = parseInt(sessionStorage.getItem('_gznd_login_ts') || '0', 10) || 0; } catch(_) {}
+
+// ── Per-user guard (belt-and-suspenders for same-tab account switch) ─────
+const _callerUid = currentUser ? (currentUser.uid || currentUser.id) : null;
+const _uidChanged = _callerUid && _deviceIdOwnerUid && _callerUid !== _deviceIdOwnerUid;
+
+// Helper: is a candidate device ID fresh enough for this login session?
+function _isStale(did) {
+  if (!did || !_loginTs) return false; // no login stamp → accept anything
+  const match = did.match(/_(\d{13})$/);
+  if (!match) return true;             // legacy format without timestamp → always stale
+  const idTs = parseInt(match[1], 10);
+  return idTs < _loginTs;              // predates this login → stale
+}
+
+let deviceId = null;
+
+if (!_uidChanged) {
+  // Read from every persistent store in priority order
+  let candidate = _readCookie(DEVICE_ID_COOKIE);
+  if (!candidate) candidate = _readSession('gz_did_session');
+  if (!candidate) {
+    try { candidate = localStorage.getItem('persistent_device_id') || null; } catch(e) {}
+  }
+  if (!candidate) {
+    try { candidate = await sqliteStore.get('device_id'); } catch(e) {}
+  }
+  if (!candidate) candidate = await _readCacheAnchor();
+
+  // Only accept the candidate if it belongs to this login session
+  if (candidate && !_isStale(candidate)) {
+    deviceId = candidate;
+  }
+  // If candidate is stale (predates _loginTs), drop it and fall through to
+  // UUID generation.  Firestore recovery is intentionally skipped — it
+  // would only return the same old ID/shard we just discarded.
+}
+
 if (!deviceId) {
-try { deviceId = localStorage.getItem('persistent_device_id') || null; } catch (e) {  }
+  // Mint a brand-new ID whose embedded timestamp = now (this login session)
+  deviceId = _generateUUID() + '_' + Date.now();
 }
-if (!deviceId) {
-try { deviceId = await sqliteStore.get('device_id'); } catch (e) {  }
-}
-if (!deviceId) deviceId = await _readCacheAnchor();
-if (!deviceId && firebaseDB && currentUser) {
-deviceId = await _recoverDeviceIdByToken();
-}
-if (!deviceId && firebaseDB && currentUser) {
-deviceId = await _recoverDeviceIdByFingerprint();
-}
-if (!deviceId) deviceId = _generateUUID();
+
 await _persistDeviceId(deviceId);
+// Record which user owns this device ID so we can detect future account switches.
+if (_callerUid) _deviceIdOwnerUid = _callerUid;
+
 const existingToken = _readCookie(INSTALL_TOKEN_COOKIE) || _readSession('gz_itk_session');
 if (!existingToken) {
-const token = _generateUUID();
-_writeCookie(INSTALL_TOKEN_COOKIE, token);
-_writeSession('gz_itk_session', token);
+  const token = _generateUUID();
+  _writeCookie(INSTALL_TOKEN_COOKIE, token);
+  _writeSession('gz_itk_session', token);
 } else {
-_writeCookie(INSTALL_TOKEN_COOKIE, existingToken);
-_writeSession('gz_itk_session', existingToken);
+  _writeCookie(INSTALL_TOKEN_COOKIE, existingToken);
+  _writeSession('gz_itk_session', existingToken);
 }
 return deviceId;
 }
@@ -2145,8 +2244,30 @@ await sqliteStore.setBatch(sqliteBatch);
 }
 
 const isFirstRegistration = !existingDoc.exists;
+
+// Derive the unique shard from the composite device ID (which embeds the
+// first-login timestamp), so each device always maps to a stable, unique shard.
+const deviceShard = _deriveDeviceShard(deviceId);
+
+// Extract the first-login timestamp that was baked into the device ID at
+// creation time, falling back to server time for legacy IDs that pre-date
+// this scheme.
+const firstLoginDate = _extractDeviceFirstLoginTime(deviceId);
+const firstLoginAtMs = firstLoginDate ? firstLoginDate.getTime() : null;
+
+// Read the canonical mode timestamp from SQLite so restoreDeviceModeOnLogin
+// can correctly compare cloudTimestamp vs localTimestamp.  Without this,
+// cloudTimestamp would be 0 (field absent) and the comparison would be
+// meaningless for newly-created device documents.
+let _persistedModeTs = existing.appMode_timestamp || 0;
+try {
+  const _sqliteTs = await sqliteStore.get('appMode_timestamp');
+  if (_sqliteTs && Number(_sqliteTs) > _persistedModeTs) _persistedModeTs = Number(_sqliteTs);
+} catch(_) {}
+
 await deviceRef.set({
 deviceId: deviceId,
+deviceShard: deviceShard,
 deviceName: deviceName,
 deviceType: deviceType,
 browser: browser,
@@ -2168,8 +2289,24 @@ stableHash: fp.stableHash
 online: true,
 lastSeen: firebase.firestore.FieldValue.serverTimestamp(),
 lastActivity: firebase.firestore.FieldValue.serverTimestamp(),
-...(isFirstRegistration ? { registeredAt: firebase.firestore.FieldValue.serverTimestamp() } : {}),
+// Always persist firstLoginAt from the device ID's embedded timestamp so it
+// survives document merges; fall back to server time for legacy devices.
+...(isFirstRegistration ? {
+  registeredAt: firebase.firestore.FieldValue.serverTimestamp(),
+  firstLoginAt: firstLoginAtMs !== null
+    ? firstLoginAtMs
+    : firebase.firestore.FieldValue.serverTimestamp(),
+} : {
+  // For returning devices: fill in firstLoginAt if the field is missing
+  // (migration from legacy IDs that had no embedded timestamp).
+  ...((!existing.firstLoginAt && firstLoginAtMs !== null)
+    ? { firstLoginAt: firstLoginAtMs } : {}),
+}),
 currentMode: persistedMode,
+// Write the canonical timestamp so restoreDeviceModeOnLogin can compare
+// cloudTimestamp === localTimestamp and correctly skip re-applying the mode
+// (it is already active).  This prevents a spurious reload on every login.
+appMode_timestamp: _persistedModeTs || Date.now(),
 assignedRoleType: persistedRoleType,
 assignedRoleName: persistedRoleName,
 assignedRep: persistedMode === 'rep' ? persistedRep : null,
@@ -2315,6 +2452,10 @@ const _UUID_V5_NS = new Uint8Array([
 let _cachedDeviceShard = null;
 let _uuidLastMs = 0;
 let _uuidSeq    = 0;
+// Tracks the UID for whom the current in-memory device ID was generated.
+// If a different user logs in within the same page session the stored ID is
+// stale and must not be reused.
+let _deviceIdOwnerUid = null;
 
 function _deriveDeviceShard(did) {
   if (!did || typeof did !== 'string') return '0000';
@@ -2409,6 +2550,10 @@ function _buildUUIDv3Base() {
 }
 
 async function initUUIDSalts() {
+  // Always reset first — guarantees we derive from whatever device ID is
+  // current in storage, never from a stale in-memory value left over from a
+  // previous session or a pre-login state.
+  _cachedDeviceShard = null;
   try {
     const did = await getDeviceId();
     _cachedDeviceShard = _deriveDeviceShard(did);
@@ -2419,8 +2564,10 @@ async function initUUIDSalts() {
     UUIDSyncRegistry.setDeviceShard(_cachedDeviceShard);
   }
   _refreshV5Cache();
+  return _cachedDeviceShard;
 }
 async function initDeviceShard() { return initUUIDSalts(); }
+window.initDeviceShard = initDeviceShard;
 
 function generateUUID(prefix = '', retryCount = 0, tsMs = null, modeOverride = null) {
   const MAX_RETRIES = 3;
@@ -2459,7 +2606,9 @@ function generateUUID(prefix = '', retryCount = 0, tsMs = null, modeOverride = n
 function validateUUID(uuid) {
   if (!uuid || typeof uuid !== 'string') return false;
   const standardRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  const prefixedRegex = /^[a-z0-9][a-z0-9_-]*-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  // Prefixed format also accepts an optional _<timestamp> suffix appended to
+  // composite device IDs (e.g. dev-<uuid>_1711234567890).
+  const prefixedRegex = /^[a-z0-9][a-z0-9_-]*-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(_\d+)?$/i;
   return standardRegex.test(uuid) || prefixedRegex.test(uuid);
 }
 function extractUUIDMeta(uuid) {

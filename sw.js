@@ -1,25 +1,25 @@
-const BUILD_HASH = 'naswar-dealer-v1';
+const BUILD_HASH = 'sarim-v1-20260325';
 const CACHE_NAME = 'app-' + BUILD_HASH;
 
 const ASSETS_TO_CACHE = [
-  './',
-  './index.html',
-  './app.css',
-  './constants.js',
-  './business.js',
-  './sync.js',
-  './utilities.js',
-  './factory.js',
-  './customers.js',
-  './rep-sales.js',
-  './admin-data.js',
-  './manifest.json',
-  './192.png',
-  './512.png',
+  '/sarim/',
+  '/sarim/index.html',
+  '/sarim/app.css',
+  '/sarim/constants.js',
+  '/sarim/business.js',
+  '/sarim/sync.js',
+  '/sarim/utilities.js',
+  '/sarim/factory.js',
+  '/sarim/customers.js',
+  '/sarim/rep-sales.js',
+  '/sarim/admin-data.js',
+  '/sarim/manifest.json',
+  '/sarim/192.png',
+  '/sarim/512.png',
 
-  './sql-wasm.js',
-  './sql-wasm.wasm',
-  './sql.js'
+  '/sarim/sql-wasm.js',
+  '/sarim/sql-wasm.wasm',
+  '/sarim/sql.js'
 ];
 const FIREBASE_CDN_URLS = [
   'https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js',
@@ -71,7 +71,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(event.request)
         .then((res) => { caches.open(CACHE_NAME).then((c) => c.put(event.request, res.clone())); return res; })
-        .catch(() => caches.match('./index.html'))
+        .catch(() => caches.match('/sarim/index.html'))
     );
     return;
   }

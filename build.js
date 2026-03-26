@@ -107,7 +107,7 @@ const ASSETS_TO_CACHE_BLOCK =
 ];`;
 
 let sw = read(join(ROOT, 'sw.js'));
-sw = sw.replace(/const BUILD_HASH = '[^']+';/, `const BUILD_HASH = 'naswar-dealer-${coreHash}';`);
+sw = sw.replace(/const BUILD_HASH = '[^']+';/, `const BUILD_HASH = 'sarim-${coreHash}-${new Date().toISOString().slice(0,10).replace(/-/g,'')}';`);
 sw = sw.replace(/const ASSETS_TO_CACHE = \[[\s\S]*?\];/, ASSETS_TO_CACHE_BLOCK);
 write(join(DIST, 'sw.js'), sw);
 
@@ -117,5 +117,5 @@ console.log(`  ${coreOut.padEnd(40)} ${kb(coreOut)} KB  (core bundle)`);
 console.log(`  ${factoryOut.padEnd(40)} ${kb(factoryOut)} KB  (lazy — factory tab)`);
 console.log(`  ${repOut.padEnd(40)} ${kb(repOut)} KB  (lazy — rep tab)`);
 console.log(`  ${cssOut.padEnd(40)} ${kb(cssOut)} KB  (styles)`);
-console.log(`\n  SW cache key: naswar-dealer-${coreHash}`);
+console.log(`\n  SW cache key: sarim-${coreHash}`);
 console.log(`  Output:       dist/\n`);

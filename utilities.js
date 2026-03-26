@@ -5,12 +5,10 @@ const currentTheme = html.getAttribute('data-theme') || 'dark';
 const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
 html.setAttribute('data-theme', newTheme);
 if (newTheme === 'dark') {
-themeToggle.innerHTML = '';
-themeToggle.title = "Switch to Light Mode";
+if (themeToggle) { themeToggle.innerHTML = ''; themeToggle.title = "Switch to Light Mode"; }
 await sqliteStore.set('theme', 'dark');
 } else {
-themeToggle.innerHTML = '';
-themeToggle.title = "Switch to Dark Mode";
+if (themeToggle) { themeToggle.innerHTML = ''; themeToggle.title = "Switch to Dark Mode"; }
 await sqliteStore.set('theme', 'light');
 }
 const metaThemeColor = document.querySelector('meta[name="theme-color"]');
@@ -791,8 +789,6 @@ showToast('Rep tab refresh failed.', 'error');
 if (typeof renderRepCustomerTable === 'function') setTimeout(renderRepCustomerTable, 500);
 }
 }
-function startPeriodicSync() {
-}
 function stopPeriodicSync() {
 }
 const RefreshDebouncer = {
@@ -1258,7 +1254,12 @@ deletedAt: now,
 collection: collectionName,
 syncedToCloud: false,
 tombstoned_at: now,
-deleted_by: 'user',
+deleted_by: (() => {
+  const _mode = typeof appMode !== 'undefined' ? appMode : 'admin';
+  if (_mode === 'rep') return (typeof currentRepProfile !== 'undefined' && currentRepProfile) ? currentRepProfile : 'Sales Rep';
+  if (_mode === 'userrole' || _mode === 'production' || _mode === 'factory') return (window._assignedManagerName) ? window._assignedManagerName : (_mode === 'userrole' ? 'User Role' : _mode === 'production' ? 'Production' : 'Factory');
+  return 'Admin';
+})(),
 deletion_version: '2.0',
 displayName: _snapshot.displayName || null,
 displayDetail: _snapshot.displayDetail || null,
@@ -5106,7 +5107,12 @@ const UUIDSyncRegistry = (() => {
     if (dn && dn.has(sid)) return true;
 
     if (_newDeviceRestore) return false;
-    if (_isLocalOrigin(sid)) return true;
+
+    if (_isLocalOrigin(sid)) {
+
+      if (typeof DeltaSync !== 'undefined' && DeltaSync.isDirtyId(col, sid)) return false;
+      return true;
+    }
     return false;
   }
 
@@ -5640,12 +5646,6 @@ const repSales = ensureArray(await sqliteStore.get('rep_sales'));
   }
   return revertedCount;
 }
-async function updateMfgPieChart() {
-await updateMfgCharts();
-}
-async function updateCustomerPieChart() {
-await updateCustomerCharts();
-}
 async function updateCompositionChart() {
 const _sdEl = document.getElementById('sellerSelect');
 if (_sdEl && _sdEl.value === 'COMBINED') {
@@ -6045,9 +6045,11 @@ div.innerHTML = `
 ${currentProductionView === 'combined' ? `<span class="store-badge ${storeBadgeClass}">${esc(storeLabel)}</span>` : ''}
 ${returnBadge}
 ${item.isMerged ? '' : paymentBadge}
-<h4>${dateDisplay} @ ${esc(item.time || '')}${mergedBadge}</h4>
-${item.managedBy ? `<span style="display:inline-flex;align-items:center;gap:4px;margin:2px 0 5px;padding:2px 9px;font-size:0.65rem;font-weight:700;letter-spacing:0.04em;color:var(--warning);background:rgba(255,179,0,0.10);border:1px solid rgba(255,179,0,0.28);border-radius:999px;">${esc(item.managedBy)}</span><br>` : ''}
-${item.createdBy ? `${(typeof _creatorBadgeHtml === 'function') ? _creatorBadgeHtml(item) : ''}<br>` : ''}
+<div style="display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin-bottom:4px;">
+<h4 style="margin:0;">${dateDisplay} @ ${esc(item.time || '')}${mergedBadge}</h4>
+${item.managedBy ? `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 9px;font-size:0.65rem;font-weight:700;letter-spacing:0.04em;color:var(--warning);background:rgba(255,179,0,0.10);border:1px solid rgba(255,179,0,0.28);border-radius:999px;">${esc(item.managedBy)}</span>` : ''}
+${item.createdBy && typeof _creatorBadgeHtml === 'function' ? _creatorBadgeHtml(item) : ''}
+</div>
 ${item.isReturn ? `<p style="color:var(--accent-emerald); font-size:0.75rem; font-style:italic;">${item.isMerged ? 'Merged returns by' : 'Returned by'} ${esc(item.returnedBy || 'Representative')}</p>` : ''}
 <p><span>Net Weight:</span> <span class="qty-val">${safeValue(item.net).toFixed(2)} kg</span></p>
 <p><span>Cost Price:</span> <span class="cost-val">${safeValue(item.cp).toFixed(2)}/kg</span></p>
@@ -6133,8 +6135,6 @@ const tbody = document.getElementById('entity-table-body');
 const filterInput = document.getElementById('entity-list-filter');
 const filter = filterInput ? String(filterInput.value).toLowerCase() : '';
 if (!tbody) return;
-// Concurrent write-back removed: re-saving during a read caused race conditions
-// with renderUnifiedTable. Data is already fresh from the initial getBatch above.
 
 try {
 const _freshInv = await sqliteStore.get('factory_inventory_data', []);
@@ -7130,7 +7130,7 @@ if (selectedTab) {
 selectedTab.classList.remove('hidden');
 void selectedTab.offsetHeight;
 }
-const tabButtons = document.querySelectorAll('.tab-btn');
+const tabButtons = document.querySelectorAll('.sidebar-nav-btn');
 tabButtons.forEach((btn) => {
 const onclickVal = btn.getAttribute('onclick') || '';
 btn.classList.toggle('active', onclickVal.includes("'" + tab + "'") || onclickVal.includes('"' + tab + '"'));
@@ -7199,7 +7199,6 @@ console.warn('[showTab] tab load error:', e && e.message || e);
 }, 50);
 }
 function handleRepTabUI() {
-const repHeader = document.getElementById('rep-header');
 const adminControls = document.getElementById('admin-rep-controls');
 const adminAnalytics = document.getElementById('admin-rep-analytics');
 const newTransCard = document.getElementById('rep-new-transaction-card');
@@ -7219,7 +7218,6 @@ const adminDate = document.getElementById('admin-rep-date');
 if (mainDate && adminDate) {
 adminDate.value = mainDate.value;
 }
-if (repHeader) repHeader.style.display = 'none';
 if (newTransCard) newTransCard.style.display = 'none';
 if (typeof calculateRepAnalytics === 'function') {
 calculateRepAnalytics();
@@ -7240,7 +7238,6 @@ if (adminControls) adminControls.style.display = 'none';
 if (adminAnalytics) adminAnalytics.style.display = 'none';
 const manageRepsBtnRep = document.getElementById('btn-manage-reps');
 if (manageRepsBtnRep) manageRepsBtnRep.style.display = 'none';
-if (repHeader) repHeader.style.display = 'flex';
 if (newTransCard) newTransCard.style.display = 'block';
 if (typeof renderRepCustomerTable === 'function') {
 renderRepCustomerTable();
@@ -8590,8 +8587,11 @@ ${deleteBtnHtml}
 } else if (isAdminCollItem) {
 card.innerHTML = `
 <div class="payment-badge collection" style="background:rgba(5,150,105,0.15);color:var(--accent-emerald);border:1px solid rgba(5,150,105,0.3);">COLLECTION</div>
-<div class="customer-name" style="margin-top:12px;">${esc(item.customerName)} ${mergedBadge}${(typeof _creatorBadgeHtml === 'function') ? _creatorBadgeHtml(item) : ''}</div>
-<h4 style="margin-top:5px;font-size:0.85rem;color:var(--text-muted);">${dateDisplay}</h4>
+<div class="customer-name" style="margin-top:12px;">${esc(item.customerName)} ${mergedBadge}</div>
+<div style="display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin-top:5px;margin-bottom:2px;">
+<h4 style="margin:0;font-size:0.85rem;color:var(--text-muted);">${dateDisplay}</h4>
+${(typeof _creatorBadgeHtml === 'function') ? _creatorBadgeHtml(item) : ''}
+</div>
 <hr>
 <p><span>Amount Collected:</span> <span class="profit-val">${fmtAmt(safeValue(item.totalValue))}</span></p>
 ${deleteBtnHtml}
@@ -8599,8 +8599,11 @@ ${deleteBtnHtml}
 } else {
 card.innerHTML = `
 <div class="payment-badge ${badgeClass}">${esc(badgeText)}</div>
-<div class="customer-name" style="margin-top: 12px;">${esc(item.customerName)} ${repBadge} ${mergedBadge}${(typeof _creatorBadgeHtml === 'function') ? _creatorBadgeHtml(item) : ''}</div>
-<h4 style="margin-top: 5px; font-size: 0.85rem; color: var(--text-muted);">${dateDisplay}</h4>
+<div class="customer-name" style="margin-top: 12px;">${esc(item.customerName)} ${repBadge} ${mergedBadge}</div>
+<div style="display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin-top:5px;margin-bottom:2px;">
+<h4 style="margin:0;font-size:0.85rem;color:var(--text-muted);">${dateDisplay}</h4>
+${(typeof _creatorBadgeHtml === 'function') ? _creatorBadgeHtml(item) : ''}
+</div>
 <div class="supply-tag ${supplyTagClass}">Supply: ${supplyTagText}</div>
 <hr>
 <p><span>Quantity:</span> <span class="qty-val">${safeValue(item.quantity).toFixed(2)} kg</span></p>
@@ -9397,8 +9400,9 @@ document.addEventListener('DOMContentLoaded', async function _appBootstrap() {
   if (await sqliteStore.get('bio_enabled') === 'true') {
     const bioBtn = document.getElementById('bio-toggle-btn');
     if (bioBtn) {
-      bioBtn.innerText = 'Disable Biometric Lock';
-      bioBtn.onclick = disableBiometricLock;
+      const lbl = document.getElementById('bio-toggle-label');
+      if (lbl) lbl.textContent = 'Disable Lock';
+      bioBtn.onclick = () => { closeSidebar && closeSidebar(); disableBiometricLock(); };
       bioBtn.classList.add('active');
     }
   }
@@ -10028,8 +10032,11 @@ card.className = `card liquid-card${isSettled ? ' is-settled-record' : ''}`;
 if (transaction.date) card.setAttribute('data-date', transaction.date);
 card.innerHTML = `
 <span class="transaction-badge ${badgeClass}">${badgeText}</span>
-<h4>${formatDisplayDate(transaction.date)} @ ${esc(transaction.time || 'N/A')}</h4>
-<div class="customer-name">${esc(entityName)}${mergedBadge}${settledBadge}${creatorBadge}</div>
+<div style="display:flex;align-items:center;flex-wrap:wrap;gap:5px;margin-bottom:4px;">
+<h4 style="margin:0;">${formatDisplayDate(transaction.date)} @ ${esc(transaction.time || 'N/A')}</h4>
+${creatorBadge}
+</div>
+<div class="customer-name">${esc(entityName)}${mergedBadge}${settledBadge}</div>
 <p><span>Type:</span> <span>${esc(entityType)}</span></p>
 <p><span>Description:</span> <span>${esc(transaction.description || 'No description')}</span></p>
 <hr>
@@ -11146,8 +11153,7 @@ const _unifiedContainer = document.getElementById('unified-table-container');
 const _paymentsTab = document.getElementById('tab-payments');
 const _tabHidden = _paymentsTab && _paymentsTab.classList.contains('hidden');
 if (_tabHidden && _unifiedContainer) {
-// Tab is hidden — skip virtual scroller (clientHeight=0 would miscalculate).
-// The setTimeout re-render in showTab will refresh when tab becomes visible.
+
 } else {
 GNDVirtualScroll.mount('unified-table-container', rows, buildUnifiedRow, tbody);
 }
@@ -12348,7 +12354,57 @@ const RECYCLE_RECOVERABLE_COLLECTIONS = new Set([
 ]);
 async function openRecycleBin() {
 if (typeof openStandaloneScreen === 'function') openStandaloneScreen('recycle-bin-screen');
-await renderRecycleBin();
+
+const MODE_TO_RECYCLE_FILTER = {
+  'production': 'tab_production',
+  'factory':    'tab_factory',
+  'rep':        'tab_rep',
+  'sales':      'tab_sales',
+  'userrole':   null,
+  'admin':      null,
+};
+const mode = window.appMode || 'admin';
+let defaultFilter = 'all';
+if (mode === 'userrole') {
+  const tabs = window._assignedUserTabs || [];
+  if (tabs.length === 1) {
+    const singleTabMap = {
+      'prod':     'tab_production',
+      'factory':  'tab_factory',
+      'rep':      'tab_rep',
+      'sales':    'tab_sales',
+      'calc':     'tab_calculator',
+      'payments': 'tab_payments',
+    };
+    defaultFilter = singleTabMap[tabs[0]] || 'all';
+  }
+} else {
+  defaultFilter = MODE_TO_RECYCLE_FILTER[mode] || 'all';
+}
+
+const filterSel = document.getElementById('recycleBinFilter');
+if (filterSel) {
+  const allowedFilters = new Set();
+  allowedFilters.add('all');
+  if (mode === 'admin') {
+
+    Array.from(filterSel.options).forEach(opt => { opt.style.display = ''; });
+  } else if (mode === 'userrole') {
+    const tabs = window._assignedUserTabs || [];
+    const tabToFilter = { prod:'tab_production', factory:'tab_factory', rep:'tab_rep', sales:'tab_sales', calc:'tab_calculator', payments:'tab_payments' };
+    tabs.forEach(t => { if (tabToFilter[t]) allowedFilters.add(tabToFilter[t]); });
+    Array.from(filterSel.options).forEach(opt => {
+      opt.style.display = allowedFilters.has(opt.value) ? '' : 'none';
+    });
+  } else {
+    if (defaultFilter !== 'all') allowedFilters.add(defaultFilter);
+    Array.from(filterSel.options).forEach(opt => {
+      opt.style.display = allowedFilters.has(opt.value) ? '' : 'none';
+    });
+  }
+  filterSel.value = defaultFilter;
+}
+await renderRecycleBin(defaultFilter);
 }
 function closeRecycleBin() {
 if (typeof closeStandaloneScreen === 'function') closeStandaloneScreen('recycle-bin-screen');
@@ -12533,6 +12589,27 @@ async function renderRecycleBin(filterCollection = 'all') {
           }
         }
       }
+
+      const _snap = rec.snapshot || {};
+      const _rbCreatedBy = _snap.createdBy || rec.createdBy || null;
+      const _rbManagedBy = _snap.managedBy || rec.managedBy || null;
+      const _rbSalesRep  = _snap.salesRep  || rec.salesRep  || null;
+      const _rbCreatorBadge = _rbCreatedBy
+        ? `<span style="display:inline-flex;align-items:center;padding:2px 7px;font-size:0.62rem;font-weight:700;letter-spacing:0.04em;color:#06b6d4;background:rgba(6,182,212,0.12);border:1px solid rgba(6,182,212,0.30);border-radius:999px;white-space:nowrap;">${esc(_rbCreatedBy)}</span>`
+        : '';
+      const _rbManagedBadge = _rbManagedBy
+        ? `<span style="display:inline-flex;align-items:center;padding:2px 7px;font-size:0.62rem;font-weight:700;letter-spacing:0.04em;color:var(--warning);background:rgba(255,179,0,0.10);border:1px solid rgba(255,179,0,0.28);border-radius:999px;white-space:nowrap;">${esc(_rbManagedBy)}</span>`
+        : '';
+      const _rbRepBadge = (_rbSalesRep && !_rbCreatedBy)
+        ? `<span style="display:inline-flex;align-items:center;padding:2px 7px;font-size:0.62rem;font-weight:700;letter-spacing:0.04em;color:var(--accent);background:rgba(37,99,235,0.10);border:1px solid rgba(37,99,235,0.25);border-radius:999px;white-space:nowrap;">${esc(_rbSalesRep.split(' ')[0])}</span>`
+        : '';
+      const _rbBadgesHtml = [_rbManagedBadge, _rbCreatorBadge, _rbRepBadge].filter(Boolean).join('');
+
+      const _rbDeletedByRaw = rec.deleted_by || null;
+      const _rbDeletedByBadge = (_rbDeletedByRaw && _rbDeletedByRaw !== 'user')
+        ? `<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 7px;font-size:0.62rem;font-weight:700;letter-spacing:0.04em;color:#f87171;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.28);border-radius:999px;white-space:nowrap;"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>del by ${esc(_rbDeletedByRaw)}</span>`
+        : '';
+
       const nameHtml = displayName
         ? `<span style="font-size:0.88rem;font-weight:700;color:var(--text-main);">${esc(displayName)}</span>`
         : `<span style="font-size:0.82rem;font-weight:600;color:var(--text-muted);font-style:italic;">${esc(RECYCLE_BIN_COLLECTION_LABELS[col] || col)} — name unavailable</span>`;
@@ -12558,10 +12635,12 @@ async function renderRecycleBin(filterCollection = 'all') {
             ${nameHtml}
             ${amountHtml}
           </div>
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px;">
+          <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:3px;">
             ${typeTag}
             ${detailHtml}
             ${syncBadge}
+            ${_rbBadgesHtml}
+            ${_rbDeletedByBadge}
           </div>
           <div style="font-size:0.68rem;color:var(--text-muted);">
             Deleted ${daysAgo === 0 ? 'today' : daysAgo + 'd ago'} · ${deletedDate} · expires in ${expiresIn}d
@@ -13116,22 +13195,28 @@ const userId = new Uint8Array(16);
 window.crypto.getRandomValues(userId);
 const publicKey = {
 challenge: challenge,
-rp: { name: "Naswar Dealers App" },
+rp: { name: "Sarim App" },
 user: {
 id: userId,
 name: username,
 displayName: username
 },
-pubKeyCredParams: [{ alg: -7, type: "public-key" }],
+pubKeyCredParams: [
+{ alg: -7, type: "public-key" },
+{ alg: -257, type: "public-key" }
+],
 authenticatorSelection: {
 authenticatorAttachment: "platform",
-userVerification: "required"
+userVerification: "required",
+residentKey: "preferred"
 },
 timeout: 60000
 };
 const credential = await navigator.credentials.create({ publicKey });
 const credId = BiometricAuth._bufToBase64(credential.rawId);
+const transports = credential.response?.getTransports?.() || ["internal", "hybrid"];
 await sqliteStore.set('bio_cred_id', credId);
+await sqliteStore.set('bio_cred_transports', JSON.stringify(transports));
 await sqliteStore.set('bio_enabled', 'true');
 notifyDataChange('all');
 triggerAutoSync();
@@ -13146,6 +13231,8 @@ authenticate: async () => {
 try {
 const savedCredId = await sqliteStore.get('bio_cred_id');
 if (!savedCredId) throw new Error("No biometric set up found.");
+const storedTransports = await sqliteStore.get('bio_cred_transports');
+const transports = storedTransports ? JSON.parse(storedTransports) : ["internal", "hybrid"];
 const challenge = new Uint8Array(32);
 window.crypto.getRandomValues(challenge);
 const publicKey = {
@@ -13153,9 +13240,10 @@ challenge: challenge,
 allowCredentials: [{
 id: BiometricAuth._base64ToBuf(savedCredId),
 type: "public-key",
-transports: ["internal"]
+transports: transports
 }],
-userVerification: "required"
+userVerification: "required",
+timeout: 60000
 };
 await navigator.credentials.get({ publicKey });
 return true;
@@ -13194,17 +13282,28 @@ return false;
 }
 }
 window.forceAppModeFromCloud = forceAppModeFromCloud;
+function updateSystemName() {
+const el = document.getElementById('system-name-display');
+if (!el) return;
+if (appMode === 'admin' || !appMode) {
+el.textContent = 'MAHMOOD KHAN';
+} else if (appMode === 'rep') {
+el.textContent = (currentRepProfile || 'Sales Rep').toUpperCase();
+} else if (appMode === 'production') {
+el.textContent = (window._assignedManagerName || 'Production Manager').toUpperCase();
+} else if (appMode === 'factory') {
+el.textContent = (window._assignedManagerName || 'Factory Manager').toUpperCase();
+} else if (appMode === 'userrole') {
+el.textContent = (window._assignedManagerName || 'User').toUpperCase();
+}
+}
 function lockToRepMode() {
-const nav = document.querySelector('.nav-tabs');
-if (nav) nav.style.display = 'none';
+document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
+if (btn.id !== 'snav-rep') btn.style.display = 'none';
+});
 const cloudMenuBtn = document.getElementById('cloudMenuBtn');
 if (cloudMenuBtn) cloudMenuBtn.style.display = 'none';
-const repHeader = document.getElementById('rep-header');
-if (repHeader) {
-const nameEl = document.getElementById('current-rep-name-display');
-if (nameEl) nameEl.textContent = (currentRepProfile || 'Sales Rep').toUpperCase();
-repHeader.style.display = 'flex';
-}
+updateSystemName();
 ['prod', 'sales', 'calc', 'factory', 'payments'].forEach(t => {
 const el = document.getElementById('tab-' + t);
 if (el) { el.classList.add('hidden'); el.style.display = 'none'; }
@@ -13222,18 +13321,14 @@ if (newTransCard) newTransCard.style.display = 'block';
 if (typeof refreshRepUI === 'function') refreshRepUI();
 }
 function lockToProductionMode() {
-const nav = document.querySelector('.nav-tabs');
-if (nav) nav.style.display = 'none';
+document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
+if (btn.id !== 'snav-prod') btn.style.display = 'none';
+});
 const cloudMenuBtn = document.getElementById('cloudMenuBtn');
 if (cloudMenuBtn) cloudMenuBtn.style.display = 'none';
 const manageRepsBtn = document.getElementById('btn-manage-reps');
 if (manageRepsBtn) manageRepsBtn.style.display = 'none';
-const prodHeader = document.getElementById('prod-locked-header');
-if (prodHeader) {
-const nameEl = document.getElementById('prod-locked-name-display');
-if (nameEl) nameEl.textContent = (window._assignedManagerName || 'Production Manager').toUpperCase();
-prodHeader.style.display = 'flex';
-}
+updateSystemName();
 ['sales', 'calc', 'factory', 'payments', 'rep'].forEach(t => {
 const el = document.getElementById('tab-' + t);
 if (el) { el.classList.add('hidden'); el.style.display = 'none'; }
@@ -13253,20 +13348,18 @@ const pBlock = document.getElementById('prod-profit-block');
 if (pBlock) pBlock.style.display = 'none';
 const spField = document.getElementById('prod-sale-price-field');
 if (spField) spField.style.display = 'none';
+const dynCost = document.getElementById('dynamic-cost-display');
+if (dynCost) dynCost.style.display = 'none';
 }
 function lockToFactoryMode() {
-const nav = document.querySelector('.nav-tabs');
-if (nav) nav.style.display = 'none';
+document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
+if (btn.id !== 'snav-factory') btn.style.display = 'none';
+});
 const cloudMenuBtn = document.getElementById('cloudMenuBtn');
 if (cloudMenuBtn) cloudMenuBtn.style.display = 'none';
 const manageRepsBtn = document.getElementById('btn-manage-reps');
 if (manageRepsBtn) manageRepsBtn.style.display = 'none';
-const factoryHeader = document.getElementById('factory-locked-header');
-if (factoryHeader) {
-const nameEl = document.getElementById('factory-locked-name-display');
-if (nameEl) nameEl.textContent = (window._assignedManagerName || 'Factory Manager').toUpperCase();
-factoryHeader.style.display = 'flex';
-}
+updateSystemName();
 ['prod', 'sales', 'calc', 'payments', 'rep'].forEach(t => {
 const el = document.getElementById('tab-' + t);
 if (el) { el.classList.add('hidden'); el.style.display = 'none'; }
@@ -13291,8 +13384,6 @@ const formulaDisplay = document.getElementById('factoryFormulaDisplay');
 if (formulaDisplay) formulaDisplay.style.display = 'none';
 }
 }
-function _showModeBanner(tabLabel, personName, modeClass, icon) {
-}
 function lockToUserRoleMode() {
 const assignedTabs = window._assignedUserTabs || [];
 const userName = window._assignedManagerName || 'User';
@@ -13300,21 +13391,7 @@ const allTabs = ['prod','sales','calc','factory','payments','rep'];
 ['cloudMenuBtn','btn-manage-reps'].forEach(id => {
 const el = document.getElementById(id); if (el) el.style.display = 'none';
 });
-const bannerMap = {
-prod: { headerId:'prod-locked-header', nameId:'prod-locked-name-display' },
-factory: { headerId:'factory-locked-header', nameId:'factory-locked-name-display' },
-sales: { headerId:'sales-locked-header', nameId:'sales-locked-name-display' },
-payments: { headerId:'payments-locked-header', nameId:'payments-locked-name-display' },
-};
-assignedTabs.forEach(t => {
-const b = bannerMap[t]; if (!b) return;
-const hdr = document.getElementById(b.headerId);
-if (hdr) {
-const nm = document.getElementById(b.nameId);
-if (nm) nm.textContent = userName.toUpperCase();
-hdr.style.display = 'flex';
-}
-});
+updateSystemName();
 allTabs.forEach(t => {
 const el = document.getElementById('tab-' + t);
 if (el) { el.classList.add('hidden'); el.style.removeProperty('display'); }
@@ -13329,6 +13406,8 @@ const el = document.getElementById(id); if (el) el.style.display = 'none';
 ['prod-formula-cost-block','prod-profit-block','prod-sale-price-field'].forEach(id => {
 const el = document.getElementById(id); if (el) el.style.display = 'none';
 });
+const dynCostEl = document.getElementById('dynamic-cost-display');
+if (dynCostEl) dynCostEl.style.display = 'none';
 document.querySelectorAll('#tab-prod .section.liquid-card').forEach(sec => {
 if (sec.id !== 'production-entry-section') sec.style.display = 'none';
 });
@@ -13433,7 +13512,7 @@ if (tab === 'rep' || !adminTabs.includes(tab)) {
 if (typeof originalShowTab === 'function') originalShowTab(tab);
 }
 };
-document.querySelectorAll('.tab-btn').forEach(btn => {
+document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
 btn.style.display = 'none';
 });
 } else if (appMode === 'userrole') {
@@ -13454,15 +13533,12 @@ const _us = document.getElementById('payments-unified-section');
 if (_us) _us.style.display = 'none';
 }
 };
-const btnMap = { PRODUCTION:'prod', SALES:'sales', CALCULATOR:'calc',
-FACTORY:'factory', PAYMENTS:'payments', 'REP SALES':'rep' };
 if (allowedTabs.length <= 1) {
-const nav = document.querySelector('.nav-tabs');
-if (nav) nav.style.display = 'none';
+document.querySelectorAll('.sidebar-nav-btn').forEach(btn => { btn.style.display = 'none'; });
 } else {
-document.querySelectorAll('.tab-btn').forEach(btn => {
-const tid = btnMap[btn.textContent.trim()];
-btn.style.display = (tid && allowedTabs.includes(tid)) ? '' : 'none';
+document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
+const tid = btn.id.replace('snav-', '');
+btn.style.display = (allowedTabs.includes(tid)) ? '' : 'none';
 });
 }
 window._userRoleAllowedTabs = allowedTabs;
@@ -13475,7 +13551,7 @@ return;
 }
 if (typeof originalShowTabProd === 'function') originalShowTabProd(tab);
 };
-document.querySelectorAll('.tab-btn').forEach(btn => {
+document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
 btn.style.display = 'none';
 });
 } else if (appMode === 'factory') {
@@ -13487,13 +13563,14 @@ return;
 }
 if (typeof originalShowTabFactory === 'function') originalShowTabFactory(tab);
 };
-document.querySelectorAll('.tab-btn').forEach(btn => {
+document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
 btn.style.display = 'none';
 });
 }
 }
 async function unlockAdminMode() {
 appMode = 'admin';
+updateSystemName();
 window._assignedManagerName = null;
 window._assignedUserTabs = [];
 window._userRoleAllowedTabs = [];
@@ -13519,9 +13596,7 @@ setTimeout(() => {
 location.reload();
 }, 2000);
 }
-function unlockToAdminMode() {
-unlockAdminMode();
-}
+
 async function deleteRepTransaction(id) {
 const repSales = ensureArray(await sqliteStore.get('rep_sales'));
 if (!id || !validateUUID(id)) {
@@ -14073,61 +14148,7 @@ isSyncing = false;
 updateConnectionStatus();
 }
 };
-(function() {
-const threshold = 80;
-let startY = 0;
-let startScrollBottom = 0;
-let isPulling = false;
-const _anyOverlayOpen = () =>
-document.querySelector('.factory-overlay[style*="flex"], .factory-overlay[style*="block"], .settings-overlay.active') !== null;
-window._ptrTouchStart = (e) => {
-if (_anyOverlayOpen()) { isPulling = false; return; }
-const scrollEl = document.scrollingElement || document.documentElement;
-startY = e.touches[0].clientY;
-startScrollBottom = scrollEl.scrollTop + scrollEl.clientHeight;
-isPulling = true;
-};
-window._ptrTouchMove = (e) => {
-if (!isPulling) return;
-if (_anyOverlayOpen()) { isPulling = false; return; }
-const scrollEl = document.scrollingElement || document.documentElement;
-const draggedDown = e.touches[0].clientY - startY;
-const scrolledToBottom = scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 2;
-if (draggedDown > 0 && scrolledToBottom) e.preventDefault();
-};
-window._ptrTouchEnd = async (e) => {
-if (!isPulling) return;
-isPulling = false;
-if (_anyOverlayOpen()) return;
-const scrollEl = document.scrollingElement || document.documentElement;
-const endY = e.changedTouches[0].clientY;
-const draggedDown = endY - startY;
-const halfScreen = window.innerHeight / 2;
-const scrolledToBottom = scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 2;
-if (draggedDown < halfScreen || !scrolledToBottom) return;
-if (navigator.vibrate) navigator.vibrate([12, 8, 20]);
-showToast('↻ Syncing…', 'info', 12000);
-const result = await performOneClickSync(true);
-if (navigator.vibrate) navigator.vibrate(18);
-const down = (result && result.down) || 0;
-const up   = (result && result.up)   || 0;
-const err  = result && result.error;
-if (err) {
-showToast('Sync error — will retry when online', 'warning', 3000);
-} else if (down > 0 && up > 0) {
-showToast('↓' + down + ' ↑' + up + ' synced', 'success', 2500);
-} else if (down > 0) {
-showToast('↓ ' + down + ' update' + (down !== 1 ? 's' : '') + ' downloaded', 'success', 2500);
-} else if (up > 0) {
-showToast('↑ ' + up + ' change' + (up !== 1 ? 's' : '') + ' uploaded', 'success', 2500);
-} else {
-showToast('✓ Up to date', 'success', 1500);
-}
-};
-document.addEventListener('touchstart', window._ptrTouchStart, { passive: true });
-document.addEventListener('touchmove', window._ptrTouchMove, { passive: false });
-document.addEventListener('touchend', window._ptrTouchEnd);
-})();
+
 (function registerRenderFunctions() {
 if (typeof renderUnifiedTable === 'function') {
 }
@@ -14336,9 +14357,6 @@ if (window._rafScrollHandler) {
 window.removeEventListener('scroll', window._rafScrollHandler);
 window._rafScrollHandler = null;
 }
-if (window._ptrTouchStart) { document.removeEventListener('touchstart', window._ptrTouchStart); window._ptrTouchStart = null; }
-if (window._ptrTouchMove) { document.removeEventListener('touchmove', window._ptrTouchMove); window._ptrTouchMove = null; }
-if (window._ptrTouchEnd) { document.removeEventListener('touchend', window._ptrTouchEnd); window._ptrTouchEnd = null; }
 if (window._fbOfflineHandler) { window.removeEventListener('offline', window._fbOfflineHandler); window._fbOfflineHandler = null; }
 if (window._fbVisibilityHandler) { document.removeEventListener('visibilitychange', window._fbVisibilityHandler); window._fbVisibilityHandler = null; }
 if (window._tombstoneCleanupInterval) { clearInterval(window._tombstoneCleanupInterval); window._tombstoneCleanupInterval = null; }
@@ -14405,12 +14423,6 @@ renderAllRepUI();
 console.error('saveSalesRepsList error:', _safeErr(e));
 showToast('Failed to save team list. Please try again.', 'error');
 }
-}
-async function saveProductionManagersList() {
-await saveUserRolesList();
-}
-async function saveFactoryManagersList() {
-await saveUserRolesList();
 }
 async function saveUserRolesList() {
 try {
@@ -14960,15 +14972,33 @@ const modeColor = deviceMode === 'admin' ? '#007aff'
 const modeIcon = '';
 const onlineColor = isOnline ? '#30d158' : '#ff453a';
 const onlineDot = isOnline ? '● Online' : '○ Offline';
+
 let deviceShard = 'N/A';
-if (device.deviceId && typeof deriveDeviceShard === 'function') {
+if (device.deviceShard) {
+  deviceShard = String(device.deviceShard).toUpperCase();
+} else if (device.deviceId && typeof deriveDeviceShard === 'function') {
 try {
 deviceShard = deriveDeviceShard(device.deviceId).toUpperCase();
 } catch (_) { deviceShard = 'N/A'; }
 }
-let cardHtml = '<div style="margin-bottom:12px;padding:14px;background:var(--glass);border-radius:14px;border:2px solid var(--glass-border);">';
-cardHtml += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;gap:8px;">';
-cardHtml += '<div style="font-size:0.65rem;font-family:\'Geist Mono\',monospace;color:var(--text-muted);flex:1;min-width:0;line-height:1.4;" title="Device shard: ' + deviceShard + '">Shard: <span style="color:var(--accent);font-weight:700;letter-spacing:0.08em;">' + deviceShard + '</span></div>';
+
+let firstLoginStr = '';
+if (device.firstLoginAt) {
+  try {
+    const ms = typeof device.firstLoginAt === 'number'
+      ? device.firstLoginAt
+      : (device.firstLoginAt.toMillis ? device.firstLoginAt.toMillis() : Number(device.firstLoginAt));
+    firstLoginStr = new Date(ms).toLocaleString();
+  } catch (_) {}
+} else if (device.deviceId && typeof _extractDeviceFirstLoginTime === 'function') {
+  try {
+    const flt = _extractDeviceFirstLoginTime(device.deviceId);
+    if (flt) firstLoginStr = flt.toLocaleString();
+  } catch (_) {}
+}
+let cardHtml = '<div style="background:var(--glass-raised);border:1px solid var(--glass-border);border-radius:14px;padding:14px;margin-bottom:12px;">';
+cardHtml += '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px;">';
+cardHtml += '<div style="font-size:0.65rem;font-family:\'Geist Mono\',monospace;color:var(--text-muted);flex:1;min-width:0;line-height:1.4;" title="Device shard: ' + deviceShard + (firstLoginStr ? ' | First login: ' + firstLoginStr : '') + '">Shard: <span style="color:var(--accent);font-weight:700;letter-spacing:0.08em;">' + deviceShard + '</span>' + (firstLoginStr ? ' &nbsp;<span style="color:var(--text-muted);font-weight:400;font-size:0.6rem;">first login: ' + firstLoginStr + '</span>' : '') + '</div>';
 cardHtml += '<div style="text-align:right;flex-shrink:0;">';
 cardHtml += '<div style="font-size:0.8rem;font-weight:800;color:' + modeColor + ';white-space:nowrap;">' + modeLabel + '</div>';
 cardHtml += '<div style="font-size:0.6rem;color:' + onlineColor + ';margin-top:2px;">' + onlineDot + '</div>';
@@ -15172,55 +15202,82 @@ window.getDeviceId = getDeviceId;
 window.getDeviceName = getDeviceName;
 window.registerDevice = registerDevice;
 async function restoreDeviceModeOnLogin(uid) {
-if (!firebaseDB) return;
-if (window._firestoreNetworkDisabled || !navigator.onLine) return;
+
+function _applyModeFromData(modeStr, ts, assignedRep, assignedManager, assignedUserTabs, remoteApplied) {
+  const previousMode = appMode;
+  appMode = modeStr;
+  const modeBatch = [['appMode', appMode], ['appMode_timestamp', ts]];
+  if (modeStr === 'rep' && assignedRep) {
+    currentRepProfile = assignedRep;
+    modeBatch.push(['repProfile', currentRepProfile], ['repProfile_timestamp', ts]);
+  } else if (modeStr === 'userrole' && assignedManager) {
+    window._assignedManagerName = assignedManager;
+    window._assignedUserTabs = Array.isArray(assignedUserTabs) ? assignedUserTabs : [];
+    modeBatch.push(['assignedManager', assignedManager], ['assignedUserTabs', window._assignedUserTabs]);
+  } else if ((modeStr === 'production' || modeStr === 'factory') && assignedManager) {
+    window._assignedManagerName = assignedManager;
+    modeBatch.push(['assignedManager', assignedManager]);
+  }
+  sqliteStore.setBatch(modeBatch).catch(() => {});
+  const modeLabel = modeStr === 'rep' ? 'Rep Mode'
+    : modeStr === 'userrole'    ? 'User Role Mode'
+    : modeStr === 'production'  ? 'Production Mode'
+    : modeStr === 'factory'     ? 'Factory Mode'
+    : 'Admin Mode';
+  showToast(remoteApplied
+    ? `Restoring remotely assigned ${modeLabel}...`
+    : `Switching to ${modeLabel}...`, 'info', 2000);
+  setTimeout(() => { window.location.reload(); }, 1500);
+}
+
 try {
-const deviceId = await getDeviceId();
-const userRef = firebaseDB.collection('users').doc(uid);
-const deviceRef = userRef.collection('devices').doc(deviceId);
-const deviceDoc = await deviceRef.get();
-if (!deviceDoc.exists) {
-return;
-}
-const data = deviceDoc.data();
-const cloudMode = data.currentMode || 'admin';
-const cloudTimestamp = data.appMode_timestamp || 0;
-const localTimestamp = (await sqliteStore.get('appMode_timestamp')) || 0;
-const _modeIsLocked = cloudMode !== 'admin';
-const _localIsAdmin = appMode === 'admin';
-const shouldRestore = (cloudMode && cloudTimestamp > localTimestamp && cloudMode !== appMode)
-  || (_modeIsLocked && _localIsAdmin);
-if (shouldRestore) {
-const previousMode = appMode;
-appMode = cloudMode;
-const modeBatch = [
-['appMode', appMode],
-['appMode_timestamp', cloudTimestamp]
-];
-if (cloudMode === 'rep' && data.assignedRep) {
-currentRepProfile = data.assignedRep;
-modeBatch.push(['repProfile', currentRepProfile]);
-modeBatch.push(['repProfile_timestamp', data.repProfile_timestamp || cloudTimestamp]);
-} else if (cloudMode === 'userrole' && data.assignedManager) {
-window._assignedManagerName = data.assignedManager;
-window._assignedUserTabs = Array.isArray(data.assignedUserTabs) ? data.assignedUserTabs : [];
-modeBatch.push(['assignedManager', data.assignedManager]);
-modeBatch.push(['assignedUserTabs', window._assignedUserTabs]);
-} else if ((cloudMode === 'production' || cloudMode === 'factory') && data.assignedManager) {
-window._assignedManagerName = data.assignedManager;
-modeBatch.push(['assignedManager', data.assignedManager]);
-}
-await sqliteStore.setBatch(modeBatch);
-const modeLabel = appMode === 'rep' ? 'Rep Mode' : appMode === 'userrole' ? 'User Role Mode' : appMode === 'production' ? 'Production Mode' : appMode === 'factory' ? 'Factory Mode' : 'Admin Mode';
-const isRemote = !!data.remoteAppliedMode;
-showToast(isRemote
-? `Restoring remotely assigned ${modeLabel}...`
-: `Switching to ${modeLabel}...`, 'info', 2000);
-setTimeout(() => { window.location.reload(); }, 1500);
-} else {
-}
+  const localTimestamp = Number(await sqliteStore.get('appMode_timestamp')) || 0;
+
+  if (firebaseDB && !window._firestoreNetworkDisabled && navigator.onLine) {
+    try {
+      const deviceId = await getDeviceId();
+      const deviceRef = firebaseDB.collection('users').doc(uid)
+                                  .collection('devices').doc(deviceId);
+      const deviceDoc = await deviceRef.get();
+
+      if (deviceDoc.exists) {
+        const data = deviceDoc.data();
+        const cloudMode      = data.currentMode || 'admin';
+        const cloudTimestamp = data.appMode_timestamp || 0;
+        const _modeIsLocked  = cloudMode !== 'admin';
+        const _localIsAdmin  = appMode === 'admin';
+        const shouldRestore  = (cloudMode && cloudTimestamp > localTimestamp && cloudMode !== appMode)
+                            || (_modeIsLocked && _localIsAdmin);
+        if (shouldRestore) {
+          _applyModeFromData(
+            cloudMode, cloudTimestamp,
+            data.assignedRep, data.assignedManager,
+            data.assignedUserTabs, !!data.remoteAppliedMode
+          );
+        }
+
+        return;
+      }
+
+    } catch (_fsErr) {
+      console.warn('[restoreDeviceMode] Firestore read failed, trying SQLite fallback:', _safeErr(_fsErr));
+    }
+  }
+
+  const sqliteMode = await sqliteStore.get('appMode') || 'admin';
+  const _modeIsLockedSqlite = sqliteMode !== 'admin';
+  const _localIsAdminSqlite = appMode === 'admin';
+  if (_modeIsLockedSqlite && _localIsAdminSqlite) {
+    const assignedRep     = await sqliteStore.get('repProfile').catch(() => null);
+    const assignedManager = await sqliteStore.get('assignedManager').catch(() => null);
+    const assignedTabs    = await sqliteStore.get('assignedUserTabs').catch(() => []);
+    _applyModeFromData(
+      sqliteMode, localTimestamp || Date.now(),
+      assignedRep, assignedManager, assignedTabs, false
+    );
+  }
 } catch (error) {
-console.warn('[restoreDeviceMode] could not restore device mode:', _safeErr(error));
+  console.warn('[restoreDeviceMode] could not restore device mode:', _safeErr(error));
 }
 }
 window.restoreDeviceModeOnLogin = restoreDeviceModeOnLogin;
@@ -15231,12 +15288,19 @@ if (typeof window.deviceCommandsUnsubscribe === 'function') {
 try { window.deviceCommandsUnsubscribe(); } catch (_) {}
 window.deviceCommandsUnsubscribe = null;
 }
+
+if (!window._deviceCmdRetryAttempts) window._deviceCmdRetryAttempts = 0;
+if (!window._deviceCmdRetrying) window._deviceCmdRetrying = false;
+
 try {
 const deviceId = await getDeviceId();
 const userRef = firebaseDB.collection('users').doc(currentUser.uid);
 const deviceRef = userRef.collection('devices').doc(deviceId);
-const unsubscribe = deviceRef.onSnapshot((doc) => {
+
+const unsubscribe = deviceRef.onSnapshot({ includeMetadataChanges: false }, (doc) => {
 try {
+
+if (doc.metadata.fromCache || doc.metadata.hasPendingWrites) return;
 if (!doc.exists) return;
 const data = doc.data();
 if (!data || !data.targetMode || !data.targetModeTimestamp) return;
@@ -15259,21 +15323,52 @@ const lastProcessed = window.lastProcessedCommandTimestamp || 0;
 if (commandTimestamp > lastProcessed) {
 applyRemoteModeChange(effectiveMode, data.commandSource || 'remote', resolvedName, resolvedUserTabs);
 window.lastProcessedCommandTimestamp = commandTimestamp;
+
+window._deviceCmdRetryAttempts = 0;
 }
 } catch (snapErr) {
-console.warn('Device command snapshot handler error:', _safeErr(snapErr));
+console.warn('[device] command snapshot handler error:', _safeErr(snapErr));
 }
 }, (error) => {
-console.warn('Device command listener error — will retry in 15s:', _safeErr(error));
-
+const _code = error && error.code;
+console.warn('[device] command listener error:', _code, _safeErr(error));
 window.deviceCommandsUnsubscribe = null;
+
+if (_code === 'permission-denied' || _code === 'failed-precondition') {
+console.warn('[device] stopping device listener — unrecoverable error:', _code);
+window._deviceCmdRetryAttempts = 0;
+window._deviceCmdRetrying = false;
+return;
+}
+
+if (window._deviceCmdRetrying) return;
+window._deviceCmdRetryAttempts = (window._deviceCmdRetryAttempts || 0) + 1;
+const MAX_DEVICE_RETRIES = 8;
+if (window._deviceCmdRetryAttempts > MAX_DEVICE_RETRIES) {
+console.warn('[device] max retries reached — giving up device listener');
+window._deviceCmdRetryAttempts = 0;
+window._deviceCmdRetrying = false;
+return;
+}
+
+const delay = Math.min(5000 * Math.pow(2, window._deviceCmdRetryAttempts - 1), 120000);
+window._deviceCmdRetrying = true;
 setTimeout(() => {
-if (firebaseDB && currentUser) listenForDeviceCommands().catch(e => console.warn('listenForDeviceCommands retry failed:', _safeErr(e)));
-}, 15000);
+window._deviceCmdRetrying = false;
+if (firebaseDB && currentUser) {
+listenForDeviceCommands().catch(e => {
+window._deviceCmdRetrying = false;
+console.warn('[device] listenForDeviceCommands retry failed:', _safeErr(e));
+});
+}
+}, delay);
 });
 window.deviceCommandsUnsubscribe = unsubscribe;
+
+window._deviceCmdRetryAttempts = 0;
+window._deviceCmdRetrying = false;
 } catch (error) {
-console.error('listenForDeviceCommands failed:', _safeErr(error));
+console.error('[device] listenForDeviceCommands failed:', _safeErr(error));
 }
 }
 async function applyRemoteModeChange(targetMode, source, repName = null, userTabs = null) {
@@ -15345,7 +15440,7 @@ showToast(repName ? `Locked to Production: ${repName}` : 'Device locked to Produ
 if (typeof lockToFactoryMode === 'function') lockToFactoryMode();
 showToast(repName ? `Locked to Factory: ${repName}` : 'Device locked to Factory mode', 'info', 4000);
 } else if (targetMode === 'admin') {
-if (typeof unlockToAdminMode === 'function') unlockToAdminMode();
+if (typeof unlockAdminMode === 'function') unlockAdminMode();
 if (typeof notifyDataChange === 'function') notifyDataChange('all');
 showToast('Device unlocked to Admin mode', 'info', 4000);
 }

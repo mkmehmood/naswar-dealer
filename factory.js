@@ -171,7 +171,9 @@ if (isOpen) {
 const container = document.getElementById('factoryRawMaterialsContainer');
 const liveRows = container ? Array.from(container.querySelectorAll('.factory-formula-grid')) : [];
 const liveState = liveRows.map(row => ({
-id: row.querySelector('.factory-mat-select')?.value || '',
+id: row.querySelector('.factory-mat-search-input')?.dataset.matId || '',
+name: row.querySelector('.factory-mat-search-input')?.value || '',
+cost: row.querySelector('.factory-mat-search-input')?.dataset.matCost || '',
 qty: row.querySelector('.factory-mat-qty')?.value || ''
 }));
 const hasUnsavedWork = liveState.some(r => r.id !== '');
@@ -182,9 +184,11 @@ liveState.forEach((state, idx) => {
 if (!state.id) return;
 const row = newRows[idx];
 if (!row) return;
-const sel = row.querySelector('.factory-mat-select');
+const inp = row.querySelector('.factory-mat-search-input');
+const costIn = row.querySelector('.factory-mat-cost');
 const qty = row.querySelector('.factory-mat-qty');
-if (sel && state.id) { sel.value = state.id; updateFactoryRowCost(sel); }
+if (inp) { inp.value = state.name; inp.dataset.matId = state.id; inp.dataset.matCost = state.cost; }
+if (costIn) costIn.value = state.cost;
 if (qty && state.qty) qty.value = state.qty;
 });
 }
@@ -266,26 +270,82 @@ _setFS1('factorySettingsSalesCostPerKgAsaan', await formatCurrency(asaanSalesCos
 async function createFactorySettingRow(container, selectedId = '', qtyVal = '', costVal = null, savedName = '', inventoryData = null) {
 const factoryInventoryData = inventoryData !== null ? inventoryData : ensureArray(await sqliteStore.get('factory_inventory_data'));
 let currentCost = costVal !== null ? costVal : 0;
+let currentId = selectedId ? String(selectedId) : '';
+let currentName = savedName || '';
+if (currentId) {
+const match = factoryInventoryData.find(i => String(i.id) === currentId);
+if (match) {
+currentName = match.name;
+if (costVal === null) currentCost = match.cost;
+}
+}
+const rowId = 'fmr-' + Math.random().toString(36).slice(2, 8);
 const div = document.createElement('div');
 div.className = 'factory-formula-grid';
+div.style.position = 'relative';
 
-const sel = document.createElement('select');
-sel.className = 'factory-mat-select';
-sel.onchange = function() { updateFactoryRowCost(this); };
-const defaultOpt = document.createElement('option');
-defaultOpt.value = '';
-defaultOpt.textContent = 'Select Material';
-sel.appendChild(defaultOpt);
-factoryInventoryData.forEach(i => {
-const opt = document.createElement('option');
-opt.value = String(i.id);
-opt.dataset.cost = String(i.cost);
-opt.textContent = i.name;
-sel.appendChild(opt);
-if (String(i.id) === String(selectedId)) {
-if (costVal === null) currentCost = i.cost;
+const searchWrap = document.createElement('div');
+searchWrap.className = 'factory-mat-select';
+searchWrap.style.cssText = 'position:relative;';
+
+const searchInput = document.createElement('input');
+searchInput.type = 'text';
+searchInput.className = 'factory-mat-search-input';
+searchInput.placeholder = 'Search material…';
+searchInput.value = currentName;
+searchInput.dataset.matId = currentId;
+searchInput.dataset.matCost = String(currentCost);
+searchInput.autocomplete = 'off';
+searchInput.style.cssText = 'width:100%;box-sizing:border-box;';
+
+const dropdown = document.createElement('div');
+dropdown.className = 'factory-mat-dropdown hidden u-search-dropdown';
+dropdown.style.cssText = 'position:absolute;top:100%;left:0;right:0;z-index:999;max-height:180px;overflow-y:auto;';
+
+function renderDropdown(query) {
+const q = (query || '').toLowerCase();
+const filtered = q
+? factoryInventoryData.filter(i => i.name && i.name.toLowerCase().includes(q))
+: factoryInventoryData;
+if (!filtered.length) {
+dropdown.innerHTML = '<div class="u-search-empty">No materials found</div>';
+} else {
+dropdown.innerHTML = filtered.map(i =>
+`<div class="factory-mat-option" data-id="${esc(String(i.id))}" data-cost="${esc(String(i.cost))}" data-name="${esc(i.name)}"
+style="padding:9px 10px;cursor:pointer;border-bottom:1px solid var(--glass-border);font-size:0.85rem;color:var(--text-main);background:var(--input-bg);"
+onmouseover="this.style.background='var(--highlight-bg)'"
+onmouseout="this.style.background='var(--input-bg)'">${esc(i.name)}</div>`
+).join('');
+}
+dropdown.classList.remove('hidden');
+dropdown.querySelectorAll('.factory-mat-option').forEach(opt => {
+opt.addEventListener('mousedown', e => {
+e.preventDefault();
+const id = opt.dataset.id;
+const cost = opt.dataset.cost;
+const name = opt.dataset.name;
+searchInput.value = name;
+searchInput.dataset.matId = id;
+searchInput.dataset.matCost = cost;
+costInput.value = cost;
+dropdown.classList.add('hidden');
+updateFactoryFormulasSummary();
+});
+});
+}
+
+searchInput.addEventListener('focus', () => renderDropdown(searchInput.value));
+searchInput.addEventListener('input', () => renderDropdown(searchInput.value));
+searchInput.addEventListener('blur', () => {
+setTimeout(() => dropdown.classList.add('hidden'), 150);
+if (!searchInput.dataset.matId) {
+searchInput.value = '';
+costInput.value = '';
 }
 });
+
+searchWrap.appendChild(searchInput);
+searchWrap.appendChild(dropdown);
 
 const costInput = document.createElement('input');
 costInput.type = 'number';
@@ -312,32 +372,11 @@ div.remove();
 updateFactoryFormulasSummary();
 };
 
-div.appendChild(sel);
+div.appendChild(searchWrap);
 div.appendChild(costInput);
 div.appendChild(qtyInput);
 div.appendChild(delBtn);
 container.appendChild(div);
-
-if (selectedId) {
-const targetId = String(selectedId).trim();
-let matched = false;
-for (const opt of sel.options) {
-if (opt.value.trim() === targetId) {
-opt.selected = true;
-matched = true;
-break;
-}
-}
-if (!matched && savedName) {
-const ghostOpt = document.createElement('option');
-ghostOpt.value = targetId;
-ghostOpt.dataset.cost = String(currentCost);
-ghostOpt.textContent = savedName;
-ghostOpt.selected = true;
-sel.appendChild(ghostOpt);
-}
-costInput.value = currentCost;
-}
 }
 
 function getColumnLabel(index) {
@@ -355,23 +394,16 @@ const container = document.getElementById('factoryRawMaterialsContainer');
 createFactorySettingRow(container, '', '', null, '', null);
 }
 
-function updateFactoryRowCost(selectEl) {
-const costInput = selectEl.closest('.factory-formula-grid').querySelector('.factory-mat-cost');
-const selectedOption = selectEl.options[selectEl.selectedIndex];
-costInput.value = selectedOption.getAttribute('data-cost') || 0;
-updateFactoryFormulasSummary();
-}
-
 async function updateFactoryFormulasSummary() {
 const factoryUnitTracking = (await sqliteStore.get('factory_unit_tracking')) || {};
 const container = document.getElementById('factoryRawMaterialsContainer');
 const rows = container.querySelectorAll('.factory-formula-grid');
 let totalRawCost = 0, totalWeight = 0;
 rows.forEach(row => {
-const sel = row.querySelector('.factory-mat-select');
+const inp = row.querySelector('.factory-mat-search-input');
 const qtyIn = row.querySelector('.factory-mat-qty');
 const costIn = row.querySelector('.factory-mat-cost');
-if (sel && sel.value && qtyIn.value > 0 && costIn.value > 0) {
+if (inp && inp.dataset.matId && qtyIn.value > 0 && costIn.value > 0) {
 totalRawCost += (parseFloat(costIn.value) * parseFloat(qtyIn.value));
 totalWeight += parseFloat(qtyIn.value);
 }
@@ -417,15 +449,14 @@ const container = document.getElementById('factoryRawMaterialsContainer');
 const rows = container.querySelectorAll('.factory-formula-grid');
 const newFormula = [];
 rows.forEach(row => {
-const sel = row.querySelector('.factory-mat-select');
+const inp = row.querySelector('.factory-mat-search-input');
 const qtyIn = row.querySelector('.factory-mat-qty');
 const costIn = row.querySelector('.factory-mat-cost');
-if (sel && sel.value && qtyIn.value > 0 && costIn.value > 0) {
-const selectedOpt = sel.options[sel.selectedIndex];
-const itemName = selectedOpt ? selectedOpt.textContent.trim() : '';
+if (inp && inp.dataset.matId && qtyIn.value > 0 && costIn.value > 0) {
+const itemName = inp.value.trim();
 if (itemName) {
-let resolvedId = sel.value;
-const liveMatch = factoryInventoryData.find(i => String(i.id) === String(sel.value));
+let resolvedId = inp.dataset.matId;
+const liveMatch = factoryInventoryData.find(i => String(i.id) === String(resolvedId));
 if (!liveMatch && itemName) {
 const nameMatch = factoryInventoryData.find(i => i.name && i.name.trim().toLowerCase() === itemName.toLowerCase());
 if (nameMatch) resolvedId = nameMatch.id;
@@ -1190,8 +1221,11 @@ updateFactoryUnitsAvailableStats();
 }
 
 async function renderFactoryHistory() {
-const factoryProductionHistory = ensureArray(await sqliteStore.get('factory_production_history'));
-const factoryAdditionalCosts = (await sqliteStore.get('factory_additional_costs')) || {};
+const _fhBatch = await sqliteStore.getBatch(['factory_production_history','factory_additional_costs','factory_default_formulas','factory_inventory_data']);
+const factoryProductionHistory = ensureArray(_fhBatch.get('factory_production_history'));
+const factoryAdditionalCosts = (_fhBatch.get('factory_additional_costs')) || {};
+const factoryDefaultFormulas = (_fhBatch.get('factory_default_formulas')) || {};
+const factoryInventoryData = ensureArray(_fhBatch.get('factory_inventory_data'));
 const list = document.getElementById('factoryHistoryList');
 if (!list) return;
 if (factoryProductionHistory.length === 0) {
@@ -1215,25 +1249,67 @@ const storeLabel = entry.store === 'standard' ? 'STD' : 'ASN';
 const perUnitCost = entry.units > 0 ? entry.totalCost / entry.units : 0;
 const additionalCostPerUnit = factoryAdditionalCosts[entry.store] || 0;
 const totalAdditionalCost = additionalCostPerUnit * entry.units;
+
+const formula = factoryDefaultFormulas[entry.store] || [];
+let matsBreakdownHtml = '';
+if (formula.length > 0) {
+const rowsHtml = formula.map(f => {
+let inv = factoryInventoryData.find(i => String(i.id) === String(f.id));
+if (!inv && f.name) inv = factoryInventoryData.find(i => i.name && i.name.trim().toLowerCase() === f.name.trim().toLowerCase());
+const matName = esc(inv?.name || f.name || 'Material');
+const qtyUsed = (f.quantity * entry.units).toFixed(2);
+const unitCost = inv ? inv.cost : (f.cost || 0);
+const matCost = (unitCost * f.quantity * entry.units);
+return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--glass-border);">
+<span style="font-size:0.72rem;color:var(--text-main);font-weight:500;">${matName}</span>
+<span style="display:flex;gap:10px;align-items:center;">
+<span style="font-size:0.7rem;color:var(--text-muted);">${qtyUsed} kg</span>
+<span class="cost-val" style="font-size:0.72rem;min-width:60px;text-align:right;">${fmtAmt(matCost)}</span>
+</span>
+</div>`;
+}).join('');
+const breakdownId = `fh-breakdown-${entry.id}`;
+matsBreakdownHtml = `
+<div style="margin-top:8px;">
+<button onclick="(function(el){var p=document.getElementById('${breakdownId}');var open=p.style.display!=='none';p.style.display=open?'none':'block';el.querySelector('span').textContent=open?'▸':'▾';})(this)"
+style="display:flex;align-items:center;gap:5px;background:none;border:none;cursor:pointer;padding:4px 0;width:100%;">
+<span style="font-size:0.68rem;color:var(--accent);">▸</span>
+<span style="font-size:0.68rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:0.05em;">Materials Breakdown</span>
+</button>
+<div id="${breakdownId}" style="display:none;background:var(--glass-raised);border-radius:10px;padding:8px 10px;margin-top:4px;border:1px solid var(--glass-border);">
+<div style="display:flex;justify-content:space-between;padding-bottom:5px;margin-bottom:2px;">
+<span style="font-size:0.62rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">Material</span>
+<span style="display:flex;gap:10px;">
+<span style="font-size:0.62rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;">Qty Used</span>
+<span style="font-size:0.62rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em;min-width:60px;text-align:right;">Cost</span>
+</span>
+</div>
+${rowsHtml}
+</div>
+</div>`;
+}
 const div = document.createElement('div');
 div.className = 'factory-history-item';
 if (entry.date) div.setAttribute('data-date', entry.date);
 div.innerHTML = `
-<div style="display:flex;justify-content:space-between;margin-bottom:8px;border-bottom:1px solid var(--glass-border);padding-bottom:5px;">
+<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:5px;margin-bottom:8px;border-bottom:1px solid var(--glass-border);padding-bottom:5px;">
+<div style="display:flex;align-items:center;flex-wrap:wrap;gap:5px;">
 <span class="u-fs-sm2 u-text-muted">${dateStr}</span>
+${entry.managedBy ? `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 9px;font-size:0.65rem;font-weight:700;letter-spacing:0.04em;color:var(--accent-purple);background:rgba(206,147,216,0.10);border:1px solid rgba(206,147,216,0.28);border-radius:999px;">${esc(entry.managedBy)}</span>` : ''}
+${entry.createdBy && typeof _creatorBadgeHtml === 'function' ? _creatorBadgeHtml(entry) : ''}
+</div>
 <div style="display:flex;gap:6px;align-items:center;">
 ${_mergedBadgeHtml(entry)}
 <span class="factory-badge ${badgeClass}">${esc(storeLabel)}</span>
 </div>
 </div>
-${entry.managedBy ? `<div style="margin-bottom:8px;"><span style="display:inline-flex;align-items:center;gap:4px;padding:2px 9px;font-size:0.65rem;font-weight:700;letter-spacing:0.04em;color:var(--accent-purple);background:rgba(206,147,216,0.10);border:1px solid rgba(206,147,216,0.28);border-radius:999px;">${esc(entry.managedBy)}</span></div>` : ''}
-${entry.createdBy ? `<div style="margin-bottom:8px;">${typeof _creatorBadgeHtml === 'function' ? _creatorBadgeHtml(entry) : ''}</div>` : ''}
 <div class="factory-summary-row"><span class="factory-summary-label">Units Produced</span><span class="qty-val">${entry.units}</span></div>
 <div class="factory-summary-row"><span class="factory-summary-label">Material Cost</span><span class="cost-val">${await formatCurrency(entry.materialsCost || 0)}</span></div>
 ${totalAdditionalCost > 0 ? `<div class="factory-summary-row"><span class="factory-summary-label">Additional Cost</span><span class="cost-val">${await formatCurrency(totalAdditionalCost)}</span></div>` : ''}
 <div class="factory-summary-row"><span class="factory-summary-label">Per Unit Cost</span><span class="cost-val">${await formatCurrency(perUnitCost)}</span></div>
 <div class="factory-summary-row"><span class="factory-summary-label">Total Cost</span><span class="rev-val">${await formatCurrency(entry.totalCost)}</span></div>
 <div class="factory-summary-row"><span class="factory-summary-label">Raw Materials Used</span><span class="qty-val">${safeNumber(entry.rawMaterialsUsed, 0).toFixed(2)} kg</span></div>
+${matsBreakdownHtml}
 ${entry.isMerged ? '' : `<button class="tbl-action-btn danger u-w-full u-mt-8" onclick="deleteFactoryEntry('${entry.id}')">Delete & Restore Inventory</button>`}`;
 _fhFrag.appendChild(div);
 }

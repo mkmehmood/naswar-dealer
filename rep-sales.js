@@ -2,23 +2,33 @@ async function enableBiometricLock() {
 try {
 const success = await BiometricAuth.register("Manager");
 if(success) {
-showToast("Biometric Lock Enabled! ", "success");
+showToast("Biometric Lock Enabled! 🔒", "success");
 const _bioBtn = document.getElementById('bio-toggle-btn');
-if (_bioBtn) { _bioBtn.innerText = "Disable Biometric Lock"; _bioBtn.onclick = disableBiometricLock; }
+if (_bioBtn) {
+  const lbl = document.getElementById('bio-toggle-label');
+  if (lbl) lbl.textContent = 'Disable Lock';
+  _bioBtn.onclick = () => { if(typeof closeSidebar==='function') closeSidebar(); disableBiometricLock(); };
+  _bioBtn.classList.add('active');
+}
 }
 } catch (e) {
 showToast("Setup failed: " + e.message, "error");
 }
 }
 async function disableBiometricLock() {
-const _bioMsg = `Remove the biometric (fingerprint / Face ID) lock from this app?\n\nAfter removal:\n • Anyone with access to this device can open the app without biometric verification\n • To re-enable, go to Security Settings and set up biometrics again\n\nYour data will not be affected.`;
+const _bioMsg = `Remove the biometric (fingerprint / Face ID) lock from this app?\n\nAfter removal:\n • Anyone with access to this device can open the app without biometric verification\n • To re-enable, tap Fingerprint Lock in the sidebar again\n\nYour data will not be affected.`;
 if (await showGlassConfirm(_bioMsg, { title: "Remove Biometric Lock", confirmText: "Remove Lock", danger: true })) {
 await sqliteStore.remove('bio_enabled');
 await sqliteStore.remove('bio_cred_id');
+await sqliteStore.remove('bio_cred_transports');
 showToast("Biometric Lock Removed", "info");
 const _bioBtnD = document.getElementById('bio-toggle-btn');
-if (_bioBtnD) _bioBtnD.innerText = "Enable Biometric Lock ";
-document.getElementById('bio-toggle-btn').onclick = enableBiometricLock;
+if (_bioBtnD) {
+  const lbl = document.getElementById('bio-toggle-label');
+  if (lbl) lbl.textContent = 'Fingerprint Lock';
+  _bioBtnD.onclick = () => { if(typeof closeSidebar==='function') closeSidebar(); enableBiometricLock(); };
+  _bioBtnD.classList.remove('active');
+}
 }
 }
 async function checkBiometricLock() {
@@ -28,30 +38,134 @@ const lockScreen = document.createElement('div');
 lockScreen.id = 'app-lock-screen';
 lockScreen.style.cssText = `
 position: fixed; inset: 0;
-background: var(--bg-gradient); z-index: 100000;
+background: #0e0e0e;
+background-image: radial-gradient(ellipse 70% 55% at 50% 30%, rgba(29,233,182,0.07) 0%, transparent 70%);
+z-index: 100000;
 display: flex; flex-direction: column; align-items: center; justify-content: center;
+padding: 40px 24px;
 `;
 lockScreen.innerHTML = `
-<div style="font-size: 3rem; margin-bottom: 20px;">※</div>
-<h2 style="color: var(--text-main); margin-bottom: 10px;">Security Locked</h2>
-<p style="color: var(--text-muted); font-size: 0.9rem;">Biometric authentication required</p>
-<button class="btn btn-main" style="margin-top: 25px; padding: 12px 30px;" onclick="triggerUnlock()">
-Unlock App
+<style>
+@keyframes _lockPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(29,233,182,0.35), 0 0 0 0 rgba(29,233,182,0.15); }
+  50%       { box-shadow: 0 0 0 18px rgba(29,233,182,0.10), 0 0 0 36px rgba(29,233,182,0.04); }
+}
+@keyframes _lockRingExpand {
+  0%   { transform: scale(0.85); opacity: 0; }
+  60%  { transform: scale(1.04); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes _lockFadeUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes _lockBtnReady {
+  0%   { opacity: 0; transform: translateY(10px) scale(0.97); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes _lockShake {
+  0%, 100% { transform: translateX(0); }
+  18%       { transform: translateX(-7px); }
+  36%       { transform: translateX(7px); }
+  54%       { transform: translateX(-5px); }
+  72%       { transform: translateX(5px); }
+  90%       { transform: translateX(-2px); }
+}
+#_lock-icon-wrap {
+  width: 100px; height: 100px; border-radius: 50%;
+  background: rgba(29,233,182,0.08);
+  border: 1.5px solid rgba(29,233,182,0.28);
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 32px;
+  animation: _lockRingExpand 0.55s cubic-bezier(0.22,1,0.36,1) forwards,
+             _lockPulse 3s ease-in-out 0.8s infinite;
+}
+#_lock-title {
+  font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em;
+  color: rgba(255,255,255,0.92); margin: 0 0 8px 0;
+  animation: _lockFadeUp 0.45s cubic-bezier(0.22,1,0.36,1) 0.15s both;
+}
+#_lock-sub {
+  font-size: 0.82rem; color: rgba(255,255,255,0.45);
+  margin: 0 0 40px 0; letter-spacing: 0.01em;
+  animation: _lockFadeUp 0.45s cubic-bezier(0.22,1,0.36,1) 0.25s both;
+}
+#_lock-btn {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(29,233,182,0.12);
+  border: 1.5px solid rgba(29,233,182,0.40);
+  color: #1de9b6; font-size: 0.92rem; font-weight: 700;
+  padding: 14px 36px; border-radius: 9999px; cursor: pointer;
+  letter-spacing: 0.02em; transition: background 0.18s, border-color 0.18s, transform 0.12s;
+  animation: _lockBtnReady 0.45s cubic-bezier(0.22,1,0.36,1) 0.35s both;
+  -webkit-tap-highlight-color: transparent;
+}
+#_lock-btn:active { transform: scale(0.96); background: rgba(29,233,182,0.2); }
+#_lock-hint {
+  margin-top: 20px; font-size: 0.72rem; color: rgba(255,255,255,0.22);
+  letter-spacing: 0.03em;
+  animation: _lockFadeUp 0.45s cubic-bezier(0.22,1,0.36,1) 0.45s both;
+}
+#_lock-dots {
+  display: flex; gap: 7px; margin-top: 28px;
+  animation: _lockFadeUp 0.45s cubic-bezier(0.22,1,0.36,1) 0.4s both;
+}
+#_lock-dots span {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: rgba(29,233,182,0.25);
+}
+</style>
+
+<div id="_lock-icon-wrap">
+  <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#1de9b6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="5" y="11" width="14" height="10" rx="2.5"/>
+    <path d="M8 11V7a4 4 0 0 1 8 0v4"/>
+    <circle cx="12" cy="16" r="1.2" fill="#1de9b6" stroke="none"/>
+  </svg>
+</div>
+
+<h2 id="_lock-title">App Locked</h2>
+<p id="_lock-sub">Authenticate to continue</p>
+
+<button id="_lock-btn" onclick="triggerUnlock()">
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+    <path d="m9 12 2 2 4-4" stroke="#1de9b6"/>
+  </svg>
+  Use Fingerprint / Face ID
 </button>
+
+<p id="_lock-hint">Touch the sensor or look at the camera</p>
+
+<div id="_lock-dots">
+  <span></span><span></span><span></span>
+</div>
 `;
 document.body.appendChild(lockScreen);
 window.triggerUnlock = async () => {
+const btn = document.getElementById('_lock-btn');
+if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
 try {
 const success = await BiometricAuth.authenticate();
 if (success) {
 const screen = document.getElementById('app-lock-screen');
-if(screen) screen.remove();
+if (screen) {
+screen.style.transition = 'opacity 0.3s ease';
+screen.style.opacity = '0';
+setTimeout(() => screen.remove(), 300);
+}
 showToast("Unlocked Successfully", "success");
 } else {
+const iconWrap = document.getElementById('_lock-icon-wrap');
+if (iconWrap) { iconWrap.style.animation = '_lockShake 0.5s ease'; setTimeout(() => { iconWrap.style.animation = ''; }, 520); }
 showToast("Authentication Failed. Try again.", "error");
+if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
 }
 } catch (e) {
+const iconWrap = document.getElementById('_lock-icon-wrap');
+if (iconWrap) { iconWrap.style.animation = '_lockShake 0.5s ease'; setTimeout(() => { iconWrap.style.animation = ''; }, 520); }
 showToast("Biometric Error: " + e.message, "error");
+if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
 }
 };
 setTimeout(() => window.triggerUnlock(), 500);
@@ -1470,8 +1584,10 @@ ${qtyAmount}
 </div>
 </div>
 <div style="text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 5px;">
-<div class="u-fs-sm u-text-muted" >
-${esc(item.time || '')}
+<div style="display:flex;align-items:center;gap:5px;justify-content:flex-end;flex-wrap:wrap;">
+<span class="u-fs-sm u-text-muted">${esc(item.time || '')}</span>
+${item.createdBy && typeof _creatorBadgeHtml === 'function' ? _creatorBadgeHtml(item) : ''}
+${item.salesRep && !item.createdBy ? `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;font-size:0.62rem;font-weight:700;color:var(--accent);background:rgba(37,99,235,0.10);border:1px solid rgba(37,99,235,0.25);border-radius:999px;">${esc(item.salesRep.split(' ')[0])}</span>` : ''}
 </div>
 </div>
 </div>

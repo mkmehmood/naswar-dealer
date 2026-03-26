@@ -1,4 +1,3 @@
-
 async function saveWithTracking(key, data, specificRecord = null, specificIds = null) {
 const result = await sqliteStore.set(key, data);
 const collectionEntry = SQLiteToFirestoreMap[key];
@@ -406,6 +405,18 @@ try {
   console.warn('Auth: post-login data reload failed:', _safeErr(e));
 }
 updateSyncButton();
+
+const _isFreshLogin = !sessionStorage.getItem('_gznd_login_ts');
+if (_isFreshLogin) {
+  try { sessionStorage.setItem('_gznd_login_ts', String(Date.now())); } catch(_) {}
+}
+
+if (typeof initDeviceShard === 'function') {
+  await initDeviceShard().catch(() => {});
+  if (typeof UUIDSyncRegistry !== 'undefined') {
+    await UUIDSyncRegistry.loadAll().catch(() => {});
+  }
+}
 if (typeof subscribeToRealtime === 'function') {
 subscribeToRealtime().catch(e => console.warn('subscribeToRealtime failed:', _safeErr(e)));
 }
@@ -418,15 +429,6 @@ console.warn('Device registration failed:', _safeErr(err));
 }
 if (typeof refreshDeviceIdAnchors === 'function') {
 setTimeout(() => { refreshDeviceIdAnchors().catch(() => {}); }, 1500);
-}
-if (typeof initDeviceShard === 'function') {
-setTimeout(async () => {
-  await initDeviceShard().catch(() => {});
-
-  if (typeof UUIDSyncRegistry !== 'undefined') {
-    await UUIDSyncRegistry.loadAll().catch(() => {});
-  }
-}, 200);
 }
 setTimeout(async () => {
 try {
@@ -944,14 +946,6 @@ return true;
 return false;
 }
 }
-async function isUserInitialized() {
-if (!firebaseDB || !currentUser) return false;
-try {
-return await isCompleteDatabaseInitialized();
-} catch (error) {
-return false;
-}
-}
 function retryFirebaseInit(attempts = 0, maxAttempts = APP_CONFIG.FIREBASE_INIT_RETRY_MAX) {
 initializeFirebaseSystem();
 if (firebaseDB) {
@@ -1256,7 +1250,6 @@ async function _flushSyncLockQueue() {
     catch (err) { console.warn('[SyncLock] Error replaying buffered snapshot', _safeErr(err)); }
   }
 }
-function updateSignal(status) { updateSignalUI(status); }
 function updateSignalUI(status) {
   const dot = document.getElementById('connection-indicator');
   if (!dot) return;
@@ -1339,7 +1332,13 @@ function scheduleListenerReconnect() {
   isReconnecting = true;
   listenerReconnectTimer = setTimeout(() => {
     isReconnecting = false;
-    if (firebaseDB && currentUser) subscribeToRealtime().catch(e => console.warn('subscribeToRealtime retry failed:', _safeErr(e)));
+    if (firebaseDB && currentUser) {
+      subscribeToRealtime().catch(e => {
+
+        isReconnecting = false;
+        console.warn('subscribeToRealtime retry failed:', _safeErr(e));
+      });
+    }
   }, delay);
 }
 function recordSuccessfulConnection() {
@@ -1437,7 +1436,16 @@ async function subscribeToRealtime() {
           }
         }
       }
-    }, () => {});
+    }, (_userDocErr) => {
+      const _code = _userDocErr && _userDocErr.code;
+      console.warn('[sync] userDoc snapshot error:', _code, _safeErr(_userDocErr));
+      if (_code === 'permission-denied' || _code === 'failed-precondition') {
+        updateSignalUI('offline');
+      } else {
+        updateSignalUI('error');
+        scheduleListenerReconnect();
+      }
+    });
     realtimeRefs.push(userDocUnsub);
 
     const _handleSettingsSnapshot = async (doc) => {
@@ -1491,7 +1499,12 @@ async function subscribeToRealtime() {
     const settingsUnsub = userRef.collection('settings').doc('config').onSnapshot(async (doc) => {
       if (isSyncing) { _enqueueSyncLocked(_handleSettingsSnapshot, doc); return; }
       await _handleSettingsSnapshot(doc);
-    }, _e => { updateSignalUI('error'); scheduleListenerReconnect(); });
+    }, _e => {
+      const _ec = _e && _e.code;
+      console.warn('[sync] settings listener error:', _ec, _safeErr(_e));
+      if (_ec === 'permission-denied' || _ec === 'failed-precondition') { updateSignalUI('offline'); }
+      else { updateSignalUI('error'); scheduleListenerReconnect(); }
+    });
     realtimeRefs.push(settingsUnsub);
 
     const _handleFactorySettingsSnapshot = async (doc) => {
@@ -1568,7 +1581,12 @@ async function subscribeToRealtime() {
     const factorySettingsUnsub = userRef.collection('factorySettings').doc('config').onSnapshot(async (doc) => {
       if (isSyncing) { _enqueueSyncLocked(_handleFactorySettingsSnapshot, doc); return; }
       await _handleFactorySettingsSnapshot(doc);
-    }, _e => { updateSignalUI('error'); scheduleListenerReconnect(); });
+    }, _e => {
+      const _ec = _e && _e.code;
+      console.warn('[sync] factorySettings listener error:', _ec, _safeErr(_e));
+      if (_ec === 'permission-denied' || _ec === 'failed-precondition') { updateSignalUI('offline'); }
+      else { updateSignalUI('error'); scheduleListenerReconnect(); }
+    });
     realtimeRefs.push(factorySettingsUnsub);
 
     const _handleExpenseCategoriesSnapshot = async (doc) => {
@@ -1600,7 +1618,12 @@ async function subscribeToRealtime() {
     const expenseCategoriesUnsub = userRef.collection('expenseCategories').doc('categories').onSnapshot(async (doc) => {
       if (isSyncing) { _enqueueSyncLocked(_handleExpenseCategoriesSnapshot, doc); return; }
       await _handleExpenseCategoriesSnapshot(doc);
-    }, _e => { updateSignalUI('error'); scheduleListenerReconnect(); });
+    }, _e => {
+      const _ec = _e && _e.code;
+      console.warn('[sync] expenseCategories listener error:', _ec, _safeErr(_e));
+      if (_ec === 'permission-denied' || _ec === 'failed-precondition') { updateSignalUI('offline'); }
+      else { updateSignalUI('error'); scheduleListenerReconnect(); }
+    });
     realtimeRefs.push(expenseCategoriesUnsub);
 
     function _dedupDeletionRecords(arr) {
@@ -1712,7 +1735,12 @@ async function subscribeToRealtime() {
     const deletionsUnsub = userRef.collection('deletions').onSnapshot(async (snapshot) => {
       if (isSyncing) { _enqueueSyncLocked(_handleDeletionsSnapshot, snapshot); return; }
       await _handleDeletionsSnapshot(snapshot);
-    }, _e => { updateSignalUI('error'); scheduleListenerReconnect(); });
+    }, _e => {
+      const _ec = _e && _e.code;
+      console.warn('[sync] deletions listener error:', _ec, _safeErr(_e));
+      if (_ec === 'permission-denied' || _ec === 'failed-precondition') { updateSignalUI('offline'); }
+      else { updateSignalUI('error'); scheduleListenerReconnect(); }
+    });
     realtimeRefs.push(deletionsUnsub);
 
     const _handleTeamSnapshot = async (doc) => {
@@ -1753,17 +1781,23 @@ async function subscribeToRealtime() {
     const teamUnsub = userRef.collection('settings').doc('team').onSnapshot(async (doc) => {
       if (isSyncing) { _enqueueSyncLocked(_handleTeamSnapshot, doc); return; }
       await _handleTeamSnapshot(doc);
-    }, _e => { updateSignalUI('error'); scheduleListenerReconnect(); });
+    }, _e => {
+      const _ec = _e && _e.code;
+      console.warn('[sync] team listener error:', _ec, _safeErr(_e));
+      if (_ec === 'permission-denied' || _ec === 'failed-precondition') { updateSignalUI('offline'); }
+      else { updateSignalUI('error'); scheduleListenerReconnect(); }
+    });
     realtimeRefs.push(teamUnsub);
 
     updateSignalUI('online');
     recordSuccessfulConnection();
+    listenerRetryAttempts = 0;
     if (typeof registerDevice === 'function') {
       registerDevice().catch(err => { console.warn('Device registration failed:', _safeErr(err)); });
     }
   } catch (error) {
-    console.error('Device registration failed.', _safeErr(error));
-    showToast('Device registration failed.', 'error');
+    console.error('[sync] subscribeToRealtime failed:', _safeErr(error));
+    showToast('Failed to connect to cloud. Retrying…', 'error');
     updateSignalUI('offline');
     scheduleListenerReconnect();
   }
@@ -1787,9 +1821,18 @@ async function initFirebase() {
   window._firebaseListenersRegistered = true;
   try {
     window._fbOfflineHandler = () => { updateSignalUI('offline'); };
+    window._fbOnlineHandler = () => {
+
+      listenerRetryAttempts = 0;
+      isReconnecting = false;
+      if (listenerReconnectTimer) { clearTimeout(listenerReconnectTimer); listenerReconnectTimer = null; }
+      if (firebaseDB && currentUser) {
+        subscribeToRealtime().catch(e => console.warn('[sync] online-recovery re-subscribe failed:', _safeErr(e)));
+      }
+    };
     window._fbVisibilityHandler = async () => {
       if (document.visibilityState !== 'visible') return;
-      if (!currentUser || !database) return;
+      if (!currentUser || !firebaseDB) return;
       try {
         const lastSync = await sqliteStore.get('last_synced');
         const msSince = lastSync ? (Date.now() - new Date(lastSync).getTime()) : Infinity;
@@ -1798,6 +1841,7 @@ async function initFirebase() {
       } catch (error) { console.warn('Failed to pull data from cloud.', _safeErr(error)); }
     };
     window.addEventListener('offline', window._fbOfflineHandler);
+    window.addEventListener('online',  window._fbOnlineHandler);
     document.addEventListener('visibilitychange', window._fbVisibilityHandler);
   } catch (e) { console.warn('Failed to pull data from cloud.', _safeErr(e)); }
 }
@@ -2044,16 +2088,18 @@ async function _detectUserType(userRef) {
   }
 }
 
-async function _downloadDeltas(userRef, userType) {
+async function _downloadDeltas(userRef, userType, forceDownload = false) {
   const FRESH_THRESHOLD_MS = 8 * 1000;
   const buildQuery = async (collection, collectionName) => {
-    if (userType === 'existing') return collection.get();
+
+    if (forceDownload || userType === 'existing') return collection.get();
     const lastDownloadKey = `lastDownload_${collectionName}`;
     let lastDownloadMs = 0;
     try {
       const raw = await sqliteStore.get(lastDownloadKey);
       lastDownloadMs = raw ? (typeof raw === 'number' ? raw : parseInt(raw)) : 0;
     } catch (_) {}
+
     if (lastDownloadMs && (Date.now() - lastDownloadMs) < FRESH_THRESHOLD_MS) {
       return { docs: [], docChanges: () => [] };
     }
@@ -2253,6 +2299,31 @@ async function _syncSettings(cloudData) {
     if (sd && sd.naswar_default_settings) {
       defaultSettings = sd.naswar_default_settings;
       await sqliteStore.set('naswar_default_settings', defaultSettings);
+    }
+
+    if (sd && sd.repProfile) {
+      const ct = sd.repProfile_timestamp || 0;
+      const lt = (await sqliteStore.get('repProfile_timestamp')) || 0;
+      if (ct >= lt) {
+        currentRepProfile = sd.repProfile;
+        await sqliteStore.setBatch([
+          ['repProfile', currentRepProfile],
+          ['current_rep_profile', currentRepProfile],
+          ['repProfile_timestamp', ct || Date.now()],
+        ]);
+      }
+    }
+
+    if (sd && Array.isArray(sd.sales_reps) && sd.sales_reps.length > 0) {
+      const ct = sd.sales_reps_timestamp || 0;
+      const lt = (await sqliteStore.get('sales_reps_list_timestamp')) || 0;
+      if (ct >= lt) {
+        salesRepsList = sd.sales_reps;
+        await sqliteStore.setBatch([
+          ['sales_reps_list', salesRepsList],
+          ['sales_reps_list_timestamp', ct || Date.now()],
+        ]);
+      }
     }
   }
   if (factorySettingsSnap && factorySettingsSnap.exists) {
@@ -2487,10 +2558,12 @@ async function _doOneClickSync(silent = false) {
       return;
     }
 
-    const cloudData = await _downloadDeltas(userRef, userType);
+    const syncForceDownload = (userType === 'existing');
+    const cloudData = await _downloadDeltas(userRef, userType, syncForceDownload);
     const totalCloudChanges = Object.values(cloudData.data).reduce((s, a) => s + (a?.length || 0), 0);
 
     if (userType === 'existing' && typeof UUIDSyncRegistry !== 'undefined') {
+
       UUIDSyncRegistry.setNewDeviceRestore(true);
     }
     await _mergeAndPersist(cloudData);
@@ -2663,15 +2736,25 @@ async function _doPullDataFromCloud(silent = false, forceDownload = false) {
     await sqliteStore.init();
     await sqliteStore.flush();
 
+    if (typeof initDeviceShard === 'function') {
+      await initDeviceShard().catch(() => {});
+    }
+
     const userRef = firebaseDB.collection('users').doc(currentUser.uid);
     const pullUserType = await _detectUserType(userRef);
-    const cloudData = await _downloadDeltas(userRef, pullUserType === 'new' ? 'existing' : pullUserType);
+
+    const effectiveUserType = forceDownload ? 'existing' : (pullUserType === 'new' ? 'existing' : pullUserType);
+    const cloudData = await _downloadDeltas(userRef, effectiveUserType, forceDownload);
 
     const hasData = Object.values(cloudData.data).some(a => a.length > 0)
       || (cloudData.settings && cloudData.settings.exists)
       || (cloudData.factorySettings && cloudData.factorySettings.exists);
-    if (!hasData) {
+    if (!hasData && !forceDownload) {
       if (!silent) showToast('Cloud is empty. Nothing to download.', 'info');
+      return;
+    }
+    if (!hasData && forceDownload) {
+      if (!silent) showToast('No data found in cloud.', 'warning');
       return;
     }
 
@@ -2855,9 +2938,6 @@ showToast("Starting Update...", "info");
 await pullDataFromCloud(false);
 }
 }
-}
-async function checkAuthState() {
-scheduleAutoBackup();
 }
 function createAuthOverlay() {
 const existing = document.getElementById('auth-overlay');
@@ -3356,6 +3436,10 @@ try { localStorage.setItem('_gznd_session_active', '1'); sessionStorage.setItem(
 LoginRateLimiter.recordSuccess();
 messageDiv.textContent = '✓ Offline Login Successful';
 messageDiv.style.color = 'var(--accent-emerald)';
+
+if (typeof initDeviceShard === 'function') {
+  await initDeviceShard().catch(() => {});
+}
 try {
   if (typeof loadAllData === 'function') await loadAllData();
 } catch(e) { console.warn('Post-offline-login data reload failed:', _safeErr(e)); }
@@ -3392,6 +3476,7 @@ currentUser = { id: email.replace(/[^a-zA-Z0-9]/g, '_'), uid: email.replace(/[^a
 sqliteStore.setUserPrefix(currentUser.uid);
 await SQLiteCrypto.setSessionKey(email, password, currentUser.uid);
 try { localStorage.setItem('_gznd_session_active', '1'); sessionStorage.setItem('_gznd_session_active', '1'); } catch(e) {}
+if (typeof initDeviceShard === 'function') { await initDeviceShard().catch(() => {}); }
 try { if (typeof loadAllData === 'function') await loadAllData(); } catch(e) {}
 messageDiv.textContent = '✓ Offline Login (Network unavailable)';
 messageDiv.style.color = 'var(--accent-emerald)';
@@ -3588,13 +3673,28 @@ console.error('adminRemoveAccount:', _safeErr(err));
 }
 }
 
-async function handleSignUp() {}
 async function signOut() {
 try {
+
+let _savedAppMode = null;
+try {
+  const _modeKeys = [
+    'appMode', 'appMode_timestamp',
+    'repProfile', 'repProfile_timestamp',
+    'assignedManager', 'assignedUserTabs',
+  ];
+  const _modeVals = await sqliteStore.getBatch(_modeKeys).catch(() => new Map());
+  const _modeEntries = _modeKeys
+    .map(k => [k, _modeVals.get(k)])
+    .filter(([, v]) => v != null && v !== undefined);
+  if (_modeEntries.length) _savedAppMode = _modeEntries;
+} catch(_) {}
+
 stopDatabaseHeartbeat();
 clearAutoBackup();
 if (typeof OfflineQueue !== 'undefined') OfflineQueue.cancelRetry();
 if (window._fbOfflineHandler) { window.removeEventListener('offline', window._fbOfflineHandler); window._fbOfflineHandler = null; }
+if (window._fbOnlineHandler)  { window.removeEventListener('online',  window._fbOnlineHandler);  window._fbOnlineHandler  = null; }
 if (window._fbVisibilityHandler) { document.removeEventListener('visibilitychange', window._fbVisibilityHandler); window._fbVisibilityHandler = null; }
 window._firebaseListenersRegistered = false;
 if (seamlessBackupTimer) { clearTimeout(seamlessBackupTimer); seamlessBackupTimer = null; }
@@ -3646,6 +3746,14 @@ try {
 sqliteStore.clearUserPrefix();
 DeltaSync.clearAllTimestamps().catch(() => {});
 if (typeof UUIDSyncRegistry !== 'undefined') UUIDSyncRegistry.clearAll().catch(() => {});
+
+if (typeof _clearDeviceIdStorage === 'function') {
+  await _clearDeviceIdStorage().catch(() => {});
+}
+
+if (_savedAppMode && _savedAppMode.length) {
+  await sqliteStore.setBatch(_savedAppMode).catch(() => {});
+}
 showToast(' Signed out successfully', 'success');
 } else {
 currentUser = null;
@@ -3686,6 +3794,14 @@ try {
 sqliteStore.clearUserPrefix();
 DeltaSync.clearAllTimestamps().catch(() => {});
 if (typeof UUIDSyncRegistry !== 'undefined') UUIDSyncRegistry.clearAll().catch(() => {});
+
+if (typeof _clearDeviceIdStorage === 'function') {
+  await _clearDeviceIdStorage().catch(() => {});
+}
+
+if (_savedAppMode && _savedAppMode.length) {
+  await sqliteStore.setBatch(_savedAppMode).catch(() => {});
+}
 showToast(' Signed out', 'success');
 }
 setTimeout(() => {
