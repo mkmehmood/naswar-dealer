@@ -826,7 +826,7 @@ const sqliteStore = (() => {
     'appMode', 'appMode_timestamp',
     'repProfile', 'repProfile_timestamp',
     'assignedManager', 'assignedUserTabs',
-    'bio_enabled', 'bio_cred_id', 'bio_cred_transports',
+    'bio_enabled', 'bio_cred_id',
   ]);
 
   const _PLAINTEXT_KEYS = new Set([
@@ -836,7 +836,7 @@ const sqliteStore = (() => {
     'device_name', 'theme', 'app_theme',
     'last_synced', 'firestore_initialized', 'firestore_init_timestamp',
     'ui_state', 'firestore_stats', 'session_start',
-    'bio_enabled', 'bio_cred_id', 'bio_cred_transports',
+    'bio_enabled', 'bio_cred_id',
   ]);
 
   const _IDB_KEY_TO_COLLECTION = {

@@ -20,7 +20,6 @@ const _bioMsg = `Remove the biometric (fingerprint / Face ID) lock from this app
 if (await showGlassConfirm(_bioMsg, { title: "Remove Biometric Lock", confirmText: "Remove Lock", danger: true })) {
 await sqliteStore.remove('bio_enabled');
 await sqliteStore.remove('bio_cred_id');
-await sqliteStore.remove('bio_cred_transports');
 showToast("Biometric Lock Removed", "info");
 const _bioBtnD = document.getElementById('bio-toggle-btn');
 if (_bioBtnD) {
