@@ -166,7 +166,8 @@ if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
 } catch (e) {
 const iconWrap = document.getElementById('_lock-icon-wrap');
 if (iconWrap) { iconWrap.style.animation = '_lockShake 0.5s ease'; setTimeout(() => { iconWrap.style.animation = ''; }, 520); }
-showToast("Biometric Error: " + e.message, "error");
+const errMsg = e && e.message ? e.message : 'Unknown error';
+showToast("Biometric Error: " + errMsg, "error");
 if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
 }
 };

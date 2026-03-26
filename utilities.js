@@ -13248,7 +13248,13 @@ timeout: 60000
 await navigator.credentials.get({ publicKey });
 return true;
 } catch (err) {
+const msg = err && err.message ? err.message : String(err);
+// User cancelled is not a real error — treat silently
+if (msg.includes('cancelled') || msg.includes('canceled') || msg.includes('NotAllowedError') || err.name === 'NotAllowedError') {
 return false;
+}
+console.error('[BiometricAuth] authenticate error:', msg);
+throw err;
 }
 }
 };

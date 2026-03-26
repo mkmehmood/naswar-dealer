@@ -836,6 +836,7 @@ const sqliteStore = (() => {
     'device_name', 'theme', 'app_theme',
     'last_synced', 'firestore_initialized', 'firestore_init_timestamp',
     'ui_state', 'firestore_stats', 'session_start',
+    'bio_enabled', 'bio_cred_id', 'bio_cred_transports',
   ]);
 
   const _IDB_KEY_TO_COLLECTION = {
