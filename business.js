@@ -2213,6 +2213,9 @@ const deviceType = /Mobile|Android|iPhone/.test(userAgent)
 const browser = fp.browserFull;
 const deviceRef = userRef.collection('devices').doc(deviceId);
 const existingDoc = await deviceRef.get();
+// Cache the snap so restoreDeviceModeOnLogin() can reuse it within 15s
+// instead of issuing a second .get() on the same document.
+window._cachedDeviceDocData = { deviceId, snap: existingDoc, fetchedAt: Date.now() };
 const existing = existingDoc.exists ? existingDoc.data() : {};
 const persistedMode = existing.currentMode || appMode || 'admin';
 const persistedRoleType = existing.assignedRoleType || persistedMode;

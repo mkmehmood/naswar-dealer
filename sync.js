@@ -417,9 +417,6 @@ if (typeof initDeviceShard === 'function') {
     await UUIDSyncRegistry.loadAll().catch(() => {});
   }
 }
-if (typeof subscribeToRealtime === 'function') {
-subscribeToRealtime().catch(e => console.warn('subscribeToRealtime failed:', _safeErr(e)));
-}
 if (typeof registerDevice === 'function') {
 setTimeout(() => {
 registerDevice().catch(err => {
@@ -437,13 +434,25 @@ await restoreDeviceModeOnLogin(user.uid);
 console.error('Could not restore device mode:', _safeErr(error));
 }
 }, 1000);
+// Perform initial sync first, then attach realtime listeners.
+// This prevents settings/factorySettings/expenseCategories from being
+// read twice: once in _downloadDeltas() and again via onSnapshot initial
+// fires. Listeners attach after the download completes (or after 4s max).
 setTimeout(async () => {
 if (typeof performOneClickSync === 'function' && !isSyncing) {
-performOneClickSync(false);
+  try { await performOneClickSync(false); } catch(_) {}
+}
+if (typeof subscribeToRealtime === 'function') {
+  subscribeToRealtime().catch(e => console.warn('subscribeToRealtime failed:', _safeErr(e)));
 }
 }, 1500);
 } else {
 currentUser = null;
+// Clear all per-session caches so the next login starts fresh
+window._cachedUserType = null;
+window._hasDataSentinelWritten = false;
+window._cachedDeviceDocData = null;
+window._lastCrossDevicePullTs = null;
 try {
   await SQLiteCrypto.sessionDelete('login');
   await SQLiteCrypto.sessionDelete('active');
@@ -874,26 +883,13 @@ return await initializer.initialize(silent);
 async function isCompleteDatabaseInitialized() {
 if (!firebaseDB || !currentUser) return false;
 try {
-const userRef = firebaseDB.collection('users').doc(currentUser.uid);
-const requiredCollections = [
-'devices', 'account', 'activityLog', 'production', 'sales',
-'rep_sales', 'rep_customers',
-'sales_customers',
-'transactions', 'entities', 'inventory', 'factory_history', 'expenses', 'returns',
-'calculator_history', 'settings', 'factorySettings', 'expenseCategories',
-'deletions', 'sync_updates'
-];
-const checks = await Promise.all(
-requiredCollections.map(async (coll) => {
-const snapshot = await userRef.collection(coll).limit(1).get();
-return { collection: coll, exists: !snapshot.empty };
-})
-);
-const missing = checks.filter(c => !c.exists).map(c => c.collection);
-if (missing.length > 0) {
-return false;
-}
-return true;
+  // Previously fired 21 limit(1).get() queries (21 billed reads).
+  // The FirestoreDatabaseInitializer.initialize() sets initialized:true on
+  // the user document, so a single .get() is sufficient.
+  const userRef = firebaseDB.collection('users').doc(currentUser.uid);
+  trackFirestoreRead(1);
+  const userDoc = await userRef.get();
+  return userDoc.exists && userDoc.data()?.initialized === true;
 } catch (error) {
 return false;
 }
@@ -1286,6 +1282,7 @@ try {
 const _now = Date.now();
 if (!window._lastEmitPingAt || (_now - window._lastEmitPingAt) > 2000) {
 window._lastEmitPingAt = _now;
+window._syncUpdateWriteCount = (window._syncUpdateWriteCount || 0) + 1;
 firebaseDB.collection('users').doc(currentUser.uid).set({
 lastWrite: { ts: firebase.firestore.FieldValue.serverTimestamp(), collections: changedKeys }
 }, { merge: true }).catch(() => {});
@@ -1298,6 +1295,12 @@ async function startSyncUpdatesCleanup() {
   if (!firebaseDB || !currentUser) return;
   const runCleanup = async () => {
     if (!firebaseDB || !currentUser) return;
+    // Track how many sync_update docs we've written this session in memory.
+    // Only issue the expensive ordered .get() when the local counter suggests
+    // we may have exceeded 10 docs — avoids an unnecessary full collection
+    // read on every hourly tick for users who rarely write sync events.
+    window._syncUpdateWriteCount = (window._syncUpdateWriteCount || 0);
+    if (window._syncUpdateWriteCount < 5) return;
     try {
       const syncSnapshot = await firebaseDB
         .collection('users').doc(currentUser.uid)
@@ -1309,6 +1312,8 @@ async function startSyncUpdatesCleanup() {
         syncSnapshot.docs.slice(10).forEach(doc => batch.delete(doc.ref));
         await batch.commit();
       }
+      // Reset counter after an actual check
+      window._syncUpdateWriteCount = 0;
     } catch (error) {
       console.error('Cloud save operation failed.', _safeErr(error));
     }
@@ -1430,9 +1435,18 @@ async function subscribeToRealtime() {
         if (pingTs > lastSeenPing + 1000) {
           window._lastSeenPingTs = pingTs;
           if (!window._lastEmitPingAt || Math.abs(pingTs - window._lastEmitPingAt) > 3000) {
-            setTimeout(() => {
-              if (typeof pullDataFromCloud === 'function') pullDataFromCloud(true).catch(() => {});
-            }, 500);
+            // Throttle cross-device pulls: each trigger previously called
+            // _detectUserType() (up to 140 reads). 30s cooldown prevents
+            // rapid successive edits from cascading into repeat full fetches.
+            const CROSS_DEVICE_PULL_COOLDOWN_MS = 30 * 1000;
+            const _nowPull = Date.now();
+            if (!window._lastCrossDevicePullTs ||
+                (_nowPull - window._lastCrossDevicePullTs) > CROSS_DEVICE_PULL_COOLDOWN_MS) {
+              window._lastCrossDevicePullTs = _nowPull;
+              setTimeout(() => {
+                if (typeof pullDataFromCloud === 'function') pullDataFromCloud(true).catch(() => {});
+              }, 500);
+            }
           }
         }
       }
@@ -2061,6 +2075,10 @@ function mergeArrays(localArray, cloudArray, collectionName) {
 }
 
 async function _detectUserType(userRef) {
+  // Per-session cache: user type cannot change within a single page session.
+  // Cleared on sign-out via window._cachedUserType = null.
+  if (window._cachedUserType) return window._cachedUserType;
+
   const hasInitialized = await sqliteStore.get('firestore_initialized');
   const sqliteArrays = await Promise.all([
     sqliteStore.get('mfg_pro_pkr', []), sqliteStore.get('customer_sales', []), sqliteStore.get('rep_sales', []),
@@ -2069,22 +2087,25 @@ async function _detectUserType(userRef) {
     sqliteStore.get('stock_returns', []), sqliteStore.get('rep_customers', []), sqliteStore.get('expenses', []),
   ]);
   const totalLocal = sqliteArrays.reduce((s, a) => s + (Array.isArray(a) ? a.length : 0), 0);
-  if (hasInitialized && totalLocal > 0) return 'returning';
+  if (hasInitialized && totalLocal > 0) {
+    window._cachedUserType = 'returning';
+    return 'returning';
+  }
 
   try {
-    const checks = await Promise.all([
-      userRef.collection('production').limit(20).get(),
-      userRef.collection('sales').limit(20).get(),
-      userRef.collection('transactions').limit(20).get(),
-      userRef.collection('rep_sales').limit(20).get(),
-      userRef.collection('entities').limit(20).get(),
-      userRef.collection('inventory').limit(20).get(),
-      userRef.collection('expenses').limit(20).get(),
-    ]);
-    const hasRealData = checks.some(snap => snap.docs.some(doc => !doc.data()._placeholder));
-    return hasRealData ? 'existing' : 'new';
+    // Single sentinel read instead of 7 collection probes (previously up to
+    // 140 billed reads). The hasData flag is written to the user document the
+    // first time real records are uploaded, so this always costs exactly 1 read.
+    trackFirestoreRead(1);
+    const userDoc = await userRef.get();
+    const hasRealData = userDoc.exists && userDoc.data()?.hasData === true;
+    const result = hasRealData ? 'existing' : 'new';
+    window._cachedUserType = result;
+    return result;
   } catch (_e) {
-    return hasInitialized ? 'returning' : 'new';
+    const fallback = hasInitialized ? 'returning' : 'new';
+    window._cachedUserType = fallback;
+    return fallback;
   }
 }
 
@@ -2165,9 +2186,17 @@ async function _downloadDeltas(userRef, userType, forceDownload = false) {
   };
 }
 
-async function _mergeAndPersist(cloudData) {
+async function _mergeAndPersist(cloudData, forceDeleteRefresh = false) {
 
   try {
+    // Skip the deletions network fetch if we synced deletions recently and this
+    // is not a forced full restore (e.g. new-device 'existing' type sync).
+    const DELETIONS_FRESH_MS = 60 * 1000;
+    const lastDelSync = await DeltaSync.getLastSyncTimestamp('deletions');
+    const deletionsFresh = !forceDeleteRefresh && lastDelSync &&
+      (Date.now() - lastDelSync) < DELETIONS_FRESH_MS;
+
+    if (!deletionsFresh) {
     const deletionsSnap = await firebaseDB
       .collection('users').doc(currentUser.uid)
       .collection('deletions').get();
@@ -2222,6 +2251,7 @@ async function _mergeAndPersist(cloudData) {
   const _deletedSet = new Set(deduped.map(r => r.id));
   await sqliteStore.set('deleted_records', Array.from(_deletedSet));
   trackFirestoreRead(deletionsSnap.docs.length);
+  } // end if (!deletionsFresh)
   } catch (_delErr) {
   console.warn('[Sync] Failed to refresh deletions:', _safeErr(_delErr));
   }
@@ -2512,6 +2542,15 @@ async function _uploadChanges(userRef) {
     + (collectionsUploaded.has('settings') ? 1 : 0)
     + (collectionsUploaded.has('expenseCategories') ? 1 : 0);
   const totalUploaded = totalItemsToWrite + configItemCount;
+
+  // Write hasData sentinel once so future _detectUserType() calls cost 1 read
+  // instead of 7 collection probes. Guarded by a session flag to avoid
+  // re-writing on every sync cycle.
+  if (totalItemsToWrite > 0 && !window._hasDataSentinelWritten) {
+    window._hasDataSentinelWritten = true;
+    userRef.set({ hasData: true }, { merge: true }).catch(() => {});
+  }
+
   if (totalUploaded > 0 && typeof emitSyncUpdate === 'function') {
     const uploadedCollections = Array.from(collectionsUploaded).reduce((acc, col) => { acc[col] = null; return acc; }, {});
     await emitSyncUpdate(uploadedCollections).catch(() => {});
@@ -2566,7 +2605,7 @@ async function _doOneClickSync(silent = false) {
 
       UUIDSyncRegistry.setNewDeviceRestore(true);
     }
-    await _mergeAndPersist(cloudData);
+    await _mergeAndPersist(cloudData, userType === 'existing');
     if (userType === 'existing' && typeof UUIDSyncRegistry !== 'undefined') {
       UUIDSyncRegistry.setNewDeviceRestore(false);
     }
@@ -2576,6 +2615,12 @@ async function _doOneClickSync(silent = false) {
     if (userType === 'existing') {
       await sqliteStore.set('firestore_initialized', true);
       await sqliteStore.set('user_state', { type: 'existing', hasRealData: true, lastChecked: Date.now(), initialized: true, restoredItems: totalCloudChanges });
+      // Write sentinel immediately so subsequent _detectUserType() calls cost
+      // 1 read regardless of whether _uploadChanges() runs or uploads anything.
+      if (!window._hasDataSentinelWritten) {
+        window._hasDataSentinelWritten = true;
+        userRef.set({ hasData: true }, { merge: true }).catch(() => {});
+      }
 
       const totalItemsToWrite = await _uploadChanges(userRef);
 
@@ -2759,7 +2804,7 @@ async function _doPullDataFromCloud(silent = false, forceDownload = false) {
     }
 
     if (typeof UUIDSyncRegistry !== 'undefined') UUIDSyncRegistry.setNewDeviceRestore(true);
-    await _mergeAndPersist(cloudData);
+    await _mergeAndPersist(cloudData, forceDownload);
     if (typeof UUIDSyncRegistry !== 'undefined') UUIDSyncRegistry.setNewDeviceRestore(false);
     await _syncSettings(cloudData);
     await sqliteStore.set('firestore_initialized', true);

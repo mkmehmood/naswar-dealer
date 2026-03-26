@@ -15235,7 +15235,14 @@ try {
       const deviceId = await getDeviceId();
       const deviceRef = firebaseDB.collection('users').doc(uid)
                                   .collection('devices').doc(deviceId);
-      const deviceDoc = await deviceRef.get();
+      // Reuse the doc snapshot that registerDevice() already fetched within
+      // the last 15 seconds to avoid a duplicate billed read on the same doc.
+      const DEVICE_DOC_CACHE_MS = 15 * 1000;
+      const _dc = window._cachedDeviceDocData;
+      const deviceDoc = (_dc && _dc.deviceId === deviceId &&
+        (Date.now() - _dc.fetchedAt) < DEVICE_DOC_CACHE_MS)
+        ? _dc.snap
+        : await deviceRef.get();
 
       if (deviceDoc.exists) {
         const data = deviceDoc.data();
