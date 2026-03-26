@@ -148,8 +148,7 @@ window.triggerUnlock = async () => {
 const btn = document.getElementById('_lock-btn');
 if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
 try {
-const success = await BiometricAuth.authenticate();
-if (success) {
+await BiometricAuth.authenticate();
 const screen = document.getElementById('app-lock-screen');
 if (screen) {
 screen.style.transition = 'opacity 0.3s ease';
@@ -157,17 +156,22 @@ screen.style.opacity = '0';
 setTimeout(() => screen.remove(), 300);
 }
 showToast("Unlocked Successfully", "success");
-} else {
-const iconWrap = document.getElementById('_lock-icon-wrap');
-if (iconWrap) { iconWrap.style.animation = '_lockShake 0.5s ease'; setTimeout(() => { iconWrap.style.animation = ''; }, 520); }
-showToast("Authentication Failed. Try again.", "error");
-if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
-}
 } catch (e) {
 const iconWrap = document.getElementById('_lock-icon-wrap');
 if (iconWrap) { iconWrap.style.animation = '_lockShake 0.5s ease'; setTimeout(() => { iconWrap.style.animation = ''; }, 520); }
-const errMsg = e && e.message ? e.message : 'Unknown error';
-showToast("Biometric Error: " + errMsg, "error");
+const errName = e && e.name ? e.name : '';
+const errMsg  = e && e.message ? e.message : 'Unknown error';
+// User cancelled — silent, just re-enable button
+if (errName === 'NotAllowedError') {
+if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+return;
+}
+// Credential not found — prompt re-setup
+if (errName === 'InvalidStateError' || errMsg.includes('credential') || errMsg.includes('Credential')) {
+showToast("Credential not found. Disable and re-enable Fingerprint Lock.", "error", 6000);
+} else {
+showToast(errName ? errName + ': ' + errMsg : errMsg, "error", 6000);
+}
 if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
 }
 };

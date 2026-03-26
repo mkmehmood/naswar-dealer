@@ -13230,13 +13230,14 @@ throw err;
 authenticate: async () => {
 try {
 const savedCredId = await sqliteStore.get('bio_cred_id');
-if (!savedCredId) throw new Error("No biometric set up found.");
+if (!savedCredId) throw new Error("No credential found. Please disable and re-enable Fingerprint Lock.");
 const storedTransports = await sqliteStore.get('bio_cred_transports');
 const transports = storedTransports ? JSON.parse(storedTransports) : ["internal", "hybrid"];
 const challenge = new Uint8Array(32);
 window.crypto.getRandomValues(challenge);
 const publicKey = {
 challenge: challenge,
+rpId: window.location.hostname,
 allowCredentials: [{
 id: BiometricAuth._base64ToBuf(savedCredId),
 type: "public-key",
@@ -13248,12 +13249,7 @@ timeout: 60000
 await navigator.credentials.get({ publicKey });
 return true;
 } catch (err) {
-const msg = err && err.message ? err.message : String(err);
-// User cancelled is not a real error — treat silently
-if (msg.includes('cancelled') || msg.includes('canceled') || msg.includes('NotAllowedError') || err.name === 'NotAllowedError') {
-return false;
-}
-console.error('[BiometricAuth] authenticate error:', msg);
+console.error('[BiometricAuth] authenticate error:', err.name, err.message);
 throw err;
 }
 }
