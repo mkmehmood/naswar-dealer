@@ -38,7 +38,7 @@
   object-src  'none';
   upgrade-insecure-requests;
 ">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-visual">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-visual">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -46,10 +46,14 @@
 <meta name="theme-color" content="#009688">
 <link rel="apple-touch-icon" href="192.png">
 <title>GULL AND ZUBAIR NASWAR DEALERS</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous">
+
+<link rel="preload" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" as="style" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous"></noscript>
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700;800;900&family=Geist+Mono:wght@300;400;500;600;700&family=Noto+Nastaliq+Urdu:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preload" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700;800;900&family=Geist+Mono:wght@300;400;500;600;700&family=Noto+Nastaliq+Urdu:wght@400;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700;800;900&family=Geist+Mono:wght@300;400;500;600;700&family=Noto+Nastaliq+Urdu:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="app.css">
 <link rel="preload" href="admin-data.js" as="script">
 
@@ -122,9 +126,9 @@
   };
 })();
 </script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js" async></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js" async></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js" async></script>
 <script>
 
 (function() {
@@ -142,7 +146,7 @@
   } catch (_e) {  }
 })();
 </script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous" defer></script>
 <script>
 window._swConfirmed = false;
 
@@ -170,7 +174,7 @@ function _showUpdateDialog(reg) {
     if (waiting) {
       waiting.postMessage({ type: 'SKIP_WAITING' });
     } else {
-      // No waiting SW — just reload directly
+
       sessionStorage.setItem('_swJustUpdated', '1');
       window.location.reload();
     }
@@ -203,8 +207,6 @@ if ('serviceWorker' in navigator) {
         });
       });
 
-      // After skipWaiting, wait for the controller to actually change before reloading.
-      // This prevents the race condition where reload fires before the new SW takes control.
       var _reloading = false;
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (_reloading) return;
@@ -213,15 +215,9 @@ if ('serviceWorker' in navigator) {
         window.location.reload();
       });
 
-      // Re-check for updates when user returns to the app after being away
-      document.addEventListener('visibilitychange', function() {
-        if (document.visibilityState === 'visible') reg.update();
-      });
-
-      // Also check every 30 minutes in case the tab stays open
       setInterval(function() { reg.update(); }, 30 * 60 * 1000);
 
-    }).catch(function(e) { console.error('[SW]', e); });
+    }).catch(function(e) { console.error('[SW]', (e&&e.message)||String(e)||'(unknown)'); });
   });
 }
 </script>
@@ -291,7 +287,8 @@ if ('serviceWorker' in navigator) {
   background: rgba(29,233,182,0.12); color: var(--accent);
 }
 .sidebar-nav-btn svg, .sidebar-settings-btn svg {
-  width: 16px; height: 16px; flex-shrink: 0; opacity: 0.7;
+  width: 16px; height: 16px; flex-shrink: 0; opacity: 1;
+  color: inherit;
 }
 .sidebar-nav-btn.active svg { opacity: 1; }
 .sidebar-divider {
@@ -415,102 +412,327 @@ input:checked + .theme-toggle-track::before { transform: translateX(22px); }
   <div class="sidebar-scroll">
     <div class="sidebar-section-label">Navigation</div>
     <button class="sidebar-nav-btn" id="snav-prod" onclick="sidebarNav('prod')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 3H8L2 7h20l-6-4z"/></svg>
+      <svg width="24" height="24" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="4" y="20" width="28" height="12" rx="3" fill="var(--accent)" fill-opacity="0.13" stroke="var(--accent)" stroke-width="1.6"/>
+        <rect x="10" y="14" width="16" height="7" rx="2" fill="var(--accent)" fill-opacity="0.18" stroke="var(--accent)" stroke-width="1.4"/>
+        <rect x="14" y="8" width="8" height="7" rx="1.5" fill="var(--accent)" fill-opacity="0.25" stroke="var(--accent)" stroke-width="1.4"/>
+        <rect x="16" y="4" width="4" height="5" rx="1" fill="var(--accent)" opacity="0.7"/>
+        <line x1="9" y1="24" x2="9" y2="30" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity="0.6"/>
+        <line x1="14" y1="24" x2="14" y2="30" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity="0.6"/>
+        <line x1="19" y1="24" x2="19" y2="30" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity="0.6"/>
+        <line x1="24" y1="24" x2="24" y2="30" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity="0.6"/>
+      </svg>
       Production
     </button>
     <button class="sidebar-nav-btn" id="snav-sales" onclick="sidebarNav('sales')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+      <svg width="24" height="24" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="7" y="3" width="22" height="30" rx="3" fill="var(--accent)" fill-opacity="0.10" stroke="var(--accent)" stroke-width="1.6"/>
+        <path d="M7 30 L12 27 L17 30 L22 27 L29 30" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <line x1="12" y1="12" x2="24" y2="12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity="0.65"/>
+        <line x1="12" y1="17" x2="24" y2="17" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity="0.65"/>
+        <line x1="12" y1="22" x2="19" y2="22" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity="0.55"/>
+        <circle cx="24" cy="22" r="3.5" fill="var(--accent)" fill-opacity="0.2" stroke="var(--accent)" stroke-width="1.3"/>
+        <text x="24" y="23.5" text-anchor="middle" font-size="4.5" fill="var(--accent)" font-family="sans-serif" font-weight="bold">₨</text>
+      </svg>
       Sales
     </button>
     <button class="sidebar-nav-btn" id="snav-calc" onclick="sidebarNav('calc')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/><line x1="8" y1="18" x2="12" y2="18"/></svg>
+      <svg width="24" height="24" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="5" y="4" width="26" height="28" rx="4" fill="var(--accent)" fill-opacity="0.10" stroke="var(--accent)" stroke-width="1.6"/>
+        <rect x="8" y="8" width="20" height="7" rx="2" fill="var(--accent)" fill-opacity="0.18" stroke="var(--accent)" stroke-width="1.3"/>
+        <line x1="13" y1="10" x2="13" y2="13" stroke="var(--accent)" stroke-width="1.2" stroke-linecap="round"/>
+        <line x1="18" y1="10" x2="18" y2="13" stroke="var(--accent)" stroke-width="1.2" stroke-linecap="round"/>
+        <line x1="23" y1="10" x2="23" y2="13" stroke="var(--accent)" stroke-width="1.2" stroke-linecap="round"/>
+        <circle cx="12" cy="21" r="2" fill="currentColor" opacity="0.7"/>
+        <circle cx="18" cy="21" r="2" fill="currentColor" opacity="0.7"/>
+        <circle cx="24" cy="21" r="2" fill="currentColor" opacity="0.7"/>
+        <circle cx="12" cy="27" r="2" fill="currentColor" opacity="0.55"/>
+        <circle cx="18" cy="27" r="2" fill="currentColor" opacity="0.55"/>
+        <rect x="21" y="25" width="6" height="4" rx="1.5" fill="var(--accent)" opacity="0.75"/>
+      </svg>
       Calculator
     </button>
     <button class="sidebar-nav-btn" id="snav-factory" onclick="sidebarNav('factory')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7-6-7 6v2l-6 3"/><line x1="2" y1="14" x2="10" y2="14"/></svg>
+      <svg width="24" height="24" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="3" y="22" width="30" height="11" rx="2.5" fill="var(--accent)" fill-opacity="0.12" stroke="var(--accent)" stroke-width="1.5"/>
+        <rect x="6" y="15" width="10" height="8" rx="1.5" fill="var(--accent)" fill-opacity="0.15" stroke="var(--accent)" stroke-width="1.4"/>
+        <rect x="20" y="12" width="9" height="11" rx="1.5" fill="var(--accent)" fill-opacity="0.15" stroke="var(--accent)" stroke-width="1.4"/>
+        <rect x="22" y="6" width="2.5" height="7" rx="1" fill="currentColor" opacity="0.6"/>
+        <rect x="26" y="8" width="2.5" height="5" rx="1" fill="currentColor" opacity="0.6"/>
+        <circle cx="23" cy="4.5" r="1.5" fill="currentColor" opacity="0.55"/>
+        <circle cx="25" cy="3" r="1" fill="currentColor" opacity="0.55"/>
+        <rect x="13" y="25" width="10" height="8" rx="1.5" fill="var(--accent)" fill-opacity="0.3"/>
+      </svg>
       Factory
     </button>
     <button class="sidebar-nav-btn" id="snav-payments" onclick="sidebarNav('payments')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+      <svg width="24" height="24" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="4" y="14" width="22" height="14" rx="3" fill="var(--accent)" fill-opacity="0.12" stroke="var(--accent)" stroke-width="1.5"/>
+        <line x1="4" y1="19" x2="26" y2="19" stroke="var(--accent)" stroke-width="1.4"/>
+        <rect x="7" y="22" width="6" height="2.5" rx="1" fill="currentColor" opacity="0.65"/>
+        <ellipse cx="28" cy="22" rx="5" ry="2" fill="var(--accent-gold)" fill-opacity="0.2" stroke="var(--accent-gold)" stroke-width="1.3"/>
+        <ellipse cx="28" cy="19.5" rx="5" ry="2" fill="var(--accent-gold)" fill-opacity="0.28" stroke="var(--accent-gold)" stroke-width="1.3"/>
+        <ellipse cx="28" cy="17" rx="5" ry="2" fill="var(--accent-gold)" fill-opacity="0.22" stroke="var(--accent-gold)" stroke-width="1.3"/>
+        <ellipse cx="28" cy="14.5" rx="5" ry="2" fill="var(--accent-gold)" fill-opacity="0.35" stroke="var(--accent-gold)" stroke-width="1.3"/>
+      </svg>
       Payments
     </button>
     <button class="sidebar-nav-btn" id="snav-rep" onclick="sidebarNav('rep')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <svg width="24" height="24" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="13" cy="10" r="5" fill="var(--accent)" fill-opacity="0.15" stroke="var(--accent)" stroke-width="1.5"/>
+        <path d="M4 30 C4 24 22 24 22 30" stroke="var(--accent)" stroke-width="1.5" fill="var(--accent)" fill-opacity="0.10" stroke-linecap="round"/>
+        <rect x="24" y="22" width="3.5" height="9" rx="1" fill="var(--accent-emerald)" opacity="0.55"/>
+        <rect x="28.5" y="17" width="3.5" height="14" rx="1" fill="var(--accent-emerald)" opacity="0.75"/>
+        <polyline points="23,19 27,14 32,10" stroke="var(--accent-emerald)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <circle cx="32" cy="10" r="2" fill="var(--accent-emerald)"/>
+      </svg>
       Rep Sales
     </button>
     <div class="sidebar-divider"></div>
     <div id="sidebar-settings-section">
     <div class="sidebar-section-label">Settings</div>
     <div id="sidebar-label-data" class="sidebar-section-label" style="padding-top:6px;color:var(--text-secondary);font-size:0.55rem;">DATA</div>
-    <button id="sidebar-btn-sync" class="sidebar-settings-btn" onclick="closeSidebar();performOneClickSync&&performOneClickSync().catch(e=>console.error(e))">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+    <button id="sidebar-btn-sync" class="sidebar-settings-btn" onclick="closeSidebar();performOneClickSync&&performOneClickSync().catch(function(e){console.error('Sync error:',(e&&e.message)||String(e)||'(unknown)')})">
+      <svg width="24" height="24" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M10 8 A10 10 0 0 1 28 18" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+        <polyline points="25,6 28,10 24,11" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M26 28 A10 10 0 0 1 8 18" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+        <polyline points="11,30 8,26 12,25" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="18" cy="18" r="3" fill="var(--accent)" fill-opacity="0.25" stroke="var(--accent)" stroke-width="1.2"/>
+      </svg>
       Sync Data
     </button>
     <button class="sidebar-settings-btn" onclick="closeSidebar();openStandaloneScreen('backup-restore-screen')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <svg width="24" height="24" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="5" y="6" width="24" height="24" rx="4" fill="var(--accent)" fill-opacity="0.10" stroke="var(--accent)" stroke-width="1.6"/>
+        <circle cx="17" cy="18" r="6" stroke="var(--accent)" stroke-width="1.4" fill="var(--accent)" fill-opacity="0.15"/>
+        <circle cx="17" cy="18" r="2.5" fill="var(--accent)" opacity="0.6"/>
+        <line x1="17" y1="12" x2="17" y2="14.5" stroke="var(--accent)" stroke-width="1.4" stroke-linecap="round"/>
+        <line x1="17" y1="21.5" x2="17" y2="24" stroke="var(--accent)" stroke-width="1.4" stroke-linecap="round"/>
+        <line x1="11" y1="18" x2="13.5" y2="18" stroke="var(--accent)" stroke-width="1.4" stroke-linecap="round"/>
+        <line x1="20.5" y1="18" x2="23" y2="18" stroke="var(--accent)" stroke-width="1.4" stroke-linecap="round"/>
+        <rect x="29" y="14" width="2.5" height="8" rx="1.2" fill="currentColor" opacity="0.55"/>
+        <line x1="3" y1="30" x2="5" y2="30" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
+      </svg>
       Backup &amp; Restore
     </button>
     <button id="sidebar-btn-recycle" class="sidebar-settings-btn" onclick="closeSidebar();openRecycleBin()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+      <svg width="24" height="24" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8 11 L10 31 A2 2 0 0 0 12 33 H24 A2 2 0 0 0 26 31 L28 11 Z" fill="var(--danger)" fill-opacity="0.10" stroke="var(--danger)" stroke-width="1.5" stroke-linejoin="round"/>
+        <line x1="6" y1="11" x2="30" y2="11" stroke="var(--danger)" stroke-width="1.6" stroke-linecap="round"/>
+        <path d="M14 8 H22 M14 8 A1 1 0 0 1 15 7 H21 A1 1 0 0 1 22 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity="0.65"/>
+        <path d="M15 17 C15 17 13 20 15 23 C17 26 21 26 21 26" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none" opacity="0.6"/>
+        <polyline points="19,24 21,26 19,28" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.6"/>
+      </svg>
       Recycle Bin
     </button>
     <div id="sidebar-label-appearance" class="sidebar-section-label" style="padding-top:6px;color:var(--text-secondary);font-size:0.55rem;">APPEARANCE</div>
     <button id="sidebar-btn-theme" class="sidebar-settings-btn" onclick="closeSidebar();(async()=>{await toggleDarkMode();})()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      <svg width="24" height="24" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="18" cy="18" r="9" fill="var(--accent-gold)" fill-opacity="0.15" stroke="var(--accent-gold)" stroke-width="1.5"/>
+        <path d="M18 9 A9 9 0 0 1 18 27 Z" fill="var(--accent-gold)" opacity="0.4"/>
+        <line x1="18" y1="4" x2="18" y2="6.5" stroke="var(--accent-gold)" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="18" y1="29.5" x2="18" y2="32" stroke="var(--accent-gold)" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="4" y1="18" x2="6.5" y2="18" stroke="var(--accent-gold)" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="29.5" y1="18" x2="32" y2="18" stroke="var(--accent-gold)" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="8.1" y1="8.1" x2="9.9" y2="9.9" stroke="var(--accent-gold)" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="26.1" y1="26.1" x2="27.9" y2="27.9" stroke="var(--accent-gold)" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
       Theme
     </button>
     <button id="bio-toggle-btn" class="sidebar-settings-btn" onclick="closeSidebar();enableBiometricLock()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v1a9 9 0 0 0 0 14.28V21a3 3 0 0 0 6 0v-1.72A9 9 0 0 0 15 5V4a3 3 0 0 0-3-3z"/><path d="M9 9a3 3 0 0 1 6 0"/><line x1="12" y1="9" x2="12" y2="13"/><path d="M8 11a6 6 0 0 0 2.5 4.9"/><path d="M16 11a6 6 0 0 1-2.5 4.9"/></svg>
+      <svg width="24" height="24" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M18 30 C10 30 6 24 6 18 C6 11 11 6 18 6 C25 6 30 11 30 18" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+        <path d="M18 26 C13 26 10 22.5 10 18 C10 13.5 13.5 10 18 10 C22.5 10 26 13.5 26 18" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.75"/>
+        <path d="M18 22 C15.8 22 14 20.2 14 18 C14 15.8 15.8 14 18 14 C20.2 14 22 15.8 22 18 L22 22" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.85"/>
+        <circle cx="18" cy="18" r="2" fill="var(--accent)"/>
+        <path d="M22 25 C22 28 26 28 28 26" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none" opacity="0.55"/>
+      </svg>
       <span id="bio-toggle-label">Fingerprint Lock</span>
     </button>
     <div class="sidebar-section-label" style="padding-top:6px;color:var(--text-secondary);font-size:0.55rem;">BUSINESS</div>
+    <button class="sidebar-settings-btn" id="sidebar-btn-stores" onclick="closeSidebar();openStoreManagerScreen()">
+      <svg width="24" height="24" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="3" y="10" width="30" height="20" rx="3" fill="var(--accent)" fill-opacity="0.12" stroke="var(--accent)" stroke-width="1.6"/>
+        <path d="M3 16 H33" stroke="var(--accent)" stroke-width="1.3" opacity="0.5"/>
+        <rect x="7" y="20" width="7" height="6" rx="1.2" fill="var(--accent)" fill-opacity="0.25"/>
+        <rect x="17" y="20" width="7" height="6" rx="1.2" fill="var(--accent)" fill-opacity="0.18"/>
+        <path d="M9 4 L9 11" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M18 4 L18 11" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M27 4 L27 11" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round"/>
+        <circle cx="29" cy="27" r="5" fill="var(--accent-gold)" fill-opacity="0.22" stroke="var(--accent-gold)" stroke-width="1.4"/>
+        <line x1="29" y1="24.5" x2="29" y2="29.5" stroke="var(--accent-gold)" stroke-width="1.6" stroke-linecap="round"/>
+        <line x1="26.5" y1="27" x2="31.5" y2="27" stroke="var(--accent-gold)" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+      Store Manager
+    </button>
     <button class="sidebar-settings-btn" onclick="closeSidebar();openStandaloneScreen('add-entity-screen');if(typeof prepareAddEntityScreen==='function')prepareAddEntityScreen()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/><line x1="12" y1="14" x2="12" y2="22"/><line x1="8" y1="18" x2="16" y2="18"/></svg>
+      <svg width="24" height="24" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="14" cy="12" r="5.5" fill="var(--accent)" fill-opacity="0.15" stroke="var(--accent)" stroke-width="1.5"/>
+        <path d="M4 30 C4 23 24 23 24 30" stroke="var(--accent)" stroke-width="1.5" fill="var(--accent)" fill-opacity="0.10" stroke-linecap="round"/>
+        <line x1="28" y1="14" x2="28" y2="22" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round"/>
+        <line x1="24" y1="18" x2="32" y2="18" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round"/>
+      </svg>
       Add Entity
     </button>
     <button class="sidebar-settings-btn" onclick="closeSidebar();openStandaloneScreen('raw-material-screen');if(typeof prepareRawMaterialScreen==='function')prepareRawMaterialScreen()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+      <svg width="24" height="24" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="18" cy="18" r="4" fill="var(--accent)" fill-opacity="0.4" stroke="var(--accent)" stroke-width="1.4"/>
+        <circle cx="8" cy="10" r="3" fill="var(--accent)" fill-opacity="0.2" stroke="var(--accent)" stroke-width="1.3"/>
+        <circle cx="28" cy="10" r="3" fill="var(--accent)" fill-opacity="0.2" stroke="var(--accent)" stroke-width="1.3"/>
+        <circle cx="8" cy="26" r="3" fill="var(--accent)" fill-opacity="0.15" stroke="var(--accent)" stroke-width="1.3"/>
+        <circle cx="28" cy="26" r="3" fill="var(--accent)" fill-opacity="0.15" stroke="var(--accent)" stroke-width="1.3"/>
+        <line x1="11" y1="12" x2="15" y2="15" stroke="currentColor" stroke-width="1.2" opacity="0.55"/>
+        <line x1="25" y1="12" x2="21" y2="15" stroke="currentColor" stroke-width="1.2" opacity="0.55"/>
+        <line x1="11" y1="24" x2="15" y2="21" stroke="currentColor" stroke-width="1.2" opacity="0.55"/>
+        <line x1="25" y1="24" x2="21" y2="21" stroke="currentColor" stroke-width="1.2" opacity="0.55"/>
+      </svg>
       Add Raw Materials
     </button>
     <div class="sidebar-section-label" style="padding-top:6px;color:var(--text-secondary);font-size:0.55rem;">FACTORY</div>
     <button class="sidebar-settings-btn" onclick="closeSidebar();openStandaloneScreen('formula-standard-screen');if(typeof openFactorySettings==='function')openFactorySettings('standard')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      <svg width="24" height="24" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="8" y="5" width="20" height="26" rx="3" fill="var(--accent)" fill-opacity="0.10" stroke="var(--accent)" stroke-width="1.5"/>
+        <path d="M8 30 Q5 30 5 27 Q5 24 8 24" stroke="var(--accent)" stroke-width="1.3" fill="none"/>
+        <line x1="12" y1="12" x2="24" y2="12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity="0.6"/>
+        <text x="12" y="20" font-size="7" fill="var(--accent)" font-family="monospace" font-weight="bold">A=πr²</text>
+        <line x1="12" y1="25" x2="20" y2="25" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity="0.5"/>
+      </svg>
       Formula - Standard
     </button>
     <button class="sidebar-settings-btn" onclick="closeSidebar();openStandaloneScreen('formula-asaan-screen');if(typeof openFactorySettings==='function')openFactorySettings('asaan')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="15" y2="18"/></svg>
+      <svg width="24" height="24" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M9 5 H27 A2 2 0 0 1 29 7 V29 L23 35 H9 A2 2 0 0 1 7 33 V7 A2 2 0 0 1 9 5 Z" fill="var(--accent-purple)" fill-opacity="0.10" stroke="var(--accent-purple)" stroke-width="1.5"/>
+        <path d="M23 35 V29 H29" stroke="var(--accent-purple)" stroke-width="1.4" fill="none" stroke-linejoin="round"/>
+        <line x1="12" y1="13" x2="24" y2="13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity="0.65"/>
+        <line x1="12" y1="18" x2="24" y2="18" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity="0.65"/>
+        <line x1="12" y1="23" x2="18" y2="23" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity="0.55"/>
+      </svg>
       Formula - Asaan
     </button>
     <div class="sidebar-section-label" style="padding-top:6px;color:var(--text-secondary);font-size:0.55rem;">TEAM</div>
     <button class="sidebar-settings-btn" onclick="closeSidebar();openStandaloneScreen('sales-rep-screen');if(typeof loadManageRepsContent==='function')loadManageRepsContent()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <svg width="24" height="24" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="12" cy="11" r="4.5" fill="var(--accent)" fill-opacity="0.2" stroke="var(--accent)" stroke-width="1.4"/>
+        <circle cx="23" cy="11" r="4.5" fill="var(--accent)" fill-opacity="0.13" stroke="var(--accent)" stroke-width="1.4" opacity="0.8"/>
+        <path d="M2 30 C2 24 22 24 22 30" fill="var(--accent)" fill-opacity="0.12" stroke="var(--accent)" stroke-width="1.4" stroke-linecap="round"/>
+        <path d="M18 30 C18 24 34 24 34 30" fill="var(--accent)" fill-opacity="0.08" stroke="var(--accent)" stroke-width="1.4" stroke-linecap="round" opacity="0.7"/>
+      </svg>
       Sales Representatives
     </button>
     <button class="sidebar-settings-btn" onclick="closeSidebar();openStandaloneScreen('user-roles-screen');if(typeof loadUserRolesContent==='function')loadUserRolesContent()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <svg width="24" height="24" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="14" cy="11" r="5" fill="var(--accent)" fill-opacity="0.15" stroke="var(--accent)" stroke-width="1.5"/>
+        <path d="M4 28 C4 22 24 22 24 28" fill="var(--accent)" fill-opacity="0.10" stroke="var(--accent)" stroke-width="1.4" stroke-linecap="round"/>
+        <circle cx="28" cy="22" r="4" fill="var(--accent-gold)" fill-opacity="0.2" stroke="var(--accent-gold)" stroke-width="1.4"/>
+        <line x1="31" y1="25" x2="34" y2="28" stroke="var(--accent-gold)" stroke-width="1.6" stroke-linecap="round"/>
+        <line x1="33" y1="27" x2="35" y2="25" stroke="var(--accent-gold)" stroke-width="1.4" stroke-linecap="round"/>
+      </svg>
       User Roles
     </button>
     <button class="sidebar-settings-btn" onclick="closeSidebar();openStandaloneScreen('app-accounts-screen');if(typeof loadAccountsList==='function')loadAccountsList()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <svg width="24" height="24" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M18 3 L30 8 V18 C30 25 24 31 18 33 C12 31 6 25 6 18 V8 Z" fill="var(--accent)" fill-opacity="0.12" stroke="var(--accent)" stroke-width="1.6" stroke-linejoin="round"/>
+        <rect x="14" y="19" width="8" height="7" rx="1.5" fill="var(--accent)" fill-opacity="0.25" stroke="var(--accent)" stroke-width="1.3"/>
+        <path d="M15 19 V17 A3 3 0 0 1 21 17 V19" stroke="var(--accent)" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+        <circle cx="18" cy="22.5" r="1.2" fill="var(--accent)"/>
+      </svg>
       App Accounts
     </button>
     <div class="sidebar-section-label" style="padding-top:6px;color:var(--text-secondary);font-size:0.55rem;">SYSTEM</div>
     <button class="sidebar-settings-btn" onclick="closeSidebar();openStandaloneScreen('device-display-screen')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12" y2="18"/></svg>
+      <svg width="24" height="24" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="10" y="3" width="16" height="30" rx="4" fill="var(--accent)" fill-opacity="0.10" stroke="var(--accent)" stroke-width="1.6"/>
+        <line x1="14" y1="7.5" x2="22" y2="7.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity="0.6"/>
+        <rect x="13" y="11" width="10" height="14" rx="1.5" fill="var(--accent)" fill-opacity="0.2"/>
+        <circle cx="18" cy="29" r="1.5" fill="var(--accent)" opacity="0.75"/>
+        <line x1="6" y1="12" x2="8.5" y2="14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.55"/>
+        <line x1="6" y1="18" x2="9" y2="18" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.55"/>
+        <line x1="6" y1="24" x2="8.5" y2="22" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.55"/>
+        <line x1="30" y1="12" x2="27.5" y2="14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.55"/>
+        <line x1="30" y1="18" x2="27" y2="18" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.55"/>
+        <line x1="30" y1="24" x2="27.5" y2="22" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.55"/>
+      </svg>
       Device Display
     </button>
     <button class="sidebar-settings-btn" onclick="closeSidebar();if(typeof window._showCloseFinancialYearDialog==='function'){window._showCloseFinancialYearDialog();}else if(typeof showCloseFinancialYearDialog==='function'){showCloseFinancialYearDialog();}else{showToast('Feature not available','warning')}">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <svg width="24" height="24" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="4" y="8" width="20" height="20" rx="3" fill="var(--accent)" fill-opacity="0.10" stroke="var(--accent)" stroke-width="1.5"/>
+        <line x1="4" y1="14" x2="24" y2="14" stroke="var(--accent)" stroke-width="1.4"/>
+        <line x1="9" y1="5" x2="9" y2="11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity="0.65"/>
+        <line x1="19" y1="5" x2="19" y2="11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity="0.65"/>
+        <line x1="8" y1="19" x2="14" y2="19" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity="0.6"/>
+        <line x1="8" y1="23" x2="12" y2="23" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity="0.6"/>
+        <path d="M27 10 H33 L29 17 H31 L27 24 H33 L29 17 H31 Z" fill="var(--warning)" fill-opacity="0.3" stroke="var(--warning)" stroke-width="1" stroke-linejoin="round"/>
+      </svg>
       Close Financial Year
     </button>
     <button class="sidebar-settings-btn" onclick="closeSidebar();openStandaloneScreen('db-structure-screen');setTimeout(loadDbStructureScreen,80)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+      <svg width="24" height="24" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="5" y="5" width="26" height="7" rx="2.5" fill="var(--accent)" fill-opacity="0.20" stroke="var(--accent)" stroke-width="1.4"/>
+        <rect x="5" y="15" width="26" height="7" rx="2.5" fill="var(--accent)" fill-opacity="0.13" stroke="var(--accent)" stroke-width="1.4"/>
+        <rect x="5" y="25" width="26" height="7" rx="2.5" fill="var(--accent)" fill-opacity="0.08" stroke="var(--accent)" stroke-width="1.4"/>
+        <circle cx="27" cy="8.5" r="1.5" fill="var(--accent)"/>
+        <circle cx="27" cy="18.5" r="1.5" fill="var(--accent)" opacity="0.7"/>
+        <circle cx="27" cy="28.5" r="1.5" fill="var(--accent)" opacity="0.5"/>
+        <line x1="9" y1="8.5" x2="22" y2="8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.55"/>
+        <line x1="9" y1="18.5" x2="20" y2="18.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.55"/>
+        <line x1="9" y1="28.5" x2="18" y2="28.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.55"/>
+      </svg>
       Database Structure
     </button>
     <button class="sidebar-settings-btn" onclick="closeSidebar();_showLogoutConfirmDialog();" style="color:var(--danger);">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      <svg width="24" height="24" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="5" y="4" width="16" height="28" rx="2.5" fill="var(--danger)" fill-opacity="0.10" stroke="var(--danger)" stroke-width="1.5"/>
+        <path d="M12 4 Q8 6 8 18 Q8 30 12 32" stroke="currentColor" stroke-width="1" fill="none" opacity="0.5" stroke-linecap="round"/>
+        <line x1="22" y1="18" x2="31" y2="18" stroke="var(--danger)" stroke-width="2" stroke-linecap="round"/>
+        <polyline points="27,13 32,18 27,23" stroke="var(--danger)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      </svg>
       Logout
     </button>
+    </div>
+  </div>
+</div>
+
+<div id="store-manager-screen" class="standalone-screen" style="display:none">
+  <div class="screen-topbar">
+    <h2 class="screen-title">Store Manager</h2>
+  </div>
+  <div class="screen-body" id="store-manager-body">
+
+    <div class="liquid-card" style="padding:16px;margin-bottom:16px;border:1px solid var(--glass-border);border-radius:var(--radius-lg);">
+      <p class="settings-group-label" id="store-form-heading">New Store</p>
+      <input type="hidden" id="store-edit-index" value="-1">
+      <div class="grid-inputs u-mb-15">
+        <div class="field">
+          <label>Store Name</label>
+          <input type="text" id="store-name-input" placeholder="e.g. KARACHI" maxlength="32" style="text-transform:uppercase;" oninput="this.value=this.value.toUpperCase()">
+        </div>
+        <div class="field">
+          <label>Formula Type</label>
+          <input type="hidden" id="store-formula-select" value="standard">
+          <div class="toggle-group" id="formulaTypeToggleGroup">
+            <button type="button" class="toggle-opt active" onclick="setFormulaToggle('standard',this)">Standard</button>
+            <button type="button" class="toggle-opt" onclick="setFormulaToggle('asaan',this)">Asaan</button>
+          </div>
+          <div class="u-field-hint-xs">Determines which cost &amp; sale price formula is used for this store</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-noman" style="flex:1;" onclick="(async()=>{await saveStoreFromForm()})()">
+          <span id="store-save-btn-text">Add Store</span>
+        </button>
+        <button class="btn" id="store-cancel-edit-btn" style="display:none;background:var(--glass-raised);color:var(--text-muted);" onclick="resetStoreForm()">Cancel</button>
+      </div>
+    </div>
+
+    <p class="settings-group-label">Existing Stores</p>
+    <div id="store-list-container"></div>
+
+    <div style="margin-top:20px;padding:12px 14px;background:rgba(245,158,11,0.07);border:1px solid var(--warning);border-radius:var(--radius-lg);font-size:0.72rem;color:var(--text-muted);line-height:1.6;">
+      <strong style="color:var(--warning);">Note:</strong> Store keys (STORE_A, STORE_B, etc.) are permanent and link to all historical records.
+      Renaming a store updates its display name everywhere. Deleting is only allowed if the store has no production records.
+      Changes sync to all connected devices automatically.
     </div>
   </div>
 </div>
@@ -523,24 +745,24 @@ input:checked + .theme-toggle-track::before { transform: translateX(22px); }
     <p class="settings-group-label">Backup</p>
     <div class="settings-list-item" onclick="triggerLocalBackup()">
       <div class="settings-list-item-icon" style="background:rgba(29,233,182,0.1);">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <svg width="18" height="18" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="6" width="24" height="24" rx="4" fill="var(--accent)" fill-opacity="0.10" stroke="var(--accent)" stroke-width="1.6"/><circle cx="17" cy="18" r="6" stroke="var(--accent)" stroke-width="1.4" fill="var(--accent)" fill-opacity="0.18"/><circle cx="17" cy="18" r="2.5" fill="var(--accent)" opacity="0.8"/><line x1="17" y1="12" x2="17" y2="14.5" stroke="var(--accent)" stroke-width="1.4" stroke-linecap="round"/><line x1="17" y1="21.5" x2="17" y2="24" stroke="var(--accent)" stroke-width="1.4" stroke-linecap="round"/><line x1="11" y1="18" x2="13.5" y2="18" stroke="var(--accent)" stroke-width="1.4" stroke-linecap="round"/><line x1="20.5" y1="18" x2="23" y2="18" stroke="var(--accent)" stroke-width="1.4" stroke-linecap="round"/><rect x="29" y="14" width="2.5" height="8" rx="1.2" fill="var(--accent)" opacity="0.5"/></svg>
       </div>
       <div class="settings-list-item-info">
         <p class="settings-list-item-title">Backup to Phone</p>
         <p class="settings-list-item-desc">Save a local copy of all data to your device</p>
       </div>
-      <svg class="settings-list-item-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      <svg class="settings-list-item-chevron" width="16" height="16" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><polyline points="14,10 22,18 14,26" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </div>
     <p class="settings-group-label">Restore</p>
     <div class="settings-list-item" onclick="document.getElementById('restoreInput').click()">
       <div class="settings-list-item-icon" style="background:rgba(255,179,0,0.1);">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <svg width="18" height="18" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 8 A10 10 0 0 1 28 18" stroke="var(--warning)" stroke-width="1.8" stroke-linecap="round" fill="none"/><polyline points="25,6 28,10 24,11" fill="none" stroke="var(--warning)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M26 28 A10 10 0 0 1 8 18" stroke="var(--warning)" stroke-width="1.8" stroke-linecap="round" fill="none"/><polyline points="11,30 8,26 12,25" fill="none" stroke="var(--warning)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18" cy="18" r="3" fill="var(--warning)" opacity="0.52" stroke="var(--warning)" stroke-width="1.2"/></svg>
       </div>
       <div class="settings-list-item-info">
         <p class="settings-list-item-title">Restore from Phone</p>
         <p class="settings-list-item-desc">Load a previously saved backup file</p>
       </div>
-      <svg class="settings-list-item-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      <svg class="settings-list-item-chevron" width="16" height="16" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><polyline points="14,10 22,18 14,26" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </div>
   </div>
 </div>
@@ -549,8 +771,8 @@ input:checked + .theme-toggle-track::before { transform: translateX(22px); }
   <div class="screen-topbar">
     <h2 class="screen-title">Recycle Bin</h2>
   </div>
-  <div class="screen-body" style="display:flex;flex-direction:column;gap:10px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+  <div class="screen-body">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
       <div id="recycleBinStats" style="font-size:0.75rem;color:var(--text-muted);"></div>
       <select id="recycleBinFilter" onchange="renderRecycleBin(this.value)" style="padding:5px 10px;border-radius:999px;border:1px solid var(--glass-border);background:var(--input-bg);color:var(--text-main);font-size:0.78rem;cursor:pointer;">
         <option value="all">All Tabs</option>
@@ -562,10 +784,10 @@ input:checked + .theme-toggle-track::before { transform: translateX(22px); }
         <option value="tab_payments">Payments Tab</option>
       </select>
     </div>
-    <div style="background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.18);border-radius:14px;padding:9px 13px;font-size:0.73rem;color:var(--text-muted);line-height:1.5;">
-      Recover restores the record to its original collection. Records expire after <strong style="color:var(--text-main);">90 days</strong>.
+    <div style="background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.18);border-radius:14px;padding:9px 13px;font-size:0.73rem;color:var(--text-muted);line-height:1.5;margin-bottom:10px;">
+      Recover restores the record to its original collection. Records expire after <strong style="color:var(--text-main);">90 days</strong>. Use <strong style="color:#ef4444;">Delete Forever</strong> to erase a record immediately and permanently.
     </div>
-    <div id="recycleBinList" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;touch-action:pan-y;will-change:scroll-position;"></div>
+    <div id="recycleBinList"></div>
   </div>
 </div>
 
@@ -840,8 +1062,9 @@ input:checked + .theme-toggle-track::before { transform: translateX(22px); }
 <div id="device-display-screen" class="standalone-screen" style="display:none">
   <div class="screen-topbar">
     <h2 class="screen-title">Connected Devices</h2>
+    <div id="this-device-shard-badge" style="font-size:0.62rem;font-family:'Geist Mono',monospace;color:var(--accent);font-weight:700;letter-spacing:0.08em;white-space:nowrap;flex-shrink:0;display:none;">This: —</div>
     <button class="btn-theme" style="padding:6px 10px;margin-left:auto;" onclick="refreshDeviceList()" title="Refresh">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      <svg width="14" height="14" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 8 A10 10 0 0 1 28 18" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" fill="none"/><polyline points="25,6 28,10 24,11" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M26 28 A10 10 0 0 1 8 18" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" fill="none"/><polyline points="11,30 8,26 12,25" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
   </div>
   <div class="screen-body">
@@ -853,7 +1076,16 @@ input:checked + .theme-toggle-track::before { transform: translateX(22px); }
 
 <div id="close-financial-year-screen" class="standalone-screen" style="display:none">
   <div class="screen-topbar">
-    <h2 class="screen-title">Close Financial Year</h2>
+    <div style="flex-shrink:0;width:36px;height:36px;border-radius:10px;background:rgba(239,83,80,0.12);border:1px solid rgba(239,83,80,0.25);display:flex;align-items:center;justify-content:center;">
+      <svg width="16" height="16" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="8" width="20" height="20" rx="3" fill="var(--danger)" opacity="0.38" stroke="var(--danger)" stroke-width="1.5"/><line x1="4" y1="14" x2="24" y2="14" stroke="var(--danger)" stroke-width="1.4"/><line x1="9" y1="5" x2="9" y2="11" stroke="var(--danger)" stroke-width="1.6" stroke-linecap="round"/><line x1="19" y1="5" x2="19" y2="11" stroke="var(--danger)" stroke-width="1.6" stroke-linecap="round"/><path d="M27 10 H33 L29 17 H31 L27 24 H33 L29 17 H31 Z" fill="var(--danger)" opacity="0.5" stroke="var(--danger)" stroke-width="1" stroke-linejoin="round"/></svg>
+    </div>
+    <div style="flex:1;min-width:0;">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <h2 class="screen-title" style="flex:none;">CLOSE FINANCIAL YEAR</h2>
+        <span id="cy-phase-badge" class="cy-phase-badge">PREVIEW</span>
+      </div>
+      <div id="cy-panel-subtitle" style="font-size:0.68rem;color:var(--text-muted);margin-top:1px;line-height:1.4;transition:color 0.3s;">Compact all records into opening balances</div>
+    </div>
   </div>
   <div class="screen-body"></div>
 </div>
@@ -861,14 +1093,14 @@ input:checked + .theme-toggle-track::before { transform: translateX(22px); }
 <div id="db-structure-screen" class="standalone-screen" style="display:none">
   <div class="screen-topbar">
     <h2 class="screen-title">Database Structure</h2>
-    <button class="btn-theme" style="padding:6px 10px;font-size:0.7rem;margin-left:auto;" onclick="loadDbStructureScreen()" title="Refresh">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+    <button onclick="loadDbStructureScreen()" title="Refresh" style="flex-shrink:0;width:34px;height:34px;border-radius:10px;background:var(--glass-raised);border:1px solid var(--glass-border);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-muted);transition:background 0.15s,color 0.15s;margin-left:auto;" onmouseover="this.style.background='var(--glass-hover)';this.style.color='var(--text-main)'" onmouseout="this.style.background='var(--glass-raised)';this.style.color='var(--text-muted)'">
+      <svg width="14" height="14" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 8 A10 10 0 0 1 28 18" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" fill="none"/><polyline points="25,6 28,10 24,11" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M26 28 A10 10 0 0 1 8 18" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" fill="none"/><polyline points="11,30 8,26 12,25" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
   </div>
   <div class="screen-body">
     <div id="delta-sync-details-container" style="font-size:0.8rem;">
       <div style="text-align:center;padding:40px 20px;color:var(--text-muted);">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:12px;opacity:0.4;"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        <svg width="40" height="40" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-bottom:12px;"><rect x="5" y="5" width="26" height="7" rx="2.5" fill="var(--accent)" fill-opacity="0.20" stroke="var(--accent)" stroke-width="1.4"/><rect x="5" y="15" width="26" height="7" rx="2.5" fill="var(--accent)" fill-opacity="0.13" stroke="var(--accent)" stroke-width="1.4"/><rect x="5" y="25" width="26" height="7" rx="2.5" fill="var(--accent)" fill-opacity="0.08" stroke="var(--accent)" stroke-width="1.4"/><circle cx="27" cy="8.5" r="1.5" fill="var(--accent)"/><circle cx="27" cy="18.5" r="1.5" fill="var(--accent)" opacity="0.7"/><circle cx="27" cy="28.5" r="1.5" fill="var(--accent)" opacity="0.5"/><line x1="9" y1="8.5" x2="22" y2="8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.55"/><line x1="9" y1="18.5" x2="20" y2="18.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.55"/><line x1="9" y1="28.5" x2="18" y2="28.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.55"/></svg>
         <div style="font-size:0.82rem;font-weight:600;margin-bottom:8px;">Loading database structure…</div>
       </div>
     </div>
@@ -879,7 +1111,7 @@ input:checked + .theme-toggle-track::before { transform: translateX(22px); }
 window._showLogoutConfirmDialog = async function() {
   if (typeof window.showGlassConfirm !== 'function') {
     if (typeof signOut === 'function') { signOut(); return; }
-    if (typeof firebase !== 'undefined' && firebase.auth) { firebase.auth().signOut().catch(console.error); return; }
+    if (typeof firebase !== 'undefined' && firebase.auth) { firebase.auth().signOut().catch(function(e){console.error('Sign out failed:',(e&&e.message)||String(e)||'(unknown)')}); return; }
     showToast('Sign out failed', 'error'); return;
   }
   const confirmed = await window.showGlassConfirm(
@@ -889,12 +1121,12 @@ window._showLogoutConfirmDialog = async function() {
       confirmText: 'Sign Out',
       cancelText: 'Cancel',
       danger: true,
-      icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>'
+      icon: '<svg width="22" height="22" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="4" width="16" height="28" rx="2.5" fill="var(--danger)" fill-opacity="0.10" stroke="var(--danger)" stroke-width="1.5"/><path d="M12 4 Q8 6 8 18 Q8 30 12 32" stroke="currentColor" stroke-width="1" fill="none" opacity="0.5" stroke-linecap="round"/><line x1="22" y1="18" x2="31" y2="18" stroke="var(--danger)" stroke-width="2" stroke-linecap="round"/><polyline points="27,13 32,18 27,23" stroke="var(--danger)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>'
     }
   );
   if (confirmed) {
     if (typeof signOut === 'function') { signOut(); }
-    else if (typeof firebase !== 'undefined' && firebase.auth) { firebase.auth().signOut().catch(console.error); }
+    else if (typeof firebase !== 'undefined' && firebase.auth) { firebase.auth().signOut().catch(function(e){console.error('Sign out failed:',(e&&e.message)||String(e)||'(unknown)')}); }
     else { showToast('Sign out failed', 'error'); }
   }
 };
@@ -952,6 +1184,26 @@ window._showLogoutConfirmDialog = async function() {
     <h2 class="screen-title" id="entityManagementModalTitle">Add Entity</h2>
   </div>
   <div class="screen-body">
+
+    <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:18px;">
+      <div style="position:relative;width:88px;height:88px;margin-bottom:10px;">
+        <div id="entity-photo-preview" style="width:88px;height:88px;border-radius:50%;background:var(--input-bg);border:2.5px solid var(--accent);overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer;" onclick="previewPhotoClick('entity')">
+          <svg id="entity-photo-placeholder" width="38" height="38" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:0.5;"><circle cx="18" cy="13" r="6" fill="var(--accent)"/><path d="M6 30c0-6.627 5.373-10 12-10s12 3.373 12 10" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
+          <img id="entity-photo-img" src="" alt="" style="display:none;width:100%;height:100%;object-fit:cover;">
+        </div>
+        <button onclick="document.getElementById('entity-photo-file').click()" style="position:absolute;bottom:0;right:0;width:26px;height:26px;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;" title="Upload photo">
+          <svg width="13" height="13" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 8v20M8 18h20" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-theme" style="font-size:0.72rem;padding:5px 12px;border:1px solid var(--accent);color:var(--accent);border-radius:8px;display:flex;align-items:center;gap:5px;" onclick="openPhotoCapture('entity')">
+          <svg width="13" height="13" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="9" width="30" height="22" rx="3" stroke="var(--accent)" stroke-width="1.6" fill="var(--accent)" fill-opacity="0.10"/><circle cx="18" cy="20" r="6" stroke="var(--accent)" stroke-width="1.6" fill="var(--accent)" fill-opacity="0.15"/><path d="M13 9l2-4h6l2 4" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
+          Camera
+        </button>
+        <button class="btn-theme" id="entity-photo-clear-btn" style="font-size:0.72rem;padding:5px 10px;border:1px solid var(--danger,#ef4444);color:var(--danger,#ef4444);border-radius:8px;display:none;" onclick="clearPersonPhoto('entity')" title="Remove photo">✕</button>
+      </div>
+      <input type="file" id="entity-photo-file" accept="image/*" style="display:none" onchange="handlePersonPhotoFile(event,'entity')">
+    </div>
     <div class="grid-inputs">
       <div class="field">
         <label>Entity Name</label>
@@ -1057,14 +1309,35 @@ window._showLogoutConfirmDialog = async function() {
 
 <div id="customer-edit-screen" class="standalone-screen" style="display:none">
   <div class="screen-topbar">
-    <h2 class="screen-title">Edit Customer</h2>
+    <h2 class="screen-title" id="cust-edit-screen-title">Edit Customer</h2>
   </div>
   <div class="screen-body">
+
+    <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:18px;">
+      <div style="position:relative;width:88px;height:88px;margin-bottom:10px;">
+        <div id="cust-photo-preview" style="width:88px;height:88px;border-radius:50%;background:var(--input-bg);border:2.5px solid var(--accent);overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer;" onclick="previewPhotoClick('cust')">
+          <svg id="cust-photo-placeholder" width="38" height="38" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:0.5;"><circle cx="18" cy="13" r="6" fill="var(--accent)"/><path d="M6 30c0-6.627 5.373-10 12-10s12 3.373 12 10" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
+          <img id="cust-photo-img" src="" alt="" style="display:none;width:100%;height:100%;object-fit:cover;">
+        </div>
+        <button onclick="document.getElementById('cust-photo-file').click()" style="position:absolute;bottom:0;right:0;width:26px;height:26px;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;" title="Upload photo">
+          <svg width="13" height="13" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 8v20M8 18h20" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-theme" style="font-size:0.72rem;padding:5px 12px;border:1px solid var(--accent);color:var(--accent);border-radius:8px;display:flex;align-items:center;gap:5px;" onclick="openPhotoCapture('cust')">
+          <svg width="13" height="13" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="9" width="30" height="22" rx="3" stroke="var(--accent)" stroke-width="1.6" fill="var(--accent)" fill-opacity="0.10"/><circle cx="18" cy="20" r="6" stroke="var(--accent)" stroke-width="1.6" fill="var(--accent)" fill-opacity="0.15"/><path d="M13 9l2-4h6l2 4" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
+          Camera
+        </button>
+        <button class="btn-theme" id="cust-photo-clear-btn" style="font-size:0.72rem;padding:5px 10px;border:1px solid var(--danger,#ef4444);color:var(--danger,#ef4444);border-radius:8px;display:none;" onclick="clearPersonPhoto('cust')" title="Remove photo">✕</button>
+      </div>
+      <input type="file" id="cust-photo-file" accept="image/*" style="display:none" onchange="handlePersonPhotoFile(event,'cust')">
+    </div>
     <div class="grid-inputs u-mb-20">
-      <div class="field">
-        <label>Customer Name</label>
-        <input type="text" id="edit-cust-name" placeholder="Customer name" style="font-weight:700;">
-        <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Editing the name will update all records for this customer</div>
+      <div class="field u-pos-relative">
+        <label id="cust-name-label">Customer Name</label>
+        <input type="text" id="edit-cust-name" placeholder="Customer name" style="font-weight:700;" autocomplete="off">
+        <div id="cust-add-search-results" class="hidden u-search-dropdown"></div>
+        <div id="cust-name-hint" style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Editing the name will update all records for this customer</div>
       </div>
       <div class="field">
         <label>Phone Number</label>
@@ -1080,7 +1353,7 @@ window._showLogoutConfirmDialog = async function() {
         <div style="display:flex;gap:5px;">
           <input class="u-flex-1" type="text" id="edit-cust-address" placeholder="Area, Shop #, etc.">
           <button class="btn-theme" onclick="fetchDeviceLocation()" title="Auto-Fetch Location" style="border:1px solid var(--accent);color:var(--accent);padding:0 10px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg>
+            <svg width="14" height="14" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="18" cy="18" r="6" fill="var(--accent-gold)" fill-opacity="0.25" stroke="var(--accent-gold)" stroke-width="1.5"/><circle cx="18" cy="18" r="2" fill="var(--accent-gold)"/><line x1="18" y1="4" x2="18" y2="8" stroke="var(--accent-gold)" stroke-width="1.5" stroke-linecap="round"/><line x1="18" y1="28" x2="18" y2="32" stroke="var(--accent-gold)" stroke-width="1.5" stroke-linecap="round"/><line x1="4" y1="18" x2="8" y2="18" stroke="var(--accent-gold)" stroke-width="1.5" stroke-linecap="round"/><line x1="28" y1="18" x2="32" y2="18" stroke="var(--accent-gold)" stroke-width="1.5" stroke-linecap="round"/><line x1="8.5" y1="8.5" x2="11.5" y2="11.5" stroke="var(--accent-gold)" stroke-width="1.4" stroke-linecap="round"/><line x1="24.5" y1="24.5" x2="27.5" y2="27.5" stroke="var(--accent-gold)" stroke-width="1.4" stroke-linecap="round"/><line x1="27.5" y1="8.5" x2="24.5" y2="11.5" stroke="var(--accent-gold)" stroke-width="1.4" stroke-linecap="round"/><line x1="11.5" y1="24.5" x2="8.5" y2="27.5" stroke="var(--accent-gold)" stroke-width="1.4" stroke-linecap="round"/></svg>
           </button>
         </div>
         <div id="location-status" style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;font-style:italic;"></div>
@@ -1091,7 +1364,7 @@ window._showLogoutConfirmDialog = async function() {
         <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Override the default sale price for this customer. Leave blank to use the standard rate.</div>
       </div>
     </div>
-    <button class="btn btn-main u-h-42 u-fs-md2 u-fw-700" style="width:100%;" onclick="(async()=>{await saveCustomerDetails()})()">Update Details</button>
+    <button class="btn btn-main u-h-42 u-fs-md2 u-fw-700" style="width:100%;" id="cust-edit-save-btn" onclick="(async()=>{await saveCustomerDetails()})()">Update Details</button>
   </div>
 </div>
 
@@ -1136,14 +1409,35 @@ window._showLogoutConfirmDialog = async function() {
 
 <div id="rep-customer-edit-screen" class="standalone-screen" style="display:none">
   <div class="screen-topbar">
-    <h2 class="screen-title">Edit Rep Customer</h2>
+    <h2 class="screen-title" id="rep-cust-edit-screen-title">Edit Rep Customer</h2>
   </div>
   <div class="screen-body">
+
+    <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:18px;">
+      <div style="position:relative;width:88px;height:88px;margin-bottom:10px;">
+        <div id="rep-cust-photo-preview" style="width:88px;height:88px;border-radius:50%;background:var(--input-bg);border:2.5px solid var(--accent);overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer;" onclick="previewPhotoClick('rep-cust')">
+          <svg id="rep-cust-photo-placeholder" width="38" height="38" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:0.5;"><circle cx="18" cy="13" r="6" fill="var(--accent)"/><path d="M6 30c0-6.627 5.373-10 12-10s12 3.373 12 10" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
+          <img id="rep-cust-photo-img" src="" alt="" style="display:none;width:100%;height:100%;object-fit:cover;">
+        </div>
+        <button onclick="document.getElementById('rep-cust-photo-file').click()" style="position:absolute;bottom:0;right:0;width:26px;height:26px;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;" title="Upload photo">
+          <svg width="13" height="13" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 8v20M8 18h20" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-theme" style="font-size:0.72rem;padding:5px 12px;border:1px solid var(--accent);color:var(--accent);border-radius:8px;display:flex;align-items:center;gap:5px;" onclick="openPhotoCapture('rep-cust')">
+          <svg width="13" height="13" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="9" width="30" height="22" rx="3" stroke="var(--accent)" stroke-width="1.6" fill="var(--accent)" fill-opacity="0.10"/><circle cx="18" cy="20" r="6" stroke="var(--accent)" stroke-width="1.6" fill="var(--accent)" fill-opacity="0.15"/><path d="M13 9l2-4h6l2 4" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
+          Camera
+        </button>
+        <button class="btn-theme" id="rep-cust-photo-clear-btn" style="font-size:0.72rem;padding:5px 10px;border:1px solid var(--danger,#ef4444);color:var(--danger,#ef4444);border-radius:8px;display:none;" onclick="clearPersonPhoto('rep-cust')" title="Remove photo">✕</button>
+      </div>
+      <input type="file" id="rep-cust-photo-file" accept="image/*" style="display:none" onchange="handlePersonPhotoFile(event,'rep-cust')">
+    </div>
     <div class="grid-inputs u-mb-20">
-      <div class="field">
-        <label>Customer Name</label>
-        <input type="text" id="rep-edit-cust-name" placeholder="Customer name" style="font-weight:700;">
-        <div style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Editing the name will update all records for this customer</div>
+      <div class="field u-pos-relative">
+        <label id="rep-cust-name-label">Customer Name</label>
+        <input type="text" id="rep-edit-cust-name" placeholder="Customer name" style="font-weight:700;" autocomplete="off">
+        <div id="rep-cust-add-search-results" class="hidden u-search-dropdown"></div>
+        <div id="rep-cust-name-hint" style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;">Editing the name will update all records for this customer</div>
       </div>
       <div class="field">
         <label>Phone Number</label>
@@ -1159,24 +1453,24 @@ window._showLogoutConfirmDialog = async function() {
         <div style="display:flex;gap:5px;">
           <input class="u-flex-1" type="text" id="rep-edit-cust-address" placeholder="Area, Shop #, etc.">
           <button class="btn-theme" onclick="fetchRepDeviceLocation()" title="Auto-Fetch Location" style="border:1px solid var(--accent);color:var(--accent);padding:0 10px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg>
+            <svg width="14" height="14" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="18" cy="18" r="6" fill="var(--accent-gold)" fill-opacity="0.25" stroke="var(--accent-gold)" stroke-width="1.5"/><circle cx="18" cy="18" r="2" fill="var(--accent-gold)"/><line x1="18" y1="4" x2="18" y2="8" stroke="var(--accent-gold)" stroke-width="1.5" stroke-linecap="round"/><line x1="18" y1="28" x2="18" y2="32" stroke="var(--accent-gold)" stroke-width="1.5" stroke-linecap="round"/><line x1="4" y1="18" x2="8" y2="18" stroke="var(--accent-gold)" stroke-width="1.5" stroke-linecap="round"/><line x1="28" y1="18" x2="32" y2="18" stroke="var(--accent-gold)" stroke-width="1.5" stroke-linecap="round"/><line x1="8.5" y1="8.5" x2="11.5" y2="11.5" stroke="var(--accent-gold)" stroke-width="1.4" stroke-linecap="round"/><line x1="24.5" y1="24.5" x2="27.5" y2="27.5" stroke="var(--accent-gold)" stroke-width="1.4" stroke-linecap="round"/><line x1="27.5" y1="8.5" x2="24.5" y2="11.5" stroke="var(--accent-gold)" stroke-width="1.4" stroke-linecap="round"/><line x1="11.5" y1="24.5" x2="8.5" y2="27.5" stroke="var(--accent-gold)" stroke-width="1.4" stroke-linecap="round"/></svg>
           </button>
         </div>
         <div id="rep-location-status" style="font-size:0.65rem;color:var(--text-muted);margin-top:4px;font-style:italic;"></div>
       </div>
     </div>
-    <button class="btn btn-main u-h-42 u-fs-md2 u-fw-700" style="width:100%;" onclick="(async()=>{await saveRepCustomerDetails()})()">Update Details</button>
+    <button class="btn btn-main u-h-42 u-fs-md2 u-fw-700" style="width:100%;" id="rep-cust-edit-save-btn" onclick="(async()=>{await saveRepCustomerDetails()})()">Update Details</button>
   </div>
 </div>
 <div id="splash-screen">
-<div class="flower flower1">🌸</div>
-<div class="flower flower2">🌺</div>
-<div class="flower flower3">🌼</div>
-<div class="flower flower4">🌻</div>
-<div class="flower flower5">🌷</div>
-<div class="flower flower6">🏵️</div>
-<div class="flower flower7">💐</div>
-<div class="flower flower8">🌹</div>
+<div class="flower flower1"></div>
+<div class="flower flower2"></div>
+<div class="flower flower3"></div>
+<div class="flower flower4"></div>
+<div class="flower flower5"></div>
+<div class="flower flower6"></div>
+<div class="flower flower7"></div>
+<div class="flower flower8"></div>
 <div class="splash-ornament ornament-top"></div>
 <div class="splash-content">
 <div class="splash-brand">
@@ -1197,58 +1491,66 @@ window._showLogoutConfirmDialog = async function() {
 </button>
 <span id="system-name-display" style="position:absolute;left:50%;transform:translateX(-50%);font-weight:800;font-size:0.85rem;color:var(--accent);white-space:nowrap;pointer-events:none;" class="shimmer-text">MAHMOOD KHAN</span>
 </div>
+
+<div id="photo-lightbox-modal" style="display:none;position:fixed;inset:0;z-index:10400;background:rgba(0,0,0,0.96);flex-direction:column;align-items:center;justify-content:center;touch-action:none;user-select:none;">
+  <div id="photo-lightbox-inner" style="position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+    <img id="photo-lightbox-img" src="" alt="" style="max-width:92vw;max-height:88vh;border-radius:12px;object-fit:contain;display:block;transform-origin:center center;cursor:grab;transition:none;box-shadow:0 8px 48px rgba(0,0,0,0.7);">
+  </div>
+
+  <div style="position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;z-index:1;pointer-events:none;">
+    <div style="display:flex;align-items:center;gap:8px;pointer-events:all;">
+      <button onclick="_lbZoom(-1)" title="Zoom out" style="width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.13);border:1.5px solid rgba(255,255,255,0.22);color:#fff;font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);">−</button>
+      <span id="photo-lb-zoom-label" style="font-size:0.72rem;color:rgba(255,255,255,0.7);min-width:36px;text-align:center;font-weight:600;letter-spacing:0.03em;">1×</span>
+      <button onclick="_lbZoom(1)" title="Zoom in" style="width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.13);border:1.5px solid rgba(255,255,255,0.22);color:#fff;font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);">+</button>
+      <button onclick="_lbResetZoom()" title="Reset zoom" style="padding:0 10px;height:32px;border-radius:20px;background:rgba(255,255,255,0.10);border:1.5px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.75);font-size:0.68rem;font-weight:700;cursor:pointer;backdrop-filter:blur(8px);letter-spacing:0.04em;">RESET</button>
+    </div>
+    <button onclick="closePhotoLightbox()" style="width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.13);border:1.5px solid rgba(255,255,255,0.22);color:#fff;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);pointer-events:all;">✕</button>
+  </div>
+
+  <div style="position:fixed;bottom:18px;left:0;right:0;text-align:center;font-size:0.65rem;color:rgba(255,255,255,0.35);pointer-events:none;letter-spacing:0.05em;">PINCH OR SCROLL TO ZOOM · DOUBLE-TAP TO RESET</div>
+</div>
+
+<div id="photo-capture-modal" style="display:none;position:fixed;inset:0;z-index:10401;background:rgba(0,0,0,0.85);flex-direction:column;align-items:center;justify-content:center;">
+  <div style="background:var(--card-bg,#111827);border-radius:16px;padding:16px;width:min(92vw,400px);display:flex;flex-direction:column;align-items:center;gap:12px;">
+    <div style="width:100%;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-weight:700;font-size:0.95rem;color:var(--text-main);">Take Photo</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button id="torch-btn" onclick="toggleTorch()" title="Toggle Flashlight" style="background:none;border:1px solid var(--glass-border);border-radius:8px;color:var(--text-muted);font-size:1.1rem;cursor:pointer;width:32px;height:32px;display:flex;align-items:center;justify-content:center;padding:0;transition:background 0.15s,color 0.15s;">
+          <svg width="16" height="16" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 4v10M14 8l-7 10h11l-2 14 11-16H16l2-8z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" fill="none"/></svg>
+        </button>
+        <button onclick="closePhotoCapture()" style="background:none;border:none;color:var(--text-muted);font-size:1.3rem;cursor:pointer;line-height:1;">✕</button>
+      </div>
+    </div>
+    <video id="photo-capture-video" autoplay playsinline style="width:100%;border-radius:12px;background:#000;aspect-ratio:1/1;object-fit:cover;max-height:300px;"></video>
+    <canvas id="photo-capture-canvas" style="display:none;"></canvas>
+    <div style="display:flex;gap:10px;width:100%;">
+      <button class="btn btn-main" style="flex:1;" onclick="capturePhotoFromCamera()">
+        <svg width="16" height="16" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-right:5px;vertical-align:middle;"><rect x="3" y="9" width="30" height="22" rx="3" stroke="var(--accent)" stroke-width="1.8" fill="var(--accent)" fill-opacity="0.10"/><circle cx="18" cy="20" r="6" stroke="var(--accent)" stroke-width="1.8" fill="var(--accent)" fill-opacity="0.18"/><path d="M13 9l2-4h6l2 4" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
+        Capture
+      </button>
+      <button class="btn btn-danger" style="flex:0.5;" onclick="closePhotoCapture()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.person-avatar-ring {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: var(--input-bg);
+  border: 2.5px solid var(--accent);
+  overflow: hidden; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.person-avatar-ring img { width:100%; height:100%; object-fit:cover; }
+.person-avatar-ring svg { opacity: 0.35; }
+</style>
+
 <input type="file" id="restoreInput" class="hidden" accept=".json,.gznd" onchange="(async () => { await unifiedRestore(event) })()">
 
 <div id="tab-rep" class="hidden">
 <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
 <h1 class="shimmer-text u-heading-bold">Rep Sales</h1>
 </header>
-<div id="admin-rep-controls" class="section liquid-card hidden">
-<div class="section-header">
-<h3 style="margin:0; color:var(--text-main); font-size: 0.9rem;">Admin View</h3>
-</div>
-<div class="grid-inputs" style="margin-top: 10px;">
-<div class="field">
-<label style="color: var(--accent);">View For:</label>
-<select id="admin-rep-selector" class="store-selector" onchange="adminSwitchRepProfile(this.value)">
-</select>
-</div>
-<div class="field">
-<label>Select Date</label>
-<input type="date" id="admin-rep-date" onchange="handleAdminRepDateChange(this.value)">
-</div>
-</div>
-<div id="rep-map-container" style="height: 300px; width: 100%; margin-top: 15px; border-radius: 12px; border: 2px solid var(--glass-border); z-index: 1;"></div>
-<div style="text-align: right; font-size: 0.7rem; color: var(--text-muted); margin-top: 5px;">
-● Cash Sale | ● Collection | ○ Credit Sale
-</div>
-</div>
-<div id="admin-rep-analytics" class="section liquid-card hidden">
-<div class="section-header">
-<h3 class="u-heading-main" >Analytics</h3>
-<div class="toggle-group">
-<div class="toggle-opt active" id="rep-analytics-day-btn" onclick="setRepAnalyticsMode('day')">Daily</div>
-<div class="toggle-opt" id="rep-analytics-week-btn" onclick="setRepAnalyticsMode('week')">Weekly</div>
-<div class="toggle-opt" id="rep-analytics-month-btn" onclick="setRepAnalyticsMode('month')">Monthly</div>
-<div class="toggle-opt" id="rep-analytics-year-btn" onclick="setRepAnalyticsMode('year')">Yearly</div>
-<div class="toggle-opt" id="rep-analytics-all-btn" onclick="setRepAnalyticsMode('all')">All Time</div>
-</div>
-</div>
-<div style="display: flex; flex-direction: column; gap: 8px;">
-<div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--glass-border);">
-<span class="u-fs-md u-text-muted u-fw-600" >Collections</span>
-<span class="profit-val" id="rep-analytics-collections" style="font-size: 0.95rem; font-weight: 800;">0.00</span>
-</div>
-<div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--glass-border);">
-<span class="u-fs-md u-text-muted u-fw-600" >Cash Sales</span>
-<span class="profit-val" id="rep-analytics-cash-sales" style="font-size: 0.95rem; font-weight: 800;">0.00</span>
-</div>
-<div style="display: flex; justify-content: space-between; padding: 10px 0;">
-<span class="u-fs-md u-text-muted u-fw-600" >Credit Sales</span>
-<span class="cost-val" id="rep-analytics-credit-sales" style="font-size: 0.95rem; font-weight: 800;">0.00</span>
-</div>
-</div>
-</div>
 <div id="rep-new-transaction-card" class="section liquid-card">
 <div class="section-header">
 <h3 style="color:var(--accent); margin:0;">New Transaction</h3>
@@ -1289,7 +1591,7 @@ style="border-color:var(--accent-emerald); width:100%; box-sizing:border-box; pa
 <div id="rep-coll-inputs" class="hidden">
 <div class="field">
 <label>Amount Collected ()</label>
-<input type="number" id="rep-amount-collected" step="1" placeholder="Enter Cash Received">
+<input type="number" id="rep-amount-collected" step="1" placeholder="Enter Cash Received" oninput="updateRepCollectionPreview()">
 </div>
 </div>
 <div id="rep-customer-info-display" class="hidden" style="margin: 10px 0; padding: 12px; background: rgba(37, 99, 235, 0.05); border-radius: 10px; border: 1px solid var(--glass-border);">
@@ -1304,16 +1606,64 @@ style="border-color:var(--accent-emerald); width:100%; box-sizing:border-box; pa
 </div>
 <button class="btn btn-main" onclick="(async () => { await saveRepTransaction() })()">Submit Transaction</button>
 </div>
-<div class="section liquid-card">
+<div id="admin-rep-controls" class="section liquid-card hidden">
+<div class="section-header">
+<h3 style="margin:0; color:var(--text-main); font-size: 0.9rem;">Admin View</h3>
+</div>
+<div class="grid-inputs" style="margin-top: 10px;">
+<div class="field">
+<label style="color: var(--accent);">View For:</label>
+<select id="admin-rep-selector" class="store-selector" onchange="adminSwitchRepProfile(this.value)">
+</select>
+</div>
+<div class="field">
+<label>Select Date</label>
+<input type="date" id="admin-rep-date" onchange="handleAdminRepDateChange(this.value)">
+</div>
+</div>
+<div id="rep-map-container" style="height: 300px; width: 100%; margin-top: 15px; border-radius: 12px; border: 2px solid var(--glass-border); z-index: 1;"></div>
+<div style="text-align: right; font-size: 0.7rem; color: var(--text-muted); margin-top: 5px;">
+ Cash Sale |  Collection |  Credit Sale
+</div>
+</div>
+<div id="admin-rep-analytics" class="section liquid-card hidden">
+<div class="section-header">
+<h3 class="u-heading-main" >Analytics</h3>
+<div class="toggle-group">
+<div class="toggle-opt active" id="rep-analytics-day-btn" onclick="setRepAnalyticsMode('day')">Daily</div>
+<div class="toggle-opt" id="rep-analytics-week-btn" onclick="setRepAnalyticsMode('week')">Weekly</div>
+<div class="toggle-opt" id="rep-analytics-month-btn" onclick="setRepAnalyticsMode('month')">Monthly</div>
+<div class="toggle-opt" id="rep-analytics-year-btn" onclick="setRepAnalyticsMode('year')">Yearly</div>
+<div class="toggle-opt" id="rep-analytics-all-btn" onclick="setRepAnalyticsMode('all')">All Time</div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--glass-border);">
+<span class="u-fs-md u-text-muted u-fw-600" >Collections</span>
+<span class="profit-val" id="rep-analytics-collections" style="font-size: 0.95rem; font-weight: 800;">0.00</span>
+</div>
+<div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--glass-border);">
+<span class="u-fs-md u-text-muted u-fw-600" >Cash Sales</span>
+<span class="profit-val" id="rep-analytics-cash-sales" style="font-size: 0.95rem; font-weight: 800;">0.00</span>
+</div>
+<div style="display: flex; justify-content: space-between; padding: 10px 0;">
+<span class="u-fs-md u-text-muted u-fw-600" >Credit Sales</span>
+<span class="cost-val" id="rep-analytics-credit-sales" style="font-size: 0.95rem; font-weight: 800;">0.00</span>
+</div>
+</div>
+</div>
+
+<div id="rep-customers-card" class="section liquid-card">
 <div class="section-header" style="position: relative; flex-wrap: nowrap; gap: 10px; align-items: center;">
 <h3 style="color:var(--text-main); margin:0; white-space: nowrap; flex-shrink: 0;">Customer List</h3>
 <input type="text" id="rep-filter" class="search-bar u-flex-1 u-min-w-0 u-fs-sm2 u-m-0"
 placeholder="Search customers..."
 oninput="renderRepCustomerTable()">
 <button class="btn-theme" onclick="exportCustomerData('rep')" title="Download PDF"
-style="color: var(--accent-emerald); border-color: var(--accent-emerald); flex-shrink: 0; padding: 6px 12px; white-space: nowrap;">📄</button>
+style="color: var(--accent-emerald); border-color: var(--accent-emerald); flex-shrink: 0; padding: 6px 12px; white-space: nowrap;"><svg width="14" height="14" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:inline-block;vertical-align:-2px;"><path d="M9 5 H27 A2 2 0 0 1 29 7 V29 L23 35 H9 A2 2 0 0 1 7 33 V7 A2 2 0 0 1 9 5 Z" fill="currentColor" fill-opacity="0.12" stroke="currentColor" stroke-width="1.5"/><path d="M23 35 V29 H29" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linejoin="round"/><line x1="12" y1="14" x2="24" y2="14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="12" y1="19" x2="24" y2="19" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="12" y1="24" x2="18" y2="24" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></button>
+<button class="btn-theme" onclick="openRepCustomerEditModal('')" title="Add New Customer" style="color: var(--accent); border-color: var(--accent); flex-shrink: 0; padding: 6px 8px; white-space: nowrap; display:inline-flex; align-items:center;"><svg width="18" height="18" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="12" r="5.5" fill="currentColor" fill-opacity="0.15" stroke="currentColor" stroke-width="1.6"/><path d="M3 30c0-6.075 4.925-9 11-9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/><line x1="26" y1="20" x2="26" y2="32" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="20" y1="26" x2="32" y2="26" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
 </div>
-<div id="vs-scroller-rep-customers" style="overflow-x: auto; overflow-y: auto; max-height: 400px; margin-top: 10px;">
+<div style="overflow-x: auto; overflow-y: auto; max-height: 400px; margin-top: 10px;">
 <table class="u-table-full" >
 <thead class="u-thead-sticky" >
 <tr class="u-thead-bg" >
@@ -1378,11 +1728,8 @@ Dynamic Cost Value: <span class="u-text-danger" id="display-cost-value" >0.00</s
 </div>
 <div class="field">
 <label>Select Store:</label>
-<select id="storeSelector" class="store-selector" onchange="updateProductionCostOnStoreChange()">
-<option value="STORE_A">ZUBAIR</option>
-<option value="STORE_B">MAHMOOD</option>
-<option value="STORE_C">ASAAN</option>
-</select>
+<input type="hidden" id="storeSelector">
+<div id="storeSelectorToggleGroup" class="toggle-group" style="flex-wrap:wrap;"></div>
 </div>
 </div>
 
@@ -1484,7 +1831,7 @@ Insufficient formula units available! Please reduce formula units used.
 <div id="prod-history-header" style="display:flex; align-items:center; gap:12px; margin-top:25px; margin-bottom:10px; padding:0;">
 <span style="font-size:0.82rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; white-space:nowrap; flex-shrink:0;">Production History</span>
 </div>
-<div id="prodHistoryList"></div>
+<div id="prodHistoryList" class="report-grid"></div>
 </div>
 <div id="tab-sales" class="hidden">
 <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
@@ -1551,20 +1898,20 @@ style="border-color:var(--accent-emerald); width:100%; box-sizing:border-box;">
 <div id="cust-sale-supply-payment">
 <div class="field u-mb-15" >
 <label>Supply</label>
-<div class="toggle-group">
-<button id="btn-supply-store-a" class="toggle-opt active" onclick="selectSupplyStore(this,'STORE_A')">ZUBAIR</button>
-<button id="btn-supply-store-b" class="toggle-opt" onclick="selectSupplyStore(this,'STORE_B')">MAHMOOD</button>
-<button id="btn-supply-store-c" class="toggle-opt" onclick="selectSupplyStore(this,'STORE_C')">ASAAN</button>
+<div class="toggle-group" id="supply-store-toggles">
+<button class="toggle-opt active" onclick="selectSupplyStore(this,'STORE_A')">ZUBAIR</button>
+<button class="toggle-opt" onclick="selectSupplyStore(this,'STORE_B')">MAHMOOD</button>
+<button class="toggle-opt" onclick="selectSupplyStore(this,'STORE_C')">ASAAN</button>
 </div>
 <input type="hidden" id="supply-store-value" value="STORE_A">
 </div>
 <div class="field u-mb-15" >
 <label>Payment:</label>
 <div class="toggle-group">
-<button id="btn-payment-cash" class="toggle-opt active" onclick="selectPaymentType(this,'CASH')">Cash</button>
-<button id="btn-payment-credit" class="toggle-opt" onclick="selectPaymentType(this,'CREDIT')">Credit</button>
+<button id="btn-payment-cash" class="toggle-opt" onclick="selectPaymentType(this,'CASH')">Cash</button>
+<button id="btn-payment-credit" class="toggle-opt active" onclick="selectPaymentType(this,'CREDIT')">Credit</button>
 </div>
-<input type="hidden" id="payment-type-value" value="CASH">
+<input type="hidden" id="payment-type-value" value="CREDIT">
 </div>
 <div class="result-box" id="sale-result-cost">
 Total Cost: <span id="cust-total-cost">0.00</span>
@@ -1587,9 +1934,10 @@ Profit: <span id="cust-profit">0.00</span>
 <input type="text" id="customer-filter" class="search-bar u-flex-1 u-min-w-0 u-fs-sm2 u-m-0" placeholder="Search customers..."
 oninput="filterCustomers()">
 <span id="customer-count" style="font-size: 0.7rem; color: var(--text-muted); display:none;">0 customers</span>
-<button class="btn-theme" onclick="exportCustomerData('admin')" title="Download PDF" style="color: var(--accent); border-color: var(--accent); padding: 6px 12px; flex-shrink: 0; white-space: nowrap;">📄</button>
+<button class="btn-theme" onclick="exportCustomerData('admin')" title="Download PDF" style="color: var(--accent); border-color: var(--accent); padding: 6px 12px; flex-shrink: 0; white-space: nowrap;"><svg width="14" height="14" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:inline-block;vertical-align:-2px;"><path d="M9 5 H27 A2 2 0 0 1 29 7 V29 L23 35 H9 A2 2 0 0 1 7 33 V7 A2 2 0 0 1 9 5 Z" fill="currentColor" fill-opacity="0.12" stroke="currentColor" stroke-width="1.5"/><path d="M23 35 V29 H29" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linejoin="round"/><line x1="12" y1="14" x2="24" y2="14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="12" y1="19" x2="24" y2="19" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="12" y1="24" x2="18" y2="24" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></button>
+<button class="btn-theme" onclick="openCustomerEditModal('')" title="Add New Customer" style="color: var(--accent-emerald); border-color: var(--accent-emerald); padding: 6px 8px; flex-shrink: 0; white-space: nowrap; display:inline-flex; align-items:center;"><svg width="18" height="18" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="12" r="5.5" fill="currentColor" fill-opacity="0.15" stroke="currentColor" stroke-width="1.6"/><path d="M3 30c0-6.075 4.925-9 11-9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/><line x1="26" y1="20" x2="26" y2="32" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="20" y1="26" x2="32" y2="26" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
 </div>
-<div id="vs-scroller-customers" style="overflow-x: auto; overflow-y: auto; max-height: 400px; margin-top: 10px;">
+<div style="overflow-x: auto; overflow-y: auto; max-height: 400px; margin-top: 10px;">
 <table class="u-table-full" >
 <thead class="u-thead-sticky" >
 <tr class="u-thead-bg" >
@@ -1674,7 +2022,7 @@ No records found
 <div style="display:flex; align-items:center; gap:12px; margin-top:25px; margin-bottom:10px; padding:0;">
 <span style="font-size:0.82rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; white-space:nowrap; flex-shrink:0;">Sales History</span>
 </div>
-<div id="custHistoryList"></div>
+<div id="custHistoryList" style="display:flex;flex-direction:column;gap:10px;"></div>
 </div>
 <div id="tab-calc" class="hidden">
 <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
@@ -1705,7 +2053,7 @@ No records found
 </div>
 </div>
 <div id="expiredSection" class="hidden" style="grid-column: 1 / -1; margin: 10px 0; padding: 12px; background: rgba(220, 38, 38, 0.08); border-radius: 10px; border: 1px solid var(--danger, #dc2626);">
-<label style="color: var(--danger, #dc2626); font-weight: 800; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">⚠ Expired Stock — Added to CHORA Raw Material:</label>
+<label style="color: var(--danger, #dc2626); font-weight: 800; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;"> Expired Stock — Added to CHORA Raw Material:</label>
 <div class="u-field-hint" style="margin-top: 6px;">
 * Expired product will be added to the CHORA raw material inventory. It will NOT be added to production stock.
 </div>
@@ -1837,12 +2185,12 @@ No records found
 <h3 class="u-text-accent" >New Production Entry</h3>
 <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
 <label style="font-size:0.7rem; color:var(--text-muted); margin:0;">Date</label>
-<input type="date" id="factory-date" onchange="refreshFactoryTab(); _filterFactoryHistoryByMode(currentFactorySummaryMode || 'all');" style="font-size:0.8rem; padding:5px 8px;">
+<input type="date" id="factory-date" onchange="refreshFactoryTab(); setFactorySummaryMode(currentFactorySummaryMode || 'daily');" style="font-size:0.8rem; padding:5px 8px;">
 </div>
 </div>
-<div class="factory-store-selector">
-<div class="factory-store-opt active" onclick="selectFactoryEntryStore('standard', this)">STANDARD STORE</div>
-<div class="factory-store-opt" onclick="selectFactoryEntryStore('asaan', this)">ASAAN STORE</div>
+<div class="factory-store-selector" id="factory-formula-selector">
+<div class="factory-store-opt active" id="factory-formula-opt-standard" onclick="selectFactoryFormula('standard', this)">Standard</div>
+<div class="factory-store-opt" id="factory-formula-opt-asaan" onclick="selectFactoryFormula('asaan', this)">Asaan</div>
 </div>
 <div class="grid-inputs">
 <div class="field">
@@ -1862,9 +2210,9 @@ Select a store...
 <div class="section liquid-card">
 <div class="section-header">
 <h3 class="u-heading-main" >Units Available <span class="update-indicator" id="unitsUpdateIndicator"></span></h3>
-<div class="toggle-group">
-<div class="toggle-opt active" onclick="setFactoryAvailableStore('standard', this)">Standard Store</div>
-<div class="toggle-opt" onclick="setFactoryAvailableStore('asaan', this)">Asaan Store</div>
+<div class="toggle-group" id="factory-avail-store-toggle">
+<div class="toggle-opt active" onclick="setFactoryAvailableStore('standard', this)">Standard</div>
+<div class="toggle-opt" onclick="setFactoryAvailableStore('asaan', this)">Asaan</div>
 </div>
 </div>
 <div id="factoryAvailStatsStandard">
@@ -1984,7 +2332,7 @@ Select a store...
 <div class="section-header">
 <h3 class="u-heading-main" >Raw Material Inventory</h3>
 </div>
-<div id="vs-scroller-factory-inventory" style="overflow-x: auto; overflow-y: auto; max-height: 500px; margin-top: 10px;">
+<div style="overflow-x: auto; overflow-y: auto; max-height: 500px; margin-top: 10px;">
 <table class="u-table-full" >
 <thead class="u-thead-sticky" >
 <tr class="u-thead-bg" >
@@ -2028,6 +2376,11 @@ Select a store...
 <span style="font-size:0.75rem;color:var(--text-muted);">Used</span>
 <span class="qty-val" id="factorySumUsedUnits" style="font-size:0.88rem;font-weight:600;">0</span>
 </div>
+<div style="height:1px;background:var(--glass-border);margin:2px 0;"></div>
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span style="font-size:0.75rem;color:var(--text-muted);">Avg Add. Cost/Day</span>
+<span class="cost-val" id="factorySumCostPerDay" style="font-size:0.88rem;font-weight:600;">0.00</span>
+</div>
 </div>
 <div style="background:var(--glass-raised); border-radius:18px; padding:14px 16px; display:flex; flex-direction:column; gap:6px; border:1px solid var(--glass-border);">
 <span style="font-size:0.62rem;font-weight:700;color:var(--accent-purple);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:2px;">Output</span>
@@ -2040,6 +2393,7 @@ Select a store...
 <span style="font-size:0.75rem;color:var(--text-muted);">Raw Used</span>
 <span class="qty-val" id="factorySumRawUsed" style="font-size:0.88rem;font-weight:600;">0.00 kg</span>
 </div>
+<div id="factorySumRawBreakdown"></div>
 </div>
 <div style="background:var(--glass-raised); border-radius:18px; padding:14px 16px; display:flex; flex-direction:column; gap:6px; border:1px solid var(--glass-border);">
 <span style="font-size:0.62rem;font-weight:700;color:var(--warning);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:2px;">Cost</span>
@@ -2101,6 +2455,7 @@ Clear
 type="date"
 id="expenseDate"
 style="width: 100%; font-size: 0.85rem; padding: 8px;"
+onchange="setCashTrackerMode(currentCashTrackerMode || 'day'); calculateNetCash();"
 >
 </div>
 <div id="expense-name-wrap" style="flex: 2; min-width: 200px; position: relative;">
@@ -2140,21 +2495,28 @@ style="width: 100%; font-size: 0.85rem; font-weight: 600; padding: 8px;"
 >
 </div>
 <div style="flex: 2; min-width: 200px;">
-<label class="u-label-sm" >Description <span style="opacity: 0.6;">(Optional)</span></label>
-<input
-type="text"
-id="expenseDescription"
-placeholder="Add details..."
-style="width: 100%; font-size: 0.85rem; padding: 8px;"
->
+<label class="u-label-sm">Description <span style="opacity: 0.6;">(Optional)</span></label>
+<div style="display:flex;gap:6px;align-items:center;">
+  <input
+    type="text"
+    id="expenseDescription"
+    placeholder="Add details..."
+    style="flex:1; font-size: 0.85rem; padding: 8px;"
+  >
+  <button id="expense-photo-btn" title="Attach photo" onclick="openExpensePhotoCapture()" style="flex-shrink:0;width:36px;height:36px;border-radius:8px;border:1px solid var(--glass-border);background:var(--input-bg);color:var(--accent);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;position:relative;">
+    <svg width="17" height="17" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="9" width="30" height="22" rx="3" stroke="var(--accent)" stroke-width="1.6" fill="var(--accent)" fill-opacity="0.10"/><circle cx="18" cy="20" r="6" stroke="var(--accent)" stroke-width="1.6" fill="var(--accent)" fill-opacity="0.15"/><path d="M13 9l2-4h6l2 4" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>
+    <span id="expense-photo-dot" style="display:none;position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:var(--accent);border:1.5px solid var(--card-bg,#111827);"></span>
+  </button>
+</div>
+<input type="file" id="expense-photo-file" accept="image/*" style="display:none" onchange="handleExpensePhotoFile(event)">
 </div>
 </div>
 <div class="u-mt-5" >
 <label style="font-size: 0.7rem; margin-bottom: 8px; display: block; color: var(--text-muted);">Transaction Type</label>
 <div class="toggle-group" style="width:100%; display:flex;">
-<button id="btn-category-operating" class="toggle-opt active u-flex-1" onclick="selectExpenseCategory('operating', this)">Operating Expense</button>
+<button id="btn-category-operating" class="toggle-opt u-flex-1" onclick="selectExpenseCategory('operating', this)">Operating Expense</button>
 <button id="btn-category-in" class="toggle-opt u-flex-1" onclick="selectExpenseCategory('IN', this)">Payment IN</button>
-<button id="btn-category-out" class="toggle-opt u-flex-1" onclick="selectExpenseCategory('OUT', this)">Payment OUT</button>
+<button id="btn-category-out" class="toggle-opt active u-flex-1" onclick="selectExpenseCategory('OUT', this)">Payment OUT</button>
 </div>
 </div>
 <div style="display: flex; justify-content: center; margin-top: 10px;">
@@ -2203,7 +2565,7 @@ Save Transaction
 <span>Operating Expenses:</span>
 <span class="formula-value u-text-danger" id="cashDetailOperatingExpenses">0.00</span>
 </div>
-<div class="formula-item" style="font-weight:800; background:rgba(37, 99, 235, 0.1); padding:8px; border-radius:10px; margin-top:5px;">
+<div class="formula-item formula-item--highlight">
 <span>NET CASH IN HAND:</span>
 <span class="formula-value u-text-emerald" id="cashDetailNet">0.00</span>
 </div>
@@ -2229,11 +2591,11 @@ Save Transaction
 <span>Representative Credits:</span>
 <span class="formula-value" id="calculatorReceivables">0.00</span>
 </div>
-<div class="formula-item" style="font-weight:800; background:rgba(37, 99, 235, 0.05); padding:8px; border-radius:10px;">
+<div class="formula-item formula-item--highlight-subtle">
 <span>TOTAL RECEIVABLES:</span>
 <span class="formula-value" style="color:var(--accent);" id="formulaReceivables">0.00</span>
 </div>
-<div class="formula-item" style="font-weight:800; background:rgba(37, 99, 235, 0.1); padding:8px; border-radius:10px; margin-top:10px;">
+<div class="formula-item formula-item--highlight formula-item--mt">
 <span>TOTAL CURRENT ASSETS:</span>
 <span class="formula-value u-text-emerald" id="currentAssetsTotal">0.00</span>
 </div>
@@ -2291,7 +2653,7 @@ Save Transaction
 <div class="toggle-opt" onclick="setCashTrackerMode('all')">All Times</div>
 </div>
 </div>
-<div class="report-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+<div class="report-grid" class="report-grid-auto">
 <div class="card highlight-card liquid-card">
 <h4>Net Cash Flow</h4>
 <p><span>Production Value:</span> <span class="rev-val" id="cash-prod-value">Rs 0</span></p>
@@ -2315,13 +2677,13 @@ Save Transaction
 </div>
 </div>
 </div>
-<div id="payments-unified-section" style="margin-top: 20px; padding-top: 15px; border-top: 2px solid var(--glass-border);">
+<div id="payments-unified-section" class="section liquid-card" style="margin-top: 16px;">
 <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px; flex-wrap: nowrap;">
 <h4 style="margin: 0; font-size: 1rem; color: var(--text-main); font-weight: 700; white-space: nowrap; flex-shrink: 0;">Unified Records</h4>
 <input type="text" id="unified-search" class="search-bar u-flex-1 u-min-w-0 u-fs-sm2 u-m-0" placeholder="Search..."
 oninput="renderUnifiedTable()">
 <button class="btn-theme" onclick="exportUnifiedData()" title="Download PDF"
-style="color: var(--accent-emerald); border-color: var(--accent-emerald); padding: 6px 12px; flex-shrink: 0; white-space: nowrap;">📄</button>
+style="color: var(--accent-emerald); border-color: var(--accent-emerald); padding: 6px 12px; flex-shrink: 0; white-space: nowrap;"><svg width="14" height="14" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:inline-block;vertical-align:-2px;"><path d="M9 5 H27 A2 2 0 0 1 29 7 V29 L23 35 H9 A2 2 0 0 1 7 33 V7 A2 2 0 0 1 9 5 Z" fill="currentColor" fill-opacity="0.12" stroke="currentColor" stroke-width="1.5"/><path d="M23 35 V29 H29" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linejoin="round"/><line x1="12" y1="14" x2="24" y2="14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="12" y1="19" x2="24" y2="19" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="12" y1="24" x2="18" y2="24" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></button>
 </div>
 <div style="display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;">
 <select id="unifiedViewMode" onchange="renderUnifiedTable()" style="flex: 1; min-width: 150px; font-size: 0.85rem; padding: 8px;">
@@ -2365,19 +2727,19 @@ No records found
 </div>
 <div id="unified-summary" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--glass-border); display: none;">
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; font-size: 0.75rem;">
-<div style="display:flex; justify-content:space-between; align-items:center; padding:5px 8px; background:rgba(52,217,116,0.07); border-radius:10px; border-left:3px solid var(--accent-emerald);">
+<div style="display:flex; justify-content:space-between; align-items:center; padding:5px 8px; border-radius:10px; border-left:3px solid var(--accent-emerald);">
 <span class="u-text-muted" >Total Receivable</span>
 <span id="unified-receivables" style="color:var(--accent-emerald); font-weight:700;">0.00</span>
 </div>
-<div style="display:flex; justify-content:space-between; align-items:center; padding:5px 8px; background:rgba(255,184,48,0.07); border-radius:10px; border-left:3px solid var(--warning);">
+<div style="display:flex; justify-content:space-between; align-items:center; padding:5px 8px; border-radius:10px; border-left:3px solid var(--warning);">
 <span class="u-text-muted" >Expenses</span>
 <span id="unified-expenses" style="color:var(--warning); font-weight:700;">0.00</span>
 </div>
-<div style="display:flex; justify-content:space-between; align-items:center; padding:5px 8px; background:rgba(255,77,109,0.07); border-radius:10px; border-left:3px solid var(--danger);">
+<div style="display:flex; justify-content:space-between; align-items:center; padding:5px 8px; border-radius:10px; border-left:3px solid var(--danger);">
 <span class="u-text-muted" >Supplies Payable</span>
 <span id="unified-supplier-payables" style="color:var(--danger); font-weight:700;">0.00</span>
 </div>
-<div style="display:flex; justify-content:space-between; align-items:center; padding:5px 8px; background:rgba(201,110,245,0.07); border-radius:10px; border-left:3px solid var(--accent-purple);">
+<div style="display:flex; justify-content:space-between; align-items:center; padding:5px 8px; border-radius:10px; border-left:3px solid var(--accent-purple);">
 <span class="u-text-muted" >Entity Payable</span>
 <span id="unified-entity-payables" style="color:var(--accent-purple); font-weight:700;">0.00</span>
 </div>
@@ -2390,7 +2752,6 @@ No records found
 </div>
 <div id="paymentHistoryList" class="report-grid"></div>
 </div>
-</div>
 <div id="offline-banner" role="alert" aria-live="polite">
 <span> Offline — changes saved locally</span>
 <span id="offline-queue-badge" title="Pending uploads when back online">0 pending</span>
@@ -2401,7 +2762,9 @@ No records found
 <script src="business.js" defer></script>
 <script src="admin-data.js" defer></script>
 <script src="sync.js" defer></script>
-<script src="utilities.js" defer></script>
+<script src="utilities-core.js" defer></script>
+<script src="utilities-sales.js" defer></script>
+<script src="utilities-payments.js" defer></script>
 <script src="factory.js" defer></script>
 <script src="customers.js" defer></script>
 <script src="rep-sales.js" defer></script>
@@ -2550,7 +2913,168 @@ function sidebarNav(tab) {
 }
 window.sidebarNav = sidebarNav;
 
-window.openDataMenu = function() { if(typeof performOneClickSync==='function') performOneClickSync().catch(e=>console.error(e)); };
+async function openStoreManagerScreen() {
+  openStandaloneScreen('store-manager-screen');
+  await renderStoreList();
+  resetStoreForm();
+}
+window.openStoreManagerScreen = openStoreManagerScreen;
+
+async function renderStoreList() {
+  const stores = await (typeof getAppStores === 'function' ? getAppStores() : Promise.resolve([]));
+  const container = document.getElementById('store-list-container');
+  if (!container) return;
+
+  let productionData = [];
+  try {
+    productionData = (typeof sqliteStore !== 'undefined') ? (await sqliteStore.get('mfg_pro_pkr') || []) : [];
+  } catch(e) {}
+  const usedKeys = new Set(productionData.map(r => r.store).filter(Boolean));
+
+  if (!stores.length) {
+    container.innerHTML = '<p style="color:var(--text-muted);font-size:0.8rem;padding:12px 0;">No stores found.</p>';
+    return;
+  }
+
+  const fTypeLabel = { standard: 'Standard', asaan: 'Asaan' };
+  const fTypeColor = { standard: 'var(--accent)', asaan: 'var(--accent-purple,#a78bfa)' };
+
+  container.innerHTML = stores.map((s, i) => {
+    const isUsed = usedKeys.has(s.key);
+    const isBuiltin = ['STORE_A','STORE_B','STORE_C'].includes(s.key);
+    return `
+    <div class="settings-list-item" style="flex-direction:column;align-items:stretch;gap:0;padding:12px 14px;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <div style="width:36px;height:36px;border-radius:50%;background:rgba(29,233,182,0.1);border:1.5px solid var(--accent);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.75rem;color:var(--accent);flex-shrink:0;">
+          ${(s.name || '?').slice(0,2)}
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:800;font-size:0.88rem;color:var(--text-main);">${s.name}</div>
+          <div style="font-size:0.65rem;color:var(--text-muted);margin-top:1px;">
+            Key: <span style="font-family:monospace;color:var(--accent);">${s.key}</span>
+            &nbsp;·&nbsp;
+            <span style="color:${fTypeColor[s.formulaType]||'var(--accent)'};">${fTypeLabel[s.formulaType] || s.formulaType} Formula</span>
+            ${isUsed ? '&nbsp;·&nbsp;<span style="color:var(--text-muted);">Has records</span>' : ''}
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
+          <button onclick="editStore(${i})" style="background:rgba(29,233,182,0.1);border:1px solid var(--accent);color:var(--accent);border-radius:8px;padding:5px 10px;font-size:0.7rem;font-weight:700;cursor:pointer;">Edit</button>
+          ${!isBuiltin && !isUsed ? `<button onclick="deleteStore(${i})" style="background:rgba(239,68,68,0.1);border:1px solid var(--danger);color:var(--danger);border-radius:8px;padding:5px 10px;font-size:0.7rem;font-weight:700;cursor:pointer;">Delete</button>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+window.renderStoreList = renderStoreList;
+
+function setFormulaToggle(val, btn) {
+  document.getElementById('store-formula-select').value = val;
+  const grp = document.getElementById('formulaTypeToggleGroup');
+  if (grp) grp.querySelectorAll('.toggle-opt').forEach(b => b.classList.toggle('active', b === btn));
+}
+window.setFormulaToggle = setFormulaToggle;
+
+function _setFormulaToggleByValue(val) {
+  document.getElementById('store-formula-select').value = val || 'standard';
+  const grp = document.getElementById('formulaTypeToggleGroup');
+  if (grp) grp.querySelectorAll('.toggle-opt').forEach(b => b.classList.toggle('active', b.getAttribute('onclick').includes("'" + (val || 'standard') + "'")));
+}
+
+function resetStoreForm() {
+  document.getElementById('store-edit-index').value = '-1';
+  document.getElementById('store-name-input').value = '';
+  _setFormulaToggleByValue('standard');
+  document.getElementById('store-form-heading').textContent = 'New Store';
+  document.getElementById('store-save-btn-text').textContent = 'Add Store';
+  const cancelBtn = document.getElementById('store-cancel-edit-btn');
+  if (cancelBtn) cancelBtn.style.display = 'none';
+}
+window.resetStoreForm = resetStoreForm;
+
+async function editStore(index) {
+  const stores = await (typeof getAppStores === 'function' ? getAppStores() : Promise.resolve([]));
+  const s = stores[index];
+  if (!s) return;
+  document.getElementById('store-edit-index').value = String(index);
+  document.getElementById('store-name-input').value = s.name;
+  _setFormulaToggleByValue(s.formulaType || 'standard');
+  document.getElementById('store-form-heading').textContent = 'Edit Store';
+  document.getElementById('store-save-btn-text').textContent = 'Save Changes';
+  const cancelBtn = document.getElementById('store-cancel-edit-btn');
+  if (cancelBtn) cancelBtn.style.display = '';
+  document.getElementById('store-name-input').focus();
+}
+window.editStore = editStore;
+
+async function deleteStore(index) {
+  const stores = await (typeof getAppStores === 'function' ? getAppStores() : Promise.resolve([]));
+  const s = stores[index];
+  if (!s) return;
+  const confirmed = await (typeof showGlassConfirm === 'function'
+    ? showGlassConfirm('Delete store "' + s.name + '"?\nThis cannot be undone.', { title:'Delete Store', confirmText:'Delete', cancelText:'Cancel', icon:'🗑' })
+    : Promise.resolve(window.confirm('Delete store "' + s.name + '"?')));
+  if (!confirmed) return;
+  stores.splice(index, 1);
+  await sqliteStore.set('app_stores', stores);
+  await sqliteStore.set('app_stores_timestamp', Date.now());
+  if (typeof _invalidateStoresCache === 'function') _invalidateStoresCache();
+  if (typeof triggerAutoSync === 'function') triggerAutoSync();
+  await renderStoreList();
+  if (typeof rebuildStoreUI === 'function') await rebuildStoreUI();
+  if (typeof showToast === 'function') showToast('Store deleted', 'success');
+}
+window.deleteStore = deleteStore;
+
+async function saveStoreFromForm() {
+  const nameRaw = (document.getElementById('store-name-input').value || '').trim().toUpperCase();
+  const formulaType = document.getElementById('store-formula-select').value || 'standard';
+  const editIndex = parseInt(document.getElementById('store-edit-index').value, 10);
+
+  if (!nameRaw) {
+    if (typeof showToast === 'function') showToast('Store name is required', 'warning');
+    return;
+  }
+
+  const stores = await (typeof getAppStores === 'function' ? getAppStores() : Promise.resolve([]));
+
+  if (editIndex >= 0) {
+    // Editing existing store
+    const s = stores[editIndex];
+    if (!s) return;
+    // Check duplicate name
+    const dup = stores.findIndex((st, i) => i !== editIndex && st.name === nameRaw);
+    if (dup >= 0) { if (typeof showToast === 'function') showToast('A store with this name already exists', 'warning'); return; }
+    s.name = nameRaw;
+    s.formulaType = formulaType;
+  } else {
+    // New store — generate next key
+    const existingNums = stores.map(s => {
+      const m = s.key.match(/^STORE_([A-Z])$/);
+      if (m) return m[1].charCodeAt(0) - 65;
+      return -1;
+    }).filter(n => n >= 0);
+    const nextNum = existingNums.length ? Math.max(...existingNums) + 1 : 0;
+    if (nextNum > 25) { if (typeof showToast === 'function') showToast('Maximum 26 stores allowed', 'warning'); return; }
+    const newKey = 'STORE_' + String.fromCharCode(65 + nextNum);
+    // Check duplicate name
+    const dup = stores.findIndex(st => st.name === nameRaw);
+    if (dup >= 0) { if (typeof showToast === 'function') showToast('A store with this name already exists', 'warning'); return; }
+    stores.push({ key: newKey, name: nameRaw, formulaType });
+  }
+
+  await sqliteStore.set('app_stores', stores);
+  await sqliteStore.set('app_stores_timestamp', Date.now());
+  if (typeof _invalidateStoresCache === 'function') _invalidateStoresCache();
+  if (typeof triggerAutoSync === 'function') triggerAutoSync();
+  resetStoreForm();
+  await renderStoreList();
+  if (typeof rebuildStoreUI === 'function') await rebuildStoreUI();
+  if (typeof showToast === 'function') showToast(editIndex >= 0 ? 'Store updated' : 'Store added', 'success');
+}
+window.saveStoreFromForm = saveStoreFromForm;
+// ─────────────────────────────────────────────────────────────────────────────
+
+window.openDataMenu = function() { if(typeof performOneClickSync==='function') performOneClickSync().catch(function(e){console.error('Sync error:',(e&&e.message)||String(e)||'(unknown)')}); };
 window.closeDataMenu = function() {  };
 
 window.openRecycleBin = function() {
@@ -2605,7 +3129,6 @@ window._origOpenFactorySettings = window.openFactorySettings;
 
 async function _loadFormulaScreen(store) {
   window.currentFactorySettingsStore = store;
-  if (typeof selectFactoryStore === 'function') selectFactoryStore(store, null);
 
   if (store === 'asaan') {
 
@@ -2662,8 +3185,56 @@ async function _loadFormulaScreen(store) {
     }
   } else {
 
-    if (window._origOpenFactorySettings) {
-      try { await window._origOpenFactorySettings.call(window); } catch(e) {}
+    try {
+      var stdFormulas  = await sqliteStore.get('factory_default_formulas');
+      var stdCosts     = await sqliteStore.get('factory_additional_costs');
+      var stdFactor    = await sqliteStore.get('factory_cost_adjustment_factor');
+      var stdPrices    = await sqliteStore.get('factory_sale_prices');
+      var stdTracking  = await sqliteStore.get('factory_unit_tracking');
+      var stdInventory = await sqliteStore.get('factory_inventory_data');
+
+      var stdFormula    = (stdFormulas  && stdFormulas.standard)              || [];
+      var stdAddlCost   = (stdCosts     && stdCosts.standard   != null)       ? stdCosts.standard   : 0;
+      var stdAdj        = (stdFactor    && stdFactor.standard  != null)       ? stdFactor.standard  : 1;
+      var stdSaleStd    = (stdPrices    && stdPrices.standard  != null)       ? stdPrices.standard  : 0;
+      var stdSaleAsaan  = (stdPrices    && stdPrices.asaan     != null)       ? stdPrices.asaan     : 0;
+      var stdAvailable  = (stdTracking  && stdTracking.standard)              ? stdTracking.standard.available : 0;
+
+      var acpu = document.getElementById('additional-cost-per-unit');
+      var caf  = document.getElementById('cost-adjustment-factor');
+      var spS  = document.getElementById('sale-price-standard');
+      var spA  = document.getElementById('sale-price-asaan');
+      if (acpu) acpu.value = stdAddlCost;
+      if (caf)  caf.value  = stdAdj;
+      if (spS)  spS.value  = stdSaleStd;
+      if (spA)  spA.value  = stdSaleAsaan;
+
+      var stdContainer = document.getElementById('factoryRawMaterialsContainer');
+      if (stdContainer) {
+        stdContainer.replaceChildren();
+        var safeStdInventory = Array.isArray(stdInventory) ? stdInventory : [];
+        for (var ing of stdFormula) {
+          if (typeof createFactorySettingRow === 'function') {
+            await createFactorySettingRow(stdContainer, ing.id, ing.quantity, ing.cost, ing.name, safeStdInventory);
+          }
+        }
+      }
+
+      var totalRawCost = 0, totalWeight = 0;
+      stdFormula.forEach(function(ing) {
+        totalRawCost += (ing.cost * ing.quantity);
+        totalWeight  += ing.quantity;
+      });
+      var perUnitCost    = totalRawCost + stdAddlCost;
+      var salesCostPerKg = stdAdj > 0 ? perUnitCost / stdAdj : perUnitCost;
+      var _setS = function(id, val) { var el = document.getElementById(id); if (el) el.innerText = val; };
+      _setS('factorySettingsUnitWeight',      (parseFloat(totalWeight) || 0).toFixed(2) + ' kg');
+      _setS('factorySettingsRawCostPerUnit',  totalRawCost.toFixed(2));
+      _setS('factorySettingsPerUnit',         perUnitCost.toFixed(2));
+      _setS('factorySettingsAvailableUnits',  stdAvailable);
+      _setS('factorySettingsSalesCostPerKg',  salesCostPerKg.toFixed(2));
+    } catch(e) {
+      console.error('[_loadFormulaScreen standard]', e);
     }
   }
 }
@@ -2787,18 +3358,19 @@ window.loadManageRepsContent = function() {
 window.loadDbStructureScreen = async function() {
   var container = document.getElementById('delta-sync-details-container');
   if (!container) return;
-  container.innerHTML = '<div style="color:var(--text-muted);padding:32px 20px;text-align:center;font-size:0.82rem;"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:block;margin:0 auto 12px;opacity:0.4"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>Loading database structure…</div>';
+  container.innerHTML = '<div style="color:var(--text-muted);padding:32px 20px;text-align:center;font-size:0.82rem;"><svg width="28" height="28" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto 12px;"><rect x="5" y="5" width="26" height="7" rx="2.5" fill="var(--accent)" fill-opacity="0.20" stroke="var(--accent)" stroke-width="1.4"/><rect x="5" y="15" width="26" height="7" rx="2.5" fill="var(--accent)" fill-opacity="0.13" stroke="var(--accent)" stroke-width="1.4"/><rect x="5" y="25" width="26" height="7" rx="2.5" fill="var(--accent)" fill-opacity="0.08" stroke="var(--accent)" stroke-width="1.4"/><circle cx="27" cy="8.5" r="1.5" fill="var(--accent)"/><circle cx="27" cy="18.5" r="1.5" fill="var(--accent)" opacity="0.7"/><circle cx="27" cy="28.5" r="1.5" fill="var(--accent)" opacity="0.5"/></svg>Loading database structure…</div>';
   var showFn = window._showDeltaSyncDetails || window.showDeltaSyncDetails;
   if (!showFn) {
     container.innerHTML = '<div style="color:var(--text-muted);padding:20px;text-align:center;font-size:0.82rem;">Requires an active Firestore connection.</div>';
     return;
   }
+
   var originalAppend = document.body.appendChild.bind(document.body);
   var capturedModal = null;
   document.body.appendChild = function(el) {
     if (el && el.id === 'delta-stats-modal') {
       document.body.appendChild = originalAppend;
-      el.style.display = 'none';
+      el.style.cssText = 'display:none!important;position:fixed;';
       capturedModal = el;
       return originalAppend(el);
     }
@@ -2807,15 +3379,20 @@ window.loadDbStructureScreen = async function() {
   try {
     await showFn();
     if (capturedModal) {
-      var inner = capturedModal.querySelector('[style*="background: var(--glass)"]') || capturedModal.firstElementChild;
-      if (inner) {
-        container.innerHTML = inner.innerHTML;
+      var dbvRoot = capturedModal.querySelector('#dbv-root');
+      if (dbvRoot) {
+
+        container.innerHTML = '';
+        container.appendChild(dbvRoot);
       } else {
-        container.innerHTML = '<div style="color:var(--text-muted);padding:20px;text-align:center;">No content returned.</div>';
+
+        var inner = capturedModal.firstElementChild;
+        if (inner) { container.innerHTML = inner.innerHTML; }
+        else { container.innerHTML = '<div style="color:var(--text-muted);padding:20px;text-align:center;">No content returned.</div>'; }
       }
       capturedModal.remove();
     } else {
-      container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text-muted);"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:block;margin:0 auto 12px;opacity:0.35"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg><div style="font-size:0.82rem;font-weight:600;margin-bottom:6px;">Sign in required</div><div style="font-size:0.73rem;">Database structure requires an active Firestore connection.</div></div>';
+      container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text-muted);"><svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto 12px;"><path d="M18 3 L30 8 V18 C30 25 24 31 18 33 C12 31 6 25 6 18 V8 Z" fill="var(--accent)" fill-opacity="0.12" stroke="var(--accent)" stroke-width="1.6" stroke-linejoin="round"/><rect x="14" y="19" width="8" height="7" rx="1.5" fill="var(--accent)" fill-opacity="0.25" stroke="var(--accent)" stroke-width="1.3"/><path d="M15 19 V17 A3 3 0 0 1 21 17 V19" stroke="var(--accent)" stroke-width="1.3" fill="none" stroke-linecap="round"/><circle cx="18" cy="22.5" r="1.2" fill="var(--accent)"/></svg><div style="font-size:0.82rem;font-weight:600;margin-bottom:6px;">Sign in required</div><div style="font-size:0.73rem;">Database structure requires an active Firestore connection.</div></div>';
     }
   } catch(e) {
     document.body.appendChild = originalAppend;
@@ -2835,6 +3412,14 @@ document.addEventListener('DOMContentLoaded', function() {
   var firstActive = document.getElementById('snav-prod');
   if (firstActive) firstActive.classList.add('active');
 
+  // Rebuild dynamic store UI once stores are loaded
+  if (typeof rebuildStoreUI === 'function') {
+    // Small delay to let sqliteStore initialize
+    setTimeout(function() {
+      rebuildStoreUI().catch(function(e) { console.warn('[StoreUI]', e && e.message); });
+    }, 600);
+  }
+
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
       closeSidebar();
@@ -2850,6 +3435,19 @@ document.addEventListener('DOMContentLoaded', function() {
       setTimeout(function() {
         if (typeof loadDeviceList === 'function') loadDeviceList();
       }, 150);
+      (async function() {
+        try {
+          var badge = document.getElementById('this-device-shard-badge');
+          if (!badge) return;
+          var did = typeof getDeviceId === 'function' ? await getDeviceId() : null;
+          if (!did) return;
+          var shard = typeof deriveDeviceShard === 'function'
+            ? deriveDeviceShard(did).toUpperCase()
+            : did.slice(-4).toUpperCase();
+          badge.textContent = 'This: ' + shard;
+          badge.style.display = '';
+        } catch(_) {}
+      })();
     }
   };
 });

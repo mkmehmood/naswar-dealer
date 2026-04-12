@@ -15,11 +15,15 @@ const ESBUILD = join(ROOT, 'node_modules/.bin/esbuild');
 function run(args) {
   execFileSync(ESBUILD, args, { stdio: ['ignore', 'inherit', 'inherit'] });
 }
+
 function contentHash(filePath) {
   return createHash('sha256').update(readFileSync(filePath)).digest('hex').slice(0, 8);
 }
+
 function write(filePath, content) { writeFileSync(filePath, content, 'utf8'); }
+
 function read(filePath) { return readFileSync(filePath, 'utf8'); }
+
 function rm(filePath) { if (existsSync(filePath)) unlinkSync(filePath); }
 
 mkdirSync(DIST, { recursive: true });

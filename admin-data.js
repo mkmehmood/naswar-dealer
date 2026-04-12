@@ -1,14 +1,14 @@
 async function updateDeltaSyncStatsDisplay() {
-const db = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
-const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
-const repSales = ensureArray(await sqliteStore.get('rep_sales'));
-const salesHistory = ensureArray(await sqliteStore.get('noman_history'));
-const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
-const paymentEntities = ensureArray(await sqliteStore.get('payment_entities'));
-const factoryInventoryData = ensureArray(await sqliteStore.get('factory_inventory_data'));
-const factoryProductionHistory = ensureArray(await sqliteStore.get('factory_production_history'));
-const stockReturns = ensureArray(await sqliteStore.get('stock_returns'));
-const expenseRecords = ensureArray(await sqliteStore.get('expenses'));
+  const db = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
+  const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
+  const repSales = ensureArray(await sqliteStore.get('rep_sales'));
+  const salesHistory = ensureArray(await sqliteStore.get('noman_history'));
+  const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
+  const paymentEntities = ensureArray(await sqliteStore.get('payment_entities'));
+  const factoryInventoryData = ensureArray(await sqliteStore.get('factory_inventory_data'));
+  const factoryProductionHistory = ensureArray(await sqliteStore.get('factory_production_history'));
+  const stockReturns = ensureArray(await sqliteStore.get('stock_returns'));
+  const expenseRecords = ensureArray(await sqliteStore.get('expenses'));
   try {
     const modal = document.getElementById('delta-stats-modal');
     if (!modal) return;
@@ -33,320 +33,473 @@ const expenseRecords = ensureArray(await sqliteStore.get('expenses'));
     }
   }
 }
+
 async function showDeltaSyncDetails() {
-const db = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
-const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
-const repSales = ensureArray(await sqliteStore.get('rep_sales'));
-const salesHistory = ensureArray(await sqliteStore.get('noman_history'));
-const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
-const paymentEntities = ensureArray(await sqliteStore.get('payment_entities'));
-const factoryInventoryData = ensureArray(await sqliteStore.get('factory_inventory_data'));
-const factoryProductionHistory = ensureArray(await sqliteStore.get('factory_production_history'));
-const stockReturns = ensureArray(await sqliteStore.get('stock_returns'));
-const expenseRecords = ensureArray(await sqliteStore.get('expenses'));
 if (!firebaseDB || !currentUser) {
-showToast('Please log in to view Firestore structure', 'warning', 3000);
-return;
+  showToast('Please log in to view database structure', 'warning', 3000);
+  return;
 }
-const statsInitialized = await initializeSyncStatsIfNeeded();
-if (statsInitialized) {
-}
-const loadingModal = document.createElement('div');
-loadingModal.id = 'delta-stats-modal';
-loadingModal.style.cssText = 'position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 10300;';
-loadingModal.innerHTML = `
-<div style="background: var(--glass); padding: 40px; border-radius: 100px; text-align: center;">
-<div style="margin-bottom: 15px; font-size: 4rem; line-height: 1;">🐦‍🔥</div>
-<div style="color: var(--text); font-size: 1rem;">Loading Firestore</div>
-</div>
-`;
-document.body.appendChild(loadingModal);
+
+const modal = document.createElement('div');
+modal.id = 'delta-stats-modal';
+modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.82);display:flex;align-items:center;justify-content:center;z-index:10300;padding:16px;';
+modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+modal.innerHTML = `<div style="background:var(--glass);padding:40px;border-radius:20px;text-align:center;">
+  <div style="margin-bottom:12px;display:flex;justify-content:center;"><svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" ><rect x="5" y="5" width="26" height="7" rx="2.5" fill="var(--accent)" fill-opacity="0.20" stroke="var(--accent)" stroke-width="1.4"/><rect x="5" y="15" width="26" height="7" rx="2.5" fill="var(--accent)" fill-opacity="0.13" stroke="var(--accent)" stroke-width="1.4"/><rect x="5" y="25" width="26" height="7" rx="2.5" fill="var(--accent)" fill-opacity="0.08" stroke="var(--accent)" stroke-width="1.4"/><circle cx="27" cy="8.5" r="1.5" fill="var(--accent)"/><circle cx="27" cy="18.5" r="1.5" fill="var(--accent)" opacity="0.7"/><circle cx="27" cy="28.5" r="1.5" fill="var(--accent)" opacity="0.5"/><line x1="9" y1="8.5" x2="22" y2="8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.55"/><line x1="9" y1="18.5" x2="20" y2="18.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.55"/><line x1="9" y1="28.5" x2="18" y2="28.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.55"/></svg></div>
+  <div style="color:var(--text-muted);font-size:0.85rem;">Loading database structure…</div>
+</div>`;
+document.body.appendChild(modal);
+
 try {
-const userRef = firebaseDB.collection('users').doc(currentUser.uid);
-const [
-productionSnap, salesSnap, calcHistorySnap, repSalesSnap, repCustomersSnap,
-salesCustomersSnap,
-transactionsSnap, entitiesSnap, inventorySnap, factoryHistorySnap,
-returnsSnap, expensesSnap, deletionsSnap,
-settingsDoc, factorySettingsDoc, expenseCategoriesDoc, teamDoc
-] = await Promise.all([
-userRef.collection('production').get(),
-userRef.collection('sales').get(),
-userRef.collection('calculator_history').get(),
-userRef.collection('rep_sales').get(),
-userRef.collection('rep_customers').get(),
-userRef.collection('sales_customers').get(),
-userRef.collection('transactions').get(),
-userRef.collection('entities').get(),
-userRef.collection('inventory').get(),
-userRef.collection('factory_history').get(),
-userRef.collection('returns').get(),
-userRef.collection('expenses').get(),
-userRef.collection('deletions').get(),
-userRef.collection('settings').doc('config').get(),
-userRef.collection('factorySettings').doc('config').get(),
-userRef.collection('expenseCategories').doc('categories').get(),
-userRef.collection('settings').doc('team').get()
-]);
-const stats = await DeltaSync.getSyncStats();
-const uuidStats = (typeof UUIDSyncRegistry !== 'undefined') ? UUIDSyncRegistry.stats() : {};
-const myDeviceShard = uuidStats._myDeviceShard ? uuidStats._myDeviceShard.toUpperCase() : '—';
-const collections = [
-{ name: 'production',         snap: productionSnap,            sqliteKey: 'mfg_pro_pkr',               jsVar: 'db',                       description: 'Factory production records' },
-{ name: 'sales',              snap: salesSnap,                  sqliteKey: 'customer_sales',             jsVar: 'customerSales',            description: 'Direct customer sales' },
-{ name: 'rep_sales',          snap: repSalesSnap,               sqliteKey: 'rep_sales',                  jsVar: 'repSales',                 description: 'Rep sales to customers' },
-{ name: 'rep_customers',      snap: repCustomersSnap,           sqliteKey: 'rep_customers',              jsVar: 'repCustomers',             description: 'Rep customer contact registry' },
-{ name: 'sales_customers',    snap: salesCustomersSnap,         sqliteKey: 'sales_customers',            jsVar: 'salesCustomers',           description: 'Sales tab customer contact registry' },
-{ name: 'calculator_history', snap: calcHistorySnap,            sqliteKey: 'noman_history',              jsVar: 'salesHistory',             description: 'Calculator / daily ledger entries' },
-{ name: 'transactions',       snap: transactionsSnap,           sqliteKey: 'payment_transactions',       jsVar: 'paymentTransactions',      description: 'Cash & entity payment transactions' },
-{ name: 'entities',           snap: entitiesSnap,               sqliteKey: 'payment_entities',           jsVar: 'paymentEntities',          description: 'Payment entity accounts' },
-{ name: 'inventory',          snap: inventorySnap,              sqliteKey: 'factory_inventory_data',     jsVar: 'factoryInventoryData',     description: 'Factory raw material inventory' },
-{ name: 'factory_history',    snap: factoryHistorySnap,         sqliteKey: 'factory_production_history', jsVar: 'factoryProductionHistory', description: 'Factory batch production history' },
-{ name: 'returns',            snap: returnsSnap,                sqliteKey: 'stock_returns',              jsVar: 'stockReturns',             description: 'Stock return records' },
-{ name: 'expenses',           snap: expensesSnap,               sqliteKey: 'expenses',                   jsVar: 'expenseRecords',           description: 'Expense entries' },
-{ name: 'deletions',          snap: deletionsSnap,              sqliteKey: 'deletion_records',           jsVar: 'deletedRecordIds',         description: 'Tombstone records for deleted IDs' }
-];
-const documents = [
-{
-name: 'settings/config',
-doc: settingsDoc,
-icon: '',
-description: 'App settings (defaultSettings, last_synced)',
-keys: ['naswar_default_settings', 'last_synced', 'initialized_at', 'version']
-},
-{
-name: 'settings/team',
-doc: teamDoc,
-icon: '',
-description: 'Team lists (salesRepsList, userRolesList)',
-keys: ['sales_reps', 'user_roles', 'updated_at']
-},
-{
-name: 'factorySettings/config',
-doc: factorySettingsDoc,
-icon: '',
-description: 'Factory formulas & costs (factoryDefaultFormulas, factoryAdditionalCosts, factoryUnitTracking)',
-keys: ['default_formulas', 'additional_costs', 'cost_adjustment_factor', 'sale_prices', 'unit_tracking']
-},
-{
-name: 'expenseCategories/categories',
-doc: expenseCategoriesDoc,
-icon: '',
-description: 'Expense categories (expenseCategories)',
-keys: ['categories']
-}
-];
-let html = `
-<div style="background: var(--glass); padding: 20px; border-radius: 20px; max-width: 700px; max-height: 80vh; overflow-y: auto;">
-<h3 style="margin: 0 0 15px 0; color: var(--accent); display:flex; align-items:center; gap:8px;"> Firestore Database Structure</h3>
-<div style="margin-bottom: 20px; padding: 12px; background: var(--input-bg); border-radius: 16px; border-left: 3px solid var(--accent);">
-<div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 5px;">Database Path:</div>
-<div style="font-size: 0.8rem; color: var(--accent); font-family: 'Geist Mono', 'Courier New', monospace;">
-users/${currentUser.uid}/
-</div>
-</div>
+  const userRef = firebaseDB.collection('users').doc(currentUser.uid);
+  const deviceId = (typeof getDeviceId === 'function') ? await getDeviceId().catch(() => '—') : '—';
 
-<div class="u-mb-20" >
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-<h4 style="margin: 0; color: var(--text); font-size: 0.9rem;"> Collections (${collections.length})</h4>
-<div style="font-size: 0.65rem; color: var(--text-muted); font-family:'Geist Mono','Courier New',monospace;" title="This device's FNV-1a 32-bit shard encoded in every UUID generated here">
-Shard: <span style="color: var(--accent); font-weight: 700; letter-spacing: 0.08em;">${myDeviceShard}</span>
-</div>
-</div>
-`;
-let totalDocs = 0;
-const actualReads = firestoreStats.reads || 0;
-const actualWrites = firestoreStats.writes || 0;
-collections.forEach(col => {
-const count = col.snap.size;
-totalDocs += count;
-const stat = stats[col.name] || { syncCount: 0, totalReads: 0, totalWrites: 0, lastSync: null };
-const lastSync = stat.lastSync ? new Date(stat.lastSync).toLocaleString() : 'Never';
-const hasListener = col.name !== 'deletions';
-const uuidColStat = uuidStats[col.name] || {};
-const uploadedCount = uuidColStat.uploaded || 0;
-const downloadedCount = uuidColStat.downloaded || 0;
-const isDirty = DeltaSync.isDirty(col.name);
-const dirtyColor = isDirty ? '#f59e0b' : '#30d158';
-const dirtyLabel = isDirty ? '⚠ pending' : '✔ clean';
-html += `
-<div style="margin-bottom: 10px; padding: 12px; background: var(--input-bg); border-radius: 16px; border: 1px solid var(--glass-border);">
-<div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
-<div style="flex:1; min-width:0;">
-<div style="font-weight: 600; font-size: 0.85rem; color: var(--text); font-family:'Geist Mono','Courier New',monospace;">${col.name}</div>
-<div style="font-size: 0.68rem; color: var(--text-muted); margin-top: 3px;">${col.description}</div>
-<div style="font-size: 0.62rem; color: var(--text-muted); margin-top: 2px; font-family:'Geist Mono','Courier New',monospace;">
-SQLite: <span style="color:var(--accent)">${col.sqliteKey}</span> → JS: <span style="color:var(--accent)">${col.jsVar}</span>
-</div>
-</div>
-<div style="text-align: right; flex-shrink:0; margin-left:8px;">
-<div style="font-size: 0.75rem; font-weight: 600; color: var(--accent);">${count} docs</div>
-${hasListener ? '<div style="font-size: 0.65rem; color: #30d158;">● Live</div>' : '<div style="font-size: 0.65rem; color: var(--text-muted);">○ Polling</div>'}
-</div>
-</div>
-<div style="border-top: 1px solid var(--glass-border); padding-top: 7px; margin-top: 2px;">
-<div style="display: grid; grid-template-columns: auto auto auto; gap: 4px 14px; font-size: 0.64rem; color: var(--text-muted); margin-bottom: 5px;">
-<div title="Number of times this collection completed a sync cycle">Syncs: <span style="color:var(--text)">${stat.syncCount || 0}</span></div>
-<div title="Timestamp of last completed sync">Last: <span style="color:var(--text)">${lastSync}</span></div>
-<div title="Local changes not yet pushed to Firestore" style="color:${dirtyColor};">${dirtyLabel}</div>
-</div>
-<div style="display: flex; gap: 12px; font-size: 0.64rem;">
-<div title="Records pushed to Firestore this session" style="color: var(--text-muted);">
-↑ <span style="color: #30d158; font-weight: 600;">${uploadedCount}</span> uploaded
-</div>
-<div title="Records pulled from Firestore this session" style="color: var(--text-muted);">
-↓ <span style="color: #007aff; font-weight: 600;">${downloadedCount}</span> downloaded
-</div>
-</div>
-</div>
-</div>
-`;
-});
-html += `
-</div>
-<div class="u-mb-20" >
-<h4 style="margin: 0 0 10px 0; color: var(--text); font-size: 0.9rem;"> Configuration Documents (${documents.length})</h4>
-`;
-documents.forEach(docInfo => {
-const exists = docInfo.doc.exists;
-const data = exists ? docInfo.doc.data() : null;
-const hasListener = true;
-html += `
-<div style="margin-bottom: 10px; padding: 12px; background: var(--input-bg); border-radius: 16px; border: 1px solid var(--glass-border);">
-<div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
-<div>
-<div style="font-weight: 600; font-size: 0.85rem; color: var(--text);">
-${docInfo.icon} ${docInfo.name}
-</div>
-<div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">
-${docInfo.description}
-</div>
-</div>
-<div style="text-align: right;">
-<div style="font-size: 0.75rem; font-weight: 600; color: ${exists ? 'var(--accent)' : '#ff453a'};">
-${exists ? ' Exists' : ' Missing'}
-</div>
-${hasListener ? '<div style="font-size: 0.65rem; color: #30d158;">● Live</div>' : ''}
-</div>
-</div>
-`;
-if (exists && data) {
-html += `<div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 6px;">`;
-html += `<div style="font-weight: 600; margin-bottom: 4px;">Fields:</div>`;
-docInfo.keys.forEach(key => {
-const hasKey = key in data;
-const value = data[key];
-let valueStr = '';
-if (typeof value === 'object' && value !== null) {
-if (Array.isArray(value)) {
-valueStr = `Array(${value.length})`;
-} else {
-valueStr = `Object(${Object.keys(value).length} keys)`;
-}
-} else if (typeof value === 'string') {
-valueStr = value.length > 30 ? value.substring(0, 30) + '...' : value;
-} else {
-valueStr = String(value);
-}
-html += `
-<div style="padding: 2px 0; display: flex; justify-content: space-between;">
-<span style="color: ${hasKey ? 'var(--text)' : '#ff453a'};">
-${hasKey ? '' : ''} ${key}
-</span>
-${hasKey ? `<span style="color: var(--text-muted); font-family: 'Geist Mono', 'Courier New', monospace; font-size: 0.65rem;">${valueStr}</span>` : ''}
-</div>
-`;
-});
-html += `</div>`;
-}
-html += `</div>`;
-});
-html += `
-</div>
-<div style="padding: 15px; background: var(--input-bg); border-radius: 16px; border: 2px solid var(--accent); margin-bottom: 15px;">
-<h4 style="margin: 0 0 10px 0; color: var(--accent); font-size: 0.85rem;">Firestore Usage Summary</h4>
-<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; font-size: 0.75rem;">
-<div>
-<div style="color: var(--text-muted); font-size: 0.65rem;">Total Documents</div>
-<div style="color: var(--text); font-weight: 600; font-size: 1rem;">${totalDocs}</div>
-</div>
-<div>
-<div style="color: var(--text-muted); font-size: 0.65rem;">Firestore Reads</div>
-<div style="color: #30d158; font-weight: 600; font-size: 1rem;">${actualReads}</div>
-</div>
-<div>
-<div style="color: var(--text-muted); font-size: 0.65rem;">Firestore Writes</div>
-<div style="color: #007aff; font-weight: 600; font-size: 1rem;">${actualWrites}</div>
-</div>
-</div>
-<div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--glass-border); font-size: 0.65rem; color: var(--text-muted);">
-<div class="u-row-between" >
-<span style="display:flex;align-items:center;gap:4px;">Tracking Period:</span>
-<span style="color: var(--text);">${(() => {
-const hours = Math.floor((Date.now() - firestoreStats.lastReset) / (1000 * 60 * 60));
-if (hours < 1) return 'Less than 1 hour';
-if (hours === 1) return '1 hour';
-if (hours < 24) return hours + ' hours';
-const days = Math.floor(hours / 24);
-return days + (days === 1 ? ' day' : ' days');
-})()}</span>
-</div>
-<div style="margin-top: 5px; font-size: 0.6rem; color: var(--text-muted);">
-ℹ Stats auto-reset every 24 hours • Reads & writes tracked from actual Firestore operations
-</div>
-</div>
-</div>
-<div style="padding: 12px; background: rgba(48, 209, 88, 0.1); border-radius: 16px; border: 1px solid rgba(48, 209, 88, 0.3); margin-bottom: 15px;">
-<div style="font-size: 0.75rem; color: #30d158; font-weight: 600; margin-bottom: 5px;">
-Active Realtime Listeners
-</div>
-<div style="font-size: 0.7rem; color: var(--text);">
-${collections.filter(c => c.name !== 'deletions').length} collection listeners + 4 document listeners active
-</div>
-<div style="font-size: 0.65rem; color: var(--text-muted); margin-top: 5px;">
-Updates sync automatically in background when data changes in Firestore
-</div>
-</div>
+  const [
+    productionSnap, salesSnap, calcHistorySnap, repSalesSnap, repCustomersSnap,
+    salesCustomersSnap, transactionsSnap, entitiesSnap, inventorySnap,
+    factoryHistorySnap, returnsSnap, expensesSnap, deletionsSnap, personPhotosSnap,
+    settingsDoc, factorySettingsDoc, expenseCategoriesDoc, teamDoc,
+    deviceDoc, accountInfoDoc, yearCloseSignalDoc
+  ] = await Promise.all([
+    userRef.collection('production').get(),
+    userRef.collection('sales').get(),
+    userRef.collection('calculator_history').get(),
+    userRef.collection('rep_sales').get(),
+    userRef.collection('rep_customers').get(),
+    userRef.collection('sales_customers').get(),
+    userRef.collection('transactions').get(),
+    userRef.collection('entities').get(),
+    userRef.collection('inventory').get(),
+    userRef.collection('factory_history').get(),
+    userRef.collection('returns').get(),
+    userRef.collection('expenses').get(),
+    userRef.collection('deletions').get(),
+    userRef.collection('personPhotos').get().catch(() => ({ size: 0, docs: [] })),
+    userRef.collection('settings').doc('config').get(),
+    userRef.collection('factorySettings').doc('config').get(),
+    userRef.collection('expenseCategories').doc('categories').get(),
+    userRef.collection('settings').doc('team').get(),
+    userRef.collection('devices').doc(deviceId).get().catch(() => ({ exists: false, data: () => null })),
+    userRef.collection('account').doc('info').get().catch(() => ({ exists: false, data: () => null })),
+    userRef.collection('settings').doc('yearCloseSignal').get().catch(() => ({ exists: false, data: () => null })),
+  ]);
 
-</div>
+  const stats      = await DeltaSync.getSyncStats();
+  const uuidStats  = (typeof UUIDSyncRegistry !== 'undefined') ? UUIDSyncRegistry.stats() : {};
+  const myDeviceShard = uuidStats._myDeviceShard ? uuidStats._myDeviceShard.toUpperCase() : '—';
+  const _savedFsStats = await sqliteStore.get('firestore_stats', null);
+  const firestoreStats = (_savedFsStats && typeof _savedFsStats.reads === 'number')
+    ? _savedFsStats
+    : { reads: 0, writes: 0, lastReset: Date.now() };
+
+  const sqliteCounts = {};
+  const sqliteKeys = ['mfg_pro_pkr','customer_sales','noman_history','rep_sales','rep_customers',
+    'sales_customers','payment_transactions','payment_entities','factory_inventory_data',
+    'factory_production_history','stock_returns','expenses','deletion_records','person_photos'];
+  await Promise.all(sqliteKeys.map(async k => {
+    const arr = await sqliteStore.get(k, []);
+    sqliteCounts[k] = Array.isArray(arr) ? arr.length : (arr && typeof arr === 'object' ? Object.keys(arr).length : 0);
+  }));
+  const _dirtyPhotoKeys = (await sqliteStore.get('person_photos_dirty_keys')) || [];
+  sqliteCounts['_person_photos_dirty'] = Array.isArray(_dirtyPhotoKeys) ? _dirtyPhotoKeys.length : 0;
+
+  const COLLECTIONS = [
+    { fsName:'production',         sqliteKey:'mfg_pro_pkr',               jsVar:'db',                       snap:productionSnap,      tabFn:'syncProductionTab',  lock:true,  desc:'Factory production batches' },
+    { fsName:'sales',              sqliteKey:'customer_sales',             jsVar:'customerSales',            snap:salesSnap,           tabFn:'syncSalesTab',       lock:true,  desc:'Direct customer sales' },
+    { fsName:'calculator_history', sqliteKey:'noman_history',              jsVar:'salesHistory',             snap:calcHistorySnap,     tabFn:'syncCalculatorTab',  lock:true,  desc:'Daily calculator / ledger entries' },
+    { fsName:'rep_sales',          sqliteKey:'rep_sales',                  jsVar:'repSales',                 snap:repSalesSnap,        tabFn:'syncRepTab',         lock:true,  desc:'Rep sales to customers' },
+    { fsName:'rep_customers',      sqliteKey:'rep_customers',              jsVar:'repCustomers',             snap:repCustomersSnap,    tabFn:'syncRepTab',         lock:false, desc:'Rep customer contact registry' },
+    { fsName:'sales_customers',    sqliteKey:'sales_customers',            jsVar:'salesCustomers',           snap:salesCustomersSnap,  tabFn:'renderCustomersTable',lock:false,desc:'Sales tab customer contacts' },
+    { fsName:'transactions',       sqliteKey:'payment_transactions',       jsVar:'paymentTransactions',      snap:transactionsSnap,    tabFn:'syncPaymentsTab',    lock:true,  desc:'Cash & entity payment transactions' },
+    { fsName:'entities',           sqliteKey:'payment_entities',           jsVar:'paymentEntities',          snap:entitiesSnap,        tabFn:'refreshPaymentTab',  lock:false, desc:'Payment entity accounts' },
+    { fsName:'inventory',          sqliteKey:'factory_inventory_data',     jsVar:'factoryInventoryData',     snap:inventorySnap,       tabFn:'syncFactoryTab',     lock:false, desc:'Raw material inventory' },
+    { fsName:'factory_history',    sqliteKey:'factory_production_history', jsVar:'factoryProductionHistory', snap:factoryHistorySnap,  tabFn:'syncFactoryTab',     lock:true,  desc:'Factory batch production history' },
+    { fsName:'returns',            sqliteKey:'stock_returns',              jsVar:'stockReturns',             snap:returnsSnap,         tabFn:'syncProductionTab',  lock:true,  desc:'Stock return records' },
+    { fsName:'expenses',           sqliteKey:'expenses',                   jsVar:'expenseRecords',           snap:expensesSnap,        tabFn:'refreshPaymentTab',  lock:true,  desc:'Expense entries' },
+    { fsName:'deletions',          sqliteKey:'deletion_records',           jsVar:'deletedRecordIds',         snap:deletionsSnap,       tabFn:null,                 lock:false, desc:'Tombstone records for soft-deleted IDs' },
+    { fsName:'personPhotos',       sqliteKey:'person_photos',              jsVar:'person_photos{}',          snap:personPhotosSnap,    tabFn:null,                 lock:false, desc:'Person/customer/entity photos (keyed object: cust:name, entity:id, rep-cust:rep:name)', isPhotoStore:true },
+  ];
+
+  const CONFIG_DOCS = [
+    { path:'settings/config',              doc:settingsDoc,          desc:'App settings, FY counter, repProfile, sales_reps (init)',
+      sqlite:[['naswar_default_settings','naswar_default_settings'],['current_rep_profile','repProfile'],['sales_reps_list','sales_reps (init)']],
+      fsFields:['naswar_default_settings','naswar_default_settings_timestamp','repProfile','repProfile_timestamp','sales_reps','sales_reps_timestamp','last_synced'],
+      listener:'_handleSettingsSnapshot' },
+    { path:'settings/team',                doc:teamDoc,              desc:'Sales reps list & user roles',
+      sqlite:[['sales_reps_list','sales_reps'],['user_roles_list','user_roles']],
+      fsFields:['sales_reps','user_roles','updated_at'],
+      listener:'_handleTeamSnapshot' },
+    { path:'settings/yearCloseSignal',     doc:yearCloseSignalDoc,   desc:'Cross-device year-close / restore broadcast signal',
+      sqlite:[['_lastHandledYearCloseSignal','triggeredAt']],
+      fsFields:['type','triggeredAt','triggeredBy','fyCloseCount'],
+      listener:'_handleYearCloseSignal' },
+    { path:'factorySettings/config',       doc:factorySettingsDoc,   desc:'Factory formulas, costs, sale prices, unit tracking',
+      sqlite:[['factory_default_formulas','default_formulas'],['factory_additional_costs','additional_costs'],['factory_cost_adjustment_factor','cost_adjustment_factor'],['factory_sale_prices','sale_prices'],['factory_unit_tracking','unit_tracking']],
+      fsFields:['default_formulas','additional_costs','cost_adjustment_factor','sale_prices','unit_tracking','default_formulas_timestamp'],
+      listener:'_handleFactorySettingsSnapshot' },
+    { path:'expenseCategories/categories', doc:expenseCategoriesDoc, desc:'Expense category definitions',
+      sqlite:[['expense_categories','categories']],
+      fsFields:['categories','categories_timestamp'],
+      listener:'_handleExpenseCategoriesSnapshot' },
+    { path:`devices/${deviceId}`,          doc:deviceDoc,            desc:'This device: mode, fingerprint, heartbeat, remote commands',
+      sqlite:[['appMode','currentMode'],['appMode_timestamp','appMode_timestamp'],['device_id','deviceId']],
+      fsFields:['currentMode','appMode_timestamp','assignedRep','assignedManager','remoteAppliedMode','lastSeen','online','fingerprint'],
+      listener:'_handleDeviceSnapshot (live mode changes)' },
+    { path:'account/info',                 doc:accountInfoDoc,       desc:'Account email, displayName, lastActivity (updated on login)',
+      sqlite:[],
+      fsFields:['email','displayName','accountCreated','lastActivity'],
+      listener:'none — read once on login' },
+  ];
+
+  const ago = raw => {
+    if (!raw) return 'never';
+    const ms = typeof raw === 'string' ? Date.parse(raw) : raw;
+    if (!ms || isNaN(ms)) return 'never';
+    const s = Math.floor((Date.now() - ms) / 1000);
+    if (s < 0) return 'just now';
+    if (s < 60) return s + 's ago';
+    if (s < 3600) return Math.floor(s/60) + 'm ago';
+    if (s < 86400) return Math.floor(s/3600) + 'h ago';
+    return Math.floor(s/86400) + 'd ago';
+  };
+  const fmtVal = v => {
+    if (v === null || v === undefined) return '<span style="color:var(--text-muted)">null</span>';
+    if (typeof v === 'boolean') return `<span style="color:${v?'#30d158':'#ff453a'}">${v}</span>`;
+    if (typeof v === 'object') {
+      if (Array.isArray(v)) return `<span style="color:var(--accent-cyan)">Array(${v.length})</span>`;
+      if (v.seconds !== undefined) return `<span style="color:var(--text-muted)">${new Date(v.seconds*1000).toLocaleDateString()}</span>`;
+      return `<span style="color:var(--accent-cyan)">Object(${Object.keys(v).length})</span>`;
+    }
+    if (typeof v === 'string') {
+      const s = v.length > 28 ? v.slice(0,28)+'…' : v;
+      return `<span style="color:var(--text-muted)">"${s}"</span>`;
+    }
+    if (typeof v === 'number') return `<span style="color:var(--accent-gold)">${v > 1e10 ? ago(v) : v.toLocaleString()}</span>`;
+    return `<span style="color:var(--text)">${String(v).slice(0,30)}</span>`;
+  };
+  const badge = (txt, color) =>
+    `<span style="font-size:0.6rem;font-weight:700;padding:2px 7px;color:${color};letter-spacing:0.03em">${txt}</span>`;
+  const pill = (txt, color) =>
+    `<span style="font-size:0.62rem;padding:2px 6px;color:${color};font-family:'Geist Mono','Courier New',monospace">${txt}</span>`;
+
+  let totalFsDocs = 0;
+  COLLECTIONS.forEach(c => { totalFsDocs += c.snap.size || 0; });
+
+  let html = `
+<div id="dbv-root" style="background:var(--glass);border-radius:20px;max-width:760px;width:100%;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;">
+
+  <!-- title bar -->
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 20px 0;flex-shrink:0">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="display:flex;align-items:center;"><svg width="20" height="20" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="5" width="26" height="7" rx="2.5" fill="var(--accent)" fill-opacity="0.20" stroke="var(--accent)" stroke-width="1.4"/><rect x="5" y="15" width="26" height="7" rx="2.5" fill="var(--accent)" fill-opacity="0.13" stroke="var(--accent)" stroke-width="1.4"/><rect x="5" y="25" width="26" height="7" rx="2.5" fill="var(--accent)" fill-opacity="0.08" stroke="var(--accent)" stroke-width="1.4"/><circle cx="27" cy="8.5" r="1.5" fill="var(--accent)"/><circle cx="27" cy="18.5" r="1.5" fill="var(--accent)" opacity="0.7"/><circle cx="27" cy="28.5" r="1.5" fill="var(--accent)" opacity="0.5"/></svg></span>
+      <div>
+        <div style="font-weight:700;font-size:1rem;color:var(--text)">Database Structure</div>
+        <div style="font-size:0.67rem;color:var(--text-muted);font-family:'Geist Mono','Courier New',monospace;margin-top:1px">
+          users/${currentUser.uid.slice(0,14)}…/  &nbsp;·&nbsp; shard&nbsp;<span style="color:var(--accent);font-weight:700">${myDeviceShard}</span>
+        </div>
+      </div>
+    </div>
+    <button onclick="document.getElementById('delta-stats-modal').remove()"
+      style="background:rgba(255,255,255,0.07);border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;color:var(--text-muted);display:flex;align-items:center;justify-content:center"><svg width="14" height="14" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><line x1="10" y1="10" x2="26" y2="26" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="26" y1="10" x2="10" y2="26" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+  </div>
+
+  <!-- tab bar -->
+  <div style="display:flex;gap:4px;padding:14px 20px 0;flex-shrink:0">
+    ${['Collections','Config Docs','Listeners','Summary'].map((t,i) =>
+      `<button id="dbv-tab-${i}" onclick="dbvShowTab(${i})"
+        style="padding:5px 12px;border-radius:12px;border:none;cursor:pointer;font-size:0.75rem;font-weight:600;
+        background:${i===0?'var(--accent)':'rgba(128,128,128,0.12)'};
+        color:${i===0?'#fff':'var(--text-muted)'}">${t}</button>`
+    ).join('')}
+  </div>
+
+  <!-- scrollable body -->
+  <div id="dbv-body" style="overflow-y:auto;padding:16px 20px 20px;flex:1;min-height:0">
 `;
-loadingModal.innerHTML = html;
-} catch (error) {
-console.error('An unexpected error occurred.', _safeErr(error));
-showToast('An unexpected error occurred.', 'error');
-loadingModal.innerHTML = `
-<div style="background: var(--glass); padding: 40px; border-radius: 20px; text-align: center; max-width: 400px;">
-<div class="u-mb-15" ></div>
-<div style="color: var(--text); font-size: 1rem; margin-bottom: 20px;">
-Error loading database structure
-</div>
-<button onclick="document.getElementById('delta-stats-modal').remove();"
-style="padding: 10px 20px; background: var(--accent); border: none; border-radius: 16px; color: white; cursor: pointer;">
-Close
-</button>
-</div>
-`;
+
+  html += `<div id="dbv-pane-0">`;
+  const _reads      = firestoreStats.reads  || 0;
+  const _writes     = firestoreStats.writes || 0;
+  const _readPct    = Math.min(100, Math.round(_reads  / 500));
+  const _writePct   = Math.min(100, Math.round(_writes / 200));
+  const _readColor  = _readPct  >= 80 ? '#ff453a' : _readPct  >= 50 ? '#f59e0b' : '#30d158';
+  const _writeColor = _writePct >= 80 ? '#ff453a' : _writePct >= 50 ? '#f59e0b' : '#007aff';
+  const _resetAgo   = firestoreStats.lastReset ? ago(firestoreStats.lastReset) : 'unknown';
+  const _msLeft     = firestoreStats.lastReset ? Math.max(0, 864e5 - (Date.now() - firestoreStats.lastReset)) : 0;
+  const _resetNext  = _msLeft > 0 ? (Math.floor(_msLeft/3600000) + 'h ' + Math.floor((_msLeft%3600000)/60000) + 'm') : 'soon';
+  html += `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:6px">
+    <div style="background:rgba(128,128,128,0.08);border-radius:12px;padding:10px 12px;text-align:center">
+      <div style="font-size:1.3rem;font-weight:700;color:var(--accent)">${totalFsDocs.toLocaleString()}</div>
+      <div style="font-size:0.63rem;color:var(--text-muted)">Firestore Docs</div>
+      <div style="font-size:0.58rem;color:var(--text-muted);margin-top:2px">live count</div>
+    </div>
+    <div style="background:rgba(128,128,128,0.08);border-radius:12px;padding:10px 12px;text-align:center">
+      <div style="font-size:1.3rem;font-weight:700;color:${_readColor}">${_reads.toLocaleString()}</div>
+      <div style="font-size:0.63rem;color:var(--text-muted)">Reads (24 h)</div>
+      <div style="font-size:0.58rem;color:${_readColor};margin-top:2px">${_readPct}% of 50 000</div>
+    </div>
+    <div style="background:rgba(128,128,128,0.08);border-radius:12px;padding:10px 12px;text-align:center">
+      <div style="font-size:1.3rem;font-weight:700;color:${_writeColor}">${_writes.toLocaleString()}</div>
+      <div style="font-size:0.63rem;color:var(--text-muted)">Writes (24 h)</div>
+      <div style="font-size:0.58rem;color:${_writeColor};margin-top:2px">${_writePct}% of 20 000</div>
+    </div>
+  </div>
+  <div style="font-size:0.59rem;color:var(--text-muted);text-align:right;margin-bottom:10px;padding-right:2px">
+    Counter started ${_resetAgo} &nbsp;·&nbsp; resets in ${_resetNext}
+  </div>`;
+
+  COLLECTIONS.forEach(col => {
+    const fsDocs   = col.snap.size || 0;
+    const sqDocs   = sqliteCounts[col.sqliteKey] || 0;
+    const colStats = stats[col.fsName] || {};
+    const uuidCol  = uuidStats[col.fsName] || {};
+    const isDirty  = DeltaSync.isDirty(col.fsName);
+    const lastSync = colStats.lastSync ? ago(colStats.lastSync) : 'never';
+    const hasLiveListener = col.fsName !== 'deletions' && col.fsName !== 'personPhotos';
+    const mismatch = !col.isPhotoStore && Math.abs(fsDocs - sqDocs) > 0;
+    const borderColor = mismatch ? 'rgba(255,69,58,0.4)' : 'var(--glass-border)';
+
+    html += `
+<div style="margin-bottom:9px;padding:11px 13px;background:var(--input-bg);border-radius:14px;border:1px solid ${borderColor}">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px">
+        <span style="font-weight:700;font-size:0.82rem;color:var(--text);font-family:'Geist Mono','Courier New',monospace">${col.fsName}</span>
+        ${hasLiveListener ? badge('LIVE','#30d158','rgba(48,209,88,0.12)') : badge('SNAPSHOT','#f59e0b','rgba(245,158,11,0.12)')}
+        ${col.lock ? badge('LOCKED ON CLOSE','#888','rgba(128,128,128,0.1)') : ''}
+        ${isDirty ? badge('PENDING','#f59e0b','rgba(245,158,11,0.15)') : ''}
+      </div>
+      <div style="font-size:0.68rem;color:var(--text-muted);margin-bottom:4px">${col.desc}</div>
+      <div style="font-size:0.63rem;font-family:'Geist Mono','Courier New',monospace;display:flex;flex-wrap:wrap;gap:6px">
+        <span>SQLite: ${pill(col.sqliteKey,'var(--accent)')}</span>
+        <span>JS: ${pill(col.jsVar,'var(--accent-cyan)')}</span>
+        <span>Tab: ${pill(col.tabFn||'—','var(--text-muted)')}</span>
+      </div>
+    </div>
+    <div style="text-align:right;flex-shrink:0">
+      <div style="font-size:0.78rem;font-weight:700;color:var(--accent)">${fsDocs} FS</div>
+      <div style="font-size:0.72rem;color:${mismatch?'#ff453a':'var(--text-muted)'}">
+        ${sqDocs} local${mismatch?' <svg width="11" height="11" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:inline-block;vertical-align:-1px;margin-left:2px;"><path d="M27 10 H33 L29 17 H31 L27 24 H33 L29 17 H31 Z" fill="var(--warning)" opacity="0.7" stroke="var(--warning)" stroke-width="1" stroke-linejoin="round"/><circle cx="18" cy="18" r="2" fill="var(--warning)" opacity="0.9"/></svg>':''}
+      </div>
+    </div>
+  </div>
+  <div style="border-top:1px solid var(--glass-border);margin-top:8px;padding-top:6px;display:flex;gap:14px;font-size:0.63rem;color:var(--text-muted);flex-wrap:wrap">
+    <span>↑ <b style="color:#30d158">${uuidCol.uploaded||0}</b> up</span>
+    <span>↓ <b style="color:#007aff">${uuidCol.downloaded||0}</b> down</span>
+    <span>Syncs: <b style="color:var(--text)">${colStats.syncCount||0}</b></span>
+    <span>Last: <b style="color:var(--text)">${lastSync}</b></span>
+    ${col.isPhotoStore ? `<span>Dirty keys: <b style="color:${sqliteCounts['_person_photos_dirty']>0?'#f59e0b':'var(--text)'}">${sqliteCounts['_person_photos_dirty']}</b></span>` : ''}
+  </div>
+</div>`;
+  });
+  html += `</div>`;
+
+  html += `<div id="dbv-pane-1" style="display:none">`;
+  CONFIG_DOCS.forEach(doc => {
+    const exists = doc.doc && doc.doc.exists;
+    const data   = exists ? doc.doc.data() : null;
+    html += `
+<div style="margin-bottom:10px;padding:12px;background:var(--input-bg);border-radius:14px;border:1px solid var(--glass-border)">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px">
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:700;font-size:0.82rem;color:var(--text);font-family:'Geist Mono','Courier New',monospace;margin-bottom:2px">${doc.path}</div>
+      <div style="font-size:0.67rem;color:var(--text-muted);margin-bottom:4px">${doc.desc}</div>
+      <div style="font-size:0.62rem;color:var(--text-muted)">Listener: ${pill(doc.listener, '#30d158')}</div>
+    </div>
+    <div style="flex-shrink:0">
+      ${exists ? badge('EXISTS','#30d158','rgba(48,209,88,0.12)') : badge('MISSING','#ff453a','rgba(255,69,58,0.12)')}
+    </div>
+  </div>`;
+
+    if (doc.sqlite.length) {
+      html += `<div style="margin-bottom:6px">
+        <div style="font-size:0.63rem;color:var(--text-muted);margin-bottom:3px;font-weight:600">SQLite ↔ Firestore field mapping:</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
+          ${doc.sqlite.map(([sk, fk]) =>
+            `<div style="font-size:0.61rem;font-family:'Geist Mono','Courier New',monospace;background:rgba(0,122,255,0.08);padding:2px 7px;border-radius:8px">
+              <span style="color:var(--accent)">${sk}</span><span style="color:var(--text-muted)"> → </span><span style="color:var(--accent-cyan)">${fk}</span>
+            </div>`
+          ).join('')}
+        </div>
+      </div>`;
+    }
+
+    if (exists && data) {
+      html += `<div style="border-top:1px solid var(--glass-border);padding-top:6px">
+        <div style="font-size:0.63rem;color:var(--text-muted);margin-bottom:4px;font-weight:600">Firestore fields:</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 12px">
+          ${doc.fsFields.map(k => {
+            const present = k in data;
+            return `<div style="font-size:0.62rem;display:flex;justify-content:space-between;gap:6px;padding:1px 0">
+              <span style="color:${present?'var(--text)':'#ff453a'};font-family:'Geist Mono','Courier New',monospace;flex-shrink:0">${present?'':'<svg width="11" height="11" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:inline-block;vertical-align:-1px;margin-right:2px;"><path d="M27 10 H33 L29 17 H31 L27 24 H33 L29 17 H31 Z" fill="currentColor" opacity="0.6" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/><circle cx="18" cy="18" r="2" fill="currentColor" opacity="0.8"/></svg>'}${k}</span>
+              <span>${present ? fmtVal(data[k]) : ''}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    }
+    html += `</div>`;
+  });
+  html += `</div>`;
+
+  html += `<div id="dbv-pane-2" style="display:none">`;
+  const LISTENERS = [
+    { name:'users/{uid}',                      type:'doc',  path:'userRef.onSnapshot',                              purpose:'Force-logout, account suspension, lastWrite ping for pull trigger', fires:'Any write to the user root doc' },
+    { name:'settings/config',                  type:'doc',  path:'_handleSettingsSnapshot',                         purpose:'naswar_default_settings, repProfile, sales_reps (init copy)', fires:'Timestamp guard on naswar_default_settings_timestamp, repProfile_timestamp, sales_reps_timestamp' },
+    { name:'settings/team',                    type:'doc',  path:'_handleTeamSnapshot',                             purpose:'sales_reps_list, user_roles_list', fires:'updated_at timestamp change' },
+    { name:'settings/yearCloseSignal',         type:'doc',  path:'_handleYearCloseSignal',                          purpose:'Wipe SQLite + full cloud rebuild on other devices after year-close or restore', fires:'triggeredAt > _lastHandledYearCloseSignal AND triggeredBy ≠ this device' },
+    { name:'factorySettings/config',           type:'doc',  path:'_handleFactorySettingsSnapshot',                  purpose:'factory_default_formulas, additional_costs, cost_adjustment_factor, sale_prices, unit_tracking', fires:'Individual per-field timestamp guards' },
+    { name:'expenseCategories/categories',     type:'doc',  path:'_handleExpenseCategoriesSnapshot',                purpose:'expense_categories', fires:'categories_timestamp change or content diff' },
+    { name:'devices/{deviceId}',               type:'doc',  path:'_handleDeviceSnapshot',                           purpose:'Live remote mode changes (admin→rep etc.) without re-login', fires:'remoteAppliedMode flag + appMode_timestamp > local' },
+    { name:'deletions',                        type:'col',  path:'_handleDeletionsSnapshot',                        purpose:'Propagate soft deletes to all devices, filter from data arrays', fires:'Any add/modify/remove on the deletions collection' },
+    { name:'personPhotos',                     type:'col',  path:'pullDataFromCloud → personPhotos delta fetch',    purpose:'Sync person/customer/entity photos (base64) from cloud; upload dirty keys on push', fires:'Delta pull on sync — not a live onSnapshot listener; uploads via dirty-key queue' },
+    ...COLLECTIONS.filter(c => c.fsName !== 'deletions').map(c => ({
+      name: c.fsName,
+      type: 'col',
+      path: `_makeSnapshotHandler("${c.fsName}")`,
+      purpose: `Live updates to ${c.sqliteKey} → ${c.jsVar}`,
+      fires: 'Any doc change; lockOnClose=' + c.lock,
+    })),
+  ];
+
+  html += `<div style="margin-bottom:10px;padding:10px 12px;background:rgba(48,209,88,0.07);border-radius:12px;border:1px solid rgba(48,209,88,0.2)">
+    <div style="font-size:0.75rem;font-weight:700;color:#30d158;margin-bottom:2px">● ${LISTENERS.length} Active Realtime Listeners</div>
+    <div style="font-size:0.65rem;color:var(--text-muted)">All subscribed via <code>onSnapshot</code> in <code>subscribeToRealtime()</code>. Reconnect on network restore.</div>
+  </div>`;
+
+  LISTENERS.forEach(l => {
+    html += `
+<div style="margin-bottom:8px;padding:10px 12px;background:var(--input-bg);border-radius:13px;border:1px solid var(--glass-border)">
+  <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px;flex-wrap:wrap">
+    ${badge(l.type==='col'?'COLLECTION':'DOC', l.type==='col'?'#007aff':'#bf5af2', l.type==='col'?'rgba(0,122,255,0.1)':'rgba(191,90,242,0.1)')}
+    <span style="font-weight:700;font-size:0.78rem;color:var(--text);font-family:'Geist Mono','Courier New',monospace">${l.name}</span>
+  </div>
+  <div style="font-size:0.67rem;color:var(--text-muted);margin-bottom:3px">${l.purpose}</div>
+  <div style="font-size:0.62rem;display:flex;flex-wrap:wrap;gap:6px">
+    <span>Handler: ${pill(l.path,'var(--accent-cyan)')}</span>
+  </div>
+  <div style="font-size:0.6rem;color:var(--text-muted);margin-top:3px">Fires when: ${l.fires}</div>
+</div>`;
+  });
+  html += `</div>`;
+
+  html += `<div id="dbv-pane-3" style="display:none">`;
+
+  html += `<div style="margin-bottom:12px">
+    <div style="font-size:0.75rem;font-weight:700;color:var(--text);margin-bottom:8px">Firestore → SQLite → JS Variable Map</div>
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:0.63rem;font-family:'Geist Mono','Courier New',monospace">
+      <thead><tr style="border-bottom:1px solid var(--glass-border)">
+        <th style="text-align:left;padding:4px 6px;color:var(--text-muted);font-weight:600">Firestore</th>
+        <th style="text-align:left;padding:4px 6px;color:var(--text-muted);font-weight:600">SQLite Key</th>
+        <th style="text-align:left;padding:4px 6px;color:var(--text-muted);font-weight:600">JS Variable</th>
+        <th style="text-align:right;padding:4px 6px;color:var(--text-muted);font-weight:600">FS / Local</th>
+      </tr></thead>
+      <tbody>
+        ${COLLECTIONS.map(c => {
+          const fs = c.snap.size || 0;
+          const sq = sqliteCounts[c.sqliteKey] || 0;
+          const ok = Math.abs(fs - sq) === 0;
+          return `<tr style="border-bottom:1px solid rgba(128,128,128,0.07)">
+            <td style="padding:3px 6px;color:var(--accent)">${c.fsName}</td>
+            <td style="padding:3px 6px;color:var(--accent-cyan)">${c.sqliteKey}</td>
+            <td style="padding:3px 6px;color:var(--text-muted)">${c.jsVar}</td>
+            <td style="padding:3px 6px;text-align:right;color:${ok?'var(--text)':'#ff453a'}">${fs} / ${sq}${ok?'':' <svg width="11" height="11" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:inline-block;vertical-align:-1px;margin-left:2px;"><path d="M27 10 H33 L29 17 H31 L27 24 H33 L29 17 H31 Z" fill="#f59e0b" opacity="0.6" stroke="#f59e0b" stroke-width="1" stroke-linejoin="round"/><circle cx="18" cy="18" r="2" fill="#f59e0b" opacity="0.8"/></svg>'}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    </div>
+  </div>`;
+
+  html += `<div style="margin-bottom:12px;padding:12px;background:var(--input-bg);border-radius:14px">
+    <div style="font-size:0.75rem;font-weight:700;color:var(--text);margin-bottom:8px">Firestore Schema (users/{uid}/…)</div>
+    <div style="font-size:0.63rem;font-family:'Geist Mono','Courier New',monospace;line-height:1.9;color:var(--text-muted)">
+      <div><span style="color:var(--accent-gold)">users/</span><span style="color:var(--accent)">{uid}</span></div>
+      <div style="padding-left:14px"><span style="color:#30d158">├─</span> <span style="color:var(--accent-cyan)">production/</span> <span style="color:var(--text-muted)">{docId}</span> — factory batches</div>
+      <div style="padding-left:14px"><span style="color:#30d158">├─</span> <span style="color:var(--accent-cyan)">sales/</span> <span style="color:var(--text-muted)">{docId}</span> — customer sales</div>
+      <div style="padding-left:14px"><span style="color:#30d158">├─</span> <span style="color:var(--accent-cyan)">calculator_history/</span> <span style="color:var(--text-muted)">{docId}</span> — ledger entries</div>
+      <div style="padding-left:14px"><span style="color:#30d158">├─</span> <span style="color:var(--accent-cyan)">rep_sales/</span> <span style="color:var(--text-muted)">{docId}</span> — rep sales</div>
+      <div style="padding-left:14px"><span style="color:#30d158">├─</span> <span style="color:var(--accent-cyan)">rep_customers/</span> <span style="color:var(--text-muted)">{docId}</span></div>
+      <div style="padding-left:14px"><span style="color:#30d158">├─</span> <span style="color:var(--accent-cyan)">sales_customers/</span> <span style="color:var(--text-muted)">{docId}</span></div>
+      <div style="padding-left:14px"><span style="color:#30d158">├─</span> <span style="color:var(--accent-cyan)">transactions/</span> <span style="color:var(--text-muted)">{docId}</span> — payments</div>
+      <div style="padding-left:14px"><span style="color:#30d158">├─</span> <span style="color:var(--accent-cyan)">entities/</span> <span style="color:var(--text-muted)">{docId}</span> — payment entities</div>
+      <div style="padding-left:14px"><span style="color:#30d158">├─</span> <span style="color:var(--accent-cyan)">inventory/</span> <span style="color:var(--text-muted)">{docId}</span> — raw materials</div>
+      <div style="padding-left:14px"><span style="color:#30d158">├─</span> <span style="color:var(--accent-cyan)">factory_history/</span> <span style="color:var(--text-muted)">{docId}</span></div>
+      <div style="padding-left:14px"><span style="color:#30d158">├─</span> <span style="color:var(--accent-cyan)">returns/</span> <span style="color:var(--text-muted)">{docId}</span></div>
+      <div style="padding-left:14px"><span style="color:#30d158">├─</span> <span style="color:var(--accent-cyan)">expenses/</span> <span style="color:var(--text-muted)">{docId}</span></div>
+      <div style="padding-left:14px"><span style="color:#30d158">├─</span> <span style="color:var(--accent-cyan)">deletions/</span> <span style="color:var(--text-muted)">{recordId}</span> — tombstones</div>
+      <div style="padding-left:14px"><span style="color:#30d158">├─</span> <span style="color:var(--accent-cyan)">personPhotos/</span> <span style="color:var(--text-muted)">{base64Key}</span> — photos keyed by type:id (cust:name, entity:id, rep-cust:rep:name)</div>
+      <div style="padding-left:14px"><span style="color:#30d158">├─</span> <span style="color:var(--accent-cyan)">activityLog/</span> <span style="color:var(--text-muted)">{auto}</span> — write-only audit</div>
+      <div style="padding-left:14px"><span style="color:#30d158">├─</span> <span style="color:var(--accent-cyan)">sync_updates/</span> <span style="color:var(--text-muted)">{auto}</span> — heartbeat log (cleaned hourly)</div>
+      <div style="padding-left:14px"><span style="color:#30d158">├─</span> <span style="color:var(--accent-cyan)">devices/</span> <span style="color:var(--text-muted)">{deviceId}</span> — fingerprint, mode, heartbeat</div>
+      <div style="padding-left:14px"><span style="color:#30d158">├─</span> <span style="color:var(--accent-cyan)">account/info</span> — email, displayName</div>
+      <div style="padding-left:14px"><span style="color:#30d158">├─</span> <span style="color:var(--accent-cyan)">settings/config</span> — naswar_default_settings, repProfile</div>
+      <div style="padding-left:14px"><span style="color:#30d158">├─</span> <span style="color:var(--accent-cyan)">settings/team</span> — sales_reps, user_roles</div>
+      <div style="padding-left:14px"><span style="color:#30d158">├─</span> <span style="color:var(--accent-cyan)">settings/yearCloseSignal</span> — cross-device broadcast</div>
+      <div style="padding-left:14px"><span style="color:#30d158">└─</span> <span style="color:var(--accent-cyan)">factorySettings/config</span> — formulas, costs, prices</div>
+    </div>
+  </div>
+
+  <!-- FY close status -->
+  ${(() => {
+    const fy = settingsDoc.exists ? (settingsDoc.data().naswar_default_settings || {}) : {};
+    const fyCount = fy.fyCloseCount || 0;
+    const fyDate  = fy.lastYearClosedDate ? new Date(fy.lastYearClosedDate).toLocaleDateString('en-PK',{day:'numeric',month:'short',year:'numeric'}) : '—';
+    const fySignal = yearCloseSignalDoc.exists ? yearCloseSignalDoc.data() : null;
+    return `<div style="padding:10px 12px;background:rgba(128,128,128,0.06);border-radius:12px;font-size:0.7rem">
+      <div style="font-weight:700;color:var(--text);margin-bottom:5px">Financial Year Status</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;color:var(--text-muted)">
+        <div>Close count: <b style="color:var(--accent)">${fyCount}</b></div>
+        <div>Last closed: <b style="color:var(--text)">${fyDate}</b></div>
+        <div>Signal type: <b style="color:var(--text-muted)">${fySignal ? fySignal.type || '—' : '—'}</b></div>
+        <div>Signal age: <b style="color:var(--text)">${fySignal && fySignal.triggeredAt ? ago(fySignal.triggeredAt) : '—'}</b></div>
+      </div>
+    </div>`;
+  })()}
+  `;
+
+  html += `</div>`;
+
+  html += `</div></div>`;
+
+  modal.innerHTML = html;
+
+} catch (err) {
+  console.error('[showDeltaSyncDetails] error:', err);
+  modal.innerHTML = `<div style="background:var(--glass);padding:40px;border-radius:20px;text-align:center;max-width:400px">
+    <div style="margin-bottom:12px;display:flex;justify-content:center;"><svg width="32" height="32" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:0.85;"><path d="M27 10 H33 L29 17 H31 L27 24 H33 L29 17 H31 Z" fill="#f59e0b" opacity="0.5" stroke="#f59e0b" stroke-width="1" stroke-linejoin="round"/><rect x="4" y="8" width="20" height="20" rx="3" fill="#f59e0b" opacity="0.1" stroke="#f59e0b" stroke-width="1.5"/><line x1="14" y1="14" x2="14" y2="20" stroke="#f59e0b" stroke-width="1.6" stroke-linecap="round"/><circle cx="14" cy="23" r="1" fill="#f59e0b"/></svg></div>
+    <div style="color:var(--text);margin-bottom:20px">Failed to load database structure</div>
+    <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:20px">${err && err.message ? err.message : String(err)}</div>
+    <button onclick="document.getElementById('delta-stats-modal').remove()"
+      style="padding:10px 20px;background:var(--accent);border:none;border-radius:16px;color:#fff;cursor:pointer">Close</button>
+  </div>`;
 }
 }
+
 if (typeof closeYearInProgress === 'undefined') var closeYearInProgress = false;
 if (typeof closeYearAbortController === 'undefined') var closeYearAbortController = null;
 if (typeof _fyVerifiedPassword === 'undefined') var _fyVerifiedPassword = null;
 if (typeof pendingFirestoreYearClose === 'undefined') var pendingFirestoreYearClose = false;
+if (typeof pendingFirestoreRestore === 'undefined') var pendingFirestoreRestore = false;
+
+if (typeof _hasMergeCommitFailure === 'undefined') var _hasMergeCommitFailure = false;
 function _storeCodeToLabel(c) {
   if (c === 'STORE_A') return 'ZUBAIR';
   if (c === 'STORE_B') return 'MAHMOOD';
   if (c === 'STORE_C') return 'ASAAN';
   return c;
 }
+
 async function showCloseFinancialYearDialog() {
-const db = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
-const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
-const repSales = ensureArray(await sqliteStore.get('rep_sales'));
-const salesHistory = ensureArray(await sqliteStore.get('noman_history'));
-const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
-const stockReturns = ensureArray(await sqliteStore.get('stock_returns'));
-const expenseRecords = ensureArray(await sqliteStore.get('expenses'));
-const factoryProductionHistory = ensureArray(await sqliteStore.get('factory_production_history'));
+  const db = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
+  const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
+  const repSales = ensureArray(await sqliteStore.get('rep_sales'));
+  const salesHistory = ensureArray(await sqliteStore.get('noman_history'));
+  const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
+  const stockReturns = ensureArray(await sqliteStore.get('stock_returns'));
+  const expenseRecords = ensureArray(await sqliteStore.get('expenses'));
+  const factoryProductionHistory = ensureArray(await sqliteStore.get('factory_production_history'));
 if (closeYearInProgress) {
 showToast('Close Financial Year is already in progress', 'warning');
 return;
@@ -419,31 +572,6 @@ _cyBody.innerHTML = `
 }
 [data-theme="light"] #cy-panel::after {
   background: linear-gradient(90deg, transparent, rgba(0,0,0,0.08), transparent);
-}
-
-#cy-header {
-  padding: 20px 22px 15px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
-  position: sticky;
-  top: 0;
-  background: inherit;
-  z-index: 2;
-  border-radius: 24px 24px 0 0;
-}
-[data-theme="light"] #cy-header {
-  border-bottom-color: rgba(0,0,0,0.07);
-}
-#cy-header-icon {
-  flex-shrink: 0;
-  width: 44px; height: 44px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, rgba(239,83,80,0.18) 0%, rgba(239,83,80,0.05) 100%);
-  border: 1px solid rgba(239,83,80,0.30);
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 0 0 1px rgba(239,83,80,0.12) inset, 0 4px 14px rgba(239,83,80,0.14);
 }
 
 .cy-data-row {
@@ -537,7 +665,7 @@ _cyBody.innerHTML = `
 .cy-result-note   { font-size: 0.67rem; color: var(--text-muted); margin-top: 3px; line-height: 1.45; }
 
 #cy-progress-inner {
-  margin: 14px 22px 0;
+  margin: 14px 0 0;
   padding: 13px 15px;
   border-radius: var(--radius-lg, 12px);
   background: rgba(255,255,255,0.025);
@@ -566,7 +694,7 @@ _cyBody.innerHTML = `
   animation: _cyShimmer 1.8s linear infinite;
 }
 
-#cy-input-wrap { padding: 14px 22px 20px; }
+#cy-input-wrap { padding: 14px 0 4px; }
 #cy-danger-notice {
   display: flex; align-items: flex-start; gap: 12px;
   padding: 12px 14px;
@@ -660,7 +788,7 @@ _cyBody.innerHTML = `
   color: var(--text-main);
 }
 
-#close-year-complete { display:none; padding: 0 16px 20px; }
+#close-year-complete { display:none; padding: 0; }
 #cy-done-card {
   position: relative; overflow: hidden;
   border-radius: var(--radius-xl, 16px);
@@ -722,7 +850,7 @@ _cyBody.innerHTML = `
   box-shadow: 0 1px 0 rgba(255,255,255,0.20) inset, 0 7px 22px rgba(105,240,174,0.32);
 }
 #cy-continue-btn:active { transform: translateY(0); }
-/* ── Standalone-screen flatten overrides ── */
+
 #cy-panel {
   background: transparent !important;
   border: none !important;
@@ -735,31 +863,9 @@ _cyBody.innerHTML = `
   animation: none !important;
 }
 #cy-panel::after, #cy-panel::before { display: none !important; }
-#cy-header {
-  border-radius: 0 !important;
-  background: var(--glass) !important;
-  border-bottom: 1px solid var(--glass-border) !important;
-  margin: 0 !important;
-  padding: 14px 16px !important;
-}
-[data-theme="light"] #cy-header {
-  background: var(--glass) !important;
-}
 </style>
 <div id="cy-panel">
-  <div id="cy-header">
-    <div id="cy-header-icon">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
-    </div>
-    <div style="flex:1;min-width:0;">
-      <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;">
-        <h2 style="margin:0;color:var(--text-main);font-size:1.04rem;font-weight:800;font-family:'Bricolage Grotesque',system-ui,sans-serif;letter-spacing:-0.025em;">Close Financial Year</h2>
-        <span id="cy-phase-badge" style="font-size:0.61rem;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;padding:2px 10px;border-radius:999px;background:rgba(29,233,182,0.10);color:var(--accent);border:1px solid rgba(29,233,182,0.20);transition:all 0.4s ease;font-family:'Geist Mono',monospace;">PREVIEW</span>
-      </div>
-      <p style="margin:4px 0 0;color:var(--text-muted);font-size:0.72rem;line-height:1.4;font-family:'Geist',sans-serif;" id="cy-panel-subtitle">Compact all records into opening balances — encrypted backup created automatically</p>
-    </div>
-  </div>
-  <div style="padding:15px 22px 0;">
+  <div style="padding:0 0 6px;">
     <div id="cy-preview-grid" style="display:grid;gap:6px;">${summary.rowsHtml}</div>
   </div>
   <div id="close-year-progress-container" style="display:none;">
@@ -777,7 +883,7 @@ _cyBody.innerHTML = `
     <div id="cy-input-wrap">
       <div id="cy-danger-notice">
         <div id="cy-danger-icon-wrap">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,110,100,0.92)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <svg width="14" height="14" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M27 10 H33 L29 17 H31 L27 24 H33 L29 17 H31 Z" fill="rgba(255,110,100,0.5)" stroke="rgba(255,110,100,0.92)" stroke-width="1" stroke-linejoin="round"/><rect x="5" y="10" width="18" height="18" rx="2.5" fill="rgba(255,110,100,0.1)" stroke="rgba(255,110,100,0.92)" stroke-width="1.4"/><line x1="14" y1="15" x2="14" y2="21" stroke="rgba(255,110,100,0.92)" stroke-width="1.4" stroke-linecap="round"/><circle cx="14" cy="24" r="1" fill="rgba(255,110,100,0.92)"/></svg>
         </div>
         <div>
           <p id="cy-danger-title">Irreversible — original records will be compacted</p>
@@ -791,7 +897,7 @@ _cyBody.innerHTML = `
           onkeydown="if(event.key==='Enter'&&!document.getElementById('close-year-confirm-btn').disabled){verifyAndExecuteCloseYear();}">
         <button type="button" id="cy-pwd-eye" tabindex="-1"
           onclick="(function(b){const i=document.getElementById('close-year-confirm-input');i.type=i.type==='password'?'text':'password';b.querySelector('svg').style.opacity=i.type==='text'?'1':'0.40';})(this)">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.40;transition:opacity 0.2s;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          <svg width="15" height="15" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="transition:opacity 0.2s;"><path d="M6 18 C6 18 10 10 18 10 C26 10 30 18 30 18 C30 18 26 26 18 26 C10 26 6 18 6 18 Z" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" fill="var(--accent)" fill-opacity="0.10"/><circle cx="18" cy="18" r="4" fill="var(--accent)" opacity="0.30" stroke="var(--accent)" stroke-width="1.4"/><circle cx="18" cy="18" r="1.5" fill="var(--accent)"/></svg>
         </button>
       </div>
       <div id="close-year-pwd-error"></div>
@@ -809,6 +915,7 @@ setTimeout(() => {
   if (inp) inp.focus();
 }, 80);
 }
+
 function validateCloseYearInput(value) {
 const confirmBtn = document.getElementById('close-year-confirm-btn');
 const errEl = document.getElementById('close-year-pwd-error');
@@ -828,15 +935,16 @@ if (value.trim().length > 0) {
 }
 if (errEl) errEl.style.display = 'none';
 }
+
 async function verifyAndExecuteCloseYear() {
-const db = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
-const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
-const repSales = ensureArray(await sqliteStore.get('rep_sales'));
-const salesHistory = ensureArray(await sqliteStore.get('noman_history'));
-const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
-const stockReturns = ensureArray(await sqliteStore.get('stock_returns'));
-const expenseRecords = ensureArray(await sqliteStore.get('expenses'));
-const factoryProductionHistory = ensureArray(await sqliteStore.get('factory_production_history'));
+  const db = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
+  const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
+  const repSales = ensureArray(await sqliteStore.get('rep_sales'));
+  const salesHistory = ensureArray(await sqliteStore.get('noman_history'));
+  const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
+  const stockReturns = ensureArray(await sqliteStore.get('stock_returns'));
+  const expenseRecords = ensureArray(await sqliteStore.get('expenses'));
+  const factoryProductionHistory = ensureArray(await sqliteStore.get('factory_production_history'));
 const confirmBtn = document.getElementById('close-year-confirm-btn');
 const inp = document.getElementById('close-year-confirm-input');
 const errEl = document.getElementById('close-year-pwd-error');
@@ -854,7 +962,7 @@ if (confirmBtn) {
 if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
 const valid = await verifyAccountPassword(pwd);
 if (!valid) {
-  if (errEl) { errEl.textContent = '✕ Incorrect password — please try again.'; errEl.style.display = 'block'; }
+  if (errEl) { errEl.textContent = ' Incorrect password — please try again.'; errEl.style.display = 'block'; }
   showToast('Incorrect password. Please try again.', 'error', 4000);
   if (confirmBtn) {
     confirmBtn.disabled = false;
@@ -869,6 +977,7 @@ if (!valid) {
 _fyVerifiedPassword = pwd;
 executeCloseFinancialYear();
 }
+
 function closeCloseYearDialog() {
 if (typeof closeStandaloneScreen === 'function') closeStandaloneScreen('close-financial-year-screen');
 const _cyScreen = document.getElementById('close-financial-year-screen');
@@ -880,6 +989,7 @@ closeYearAbortController = null;
 }
 closeYearInProgress = false;
 }
+
 function updateCloseYearProgress(stage, percent) {
 const stageEl = document.getElementById('close-year-stage');
 const progressBar = document.getElementById('close-year-progress-bar');
@@ -920,9 +1030,7 @@ if (percent >= 100) {
 }
 if (phaseBadge) {
   phaseBadge.textContent = 'PROCESSING';
-  phaseBadge.style.background = 'rgba(255,179,0,0.15)';
-  phaseBadge.style.color = 'var(--warning)';
-  phaseBadge.style.borderColor = 'rgba(255,179,0,0.3)';
+  phaseBadge.className = 'cy-phase-badge cy-phase-badge--processing';
 }
 const procSubtitle = document.getElementById('cy-panel-subtitle');
 if (procSubtitle && procSubtitle.textContent.includes('will be compacted')) {
@@ -930,20 +1038,21 @@ if (procSubtitle && procSubtitle.textContent.includes('will be compacted')) {
   procSubtitle.style.color = 'var(--warning)';
 }
 }
+
 async function generateCloseYearSummary() {
-const paymentEntities = ensureArray(await sqliteStore.get('payment_entities'));
-const db = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
-const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
-const repSales = ensureArray(await sqliteStore.get('rep_sales'));
-const salesHistory = ensureArray(await sqliteStore.get('noman_history'));
-const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
-const stockReturns = ensureArray(await sqliteStore.get('stock_returns'));
-const expenseRecords = ensureArray(await sqliteStore.get('expenses'));
-const factoryProductionHistory = ensureArray(await sqliteStore.get('factory_production_history'));
-const factoryDefaultFormulas = (await sqliteStore.get('factory_default_formulas')) || {};
-const factoryAdditionalCosts = (await sqliteStore.get('factory_additional_costs')) || {};
-const factorySalePrices = (await sqliteStore.get('factory_sale_prices')) || {};
-const factoryCostAdjustmentFactor = (await sqliteStore.get('factory_cost_adjustment_factor')) || {};
+  const paymentEntities = ensureArray(await sqliteStore.get('payment_entities'));
+  const db = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
+  const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
+  const repSales = ensureArray(await sqliteStore.get('rep_sales'));
+  const salesHistory = ensureArray(await sqliteStore.get('noman_history'));
+  const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
+  const stockReturns = ensureArray(await sqliteStore.get('stock_returns'));
+  const expenseRecords = ensureArray(await sqliteStore.get('expenses'));
+  const factoryProductionHistory = ensureArray(await sqliteStore.get('factory_production_history'));
+  const factoryDefaultFormulas = (await sqliteStore.get('factory_default_formulas')) || {};
+  const factoryAdditionalCosts = (await sqliteStore.get('factory_additional_costs')) || {};
+  const factorySalePrices = (await sqliteStore.get('factory_sale_prices')) || {};
+  const factoryCostAdjustmentFactor = (await sqliteStore.get('factory_cost_adjustment_factor')) || {};
 const factoryUnitTracking = (await sqliteStore.get('factory_unit_tracking')) || {};
 const S = {
   production:   { total:0, nonMerged:0, stores: new Set(), returnCount:0, sellerReturns: new Set(), sellerStoreCards: new Set() },
@@ -1020,14 +1129,14 @@ if (Array.isArray(stockReturns)) {
 }
 const storeCodeToLabel = _storeCodeToLabel;
 const CY_ICONS = {
-  prod:     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>',
-  sales:    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>',
-  calc:     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="12" y2="14"/></svg>',
-  pay:      '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>',
-  factory:  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/></svg>',
-  repsales: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
-  exp:      '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
-  ret:      '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.9L1 10"/></svg>'
+  prod:     '<svg width="15" height="15" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="20" width="28" height="12" rx="3" fill="var(--accent)" fill-opacity="0.13" stroke="var(--accent)" stroke-width="1.6"/><rect x="10" y="14" width="16" height="7" rx="2" fill="var(--accent)" fill-opacity="0.18" stroke="var(--accent)" stroke-width="1.4"/><rect x="14" y="8" width="8" height="7" rx="1.5" fill="var(--accent)" fill-opacity="0.25" stroke="var(--accent)" stroke-width="1.4"/><rect x="16" y="4" width="4" height="5" rx="1" fill="var(--accent)" opacity="0.7"/></svg>',
+  sales:    '<svg width="15" height="15" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="7" y="3" width="22" height="30" rx="3" fill="var(--accent)" fill-opacity="0.10" stroke="var(--accent)" stroke-width="1.6"/><path d="M7 30 L12 27 L17 30 L22 27 L29 30" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="12" x2="24" y2="12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity="0.65"/><line x1="12" y1="17" x2="24" y2="17" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity="0.65"/><line x1="12" y1="22" x2="19" y2="22" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity="0.55"/></svg>',
+  calc:     '<svg width="15" height="15" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="4" width="26" height="28" rx="4" fill="var(--accent)" fill-opacity="0.10" stroke="var(--accent)" stroke-width="1.6"/><rect x="8" y="8" width="20" height="7" rx="2" fill="var(--accent)" fill-opacity="0.18" stroke="var(--accent)" stroke-width="1.3"/><circle cx="12" cy="21" r="2" fill="currentColor" opacity="0.7"/><circle cx="18" cy="21" r="2" fill="currentColor" opacity="0.7"/><circle cx="24" cy="21" r="2" fill="currentColor" opacity="0.7"/><circle cx="12" cy="27" r="2" fill="currentColor" opacity="0.55"/><circle cx="18" cy="27" r="2" fill="currentColor" opacity="0.55"/><rect x="21" y="25" width="6" height="4" rx="1.5" fill="var(--accent)" opacity="0.75"/></svg>',
+  pay:      '<svg width="15" height="15" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="14" width="22" height="14" rx="3" fill="var(--accent)" fill-opacity="0.12" stroke="var(--accent)" stroke-width="1.5"/><line x1="4" y1="19" x2="26" y2="19" stroke="var(--accent)" stroke-width="1.4"/><rect x="7" y="22" width="6" height="2.5" rx="1" fill="currentColor" opacity="0.65"/><ellipse cx="28" cy="19.5" rx="5" ry="2" fill="var(--accent-gold)" fill-opacity="0.25" stroke="var(--accent-gold)" stroke-width="1.3"/><ellipse cx="28" cy="17" rx="5" ry="2" fill="var(--accent-gold)" fill-opacity="0.38" stroke="var(--accent-gold)" stroke-width="1.3"/></svg>',
+  factory:  '<svg width="15" height="15" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="22" width="30" height="11" rx="2.5" fill="var(--accent)" fill-opacity="0.12" stroke="var(--accent)" stroke-width="1.5"/><rect x="6" y="15" width="10" height="8" rx="1.5" fill="var(--accent)" fill-opacity="0.15" stroke="var(--accent)" stroke-width="1.4"/><rect x="20" y="12" width="9" height="11" rx="1.5" fill="var(--accent)" fill-opacity="0.15" stroke="var(--accent)" stroke-width="1.4"/><rect x="22" y="6" width="2.5" height="7" rx="1" fill="currentColor" opacity="0.6"/><rect x="13" y="25" width="10" height="8" rx="1.5" fill="var(--accent)" fill-opacity="0.30"/></svg>',
+  repsales: '<svg width="15" height="15" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="13" cy="10" r="5" fill="var(--accent)" fill-opacity="0.15" stroke="var(--accent)" stroke-width="1.5"/><path d="M4 30 C4 24 22 24 22 30" stroke="var(--accent)" stroke-width="1.5" fill="var(--accent)" fill-opacity="0.10" stroke-linecap="round"/><rect x="24" y="22" width="3.5" height="9" rx="1" fill="var(--accent-emerald)" opacity="0.55"/><rect x="28.5" y="17" width="3.5" height="14" rx="1" fill="var(--accent-emerald)" opacity="0.75"/><circle cx="32" cy="10" r="2" fill="var(--accent-emerald)"/></svg>',
+  exp:      '<svg width="15" height="15" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="7" y="3" width="22" height="30" rx="3" fill="var(--accent)" fill-opacity="0.10" stroke="var(--accent)" stroke-width="1.5"/><line x1="12" y1="12" x2="24" y2="12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity="0.65"/><line x1="12" y1="17" x2="24" y2="17" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity="0.65"/><line x1="12" y1="22" x2="18" y2="22" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity="0.55"/><circle cx="24" cy="22" r="3.5" fill="var(--accent-gold)" fill-opacity="0.25" stroke="var(--accent-gold)" stroke-width="1.3"/></svg>',
+  ret:      '<svg width="15" height="15" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 8 A10 10 0 0 1 28 18" stroke="var(--warning)" stroke-width="1.8" stroke-linecap="round" fill="none"/><polyline points="25,6 28,10 24,11" fill="none" stroke="var(--warning)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M26 28 A10 10 0 0 1 8 18" stroke="var(--warning)" stroke-width="1.8" stroke-linecap="round" fill="none"/><polyline points="11,30 8,26 12,25" fill="none" stroke="var(--warning)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 };
 const previewRow = (id, label, key, recCount, details, mergeNote, accent, hasData) => {
   const cssAccentVar = accent.replace('var(--','').replace(')','');
@@ -1054,7 +1163,7 @@ const previewRow = (id, label, key, recCount, details, mergeNote, accent, hasDat
           '<span id="cy-val-' + id + '-after" class="cy-pill cy-pill-after">' + mergeNote + '</span>'
         : '<span class="cy-pill cy-pill-skip">skipped</span>'
       ) +
-      '<span id="cy-status-' + id + '" class="cy-status-badge ok">✓</span>' +
+      '<span id="cy-status-' + id + '" class="cy-status-badge ok"></span>' +
     '</div>' +
     (hasData && details.length
       ? '<div class="cy-chips">' + detailChips + '</div>'
@@ -1134,15 +1243,19 @@ const rowsHtml = rows;
 const html = '<div style="display:grid;gap:4px;">' + rows + '</div>';
 return { html, rowsHtml, summary: S };
 }
+
 async function createMergeBackup() {
-const db = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
-const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
-const salesHistory = ensureArray(await sqliteStore.get('noman_history'));
-const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
-const factoryProductionHistory = ensureArray(await sqliteStore.get('factory_production_history'));
-const repSales = ensureArray(await sqliteStore.get('rep_sales'));
-const expenseRecords = ensureArray(await sqliteStore.get('expenses'));
-const stockReturns = ensureArray(await sqliteStore.get('stock_returns'));
+  const db = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
+  const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
+  const salesHistory = ensureArray(await sqliteStore.get('noman_history'));
+  const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
+  const factoryProductionHistory = ensureArray(await sqliteStore.get('factory_production_history'));
+  const repSales = ensureArray(await sqliteStore.get('rep_sales'));
+  const expenseRecords = ensureArray(await sqliteStore.get('expenses'));
+  const stockReturns = ensureArray(await sqliteStore.get('stock_returns'));
+
+  const repCustomers = ensureArray(await sqliteStore.get('rep_customers'));
+  const salesCustomers = ensureArray(await sqliteStore.get('sales_customers'));
   const backup = {
     db: Array.isArray(db) ? [...db] : [],
     customerSales: Array.isArray(customerSales) ? [...customerSales] : [],
@@ -1152,6 +1265,8 @@ const stockReturns = ensureArray(await sqliteStore.get('stock_returns'));
     repSales: Array.isArray(repSales) ? [...repSales] : [],
     expenseRecords: Array.isArray(expenseRecords) ? [...expenseRecords] : [],
     stockReturns: Array.isArray(stockReturns) ? [...stockReturns] : [],
+    repCustomers: Array.isArray(repCustomers) ? [...repCustomers] : [],
+    salesCustomers: Array.isArray(salesCustomers) ? [...salesCustomers] : [],
     timestamp: Date.now(),
     date: new Date().toISOString()
   };
@@ -1163,12 +1278,14 @@ const stockReturns = ensureArray(await sqliteStore.get('stock_returns'));
     throw new Error('Cannot proceed without backup: ' + e.message);
   }
 }
+
 async function restoreFromBackup(backupTimestamp) {
   try {
     const backup = await sqliteStore.get('close_year_backup_' + backupTimestamp);
     if (!backup) {
       throw new Error('Backup not found: ' + backupTimestamp);
     }
+
     await sqliteStore.set('mfg_pro_pkr', backup.db);
     await sqliteStore.set('customer_sales', backup.customerSales);
     await sqliteStore.set('noman_history', backup.salesHistory);
@@ -1177,26 +1294,40 @@ async function restoreFromBackup(backupTimestamp) {
     await sqliteStore.set('rep_sales', backup.repSales);
     await sqliteStore.set('expenses', backup.expenseRecords);
     await sqliteStore.set('stock_returns', backup.stockReturns);
+
+    if (Array.isArray(backup.repCustomers))   await sqliteStore.set('rep_customers',   backup.repCustomers);
+    if (Array.isArray(backup.salesCustomers)) await sqliteStore.set('sales_customers', backup.salesCustomers);
+
+    if (typeof emitSyncUpdate === 'function') {
+      emitSyncUpdate({ mfg_pro_pkr: null, customer_sales: null, noman_history: null,
+        payment_transactions: null, factory_production_history: null,
+        rep_sales: null, expenses: null, stock_returns: null });
+    }
+
     if (firebaseDB && currentUser) {
-      Promise.resolve().then(async () => {
-        try {
-          const userRef = firebaseDB.collection('users').doc(currentUser.uid);
-          const fbCollections = [
-            { name: 'production', local: db },
-            { name: 'sales', local: customerSales },
-            { name: 'calculator_history', local: salesHistory },
-            { name: 'transactions', local: paymentTransactions },
-            { name: 'factory_history', local: factoryProductionHistory },
-            { name: 'rep_sales', local: repSales },
-            { name: 'expenses', local: expenseRecords },
-            { name: 'returns', local: stockReturns }
-          ];
-          for (const col of fbCollections) {
-            try {
-              const snapshot = await userRef.collection(col.name).get();
-              const batch = firebaseDB.batch();
-              let deleteCount = 0;
-              snapshot.docs.forEach(doc => {
+      try {
+        const userRef = firebaseDB.collection('users').doc(currentUser.uid);
+
+        const fbCollections = [
+          { name: 'production',         backupData: backup.db },
+          { name: 'sales',              backupData: backup.customerSales },
+          { name: 'calculator_history', backupData: backup.salesHistory },
+          { name: 'transactions',       backupData: backup.paymentTransactions },
+          { name: 'factory_history',    backupData: backup.factoryProductionHistory },
+          { name: 'rep_sales',          backupData: backup.repSales },
+          { name: 'expenses',           backupData: backup.expenseRecords },
+          { name: 'returns',            backupData: backup.stockReturns }
+        ];
+        for (const col of fbCollections) {
+          try {
+            const snapshot = await userRef.collection(col.name).get();
+            const batch = firebaseDB.batch();
+            let deleteCount = 0;
+
+            const preExistingIds = new Set((Array.isArray(col.backupData) ? col.backupData : []).map(r => String(r.id)));
+            snapshot.docs.forEach(doc => {
+
+              if (!preExistingIds.has(doc.id)) {
                 const data = doc.data();
                 const docCreatedAt = data.createdAt?.toMillis ? data.createdAt.toMillis() :
                                      (typeof data.createdAt === 'number' ? data.createdAt : 0);
@@ -1204,19 +1335,19 @@ async function restoreFromBackup(backupTimestamp) {
                   batch.delete(doc.ref);
                   deleteCount++;
                 }
-              });
-              if (deleteCount > 0) {
-                await batch.commit();
-                await new Promise(r => setTimeout(r, 0));
               }
-            } catch (colErr) {
-              console.warn(`Firebase rollback warning for ${col.name}:`, _safeErr(colErr));
+            });
+            if (deleteCount > 0) {
+              await batch.commit();
+              await new Promise(r => setTimeout(r, 0));
             }
+          } catch (colErr) {
+            console.warn(`Firebase rollback warning for ${col.name}:`, _safeErr(colErr));
           }
-        } catch (fbErr) {
-          console.warn('Firebase rollback warning:', _safeErr(fbErr));
         }
-      }).catch(() => {});
+      } catch (fbErr) {
+        console.warn('Firebase rollback warning:', _safeErr(fbErr));
+      }
     }
     return true;
   } catch (e) {
@@ -1224,10 +1355,11 @@ async function restoreFromBackup(backupTimestamp) {
     throw e;
   }
 }
+
 async function verifyMergeConsistency(snap) {
-const db = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
-const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
-const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
+  const db = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
+  const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
+  const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
   const errors = [];
   const warnings = [];
   if (Array.isArray(db)) {
@@ -1278,25 +1410,30 @@ const paymentTransactions = ensureArray(await sqliteStore.get('payment_transacti
     timestamp: Date.now()
   };
 }
+
 async function executeCloseFinancialYear() {
-const repCustomers = ensureArray(await sqliteStore.get('rep_customers'));
-const salesCustomers = ensureArray(await sqliteStore.get('sales_customers'));
-const factoryInventoryData = ensureArray(await sqliteStore.get('factory_inventory_data'));
-const deletedRecordIds = new Set(ensureArray(await sqliteStore.get('deleted_records')));
-const factoryDefaultFormulas = (await sqliteStore.get('factory_default_formulas')) || {};
-const factoryAdditionalCosts = (await sqliteStore.get('factory_additional_costs')) || {};
-const factorySalePrices = (await sqliteStore.get('factory_sale_prices')) || {};
-const factoryCostAdjustmentFactor = (await sqliteStore.get('factory_cost_adjustment_factor')) || {};
-const factoryUnitTracking = (await sqliteStore.get('factory_unit_tracking')) || {};
-const db = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
-const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
-const repSales = ensureArray(await sqliteStore.get('rep_sales'));
-const salesHistory = ensureArray(await sqliteStore.get('noman_history'));
-const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
-const stockReturns = ensureArray(await sqliteStore.get('stock_returns'));
-const expenseRecords = ensureArray(await sqliteStore.get('expenses'));
-const factoryProductionHistory = ensureArray(await sqliteStore.get('factory_production_history'));
-const paymentEntities = ensureArray(await sqliteStore.get('payment_entities'));
+
+  let fyMeta = null;
+
+  _hasMergeCommitFailure = false;
+  const repCustomers = ensureArray(await sqliteStore.get('rep_customers'));
+  const salesCustomers = ensureArray(await sqliteStore.get('sales_customers'));
+  const factoryInventoryData = ensureArray(await sqliteStore.get('factory_inventory_data'));
+  const deletedRecordIds = new Set(ensureArray(await sqliteStore.get('deleted_records')));
+  const factoryDefaultFormulas = (await sqliteStore.get('factory_default_formulas')) || {};
+  const factoryAdditionalCosts = (await sqliteStore.get('factory_additional_costs')) || {};
+  const factorySalePrices = (await sqliteStore.get('factory_sale_prices')) || {};
+  const factoryCostAdjustmentFactor = (await sqliteStore.get('factory_cost_adjustment_factor')) || {};
+  const factoryUnitTracking = (await sqliteStore.get('factory_unit_tracking')) || {};
+  const db = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
+  const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
+  const repSales = ensureArray(await sqliteStore.get('rep_sales'));
+  const salesHistory = ensureArray(await sqliteStore.get('noman_history'));
+  const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
+  const stockReturns = ensureArray(await sqliteStore.get('stock_returns'));
+  const expenseRecords = ensureArray(await sqliteStore.get('expenses'));
+  const factoryProductionHistory = ensureArray(await sqliteStore.get('factory_production_history'));
+  const paymentEntities = ensureArray(await sqliteStore.get('payment_entities'));
 if (closeYearInProgress) return;
 closeYearInProgress = true;
 const inputSection  = document.getElementById('close-year-input-section');
@@ -1309,7 +1446,7 @@ try {
   if (!currentUser) throw new Error('Not signed in — cannot create backup');
   try {
     await pushDataToCloud();
-    showToast('☁️ Cloud backup uploaded', 'success', 2500);
+    showToast(' Cloud backup uploaded', 'success', 2500);
   } catch (cloudErr) {
     console.warn('Cloud backup warning (proceeding):', _safeErr(cloudErr));
     showToast('Cloud backup skipped (offline?) — local backup will still be created', 'warning', 3500);
@@ -1333,8 +1470,11 @@ try {
     paymentEntities: paymentEntities,
     paymentTransactions: paymentTransactions,
     stockReturns: stockReturns,
+    expenses: expenseRecords,
     settings: _settingsSnapshot,
     deleted_records: Array.from(deletedRecordIds),
+    person_photos: (await sqliteStore.get('person_photos')) || {},
+    person_photos_timestamps: (await sqliteStore.get('person_photos_timestamps')) || {},
     _meta: {
       encryptedFor:        currentUser.email,
       createdAt:           Date.now(),
@@ -1349,19 +1489,16 @@ try {
       }
     }
   };
-  let encPassword = null;
-  try {
-    encPassword = _fyVerifiedPassword || null;
-  } finally {
-    _fyVerifiedPassword = null;
-  }
+
+  const encPassword = _fyVerifiedPassword || null;
+  _fyVerifiedPassword = null;
   if (encPassword) {
     try {
       updateCloseYearProgress('Encrypting backup file...', 14);
       const encryptedBlob = await CryptoEngine.encrypt(backupData, currentUser.email, encPassword, currentUser.uid);
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       _triggerFileDownload(encryptedBlob, `NaswarDealers_YearClose_${timestamp}.gznd`);
-      showToast('🔐 Encrypted year-end backup downloaded!', 'success', 4000);
+      showToast(' Encrypted year-end backup downloaded!', 'success', 4000);
     } catch (encErr) {
       console.error('Encryption failed:', _safeErr(encErr));
       showToast('Local backup encryption failed — proceeding with cloud backup only.', 'warning', 4000);
@@ -1428,46 +1565,77 @@ const liveUpdate = (rowId, afterText, accentColor, resultLabel, resultNote) => {
     detailEl.style.transition = 'all 0.35s ease';
   }
 };
+
+const closeEpoch = Date.now();
 updateCloseYearProgress('Merging Production Data', 25);
 try {
-await mergeProductionData(signal);
-const prodMerged = Array.isArray(db) ? db.filter(i=>i.isMerged) : [];
+await mergeProductionData(signal, closeEpoch);
+const _postMergeProd = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
+const prodMerged = _postMergeProd.filter(i=>i.isMerged);
 const storeMerged  = prodMerged.filter(i=>!i.isReturn).length;
 const sellerMerged = prodMerged.filter(i=>i.isReturn).length;
 liveUpdate('prod', `${storeMerged} store + ${sellerMerged} seller return card${sellerMerged!==1?'s':''}`, 'var(--accent)', `${storeMerged + sellerMerged} merged cards`, `${storeMerged} store balance${storeMerged!==1?'s':''} + ${sellerMerged} seller return card${sellerMerged!==1?'s':''}`);
 snap.prod.after = prodMerged.length;
-await mergeSalesData(signal);
-snap.sales.after = Array.isArray(customerSales) ? customerSales.filter(i=>i.isMerged).length : 0;
+await mergeSalesData(signal, closeEpoch);
+snap.sales.after = ensureArray(await sqliteStore.get('customer_sales')).filter(i=>i.isMerged).length;
 liveUpdate('sales', `${snap.sales.after} merged record${snap.sales.after!==1?'s':''}`, 'var(--accent-emerald)', `${snap.sales.after} customer records`, 'One opening balance per customer');
-await mergeCalculatorData(signal);
-snap.calc.after = Array.isArray(salesHistory) ? salesHistory.filter(i=>i.isMerged).length : 0;
+await mergeCalculatorData(signal, closeEpoch);
+snap.calc.after = ensureArray(await sqliteStore.get('noman_history')).filter(i=>i.isMerged).length;
 liveUpdate('calc', `${snap.calc.after} merged record${snap.calc.after!==1?'s':''} (sales only)`, 'var(--accent-cyan)', `${snap.calc.after} rep totals`, 'Sales totals only — returns moved to Production Tab');
-await mergePaymentData(signal);
-snap.pay.after = Array.isArray(paymentTransactions) ? paymentTransactions.filter(i=>i.isMerged).length : 0;
+await mergePaymentData(signal, closeEpoch);
+snap.pay.after = ensureArray(await sqliteStore.get('payment_transactions')).filter(i=>i.isMerged).length;
 liveUpdate('pay', `${snap.pay.after} opening balance record${snap.pay.after!==1?'s':''}`, 'var(--accent-gold)', `${snap.pay.after} opening balances`, 'Zero-balance entities dropped');
-await mergeFactoryData(signal);
-snap.factory.after = Array.isArray(factoryProductionHistory) ? factoryProductionHistory.filter(i=>i.isMerged).length : 0;
+await mergeFactoryData(signal, closeEpoch);
+snap.factory.after = ensureArray(await sqliteStore.get('factory_production_history')).filter(i=>i.isMerged).length;
 liveUpdate('factory', `${snap.factory.after} merged record${snap.factory.after!==1?'s':''}`, 'var(--accent-purple)', `${snap.factory.after} formula records`, '1 per formula store');
-await mergeRepSalesData(signal);
-snap.repSales.after = Array.isArray(repSales) ? repSales.filter(i=>i.isMerged&&i.salesRep&&i.salesRep!=='NONE'&&i.salesRep!=='ADMIN').length : 0;
+await mergeRepSalesData(signal, closeEpoch);
+snap.repSales.after = ensureArray(await sqliteStore.get('rep_sales')).filter(i=>i.isMerged&&i.salesRep&&i.salesRep!=='NONE'&&i.salesRep!=='ADMIN').length;
 liveUpdate('repsales', `${snap.repSales.after} merged record${snap.repSales.after!==1?'s':''}`, 'var(--store-b)', `${snap.repSales.after} rep×customer records`, 'Keyed per customer × rep combination');
-await mergeExpensesData(signal);
-snap.expenses.after = Array.isArray(expenseRecords) ? expenseRecords.filter(i=>i.isMerged).length : 0;
+await mergeExpensesData(signal, closeEpoch);
+snap.expenses.after = ensureArray(await sqliteStore.get('expenses')).filter(i=>i.isMerged).length;
 liveUpdate('exp', `${snap.expenses.after} merged record${snap.expenses.after!==1?'s':''}`, 'var(--warning)', `${snap.expenses.after} expense records`, 'Merged per category + name');
-await mergeStockReturnsData(signal);
-snap.returns.after = Array.isArray(stockReturns) ? stockReturns.filter(i=>i.isMerged).length : 0;
+await mergeStockReturnsData(signal, closeEpoch);
+snap.returns.after = ensureArray(await sqliteStore.get('stock_returns')).filter(i=>i.isMerged).length;
 liveUpdate('ret', `${snap.returns.after} merged record${snap.returns.after!==1?'s':''}`, 'var(--danger)', `${snap.returns.after} return records`, '1 per store + date — granularity preserved');
   const consistencyCheck = await verifyMergeConsistency(snap);
   if (!consistencyCheck.valid) {
     throw new Error(`Data consistency check failed: ${consistencyCheck.errors.join('; ')}`);
   }
+
+  updateCloseYearProgress('Purging deleted records...', 93);
+  try {
+    const _tombstoneIds = Array.from(
+      new Set(ensureArray(await sqliteStore.get('deleted_records')).map(String))
+    );
+    if (_tombstoneIds.length > 0 && firebaseDB && currentUser) {
+      const _delUserRef = firebaseDB.collection('users').doc(currentUser.uid);
+      const OPS_PER_BATCH = 400;
+      for (let _di = 0; _di < _tombstoneIds.length; _di += OPS_PER_BATCH) {
+        const _chunk = _tombstoneIds.slice(_di, _di + OPS_PER_BATCH);
+        const _delBatch = firebaseDB.batch();
+        _chunk.forEach(id => {
+          _delBatch.delete(_delUserRef.collection('deletions').doc(id));
+        });
+        await _delBatch.commit().catch(e => console.warn('[yearClose] tombstone Firestore purge batch failed:', _safeErr(e)));
+      }
+    }
+
+    await sqliteStore.set('deleted_records', []);
+    await sqliteStore.set('deletion_records', []);
+    console.log('[yearClose] Hard-deleted', _tombstoneIds.length, 'tombstone record(s) from SQLite + Firestore.');
+  } catch (_hardDelErr) {
+    console.warn('[yearClose] Hard-delete of tombstones failed (non-fatal):', _safeErr(_hardDelErr));
+  }
+
 try {
-  const fyMeta = await sqliteStore.get('naswar_default_settings', {});
+
+  fyMeta = await sqliteStore.get('naswar_default_settings', {});
   fyMeta.lastYearClosedAt   = Date.now();
   fyMeta.lastYearClosedDate = new Date().toISOString();
   fyMeta.fyCloseCount       = (fyMeta.fyCloseCount || 0) + 1;
   fyMeta.lastConsistencyCheck = consistencyCheck;
-  const hasSyncWarning = document.querySelectorAll && [...document.querySelectorAll('[id^="cy-status-"]')].some(el => el.textContent.includes('Sync Failed'));
+
+  const hasSyncWarning = typeof _hasMergeCommitFailure !== 'undefined' && _hasMergeCommitFailure === true;
   if (hasSyncWarning) {
     fyMeta.pendingFirestoreYearClose = true;
     pendingFirestoreYearClose = true;
@@ -1477,18 +1645,44 @@ try {
     pendingFirestoreYearClose = false;
     await sqliteStore.set('pendingFirestoreYearClose', false);
   }
+  const _fyMetaTs = Date.now();
   await sqliteStore.set('naswar_default_settings', fyMeta);
+
+  await sqliteStore.set('naswar_default_settings_timestamp', _fyMetaTs);
   if (firebaseDB && currentUser) {
+
     await firebaseDB.collection('users').doc(currentUser.uid)
-      .collection('settings').doc('naswar_default_settings')
-      .set({ lastYearClosedAt: fyMeta.lastYearClosedAt, lastYearClosedDate: fyMeta.lastYearClosedDate, fyCloseCount: fyMeta.fyCloseCount }, { merge: true });
+      .collection('settings').doc('config')
+      .set({
+        naswar_default_settings: {
+          fyCloseCount:      fyMeta.fyCloseCount,
+          lastYearClosedAt:  fyMeta.lastYearClosedAt,
+          lastYearClosedDate:fyMeta.lastYearClosedDate
+        },
+        naswar_default_settings_timestamp: _fyMetaTs
+      }, { merge: true });
+    if (typeof DeltaSync !== 'undefined') {
+      await DeltaSync.setLastSyncTimestamp('settings');
+    }
+
+    try {
+      const _sigDeviceId = (typeof getDeviceId === 'function') ? await getDeviceId().catch(() => 'unknown') : 'unknown';
+      await firebaseDB.collection('users').doc(currentUser.uid)
+        .collection('settings').doc('yearCloseSignal')
+        .set({
+          type:          'close',
+          triggeredAt:   _fyMetaTs,
+          triggeredBy:   _sigDeviceId,
+          fyCloseCount:  fyMeta.fyCloseCount,
+        });
+    } catch (_sigErr) {
+      console.warn('[yearClose] Failed to write cross-device signal (non-fatal):', _safeErr(_sigErr));
+    }
   }
 } catch (metaErr) { console.warn('Could not save FY close metadata:', _safeErr(metaErr)); }
 if (phaseBadge) {
   phaseBadge.textContent = 'DONE';
-  phaseBadge.style.background = 'rgba(52,217,116,0.15)';
-  phaseBadge.style.color = 'var(--accent-emerald)';
-  phaseBadge.style.borderColor = 'rgba(52,217,116,0.3)';
+  phaseBadge.className = 'cy-phase-badge cy-phase-badge--done';
 }
 const panelSubtitle = document.getElementById('cy-panel-subtitle');
 if (panelSubtitle) {
@@ -1509,24 +1703,26 @@ if (completeSection) {
     .filter(id => { const el = document.getElementById('cy-row-' + id); return el && el.style.borderLeftColor && el.style.borderLeftColor.includes('warning') || (el && el.style.borderLeftColor === 'var(--warning)'); });
   const hasSyncWarnings = document.querySelectorAll('[id^="cy-status-"]') &&
     [...document.querySelectorAll('[id^="cy-status-"]')].some(el => el.textContent.includes('Sync Failed'));
-  const totalMergedRecords = [
-    ...(Array.isArray(db) ? db.filter(i=>i.isMerged) : []),
-    ...(Array.isArray(customerSales) ? customerSales.filter(i=>i.isMerged) : []),
-    ...(Array.isArray(salesHistory) ? salesHistory.filter(i=>i.isMerged) : []),
-    ...(Array.isArray(paymentTransactions) ? paymentTransactions.filter(i=>i.isMerged) : []),
-    ...(Array.isArray(factoryProductionHistory) ? factoryProductionHistory.filter(i=>i.isMerged) : []),
-    ...(Array.isArray(repSales) ? repSales.filter(i=>i.isMerged) : []),
-    ...(Array.isArray(expenseRecords) ? expenseRecords.filter(i=>i.isMerged) : []),
-    ...(Array.isArray(stockReturns) ? stockReturns.filter(i=>i.isMerged) : []),
-  ].length;
+
+  const _freshMergedCount = async () => {
+    const keys = ['mfg_pro_pkr','customer_sales','noman_history','payment_transactions',
+                  'factory_production_history','rep_sales','expenses','stock_returns'];
+    let total = 0;
+    for (const k of keys) {
+      const arr = ensureArray(await sqliteStore.get(k));
+      total += arr.filter(i => i && i.isMerged).length;
+    }
+    return total;
+  };
+  const totalMergedRecords = await _freshMergedCount();
   const collectionsCompacted = ['prod','sales','calc','pay','factory','repsales','exp','ret']
     .filter(id => { const el = document.getElementById('cy-status-' + id); return el && el.style.display !== 'none'; }).length;
-  const fyMeta2 = (typeof fyMeta !== 'undefined') ? fyMeta : {};
+  const fyMeta2 = fyMeta || {};
   const closeCount = fyMeta2.fyCloseCount || 1;
   const closedDateStr = fyMeta2.lastYearClosedDate || new Date().toLocaleDateString('en-PK', { day:'numeric', month:'short', year:'numeric' });
   const syncWarnBlock = hasSyncWarnings ? `
     <div class="cy-sync-warn">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <svg width="15" height="15" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;margin-top:1px;"><path d="M27 10 H33 L29 17 H31 L27 24 H33 L29 17 H31 Z" fill="var(--warning)" opacity="0.5" stroke="var(--warning)" stroke-width="1" stroke-linejoin="round"/><rect x="5" y="10" width="18" height="18" rx="2.5" fill="var(--warning)" fill-opacity="0.1" stroke="var(--warning)" stroke-width="1.4"/><line x1="14" y1="15" x2="14" y2="21" stroke="var(--warning)" stroke-width="1.4" stroke-linecap="round"/><circle cx="14" cy="24" r="1" fill="var(--warning)"/></svg>
       <div>
         <div class="cy-sync-warn-title">Cloud Sync Incomplete</div>
         <div class="cy-sync-warn-body">Local data is fully merged and safe. Marked rows will re-sync automatically when connectivity is restored, or force a manual sync from Settings.</div>
@@ -1536,7 +1732,7 @@ if (completeSection) {
   <div class="cy-complete-card">
     <div class="cy-complete-header">
       <div class="cy-complete-icon">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-emerald)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" style="stroke-dasharray:40;stroke-dashoffset:0;animation:cy-checkmark-draw 0.55s 0.2s cubic-bezier(0.22,1,0.36,1) both;"><polyline points="20 6 9 17 4 12"/></svg>
+        <svg width="22" height="22" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="stroke-dasharray:60;stroke-dashoffset:0;animation:cy-checkmark-draw 0.55s 0.2s cubic-bezier(0.22,1,0.36,1) both;"><circle cx="18" cy="18" r="13" fill="var(--accent-emerald)" fill-opacity="0.12" stroke="var(--accent-emerald)" stroke-width="1.5"/><polyline points="10,18 15,23 26,12" stroke="var(--accent-emerald)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
       </div>
       <div class="cy-complete-header-text">
         <h3 class="cy-complete-title">Financial Year Closed</h3>
@@ -1553,7 +1749,7 @@ if (completeSection) {
         <div class="cy-stat-label">Merged Rec.</div>
       </div>
       <div class="cy-stat-cell">
-        <div class="cy-stat-val" style="color:var(--accent-emerald);">✓</div>
+        <div class="cy-stat-val" style="color:var(--accent-emerald);"></div>
         <div class="cy-stat-label">Backup Safe</div>
       </div>
     </div>
@@ -1588,13 +1784,16 @@ closeYearInProgress = false;
 closeYearAbortController = null;
 }
 }
+
 function _markRowSyncWarning(rowId, commitResult) {
+
+  _hasMergeCommitFailure = true;
   try {
     const rowEl = document.getElementById('cy-row-' + rowId);
     if (!rowEl) return;
     const statusEl = document.getElementById('cy-status-' + rowId);
     if (statusEl) {
-      statusEl.textContent = '⚠ Sync Failed';
+      statusEl.textContent = ' Sync Failed';
       statusEl.style.background = 'rgba(255,179,0,0.15)';
       statusEl.style.color = 'var(--warning)';
       statusEl.style.borderColor = 'rgba(255,179,0,0.35)';
@@ -1604,12 +1803,13 @@ function _markRowSyncWarning(rowId, commitResult) {
     if (noteEl) {
       const failMsg = document.createElement('span');
       failMsg.style.cssText = 'display:block;margin-top:3px;font-size:0.63rem;color:var(--warning);font-weight:600;';
-      failMsg.textContent = `⚠ Cloud sync incomplete — ${commitResult.batchesFailed}/${commitResult.batchesTotal} Firestore batch${commitResult.batchesFailed!==1?'es':''} failed. Local data is safe. Re-sync when online.`;
+      failMsg.textContent = ` Cloud sync incomplete — ${commitResult.batchesFailed}/${commitResult.batchesTotal} Firestore batch${commitResult.batchesFailed!==1?'es':''} failed. Local data is safe. Re-sync when online.`;
       noteEl.appendChild(failMsg);
     }
     rowEl.style.borderLeftColor = 'var(--warning)';
   } catch (e) {   }
 }
+
 function _buildMergedBase(id, mergeEpoch, nowISODate, nowTime, extra = {}) {
 return {
   id,
@@ -1624,8 +1824,9 @@ return {
   ...extra
 };
 }
-async function mergeProductionData(signal) {
-const db = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
+
+async function mergeProductionData(signal, closeEpoch) {
+  const db = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
 updateCloseYearProgress('Merging Production Data...', 10);
 if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
 if (!Array.isArray(db) || db.length === 0) return;
@@ -1633,8 +1834,9 @@ const nowDate    = new Date();
 const nowISODate = nowDate.toISOString().split('T')[0];
 const mergeEpoch = nowDate.getTime();
 const nowTime    = nowDate.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});
+const _recTs = r => r.createdAt || r.timestamp || 0;
 const mergedRecords = [];
-const nonMerged    = db.filter(i => i.isMerged !== true);
+const nonMerged    = db.filter(i => i.isMerged !== true && _recTs(i) <= closeEpoch);
 const prodItems    = nonMerged.filter(i => i.isReturn !== true);
 const returnItems  = nonMerged.filter(i => i.isReturn === true);
 const storeGroups = {};
@@ -1655,7 +1857,7 @@ for (const [store, items] of Object.entries(storeGroups)) {
     return acc;
   }, { net:0, totalCost:0, totalSale:0, profit:0, formulaUnits:0, formulaCost:0 });
   const avgCp = totals.net > 0 ? parseFloat((totals.totalCost / totals.net).toFixed(4)) : (items[0]?.cp || 0);
-  const canonicalSp = getSalePriceForStore(store);
+  const canonicalSp = await getSalePriceForStore(store);
   const avgSp = canonicalSp > 0 ? canonicalSp : (items[0]?.sp || 0);
   const allDates = items.map(i => i.date).filter(Boolean).sort();
   const mergedId = generateUUID('prod-merged');
@@ -1704,7 +1906,7 @@ for (const [, grp] of Object.entries(sellerReturnGroups)) {
     totalProfit += (item.profit    || 0);
   });
   const avgCp = totalNet > 0 ? parseFloat((totalCost / totalNet).toFixed(4)) : (items[0]?.cp || 0);
-  const canonicalSpRet = getSalePriceForStore(store);
+  const canonicalSpRet = await getSalePriceForStore(store);
   const avgSp = canonicalSpRet > 0 ? canonicalSpRet : (items[0]?.sp || 0);
   const allDates = items.map(i => i.date).filter(Boolean).sort();
   const mergedId = generateUUID('ret-merged');
@@ -1745,17 +1947,19 @@ if (firebaseDB && currentUser) {
   const userRef = firebaseDB.collection('users').doc(currentUser.uid);
   const commitResult = await _commitMergedBatch(userRef, 'production', mergedRecords);
   if (!commitResult.ok) {
-    console.warn(`mergeProductionData: Firestore commit partial failure — ${commitResult.batchesFailed}/${commitResult.batchesTotal} batch(es) failed`, commitResult.error);
+    console.warn(`mergeProductionData: Firestore commit partial failure — ${commitResult.batchesFailed}/${commitResult.batchesTotal} batch(es) failed`, _safeErr(commitResult.error));
     _markRowSyncWarning('prod', commitResult);
   }
 }
 const existingMerged = db.filter(item => item.isMerged === true);
-const mergedDb = [...existingMerged, ...mergedRecords];
+const postCloseRecords = db.filter(item => item.isMerged !== true && _recTs(item) > closeEpoch);
+const mergedDb = [...existingMerged, ...mergedRecords, ...postCloseRecords];
 await sqliteStore.set('mfg_pro_pkr', mergedDb);
 emitSyncUpdate({ mfg_pro_pkr: null});
 updateCloseYearProgress('Production Data Merged', 20);
 }
-async function mergeSalesData(signal) {
+
+async function mergeSalesData(signal, closeEpoch) {
 const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
 const salesCustomers = ensureArray(await sqliteStore.get('sales_customers'));
 updateCloseYearProgress('Merging Sales Data...', 30);
@@ -1765,10 +1969,12 @@ const nowDate    = new Date();
 const nowISODate = nowDate.toISOString().split('T')[0];
 const mergeEpoch = nowDate.getTime();
 const nowTime    = nowDate.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});
+const _recTs = r => r.createdAt || r.timestamp || 0;
 const mergedRecords = [];
 const customerBuckets = {};
 customerSales.forEach(item => {
   if (item.isMerged === true) return;
+  if (_recTs(item) > closeEpoch) return;
   const name = item.customerName || 'Unknown';
   if (!customerBuckets[name]) {
     customerBuckets[name] = {
@@ -1833,7 +2039,7 @@ for (const [customer, b] of Object.entries(customerBuckets)) {
   const recordCount = sales.length + (oldDebt > 0 ? 1 : 0) + (collectionTotal > 0 ? 1 : 0);
   const mergedId = generateUUID('sale-merged');
   const _mergedSupplyStore = supplyStore || firstItem.supplyStore || 'STORE_A';
-  const canonicalUnitPrice = getEffectiveSalePriceForCustomer(customer, _mergedSupplyStore);
+  const canonicalUnitPrice = await getEffectiveSalePriceForCustomer(customer, _mergedSupplyStore);
   const lastUnitPrice = canonicalUnitPrice > 0
     ? canonicalUnitPrice
     : (firstItem.unitPrice || (firstItem.quantity > 0 ? firstItem.totalValue / firstItem.quantity : 0) || 0);
@@ -1888,24 +2094,28 @@ if (firebaseDB && currentUser) {
   const userRef = firebaseDB.collection('users').doc(currentUser.uid);
   const commitResult = await _commitMergedBatch(userRef, 'sales', mergedRecords, d => !d.isMerged);
   if (!commitResult.ok) {
-    console.warn(`mergeSalesData: Firestore commit partial failure — ${commitResult.batchesFailed}/${commitResult.batchesTotal} batch(es) failed`, commitResult.error);
+    console.warn(`mergeSalesData: Firestore commit partial failure — ${commitResult.batchesFailed}/${commitResult.batchesTotal} batch(es) failed`, _safeErr(commitResult.error));
     _markRowSyncWarning('sales', commitResult);
   }
 }
 const existingMerged = customerSales.filter(i => i.isMerged === true);
-const mergedSales = [...existingMerged, ...mergedRecords];
+const postCloseSales = customerSales.filter(i => i.isMerged !== true && _recTs(i) > closeEpoch);
+const mergedSales = [...existingMerged, ...mergedRecords, ...postCloseSales];
 await sqliteStore.set('customer_sales', mergedSales);
 emitSyncUpdate({ customer_sales: null});
 updateCloseYearProgress('Sales Data Merged', 40);
 }
-async function mergeCalculatorData(signal) {
+
+async function mergeCalculatorData(signal, closeEpoch) {
 const salesHistory = ensureArray(await sqliteStore.get('noman_history'));
 updateCloseYearProgress('Merging Calculator Data...', 50);
 if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
 if (!Array.isArray(salesHistory) || salesHistory.length === 0) return;
+const _recTs = r => r.createdAt || r.timestamp || 0;
 const repGroups = {};
 salesHistory.forEach(item => {
   if (item.isMerged === true) return;
+  if (_recTs(item) > closeEpoch) return;
   const seller = item.seller || 'Unknown';
   if (!repGroups[seller]) repGroups[seller] = [];
   repGroups[seller].push(item);
@@ -1942,13 +2152,13 @@ for (const [seller, items] of Object.entries(repGroups)) {
     return acc;
   }, { totalSold:0, returned:0, netSold:0, creditQty:0, cashQty:0, revenue:0, profit:0, totalCost:0, creditValue:0, prevColl:0, received:0, totalExpected:0, returnsByStore:{} });
   const mergedNetSold = sellerTotals.totalSold - sellerTotals.returned;
-  const _calcCanonicalSp = getSalePriceForStore('STORE_A');
+  const _calcCanonicalSp = await getSalePriceForStore('STORE_A');
   const avgUnitPrice = _calcCanonicalSp > 0
     ? _calcCanonicalSp
     : (firstItem.unitPrice || 0);
   const avgCostPrice = mergedNetSold > 0
     ? parseFloat((sellerTotals.totalCost / mergedNetSold).toFixed(4))
-    : (firstItem.costPrice || calculateSalesCostPerKg('standard') || 0);
+    : (firstItem.costPrice || (await calculateSalesCostPerKg('standard')) || 0);
   const returnStoreEntries = Object.entries(sellerTotals.returnsByStore);
   const primaryReturnStore = returnStoreEntries.length > 0
     ? returnStoreEntries.sort((a, b) => b[1] - a[1])[0][0]
@@ -1989,27 +2199,30 @@ if (firebaseDB && currentUser) {
   const userRef = firebaseDB.collection('users').doc(currentUser.uid);
   const commitResult = await _commitMergedBatch(userRef, 'calculator_history', mergedRecords);
   if (!commitResult.ok) {
-    console.warn(`mergeCalculatorData: Firestore commit partial failure — ${commitResult.batchesFailed}/${commitResult.batchesTotal} batch(es) failed`, commitResult.error);
+    console.warn(`mergeCalculatorData: Firestore commit partial failure — ${commitResult.batchesFailed}/${commitResult.batchesTotal} batch(es) failed`, _safeErr(commitResult.error));
     _markRowSyncWarning('calc', commitResult);
   }
 }
 const existingMergedCalc = salesHistory.filter(item => item.isMerged === true);
-const mergedHistory = [...existingMergedCalc, ...mergedRecords];
+const postCloseCalc = salesHistory.filter(item => item.isMerged !== true && _recTs(item) > closeEpoch);
+const mergedHistory = [...existingMergedCalc, ...mergedRecords, ...postCloseCalc];
 await sqliteStore.set('noman_history', mergedHistory);
 emitSyncUpdate({ noman_history: null});
-await sqliteStore.set('noman_history', salesHistory);
-emitSyncUpdate({ noman_history: null});
+
 updateCloseYearProgress('Calculator Data Merged', 60);
 }
-async function mergePaymentData(signal) {
+
+async function mergePaymentData(signal, closeEpoch) {
 const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
 const paymentEntities = ensureArray(await sqliteStore.get('payment_entities'));
 updateCloseYearProgress('Merging Payment Data...', 70);
 if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
 if (!Array.isArray(paymentTransactions) || paymentTransactions.length === 0) return;
+const _recTs = r => r.createdAt || r.timestamp || 0;
 const entityGroups = {};
 paymentTransactions.forEach(item => {
   if (item.isMerged === true) return;
+  if (_recTs(item) > closeEpoch) return;
   const entityId = item.entityId || 'unknown';
   if (!entityGroups[entityId]) entityGroups[entityId] = [];
   entityGroups[entityId].push(item);
@@ -2068,23 +2281,26 @@ if (firebaseDB && currentUser) {
   const userRef = firebaseDB.collection('users').doc(currentUser.uid);
   const commitResult = await _commitMergedBatch(userRef, 'transactions', mergedRecords);
   if (!commitResult.ok) {
-    console.warn(`mergePaymentData: Firestore commit partial failure — ${commitResult.batchesFailed}/${commitResult.batchesTotal} batch(es) failed`, commitResult.error);
+    console.warn(`mergePaymentData: Firestore commit partial failure — ${commitResult.batchesFailed}/${commitResult.batchesTotal} batch(es) failed`, _safeErr(commitResult.error));
     _markRowSyncWarning('pay', commitResult);
   }
 }
 const existingMergedPay = paymentTransactions.filter(item => item.isMerged === true);
-const mergedPayTx = [...existingMergedPay, ...mergedRecords];
+const postClosePay = paymentTransactions.filter(item => item.isMerged !== true && _recTs(item) > closeEpoch);
+const mergedPayTx = [...existingMergedPay, ...mergedRecords, ...postClosePay];
 await sqliteStore.set('payment_transactions', mergedPayTx);
 emitSyncUpdate({ payment_transactions: null});
 updateCloseYearProgress('Payment Data Merged', 80);
 }
-async function mergeFactoryData(signal) {
+
+async function mergeFactoryData(signal, closeEpoch) {
 const factoryInventoryData = ensureArray(await sqliteStore.get('factory_inventory_data'));
 const factoryProductionHistory = ensureArray(await sqliteStore.get('factory_production_history'));
 updateCloseYearProgress('Merging Factory Data...', 85);
 if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
 if (!Array.isArray(factoryProductionHistory) || factoryProductionHistory.length === 0) return;
-const nonMergedRecords = factoryProductionHistory.filter(item => item.isMerged !== true);
+const _recTs = r => r.createdAt || r.timestamp || 0;
+const nonMergedRecords = factoryProductionHistory.filter(item => item.isMerged !== true && _recTs(item) <= closeEpoch);
 if (nonMergedRecords.length === 0) {
   updateCloseYearProgress('Factory Data - No New Records to Merge', 90);
   return;
@@ -2139,19 +2355,20 @@ if (firebaseDB && currentUser) {
   const userRef = firebaseDB.collection('users').doc(currentUser.uid);
   const commitResult = await _commitMergedBatch(userRef, 'factory_history', mergedRecords);
   if (!commitResult.ok) {
-    console.warn(`mergeFactoryData: Firestore commit partial failure — ${commitResult.batchesFailed}/${commitResult.batchesTotal} batch(es) failed`, commitResult.error);
+    console.warn(`mergeFactoryData: Firestore commit partial failure — ${commitResult.batchesFailed}/${commitResult.batchesTotal} batch(es) failed`, _safeErr(commitResult.error));
     _markRowSyncWarning('factory', commitResult);
   }
 }
 const existingMergedFactory = factoryProductionHistory.filter(item => item.isMerged === true);
-const mergedFph = [...existingMergedFactory, ...mergedRecords];
+const postCloseFactory = factoryProductionHistory.filter(item => item.isMerged !== true && _recTs(item) > closeEpoch);
+const mergedFph = [...existingMergedFactory, ...mergedRecords, ...postCloseFactory];
 await sqliteStore.set('factory_production_history', mergedFph);
 emitSyncUpdate({ factory_production_history: null});
-await sqliteStore.set('factory_production_history', factoryProductionHistory);
-emitSyncUpdate({ factory_production_history: null});
+
 updateCloseYearProgress('Factory Data Merged', 90);
 }
-async function mergeRepSalesData(signal) {
+
+async function mergeRepSalesData(signal, closeEpoch) {
 const repSales = ensureArray(await sqliteStore.get('rep_sales'));
 const repCustomers = ensureArray(await sqliteStore.get('rep_customers'));
 updateCloseYearProgress('Merging Rep Sales Data...', 88);
@@ -2161,11 +2378,13 @@ const nowDate    = new Date();
 const nowISODate = nowDate.toISOString().split('T')[0];
 const mergeEpoch = nowDate.getTime();
 const nowTime    = nowDate.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});
+const _recTs = r => r.createdAt || r.timestamp || 0;
 const mergedRecords = [];
 const repBuckets = {};
 repSales.forEach(item => {
   if (item.isMerged === true) return;
   if (!item.salesRep || item.salesRep === 'NONE' || item.salesRep === 'ADMIN') return;
+  if (_recTs(item) > closeEpoch) return;
   const name = item.customerName || 'Unknown';
   const rep  = item.salesRep     || 'NONE';
   const key  = `${name}::${rep}`;
@@ -2232,7 +2451,7 @@ for (const [, b] of Object.entries(repBuckets)) {
   const recordCount = sales.length + (oldDebt > 0 ? 1 : 0) + (collectionTotal > 0 ? 1 : 0);
   const mergedId = generateUUID('sale-merged');
   const _repMergedStore = supplyStore || firstItem.supplyStore || 'STORE_A';
-  const repCanonicalPrice = getSalePriceForStore(_repMergedStore);
+  const repCanonicalPrice = await getSalePriceForStore(_repMergedStore);
   const lastUnitPrice = repCanonicalPrice > 0
     ? repCanonicalPrice
     : (firstItem.unitPrice || (firstItem.quantity > 0 ? firstItem.totalValue / firstItem.quantity : 0) || 0);
@@ -2286,17 +2505,19 @@ if (firebaseDB && currentUser) {
   const userRef = firebaseDB.collection('users').doc(currentUser.uid);
   const commitResult = await _commitMergedBatch(userRef, 'rep_sales', mergedRecords, d => !d.isMerged);
   if (!commitResult.ok) {
-    console.warn(`mergeRepSalesData: Firestore commit partial failure — ${commitResult.batchesFailed}/${commitResult.batchesTotal} batch(es) failed`, commitResult.error);
+    console.warn(`mergeRepSalesData: Firestore commit partial failure — ${commitResult.batchesFailed}/${commitResult.batchesTotal} batch(es) failed`, _safeErr(commitResult.error));
     _markRowSyncWarning('repsales', commitResult);
   }
 }
 const existingMergedRep = repSales.filter(item => item.isMerged === true);
-const mergedRepSales = [...existingMergedRep, ...mergedRecords];
+const postCloseRep = repSales.filter(item => item.isMerged !== true && _recTs(item) > closeEpoch);
+const mergedRepSales = [...existingMergedRep, ...mergedRecords, ...postCloseRep];
 await sqliteStore.set('rep_sales', mergedRepSales);
 emitSyncUpdate({ rep_sales: null});
 updateCloseYearProgress('Rep Sales Data Merged', 92);
 }
-async function mergeExpensesData(signal) {
+
+async function mergeExpensesData(signal, closeEpoch) {
 const expenseRecords = ensureArray(await sqliteStore.get('expenses'));
 const expenseCategories = ensureArray(await sqliteStore.get('expense_categories'));
 updateCloseYearProgress('Merging Expenses...', 94);
@@ -2309,9 +2530,11 @@ const nowDate    = new Date();
 const nowISODate = nowDate.toISOString().split('T')[0];
 const mergeEpoch = nowDate.getTime();
 const nowTime    = nowDate.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});
+const _recTs = r => r.createdAt || r.timestamp || 0;
 const expenseGroups = {};
 expenseRecords.forEach(exp => {
   if (exp.isMerged === true) return;
+  if (_recTs(exp) > closeEpoch) return;
   const cat  = exp.category || 'operating';
   const name = (exp.name    || 'Unnamed').trim();
   const key  = `${cat}||${name}`;
@@ -2332,14 +2555,14 @@ for (const [, grp] of Object.entries(expenseGroups)) {
   const mergedRecord = ensureRecordIntegrity({
     ..._buildMergedBase(mergedId, mergeEpoch, nowISODate, nowTime, {}),
     name,
-    amount:      parseFloat(fmtAmt(totalAmount)),
+    amount:      parseFloat(totalAmount.toFixed(2)),
     category,
     description: `Year-end merged total for "${name}" (${records.length} record${records.length !== 1 ? 's' : ''})`,
     mergedRecordCount: records.length,
     mergedSummary: {
       category,
       expenseName:  name,
-      totalAmount:  parseFloat(fmtAmt(totalAmount)),
+      totalAmount:  parseFloat(totalAmount.toFixed(2)),
       dateRange: {
         from: allDates[0]           || nowISODate,
         to:   allDates.slice(-1)[0] || nowISODate
@@ -2354,17 +2577,48 @@ if (firebaseDB && currentUser) {
   const userRef = firebaseDB.collection('users').doc(currentUser.uid);
   const commitResult = await _commitMergedBatch(userRef, 'expenses', mergedRecords, d => !d.isMerged);
   if (!commitResult.ok) {
-    console.warn(`mergeExpensesData: Firestore commit partial failure — ${commitResult.batchesFailed}/${commitResult.batchesTotal} batch(es) failed`, commitResult.error);
+    console.warn(`mergeExpensesData: Firestore commit partial failure — ${commitResult.batchesFailed}/${commitResult.batchesTotal} batch(es) failed`, _safeErr(commitResult.error));
     _markRowSyncWarning('exp', commitResult);
   }
 }
 const existingMerged = expenseRecords.filter(e => e.isMerged === true);
-const mergedExpenses = [...existingMerged, ...mergedRecords];
-await sqliteStore.set('expenses', expenseRecords);
+const postCloseExpenses = expenseRecords.filter(e => e.isMerged !== true && _recTs(e) > closeEpoch);
+const mergedExpenses = [...existingMerged, ...mergedRecords, ...postCloseExpenses];
+await sqliteStore.set('expenses', mergedExpenses);
+
+try {
+  const _keptIds = new Set(mergedExpenses.map(e => e.id));
+  const _mergedAwayIds = expenseRecords
+    .filter(e => !_keptIds.has(e.id))
+    .map(e => e.id);
+  if (_mergedAwayIds.length > 0) {
+    const _fyPh   = (await sqliteStore.get('person_photos')) || {};
+    const _fyPhTs = (await sqliteStore.get('person_photos_timestamps')) || {};
+    const _fyDk   = (await sqliteStore.get('person_photos_dirty_keys')) || [];
+    let _fyPhChanged = false;
+    for (const _mergedId of _mergedAwayIds) {
+      const _mergedPhKey = 'expense:' + _mergedId;
+      if (_fyPh[_mergedPhKey] !== undefined) {
+        delete _fyPh[_mergedPhKey];
+        delete _fyPhTs[_mergedPhKey];
+        if (!_fyDk.includes(_mergedPhKey)) _fyDk.push(_mergedPhKey);
+        _fyPhChanged = true;
+      }
+    }
+    if (_fyPhChanged) {
+      await sqliteStore.set('person_photos', _fyPh);
+      await sqliteStore.set('person_photos_timestamps', _fyPhTs);
+      await sqliteStore.set('person_photos_dirty_keys', _fyDk);
+      console.log('[mergeExpensesData] Queued photo deletion for', _mergedAwayIds.length, 'merged expense record(s).');
+    }
+  }
+} catch (_fyPhErr) { console.warn('[mergeExpensesData] photo cleanup failed:', _fyPhErr); }
+
 emitSyncUpdate({ expenses: null});
 updateCloseYearProgress('Expenses Merged', 97);
 }
-async function mergeStockReturnsData(signal) {
+
+async function mergeStockReturnsData(signal, closeEpoch) {
 const stockReturns = ensureArray(await sqliteStore.get('stock_returns'));
 updateCloseYearProgress('Merging Stock Returns...', 98);
 if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -2376,9 +2630,11 @@ const nowDate    = new Date();
 const nowISODate = nowDate.toISOString().split('T')[0];
 const mergeEpoch = nowDate.getTime();
 const nowTime    = nowDate.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});
+const _recTs = r => r.createdAt || r.timestamp || 0;
 const storeGroups = {};
 stockReturns.forEach(ret => {
   if (ret.isMerged === true) return;
+  if (_recTs(ret) > closeEpoch) return;
   const store = ret.store || 'UNKNOWN';
   const date  = ret.date  || nowISODate;
   const key   = `${store}||${date}`;
@@ -2429,27 +2685,29 @@ if (firebaseDB && currentUser) {
   const userRef = firebaseDB.collection('users').doc(currentUser.uid);
   const commitResult = await _commitMergedBatch(userRef, 'returns', mergedRecords, d => !d.isMerged);
   if (!commitResult.ok) {
-    console.warn(`mergeStockReturnsData: Firestore commit partial failure — ${commitResult.batchesFailed}/${commitResult.batchesTotal} batch(es) failed`, commitResult.error);
+    console.warn(`mergeStockReturnsData: Firestore commit partial failure — ${commitResult.batchesFailed}/${commitResult.batchesTotal} batch(es) failed`, _safeErr(commitResult.error));
     _markRowSyncWarning('ret', commitResult);
   }
 }
 const existingMerged = stockReturns.filter(r => r.isMerged === true);
-const mergedReturns = [...existingMerged, ...mergedRecords];
-await sqliteStore.set('stock_returns', stockReturns);
+const postCloseReturns = stockReturns.filter(r => r.isMerged !== true && _recTs(r) > closeEpoch);
+const mergedReturns = [...existingMerged, ...mergedRecords, ...postCloseReturns];
+await sqliteStore.set('stock_returns', mergedReturns);
 emitSyncUpdate({ stock_returns: null});
 updateCloseYearProgress('Stock Returns Merged', 100);
 }
+
 async function verifyTimestampConsistency() {
-const db = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
-const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
-const repSales = ensureArray(await sqliteStore.get('rep_sales'));
-const salesHistory = ensureArray(await sqliteStore.get('noman_history'));
-const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
-const stockReturns = ensureArray(await sqliteStore.get('stock_returns'));
-const expenseRecords = ensureArray(await sqliteStore.get('expenses'));
-const factoryInventoryData = ensureArray(await sqliteStore.get('factory_inventory_data'));
-const factoryProductionHistory = ensureArray(await sqliteStore.get('factory_production_history'));
-const report = {
+  const db = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
+  const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
+  const repSales = ensureArray(await sqliteStore.get('rep_sales'));
+  const salesHistory = ensureArray(await sqliteStore.get('noman_history'));
+  const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
+  const stockReturns = ensureArray(await sqliteStore.get('stock_returns'));
+  const expenseRecords = ensureArray(await sqliteStore.get('expenses'));
+  const factoryInventoryData = ensureArray(await sqliteStore.get('factory_inventory_data'));
+  const factoryProductionHistory = ensureArray(await sqliteStore.get('factory_production_history'));
+  const report = {
 collections: {},
 settings: {},
 issues: [],
@@ -2565,27 +2823,28 @@ report.settings[key] = { hasTimestamp: true, timestamp: timestamp || Date.now() 
 }
 const totalFixed = report.fixed.missingTimestamps + report.fixed.inconsistentTimestamps + report.fixed.settingTimestamps;
 if (totalFixed > 0) {
-showToast(`✓ Timestamp repair: fixed ${totalFixed} record${totalFixed !== 1 ? 's' : ''} (${report.fixed.missingTimestamps} missing, ${report.fixed.inconsistentTimestamps} inconsistent).`, 'success', 4000);
+showToast(` Timestamp repair: fixed ${totalFixed} record${totalFixed !== 1 ? 's' : ''} (${report.fixed.missingTimestamps} missing, ${report.fixed.inconsistentTimestamps} inconsistent).`, 'success', 4000);
 } else {
 showToast('Timestamp consistency check passed — all records healthy.', 'success', 3000);
 }
 return report;
 }
+
 async function deduplicateAllData() {
-const db = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
-const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
-const repSales = ensureArray(await sqliteStore.get('rep_sales'));
-const repCustomers = ensureArray(await sqliteStore.get('rep_customers'));
-const salesCustomers = ensureArray(await sqliteStore.get('sales_customers'));
-const salesHistory = ensureArray(await sqliteStore.get('noman_history'));
-const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
-const paymentEntities = ensureArray(await sqliteStore.get('payment_entities'));
-const stockReturns = ensureArray(await sqliteStore.get('stock_returns'));
-const expenseRecords = ensureArray(await sqliteStore.get('expenses'));
-const factoryInventoryData = ensureArray(await sqliteStore.get('factory_inventory_data'));
-const factoryProductionHistory = ensureArray(await sqliteStore.get('factory_production_history'));
-const deletedRecordIds = new Set(ensureArray(await sqliteStore.get('deleted_records')));
-const _ddMsg = `Run a full deduplication scan?\n\nThis will:\n • Scan all records across every collection\n • Remove exact duplicate entries (keeping the newest version)\n • Sync cleaned data to the cloud\n\n\u26a0 This operation may take 30–60 seconds depending on data volume. Do not close the app while it runs.\n\nThis cannot be undone — but your data will only be improved, not deleted.`;
+  const db = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
+  const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
+  const repSales = ensureArray(await sqliteStore.get('rep_sales'));
+  const repCustomers = ensureArray(await sqliteStore.get('rep_customers'));
+  const salesCustomers = ensureArray(await sqliteStore.get('sales_customers'));
+  const salesHistory = ensureArray(await sqliteStore.get('noman_history'));
+  const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
+  const paymentEntities = ensureArray(await sqliteStore.get('payment_entities'));
+  const stockReturns = ensureArray(await sqliteStore.get('stock_returns'));
+  const expenseRecords = ensureArray(await sqliteStore.get('expenses'));
+  const factoryInventoryData = ensureArray(await sqliteStore.get('factory_inventory_data'));
+  const factoryProductionHistory = ensureArray(await sqliteStore.get('factory_production_history'));
+  const deletedRecordIds = new Set(ensureArray(await sqliteStore.get('deleted_records')));
+  const _ddMsg = `Run a full deduplication scan?\n\nThis will:\n • Scan all records across every collection\n • Remove exact duplicate entries (keeping the newest version)\n • Sync cleaned data to the cloud\n\n\u26a0 This operation may take 30–60 seconds depending on data volume. Do not close the app while it runs.\n\nThis cannot be undone — but your data will only be improved, not deleted.`;
 if (!(await showGlassConfirm(_ddMsg, { title: 'Deduplicate All Data', confirmText: 'Run Cleanup', cancelText: 'Cancel', danger: true }))) {
 return;
 }
@@ -2700,23 +2959,36 @@ showToast(' No duplicates found! Data is clean.', 'success');
 }
 return results;
 }
+function dbvShowTab(i) {
+  [0,1,2,3].forEach(j => {
+    const p = document.getElementById('dbv-pane-'+j);
+    const t = document.getElementById('dbv-tab-'+j);
+    if (p) p.style.display = j===i ? '' : 'none';
+    if (t) {
+      t.style.background = j===i ? 'var(--accent)' : 'rgba(128,128,128,0.12)';
+      t.style.color = j===i ? '#fff' : 'var(--text-muted)';
+    }
+  });
+}
+window.dbvShowTab = dbvShowTab;
+
 window.showDeltaSyncDetails = showDeltaSyncDetails;
 window.verifyTimestampConsistency = verifyTimestampConsistency;
 window.deduplicateAllData = deduplicateAllData;
 async function verifyCompleteTimestampConsistency() {
-const db = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
-const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
-const repSales = ensureArray(await sqliteStore.get('rep_sales'));
-const repCustomers = ensureArray(await sqliteStore.get('rep_customers'));
-const salesCustomers = ensureArray(await sqliteStore.get('sales_customers'));
-const salesHistory = ensureArray(await sqliteStore.get('noman_history'));
-const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
-const paymentEntities = ensureArray(await sqliteStore.get('payment_entities'));
-const stockReturns = ensureArray(await sqliteStore.get('stock_returns'));
-const expenseRecords = ensureArray(await sqliteStore.get('expenses'));
-const factoryInventoryData = ensureArray(await sqliteStore.get('factory_inventory_data'));
-const factoryProductionHistory = ensureArray(await sqliteStore.get('factory_production_history'));
-const report = {
+  const db = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
+  const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
+  const repSales = ensureArray(await sqliteStore.get('rep_sales'));
+  const repCustomers = ensureArray(await sqliteStore.get('rep_customers'));
+  const salesCustomers = ensureArray(await sqliteStore.get('sales_customers'));
+  const salesHistory = ensureArray(await sqliteStore.get('noman_history'));
+  const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
+  const paymentEntities = ensureArray(await sqliteStore.get('payment_entities'));
+  const stockReturns = ensureArray(await sqliteStore.get('stock_returns'));
+  const expenseRecords = ensureArray(await sqliteStore.get('expenses'));
+  const factoryInventoryData = ensureArray(await sqliteStore.get('factory_inventory_data'));
+  const factoryProductionHistory = ensureArray(await sqliteStore.get('factory_production_history'));
+  const report = {
 tabs: {},
 sqlite: {},
 deltaSync: {},
@@ -2936,12 +3208,13 @@ if (report.issues.length > 5) {
 } else {
 }
 if (report.issues.length > 0) {
-showToast(`⚠ Full verification: ${report.issues.length} issue${report.issues.length !== 1 ? 's' : ''} detected.`, 'warning', 4500);
+showToast(` Full verification: ${report.issues.length} issue${report.issues.length !== 1 ? 's' : ''} detected.`, 'warning', 4500);
 } else {
 showToast('Full system verification passed — all data is consistent.', 'success', 3500);
 }
 return report;
 }
+
 function extractTimestampValue(record) {
 if (!record) return 0;
 let ts = record.updatedAt || record.timestamp || record.createdAt || 0;
@@ -2963,19 +3236,19 @@ return 0;
 }
 window.verifyCompleteTimestampConsistency = verifyCompleteTimestampConsistency;
 async function runUnifiedCleanup() {
-const db = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
-const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
-const repSales = ensureArray(await sqliteStore.get('rep_sales'));
-const repCustomers = ensureArray(await sqliteStore.get('rep_customers'));
-const salesCustomers = ensureArray(await sqliteStore.get('sales_customers'));
-const salesHistory = ensureArray(await sqliteStore.get('noman_history'));
-const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
-const paymentEntities = ensureArray(await sqliteStore.get('payment_entities'));
-const stockReturns = ensureArray(await sqliteStore.get('stock_returns'));
-const expenseRecords = ensureArray(await sqliteStore.get('expenses'));
-const factoryInventoryData = ensureArray(await sqliteStore.get('factory_inventory_data'));
-const factoryProductionHistory = ensureArray(await sqliteStore.get('factory_production_history'));
-const deletedRecordIds = new Set(ensureArray(await sqliteStore.get('deleted_records')));
+  const db = ensureArray(await sqliteStore.get('mfg_pro_pkr'));
+  const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
+  const repSales = ensureArray(await sqliteStore.get('rep_sales'));
+  const repCustomers = ensureArray(await sqliteStore.get('rep_customers'));
+  const salesCustomers = ensureArray(await sqliteStore.get('sales_customers'));
+  const salesHistory = ensureArray(await sqliteStore.get('noman_history'));
+  const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
+  const paymentEntities = ensureArray(await sqliteStore.get('payment_entities'));
+  const stockReturns = ensureArray(await sqliteStore.get('stock_returns'));
+  const expenseRecords = ensureArray(await sqliteStore.get('expenses'));
+  const factoryInventoryData = ensureArray(await sqliteStore.get('factory_inventory_data'));
+  const factoryProductionHistory = ensureArray(await sqliteStore.get('factory_production_history'));
+  const deletedRecordIds = new Set(ensureArray(await sqliteStore.get('deleted_records')));
 if (!(await showGlassConfirm(
   'Clean all duplicate records?\n\n\u2022 Scans every collection in SQLite\n\u2022 Removes duplicates using record timestamps as the version selector\n\u2022 Deletes the duplicate documents from Firestore\n\u2022 Re-uploads the clean, deduplicated set\n\nNo valid records are deleted \u2014 only true duplicates (same UUID) are resolved.',
   { title: 'Clean Duplicates & Sync', confirmText: 'Clean & Sync', cancelText: 'Cancel', danger: false }

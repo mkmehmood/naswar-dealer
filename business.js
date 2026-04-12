@@ -37,6 +37,7 @@ function _triggerFileDownload(blob, filename) {
     }, 300);
   }, 0);
 }
+
 function _readFileAsArrayBuffer(file) {
   if (typeof file.arrayBuffer === 'function') {
     return file.arrayBuffer();
@@ -48,6 +49,7 @@ function _readFileAsArrayBuffer(file) {
     fr.readAsArrayBuffer(file);
   });
 }
+
 function _readFileAsText(file) {
   if (typeof file.text === 'function') return file.text();
   return new Promise((resolve, reject) => {
@@ -57,166 +59,6 @@ function _readFileAsText(file) {
     fr.readAsText(file);
   });
 }
-const GNDVirtualScroll = (() => {
-  const OVERSCAN   = 5;
-  const FALLBACK_H = 44;
-  const _instances = new Map();
-  function _makeSpacerRow(colSpan) {
-    const tr = document.createElement('tr');
-    tr.setAttribute('aria-hidden', 'true');
-    const td = document.createElement('td');
-    td.colSpan  = colSpan;
-    td.style.cssText = 'height:0px; padding:0; border:none; pointer-events:none;';
-    tr.appendChild(td);
-    tr.style.cssText = 'height:0px; pointer-events:none;';
-    return tr;
-  }
-  function _setSpacerHeight(spacerRow, px) {
-    const h = Math.max(0, Math.round(px)) + 'px';
-    spacerRow.style.height = h;
-    spacerRow.firstElementChild.style.height = h;
-  }
-  function _colSpanOf(tbody) {
-    const first = Array.from(tbody.rows).find(r => !r.hasAttribute('aria-hidden'));
-    if (first) return first.cells.length || 5;
-    const table = tbody.closest('table');
-    if (table) {
-      const hRow = table.querySelector('thead tr');
-      if (hRow) return hRow.cells.length || 5;
-    }
-    return 5;
-  }
-  function _render(inst) {
-    const { scroller, tbody, items, buildRow, topSpacer, botSpacer } = inst;
-    const rowH    = inst.rowHeight || FALLBACK_H;
-    const scrollH = scroller.clientHeight;
-    const scrollT = scroller.scrollTop;
-    if (items.length === 0) return;
-    const firstVis = Math.max(0, Math.floor(scrollT / rowH) - OVERSCAN);
-    const lastVis  = Math.min(items.length - 1,
-                       Math.ceil((scrollT + scrollH) / rowH) + OVERSCAN);
-    if (inst.renderedFirst === firstVis && inst.renderedLast === lastVis) return;
-    inst.renderedFirst = firstVis;
-    inst.renderedLast  = lastVis;
-    const frag = document.createDocumentFragment();
-    for (let i = firstVis; i <= lastVis; i++) {
-      const el = buildRow(items[i], i);
-      if (el) frag.appendChild(el);
-    }
-    _setSpacerHeight(topSpacer, firstVis * rowH);
-    _setSpacerHeight(botSpacer, (items.length - 1 - lastVis) * rowH);
-    try {
-      let child = topSpacer.nextSibling;
-      while (child && child !== botSpacer) {
-        const next = child.nextSibling;
-        tbody.removeChild(child);
-        child = next;
-      }
-      tbody.insertBefore(frag, botSpacer);
-    } catch (_domErr) {
-      if (_domErr instanceof DOMException) return;
-      throw _domErr;
-    }
-  }
-  function _measureRowHeight(inst) {
-    const first = Array.from(inst.tbody.rows).find(r => !r.hasAttribute('aria-hidden'));
-    if (first && first.offsetHeight > 0) {
-      inst.rowHeight = first.offsetHeight;
-    }
-  }
-  function mount(scrollerId, items, buildRow, tbody) {
-    destroy(scrollerId);
-    const scroller = document.getElementById(scrollerId);
-    if (!scroller) {
-      tbody.innerHTML = '';
-      const frag = document.createDocumentFragment();
-      items.forEach((item, i) => {
-        const el = buildRow(item, i);
-        if (el) frag.appendChild(el);
-      });
-      tbody.appendChild(frag);
-      return;
-    }
-    if (!items || items.length === 0) {
-      tbody.innerHTML = '';
-      return;
-    }
-    const colSpan  = _colSpanOf(tbody) || 5;
-    const topSpacer = _makeSpacerRow(colSpan);
-    const botSpacer = _makeSpacerRow(colSpan);
-    tbody.innerHTML = '';
-    tbody.appendChild(topSpacer);
-    tbody.appendChild(botSpacer);
-    const inst = {
-      scroller, tbody, items, buildRow,
-      topSpacer, botSpacer,
-      rowHeight: FALLBACK_H,
-      renderedFirst: -1,
-      renderedLast:  -1,
-      rafId: null,
-      scrollHandler: null,
-      resizeObs: null,
-      intersectionObs: null,
-    };
-    _instances.set(scrollerId, inst);
-    _render(inst);
-    requestAnimationFrame(() => {
-      try {
-        _measureRowHeight(inst);
-        _render(inst);
-      } catch (_rafErr) {
-        if (!(_rafErr instanceof DOMException)) throw _rafErr;
-      }
-    });
-    inst.scrollHandler = () => {
-      if (inst.rafId) return;
-      inst.rafId = requestAnimationFrame(() => {
-        inst.rafId = null;
-        try { _render(inst); }
-        catch (_scrollErr) { if (!(_scrollErr instanceof DOMException)) throw _scrollErr; }
-      });
-    };
-    scroller.addEventListener('scroll', inst.scrollHandler, { passive: true });
-    if (typeof ResizeObserver !== 'undefined') {
-      inst.resizeObs = new ResizeObserver(() => {
-        try {
-          inst.renderedFirst = -1;
-          inst.renderedLast  = -1;
-          _measureRowHeight(inst);
-          _render(inst);
-        } catch (_resizeErr) {
-          if (!(_resizeErr instanceof DOMException)) throw _resizeErr;
-        }
-      });
-      inst.resizeObs.observe(scroller);
-    }
-    if (typeof IntersectionObserver !== 'undefined') {
-      inst.intersectionObs = new IntersectionObserver(entries => {
-        if (entries[0].isIntersecting) {
-          try {
-            inst.renderedFirst = -1;
-            inst.renderedLast  = -1;
-            _measureRowHeight(inst);
-            _render(inst);
-          } catch (_intErr) {
-            if (!(_intErr instanceof DOMException)) throw _intErr;
-          }
-        }
-      }, { threshold: 0 });
-      inst.intersectionObs.observe(scroller);
-    }
-  }
-  function destroy(scrollerId) {
-    const inst = _instances.get(scrollerId);
-    if (!inst) return;
-    if (inst.rafId) cancelAnimationFrame(inst.rafId);
-    if (inst.scrollHandler) inst.scroller.removeEventListener('scroll', inst.scrollHandler);
-    if (inst.resizeObs)      inst.resizeObs.disconnect();
-    if (inst.intersectionObs) inst.intersectionObs.disconnect();
-    _instances.delete(scrollerId);
-  }
-  return { mount, destroy };
-})();
 if (window.trustedTypes && window.trustedTypes.createPolicy) {
   window._gndHTMLPolicy = window.trustedTypes.createPolicy('gnd-html-policy', {
     createHTML: (s) => s
@@ -360,7 +202,7 @@ const _OPFSStore = (() => {
         const root = await navigator.storage.getDirectory();
         const fh   = await root.getFileHandle(filename);
         return JSON.parse(await (await fh.getFile()).text());
-      } catch { /* fall through to localStorage */ }
+      } catch {   }
     }
     try { const r = localStorage.getItem(lsKey); return r ? JSON.parse(r) : {}; } catch { return {}; }
   }
@@ -760,9 +602,11 @@ function safeNumber(value, defaultValue = 0) {
 const num = Number(value);
 return (isNaN(num) || !isFinite(num)) ? defaultValue : num;
 }
+
 function safeToFixed(value, decimals = 2) {
 return safeNumber(value, 0).toFixed(decimals);
 }
+
 function formatIndianCurrency(value) {
 const num = Math.round(safeNumber(value, 0));
 if (isNaN(num)) return '0';
@@ -780,13 +624,16 @@ result = restFormatted + ',' + last3;
 }
 return isNeg ? '-' + result : result;
 }
+
 function fmtAmt(value) {
 return formatIndianCurrency(value);
 }
+
 function safeString(value, defaultValue = '') {
 if (value === null || value === undefined) return defaultValue;
 return String(value);
 }
+
 function safeReplace(value, searchValue, replaceValue) {
 return safeString(value).replace(searchValue, replaceValue);
 }
@@ -863,6 +710,7 @@ const sqliteStore = (() => {
     'expense_categories', 'sales_reps_list', 'user_roles_list',
     'offline_operation_queue', 'offline_dead_letter_queue',
     'ui_state', 'app_theme', 'firestore_stats', 'session_start',
+    'app_stores',
   ]);
 
   function _rowType(key) {
@@ -1057,16 +905,8 @@ const sqliteStore = (() => {
     return null;
   }
 
-  async function _canFetch(url) {
-    try {
-      const r = await fetch(url, { method: 'HEAD', cache: 'no-cache' });
-      return r.ok;
-    } catch { return false; }
-  }
-
   function _injectScript(src) {
     return new Promise((resolve, reject) => {
-
       if (document.querySelector('script[src="' + src + '"]')) { resolve(); return; }
       const s   = document.createElement('script');
       s.src     = src;
@@ -1077,36 +917,44 @@ const sqliteStore = (() => {
   }
 
   async function _tryLoadWasm() {
-
-    const wasmUrl = (await _canFetch(SQLITE_WASM_LOCAL))
-      ? SQLITE_WASM_LOCAL
-      : SQLITE_WASM_CDN;
-
     if (typeof window.initSqlJs !== 'function') {
-      const jsUrl = (await _canFetch(SQLITE_JS_LOCAL)) ? SQLITE_JS_LOCAL : SQLITE_CDN;
-      await _injectScript(jsUrl);
+      try {
+        await _injectScript(SQLITE_JS_LOCAL);
+      } catch (_e1) {
+        console.warn('[SQLite] local sql-wasm.js failed, trying CDN:', _safeErr(_e1));
+        await _injectScript(SQLITE_CDN);
+      }
     }
 
     if (typeof window.initSqlJs !== 'function') {
       throw new Error('[SQLite] initSqlJs not available after script load');
     }
 
-    const resp   = await fetch(wasmUrl);
-    if (!resp.ok) throw new Error('[SQLite] WASM fetch failed: ' + resp.status);
-    const buffer = await resp.arrayBuffer();
+    let buffer;
+    try {
+      const resp = await fetch(SQLITE_WASM_LOCAL);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      buffer = await resp.arrayBuffer();
+    } catch (_e2) {
+      console.warn('[SQLite] local sql-wasm.wasm failed, trying CDN:', _safeErr(_e2));
+      const resp = await fetch(SQLITE_WASM_CDN);
+      if (!resp.ok) throw new Error('[SQLite] WASM CDN fetch failed: ' + resp.status);
+      buffer = await resp.arrayBuffer();
+    }
+
     return window.initSqlJs({ wasmBinary: buffer });
   }
 
   async function _tryLoadAsmJs() {
-
     delete window.initSqlJs;
     delete window.SQL;
 
-    const jsUrl = (await _canFetch(SQLITE_ASMJS_LOCAL))
-      ? SQLITE_ASMJS_LOCAL
-      : SQLITE_ASMJS_CDN;
-
-    await _injectScript(jsUrl);
+    try {
+      await _injectScript(SQLITE_ASMJS_LOCAL);
+    } catch (_e1) {
+      console.warn('[SQLite] local sql.js failed, trying CDN:', _safeErr(_e1));
+      await _injectScript(SQLITE_ASMJS_CDN);
+    }
 
     if (typeof window.initSqlJs !== 'function') {
       throw new Error('[SQLite] asm.js initSqlJs not available after script load');
@@ -1395,12 +1243,6 @@ const sqliteStore = (() => {
             if (typeof triggerAutoSync === 'function') triggerAutoSync();
           });
 
-          document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible' && _pendingWrites > 0) {
-              _dualPersist().catch(() => {});
-            }
-          });
-
           window.addEventListener('beforeunload', () => {
             if (_pendingWrites > 0 && _sqlDB) {
               if (_persistTimer) { clearTimeout(_persistTimer); _persistTimer = null; }
@@ -1608,7 +1450,7 @@ const sqliteStore = (() => {
               );
               updated++;
             }
-          } catch { /* skip individual row failures */ }
+          } catch {   }
         }
         if (updated > 0) {
           _schedulePersist(PERSIST_NORMAL_MS);
@@ -1766,6 +1608,10 @@ const sqliteStore = (() => {
   };
 })();
 
+(function() {
+  try { sqliteStore.init().catch(function() {}); } catch (_) {}
+})();
+
 function ensureArray(value) {
 if (Array.isArray(value)) {
 return value;
@@ -1782,6 +1628,7 @@ return [];
 }
 return [];
 }
+
 async function loadAllData() {
 if (typeof loadUIState === 'function') await loadUIState();
 const configKeys = [
@@ -1852,6 +1699,7 @@ const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
 return match ? decodeURIComponent(match[1]) : null;
 } catch (e) { return null; }
 }
+
 function _writeCookie(name, value) {
 try {
 document.cookie = `${name}=${encodeURIComponent(value)}; max-age=${COOKIE_MAX_AGE}; path=/; SameSite=Strict`;
@@ -1859,6 +1707,7 @@ document.cookie = `${name}=${encodeURIComponent(value)}; max-age=${COOKIE_MAX_AG
 console.warn('_writeCookie failed:', _safeErr(e));
 }
 }
+
 function _generateUUID() {
 
   const buf = new Uint8Array(16);
@@ -1881,6 +1730,7 @@ function _generateUUID() {
   const core = `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20,32)}`;
   return 'dev-' + core;
 }
+
 async function _readCacheAnchor() {
 try {
 if (!('caches' in window)) return null;
@@ -1891,6 +1741,7 @@ const text = await resp.text();
 return text || null;
 } catch (e) { return null; }
 }
+
 async function _writeCacheAnchor(value) {
 try {
 if (!('caches' in window)) return;
@@ -1898,17 +1749,14 @@ const cache = await caches.open(_CACHE_STORE_NAME);
 await cache.put(_CACHE_DEVICE_KEY, new Response(value));
 } catch (e) {  }
 }
+
 function _readSession(key) {
 try { return sessionStorage.getItem(key) || null; } catch (e) { return null; }
 }
+
 function _writeSession(key, value) {
 try { sessionStorage.setItem(key, value); } catch (e) {  }
 }
-/**
- * Extracts the first-login timestamp embedded in a composite device ID.
- * Composite format: "<prefix>-<uuid>_<epochMs>"  e.g. "dev-abc123..._1711234567890"
- * Returns a Date if the suffix is present, otherwise null.
- */
 function _extractDeviceFirstLoginTime(deviceId) {
   if (!deviceId || typeof deviceId !== 'string') return null;
   const match = deviceId.match(/_(\d{13})$/);
@@ -1927,39 +1775,26 @@ try { await sqliteStore.set('device_id', deviceId); } catch (e) {  }
 await _writeCacheAnchor(deviceId);
 }
 
-/**
- * Wipes every storage location that holds the device ID and install token so
- * a brand-new composite ID (uuid + first-login timestamp) is generated on the
- * next login. Does NOT touch appMode, repProfile, or any other device-global
- * key — those are intentionally preserved across logouts.
- */
 async function _clearDeviceIdStorage() {
-  // Expire cookies immediately
   try {
     document.cookie = `${DEVICE_ID_COOKIE}=; max-age=0; path=/; SameSite=Strict`;
   } catch(_) {}
   try {
     document.cookie = `${INSTALL_TOKEN_COOKIE}=; max-age=0; path=/; SameSite=Strict`;
   } catch(_) {}
-  // localStorage
   try { localStorage.removeItem('persistent_device_id'); } catch(_) {}
-  // sessionStorage (belt-and-suspenders — signOut also calls sessionStorage.clear())
   try {
     sessionStorage.removeItem('gz_did_session');
     sessionStorage.removeItem('gz_itk_session');
   } catch(_) {}
-  // Cache API anchor
   try {
     if ('caches' in window) {
       const cache = await caches.open(_CACHE_STORE_NAME);
       await cache.delete(_CACHE_DEVICE_KEY);
     }
   } catch(_) {}
-  // SQLite device_id row
   try { await sqliteStore.set('device_id', null); } catch(_) {}
-  // Reset in-memory cached shard so the next UUID batch picks up the new shard
   _cachedDeviceShard = null;
-  // Reset UID ownership so the next login is always treated as a fresh session
   _deviceIdOwnerUid = null;
 }
 window._clearDeviceIdStorage = _clearDeviceIdStorage;
@@ -1983,6 +1818,7 @@ console.warn('Fingerprint-based device ID recovery failed:', _safeErr(e));
 }
 return null;
 }
+
 async function _recoverDeviceIdByToken() {
 if (!firebaseDB || !currentUser) return null;
 try {
@@ -2004,42 +1840,25 @@ console.warn('Token-based device ID recovery failed:', _safeErr(e));
 }
 return null;
 }
+
 async function getDeviceId() {
-// ── Login-timestamp self-expiry ───────────────────────────────────────────
-// Every genuine login stamps _gznd_login_ts = Date.now() into sessionStorage
-// (sync.js onAuthStateChanged).  sessionStorage survives page reloads but
-// is cleared by signOut() and wiped between browser sessions.
-//
-// The device ID format is "<uuid>_<epochMs>" — the suffix IS the session
-// birth time.  We compare it against _gznd_login_ts:
-//   • suffix >= login_ts  → ID belongs to this login session, keep it
-//   • suffix <  login_ts  → ID is from a previous session, discard it
-//     (this also skips Firestore fingerprint/token recovery, so the old
-//      shard can never be pulled back from the cloud)
-//
-// If _gznd_login_ts is absent (auth-state restore on hard reload without an
-// explicit login flow) we treat any stored ID as valid — the session is
-// genuinely continuing.
 let _loginTs = 0;
 try { _loginTs = parseInt(sessionStorage.getItem('_gznd_login_ts') || '0', 10) || 0; } catch(_) {}
 
-// ── Per-user guard (belt-and-suspenders for same-tab account switch) ─────
 const _callerUid = currentUser ? (currentUser.uid || currentUser.id) : null;
 const _uidChanged = _callerUid && _deviceIdOwnerUid && _callerUid !== _deviceIdOwnerUid;
 
-// Helper: is a candidate device ID fresh enough for this login session?
 function _isStale(did) {
-  if (!did || !_loginTs) return false; // no login stamp → accept anything
+  if (!did || !_loginTs) return false;
   const match = did.match(/_(\d{13})$/);
-  if (!match) return true;             // legacy format without timestamp → always stale
+  if (!match) return true;
   const idTs = parseInt(match[1], 10);
-  return idTs < _loginTs;              // predates this login → stale
+  return idTs < _loginTs;
 }
 
 let deviceId = null;
 
 if (!_uidChanged) {
-  // Read from every persistent store in priority order
   let candidate = _readCookie(DEVICE_ID_COOKIE);
   if (!candidate) candidate = _readSession('gz_did_session');
   if (!candidate) {
@@ -2050,22 +1869,16 @@ if (!_uidChanged) {
   }
   if (!candidate) candidate = await _readCacheAnchor();
 
-  // Only accept the candidate if it belongs to this login session
   if (candidate && !_isStale(candidate)) {
     deviceId = candidate;
   }
-  // If candidate is stale (predates _loginTs), drop it and fall through to
-  // UUID generation.  Firestore recovery is intentionally skipped — it
-  // would only return the same old ID/shard we just discarded.
 }
 
 if (!deviceId) {
-  // Mint a brand-new ID whose embedded timestamp = now (this login session)
   deviceId = _generateUUID() + '_' + Date.now();
 }
 
 await _persistDeviceId(deviceId);
-// Record which user owns this device ID so we can detect future account switches.
 if (_callerUid) _deviceIdOwnerUid = _callerUid;
 
 const existingToken = _readCookie(INSTALL_TOKEN_COOKIE) || _readSession('gz_itk_session');
@@ -2079,6 +1892,7 @@ if (!existingToken) {
 }
 return deviceId;
 }
+
 async function refreshDeviceIdAnchors() {
 try {
 if (firebaseDB && currentUser) {
@@ -2090,6 +1904,7 @@ const deviceId = await getDeviceId();
 await _persistDeviceId(deviceId);
 } catch (e) {  }
 }
+
 async function getDeviceFingerprint() {
 const ua = navigator.userAgent;
 let os = 'Unknown OS';
@@ -2167,6 +1982,7 @@ readableName,
 fullUserAgent: ua
 };
 }
+
 async function getDeviceName() {
 let deviceName = await sqliteStore.get('device_name');
 if (!deviceName) {
@@ -2176,6 +1992,7 @@ await sqliteStore.set('device_name', deviceName);
 }
 return deviceName;
 }
+
 async function registerDevice() {
 if (!firebaseDB) {
 return;
@@ -2213,9 +2030,6 @@ const deviceType = /Mobile|Android|iPhone/.test(userAgent)
 const browser = fp.browserFull;
 const deviceRef = userRef.collection('devices').doc(deviceId);
 const existingDoc = await deviceRef.get();
-// Cache the snap so restoreDeviceModeOnLogin() can reuse it within 15s
-// instead of issuing a second .get() on the same document.
-window._cachedDeviceDocData = { deviceId, snap: existingDoc, fetchedAt: Date.now() };
 const existing = existingDoc.exists ? existingDoc.data() : {};
 const persistedMode = existing.currentMode || appMode || 'admin';
 const persistedRoleType = existing.assignedRoleType || persistedMode;
@@ -2223,7 +2037,9 @@ const persistedRoleName = existing.assignedRoleName
 || (persistedRoleType === 'rep' ? existing.assignedRep : existing.assignedManager)
 || null;
 const persistedRep = persistedRoleType === 'rep' ? (persistedRoleName || currentRepProfile || null) : null;
-const persistedManager = (persistedRoleType === 'production' || persistedRoleType === 'factory') ? persistedRoleName : null;
+const persistedManager = (persistedRoleType === 'production' || persistedRoleType === 'factory' || persistedRoleType === 'userrole')
+  ? (persistedRoleName || existing.assignedManager || existing.assignedRoleName || null)
+  : null;
 if (persistedMode !== appMode) {
 appMode = persistedMode;
 const sqliteBatch = [
@@ -2250,20 +2066,11 @@ await sqliteStore.setBatch(sqliteBatch);
 
 const isFirstRegistration = !existingDoc.exists;
 
-// Derive the unique shard from the composite device ID (which embeds the
-// first-login timestamp), so each device always maps to a stable, unique shard.
 const deviceShard = _deriveDeviceShard(deviceId);
 
-// Extract the first-login timestamp that was baked into the device ID at
-// creation time, falling back to server time for legacy IDs that pre-date
-// this scheme.
 const firstLoginDate = _extractDeviceFirstLoginTime(deviceId);
 const firstLoginAtMs = firstLoginDate ? firstLoginDate.getTime() : null;
 
-// Read the canonical mode timestamp from SQLite so restoreDeviceModeOnLogin
-// can correctly compare cloudTimestamp vs localTimestamp.  Without this,
-// cloudTimestamp would be 0 (field absent) and the comparison would be
-// meaningless for newly-created device documents.
 let _persistedModeTs = existing.appMode_timestamp || 0;
 try {
   const _sqliteTs = await sqliteStore.get('appMode_timestamp');
@@ -2294,23 +2101,16 @@ stableHash: fp.stableHash
 online: true,
 lastSeen: firebase.firestore.FieldValue.serverTimestamp(),
 lastActivity: firebase.firestore.FieldValue.serverTimestamp(),
-// Always persist firstLoginAt from the device ID's embedded timestamp so it
-// survives document merges; fall back to server time for legacy devices.
 ...(isFirstRegistration ? {
   registeredAt: firebase.firestore.FieldValue.serverTimestamp(),
   firstLoginAt: firstLoginAtMs !== null
     ? firstLoginAtMs
     : firebase.firestore.FieldValue.serverTimestamp(),
 } : {
-  // For returning devices: fill in firstLoginAt if the field is missing
-  // (migration from legacy IDs that had no embedded timestamp).
   ...((!existing.firstLoginAt && firstLoginAtMs !== null)
     ? { firstLoginAt: firstLoginAtMs } : {}),
 }),
 currentMode: persistedMode,
-// Write the canonical timestamp so restoreDeviceModeOnLogin can compare
-// cloudTimestamp === localTimestamp and correctly skip re-applying the mode
-// (it is already active).  This prevents a spurious reload on every login.
 appMode_timestamp: _persistedModeTs || Date.now(),
 assignedRoleType: persistedRoleType,
 assignedRoleName: persistedRoleName,
@@ -2334,13 +2134,6 @@ displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'Use
 lastActivity: firebase.firestore.FieldValue.serverTimestamp(),
 accountCreated: firebase.firestore.FieldValue.serverTimestamp()
 }, { merge: true });
-const preferencesRef = userRef.collection('account').doc('preferences');
-await preferencesRef.set({
-defaultRepProfile: currentRepProfile || salesRepsList[0] || 'NORAN SHAH',
-timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-language: navigator.language || 'en',
-theme: document.documentElement.getAttribute('data-theme') || 'dark'
-}, { merge: true });
 startDeviceHeartbeat(deviceRef);
 
 setTimeout(() => {
@@ -2357,12 +2150,12 @@ browser: browser
 console.error('Device registration failed.', _safeErr(error));
 }
 }
+
 function startDeviceHeartbeat(deviceRef) {
 if (window.deviceHeartbeatInterval) {
 clearInterval(window.deviceHeartbeatInterval);
 }
 window.deviceHeartbeatInterval = setInterval(async () => {
-if (document.hidden) return;
 if (firebaseDB && currentUser) {
 try {
 const _isRepMode = appMode === 'rep';
@@ -2385,6 +2178,7 @@ console.warn('Heartbeat update failed.', _safeErr(error));
 }
 }, APP_CONFIG.HEARTBEAT_INTERVAL_MS);
 }
+
 async function logDeviceActivity(activityType, details = {}) {
 if (!firebaseDB || !currentUser) return;
 const LOGGABLE_EVENTS = new Set([
@@ -2427,7 +2221,9 @@ listenForTeamChanges();
 console.error('Device command listener failed.', _safeErr(error));
 showToast('Device command listener failed.', 'error');
 }
-await cleanupOldDeletions();
+setTimeout(() => {
+  cleanupOldDeletions().catch(e => console.warn('[initializeDeviceListeners] cleanup failed:', _safeErr(e)));
+}, 5000);
 }
 window.initializeDeviceListeners = initializeDeviceListeners;
 window.currentUser = null;
@@ -2457,9 +2253,6 @@ const _UUID_V5_NS = new Uint8Array([
 let _cachedDeviceShard = null;
 let _uuidLastMs = 0;
 let _uuidSeq    = 0;
-// Tracks the UID for whom the current in-memory device ID was generated.
-// If a different user logs in within the same page session the stored ID is
-// stale and must not be reused.
 let _deviceIdOwnerUid = null;
 
 function _deriveDeviceShard(did) {
@@ -2471,6 +2264,7 @@ function _deriveDeviceShard(did) {
   }
   return (h & 0xffff).toString(16).padStart(4, '0');
 }
+
 function _randomBytes(n) {
   const buf = new Uint8Array(n);
   if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
@@ -2487,6 +2281,7 @@ function _randomBytes(n) {
   }
   return buf;
 }
+
 function _nextSeq(nowMs) {
   if (nowMs > _uuidLastMs) {
     _uuidLastMs = nowMs;
@@ -2500,6 +2295,7 @@ function _nextSeq(nowMs) {
   }
   return { ts: _uuidLastMs, seq: _uuidSeq };
 }
+
 function _encodeModeTag() {
   const mode = (typeof appMode !== 'undefined' ? appMode : 'admin') || 'admin';
   return _MODE_CODES[mode] || '0';
@@ -2507,7 +2303,7 @@ function _encodeModeTag() {
 
 let _uuidV5Cache   = null;
 let _uuidV5Pending = false;
-function _refreshV5Cache() {
+async function _refreshV5Cache() {
   if (_uuidV5Pending) return;
   _uuidV5Pending = true;
   const name = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
@@ -2518,17 +2314,17 @@ function _refreshV5Cache() {
     const input = new Uint8Array(_UUID_V5_NS.length + nameBytes.length);
     input.set(_UUID_V5_NS, 0);
     input.set(nameBytes, _UUID_V5_NS.length);
-    crypto.subtle.digest('SHA-1', input).then(buf => {
-      const b = new Uint8Array(buf.slice(0, 16));
-      b[6] = (b[6] & 0x0f) | 0x50;
-      b[8] = (b[8] & 0x3f) | 0x80;
-      _uuidV5Cache   = b;
-      _uuidV5Pending = false;
-    }).catch(() => { _uuidV5Pending = false; });
+    const buf = await crypto.subtle.digest('SHA-1', input);
+    const b = new Uint8Array(buf.slice(0, 16));
+    b[6] = (b[6] & 0x0f) | 0x50;
+    b[8] = (b[8] & 0x3f) | 0x80;
+    _uuidV5Cache   = b;
+    _uuidV5Pending = false;
   } catch (_) {
     _uuidV5Pending = false;
   }
 }
+
 function _buildUUIDv3Base() {
 
   if (_uuidV5Cache !== null) {
@@ -2555,9 +2351,6 @@ function _buildUUIDv3Base() {
 }
 
 async function initUUIDSalts() {
-  // Always reset first — guarantees we derive from whatever device ID is
-  // current in storage, never from a stale in-memory value left over from a
-  // previous session or a pre-login state.
   _cachedDeviceShard = null;
   try {
     const did = await getDeviceId();
@@ -2571,6 +2364,7 @@ async function initUUIDSalts() {
   _refreshV5Cache();
   return _cachedDeviceShard;
 }
+
 async function initDeviceShard() { return initUUIDSalts(); }
 window.initDeviceShard = initDeviceShard;
 
@@ -2608,14 +2402,14 @@ function generateUUID(prefix = '', retryCount = 0, tsMs = null, modeOverride = n
   }
   return finalUUID;
 }
+
 function validateUUID(uuid) {
   if (!uuid || typeof uuid !== 'string') return false;
   const standardRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  // Prefixed format also accepts an optional _<timestamp> suffix appended to
-  // composite device IDs (e.g. dev-<uuid>_1711234567890).
   const prefixedRegex = /^[a-z0-9][a-z0-9_-]*-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(_\d+)?$/i;
   return standardRegex.test(uuid) || prefixedRegex.test(uuid);
 }
+
 function extractUUIDMeta(uuid) {
   if (!validateUUID(uuid)) return null;
   const allParts = uuid.split('-');
@@ -2696,6 +2490,7 @@ window.compareRecordVersions = compareRecordVersions;
 function getTimestamp() {
 return Date.now();
 }
+
 function validateTimestamp(timestamp, allowFuture = false) {
 if (!timestamp || typeof timestamp !== 'number') return false;
 if (timestamp < 946684800000 || timestamp > 4102444800000) return false;
@@ -2708,19 +2503,22 @@ return false;
 }
 return true;
 }
+
 function _mergedBadgeHtml(record, opts = {}) {
 if (!record || !record.isMerged) return '';
 if (opts.inline) {
-  return ` <span style="background:rgba(175, 82, 222, 0.15); color:#af52de; padding:2px 6px; border-radius:4px; font-size:0.65rem; margin-left:6px; font-weight:600;">MERGED</span>`;
+  return ` <span class="merged-badge merged-badge--inline">MERGED</span>`;
 }
-return `<span style="font-size:0.6rem; background:rgba(175, 82, 222, 0.15); color:#af52de; padding:1px 5px; border-radius:3px; border:1px solid rgba(175, 82, 222, 0.3); display:inline-block; margin-top:3px;">MERGED</span>`;
+return `<span class="merged-badge">MERGED</span>`;
 }
+
 function _creatorBadgeHtml(record) {
 if (!record || !record.createdBy) return '';
 const name = String(record.createdBy).trim();
 if (!name) return '';
 return `<span class="creator-badge" title="Created by ${esc(name)}">${esc(name)}</span>`;
 }
+
 function compareTimestamps(timestamp1, timestamp2) {
 if (!validateTimestamp(timestamp1) || !validateTimestamp(timestamp2)) {
 return 0;
@@ -2729,6 +2527,7 @@ if (timestamp1 < timestamp2) return -1;
 if (timestamp1 > timestamp2) return 1;
 return 0;
 }
+
 function resolveConflict(local, remote) {
 if (!local) return remote;
 if (!remote) return local;
@@ -2736,6 +2535,7 @@ const localTime = getRecordTimestamp(local);
 const remoteTime = getRecordTimestamp(remote);
 return localTime >= remoteTime ? local : remote;
 }
+
 function getRecordTimestamp(record) {
 if (!record) return 0;
 if (record.timestamp && typeof record.timestamp === 'number') {
@@ -2755,6 +2555,7 @@ return new Date(record.date).getTime();
 }
 return 0;
 }
+
 function ensureRecordIntegrity(record, isEdit = false, isMigration = false) {
 if (!record) return record;
 const isTrackingObject = record.produced !== undefined ||
@@ -2800,6 +2601,7 @@ record.updatedAt = record.createdAt;
 }
 return record;
 }
+
 async function cleanupOldTombstones() {
 const ninetyDaysAgo = Date.now() - APP_CONFIG.TOMBSTONE_EXPIRY_MS;
 const dataTypes = [
@@ -2842,11 +2644,13 @@ if (totalCleaned > 0) {
 }
 return totalCleaned;
 }
+
 function scheduleAutomaticCleanup() {
 setTimeout(() => cleanupOldTombstones(), 5000);
 if (window._tombstoneCleanupInterval) clearInterval(window._tombstoneCleanupInterval);
 window._tombstoneCleanupInterval = setInterval(() => cleanupOldTombstones(), APP_CONFIG.TOMBSTONE_CLEANUP_INTERVAL_MS);
 }
+
 async function validateAndFixRecords(dataType, records) {
 if (!Array.isArray(records) || records.length === 0) {
 return { fixed: 0, valid: 0, total: 0 };
@@ -2895,6 +2699,7 @@ total: validRecords.length,
 records: validatedRecords
 };
 }
+
 async function validateAllDataOnStartup() {
 const dataTypes = [
 'expenses',

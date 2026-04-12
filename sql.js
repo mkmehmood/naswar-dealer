@@ -1,4 +1,3 @@
-
 var initSqlJsPromise = undefined;
 
 var initSqlJs = function (moduleConfig) {
@@ -11,7 +10,6 @@ var initSqlJs = function (moduleConfig) {
 
         var Module = typeof moduleConfig !== 'undefined' ? moduleConfig : {};
 
-  
         var originalOnAbortFunction = Module['onAbort'];
         Module['onAbort'] = function (errorThatCausedAbort) {
             reject(new Error(errorThatCausedAbort));
@@ -22,13 +20,11 @@ var initSqlJs = function (moduleConfig) {
 
         Module['postRun'] = Module['postRun'] || [];
         Module['postRun'].push(function () {
-          
+
             resolveModule(Module);
         });
 
- 
         module = undefined;
-
 
 var f;f||=typeof Module != 'undefined' ? Module : {};var aa="object"==typeof window,ba="function"==typeof importScripts,ca="object"==typeof process&&"object"==typeof process.versions&&"string"==typeof process.versions.node;"use strict";
 f.onRuntimeInitialized=function(){function a(g,l){switch(typeof l){case "boolean":fc(g,l?1:0);break;case "number":gc(g,l);break;case "string":hc(g,l,-1,-1);break;case "object":if(null===l)ib(g);else if(null!=l.length){var n=da(l,ea);ic(g,n,l.length,-1);fa(n)}else xa(g,"Wrong API use : tried to return a value of an unknown type ("+l+").",-1);break;default:ib(g)}}function b(g,l){for(var n=[],t=0;t<g;t+=1){var w=m(l+4*t,"i32"),A=jc(w);if(1===A||2===A)w=kc(w);else if(3===A)w=lc(w);else if(4===A){A=w;
@@ -127,23 +123,14 @@ var Eb=(a,b)=>(Eb=Z.Ba)(a,b),ua=a=>(ua=Z.Ca)(a),y=a=>(y=Z.Da)(a),ra=()=>(ra=Z.Ea
 function Yc(){function a(){if(!Wc&&(Wc=!0,f.calledRun=!0,!Ka)){f.noFSInit||ec||(ec=!0,f.stdin=f.stdin,f.stdout=f.stdout,f.stderr=f.stderr,f.stdin?Fc("stdin",f.stdin):Xb("/dev/tty","/dev/stdin"),f.stdout?Fc("stdout",null,f.stdout):Xb("/dev/tty","/dev/stdout"),f.stderr?Fc("stderr",null,f.stderr):Xb("/dev/tty1","/dev/stderr"),na("/dev/stdin",0),na("/dev/stdout",1),na("/dev/stderr",1));Jb=!1;cb(Qa);f.onRuntimeInitialized?.();if(f.postRun)for("function"==typeof f.postRun&&(f.postRun=[f.postRun]);f.postRun.length;){var b=
 f.postRun.shift();Sa.unshift(b)}cb(Sa)}}if(!(0<Ua)){if(f.preRun)for("function"==typeof f.preRun&&(f.preRun=[f.preRun]);f.preRun.length;)Ta();cb(Pa);0<Ua||(f.setStatus?(f.setStatus("Running..."),setTimeout(function(){setTimeout(function(){f.setStatus("")},1);a()},1)):a())}}if(f.preInit)for("function"==typeof f.preInit&&(f.preInit=[f.preInit]);0<f.preInit.length;)f.preInit.pop()();Yc();
 
-        
-
         return Module;
     }); 
-
 
   return initSqlJsPromise;
 } 
 
-
-
-
-
-
 if (typeof exports === 'object' && typeof module === 'object'){
     module.exports = initSqlJs;
-    
 
     module.exports.default = initSqlJs;
 }

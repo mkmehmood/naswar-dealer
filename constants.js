@@ -1,7 +1,7 @@
 window._GOOGLE_CLIENT_ID = '124313576124-408rl178jlpua4qgcb25lb85hbautsda.apps.googleusercontent.com';
 
 const APP_CONFIG = Object.freeze({
-  CACHE_VERSION: 'sarim-v1',
+  CACHE_VERSION: 'sarim-V.12.042026',
 
   PBKDF2_ITERATIONS: 210000,
   PBKDF2_ITERATIONS_SHA256: 310000,

@@ -70,6 +70,7 @@ if (typeof custTransactionMode !== 'undefined' && custTransactionMode === 'colle
 updateCollectionPreview();
 }
 }
+
 async function renderCustomersTable(page = 1) {
 const deletedRecordIds = new Set(ensureArray(await sqliteStore.get('deleted_records')));
 const _rctAlive = (item) => item && item.id && !deletedRecordIds.has(String(item.id));
@@ -84,7 +85,7 @@ const freshSales = await sqliteStore.get('customer_sales', []);
 const mergedSales = Array.isArray(freshSales) ? freshSales : customerSales;
 } catch (error) {
 console.error('UI refresh failed.', _safeErr(error));
-showToast('UI refresh failed.', 'error');
+showToast('Failed to reload sales data: ' + (_safeErr(error).message || 'please reload the app'), 'error');
 }
 try {
 const freshSalesCustomers = await sqliteStore.get('sales_customers', []);
@@ -156,17 +157,12 @@ return b.lastSaleDate - a.lastSaleDate;
 });
 if (Array.isArray(salesCustomers)) {
 const statsNames = new Set(sortedCustomers.map(c => c.name.toLowerCase()));
-const directSalesNames = new Set(
-(Array.isArray(customerSales) ? customerSales : [])
-.filter(s => s.customerName && s.currentRepProfile === 'admin')
-.map(s => s.customerName.toLowerCase())
-);
 salesCustomers.forEach(sc => {
 if (!sc || !sc.name || !sc.name.trim()) return;
 const lcName = sc.name.toLowerCase();
 if (statsNames.has(lcName)) return;
-if (!directSalesNames.has(lcName)) return;
 sortedCustomers.push({ name: sc.name, credit: 0, quantity: 0, lastSaleDate: 0 });
+statsNames.add(lcName);
 });
 }
 if (filterValue) {
@@ -217,7 +213,10 @@ console.warn('An unexpected error occurred.', _safeErr(rowError));
 return null;
 }
 }
-GNDVirtualScroll.mount('vs-scroller-customers', customers, buildCustomerRow, tbody);
+tbody.innerHTML = '';
+const _fragC = document.createDocumentFragment();
+customers.forEach((c, i) => { const el = buildCustomerRow(c, i); if (el) _fragC.appendChild(el); });
+tbody.appendChild(_fragC);
 }
 const _setCustH = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
 _setCustH('customer-count', `${totalItems || 0} active`);
@@ -235,7 +234,8 @@ document.getElementById('bulkPaymentAmount').value = '';
 if (typeof openStandaloneScreen === 'function') openStandaloneScreen('customer-management-screen');
 await renderCustomerTransactions(customerName);
 }
-async function closeCustomerManagement() {
+
+function closeCustomerManagement() {
 if (typeof closeStandaloneScreen === 'function') closeStandaloneScreen('customer-management-screen');
 currentManagingCustomer = null;
 setTimeout(async () => {
@@ -249,6 +249,7 @@ console.warn('closeCustomerManagement SQLite error', _safeErr(e));
 if (typeof renderCustomersTable === 'function') renderCustomersTable();
 }, 100);
 }
+
 async function deleteCurrentCustomer() {
 const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
 const salesCustomers = ensureArray(await sqliteStore.get('sales_customers'));
@@ -262,7 +263,7 @@ const totalDebt = txs
 .reduce((sum, s) => sum + (s.totalValue || 0) - (s.partialPaymentReceived || 0), 0);
 let msg = `Permanently delete customer "${name}"?`;
 if (txs.length > 0) {
-msg += `\n\n⚠ This customer has ${txs.length} transaction record${txs.length !== 1 ? 's' : ''} on file.`;
+msg += `\n\n This customer has ${txs.length} transaction record${txs.length !== 1 ? 's' : ''} on file.`;
 if (totalDebt > 0) msg += `\n Outstanding debt: ${fmtAmt(totalDebt)}`;
 msg += `\n\nAll sales history for this customer will be permanently deleted.`;
 }
@@ -273,10 +274,9 @@ const contactIdx = salesCustomers.findIndex(c => c && c.name && c.name.toLowerCa
 if (contactIdx !== -1) {
 const contactRecord = salesCustomers[contactIdx];
 const contactId = contactRecord.id;
-await registerDeletion(contactId, 'sales_customers', contactRecord);
+const filteredContacts = salesCustomers.filter((_, i) => i !== contactIdx);
+await unifiedDelete('sales_customers', filteredContacts, contactId, { strict: true }, contactRecord);
 salesCustomers.splice(contactIdx, 1);
-await saveWithTracking('sales_customers', salesCustomers);
-deleteRecordFromFirestore('sales_customers', contactId).catch(() => {});
 }
 const txsToDelete = txs.slice();
 const idsToDelete = new Set(txsToDelete.map(t => t.id));
@@ -285,7 +285,6 @@ for (const tx of txsToDelete) {
 prunedSales = prunedSales.filter(s => s.id !== tx.id);
 await unifiedDelete('customer_sales', prunedSales, tx.id, { strict: true }, tx);
 }
-void Promise.all([...idsToDelete].map(id => deleteRecordFromFirestore('customer_sales', id).catch(() => {})));
 notifyDataChange('sales');
 triggerAutoSync();
 closeCustomerManagement();
@@ -294,6 +293,7 @@ showToast(`Customer "${name}" and all records deleted.`, 'success');
 showToast('Failed to delete customer. Please try again.', 'error');
 }
 }
+
 async function renderCustomerTransactions(name) {
 const salesCustomers = ensureArray(await sqliteStore.get('sales_customers'));
 const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
@@ -366,13 +366,21 @@ const entity = (Array.isArray(salesCustomers) ? salesCustomers : []).find(e => e
 const phone = entity?.phone || transactions.find(t => t && t.customerPhone)?.customerPhone || '';
 const address = entity?.address || '';
 const headerTitle = document.getElementById('manageCustomerTitle');
+const _custHeaderPhoto = await getPersonPhoto('cust:' + name.toLowerCase());
+const _custAvatarHTML = renderPersonAvatarHTML(_custHeaderPhoto, 42);
+const _custSafeName = esc(name).split("'").join("\\'");
 headerTitle.innerHTML = `
-<div style="display:flex; align-items:center; gap:8px;">
+<div style="display:flex;align-items:center;gap:10px;">
+${_custAvatarHTML}
+<div style="min-width:0;flex:1;">
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
 <span>${esc(name)}</span>
-<button class="sidebar-settings-btn" style="width:auto;padding:5px 10px;font-size:0.75rem;color:var(--accent);background:rgba(29,233,182,0.07);border-radius:8px;border:1px solid rgba(29,233,182,0.25);display:inline-flex;align-items:center;gap:5px;" onclick="openCustomerEditModal('${esc(name).split("'").join("\\'")}')" title="Edit Contact Info"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</button>
+<button class="sidebar-settings-btn" style="width:auto;padding:5px 10px;font-size:0.75rem;color:var(--accent);background:rgba(29,233,182,0.07);border-radius:8px;border:1px solid rgba(29,233,182,0.25);display:inline-flex;align-items:center;gap:5px;" onclick="openCustomerEditModal('${_custSafeName}')" title="Edit Contact Info"><svg width="13" height="13" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="5" width="26" height="7" rx="2.5" fill="var(--accent)" fill-opacity="0.18" stroke="var(--accent)" stroke-width="1.4"/><rect x="5" y="15" width="26" height="7" rx="2.5" fill="var(--accent)" fill-opacity="0.12" stroke="var(--accent)" stroke-width="1.4"/><rect x="5" y="25" width="18" height="7" rx="2.5" fill="var(--accent)" fill-opacity="0.08" stroke="var(--accent)" stroke-width="1.4"/><line x1="27" y1="26" x2="32" y2="21" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round"/><circle cx="26" cy="27" r="1" fill="var(--accent)"/></svg>Edit</button>
 </div>
-<div style="font-size: 0.75rem; color: var(--text-muted); font-weight: normal; margin-top:4px;">
-${phone ? phoneActionHTML(phone) : 'No Phone'} ${address ? `| ◆ ${esc(address)}` : ''}
+<div style="font-size:0.75rem;color:var(--text-muted);font-weight:normal;margin-top:2px;">
+${phone ? phoneActionHTML(phone) : 'No Phone'} ${address ? `|  ${esc(address)}` : ''}
+</div>
+</div>
 </div>
 `;
 let currentDebt = 0;
@@ -436,77 +444,77 @@ const remaining = effectiveDue;
 btnText = `PARTIAL (${await formatCurrency(remaining)} due)`;
 statusClass = 'partial';
 }
-toggleBtnHtml = `<button class="status-toggle-btn ${statusClass}" onclick="toggleSingleTransactionStatus('${t.id}')">${btnText}</button>`;
+toggleBtnHtml = `<span class="status-toggle-btn ${statusClass}" style="pointer-events:none;cursor:default;">${btnText}</span>`;
 } else if (isPartialPayment) {
-toggleBtnHtml = `<span class="status-toggle-btn" style="background:rgba(255, 159, 10, 0.1); color:var(--warning);">PARTIAL PAYMENT</span>`;
+toggleBtnHtml = `<span class="status-toggle-btn txn-warning">PARTIAL PAYMENT</span>`;
 } else if (isCollection) {
-toggleBtnHtml = `<span class="status-toggle-btn" style="background:rgba(48, 209, 88, 0.1); color:var(--accent-emerald);">COLLECTION</span>`;
+toggleBtnHtml = `<span class="status-toggle-btn txn-collect">COLLECTION</span>`;
 } else {
-toggleBtnHtml = `<span class="status-toggle-btn" style="background:rgba(37, 99, 235, 0.1); color:var(--accent);">CASH SALE</span>`;
+toggleBtnHtml = `<span class="status-toggle-btn txn-cash">CASH SALE</span>`;
 }
 const deleteBtnHtml = t.isMerged ? '' : `<button class="btn btn-sm btn-danger u-p-4-8" onclick="deleteTransactionFromOverlay('${esc(t.id)}')">⌫</button>`;
+const safeId = String(t.id).replace(/'/g, "\\'");
+const panelId = `cp-${t.id}`;
+const kebabBtn = t.isMerged
+  ? `<button class="txn-kebab-btn" title="View pre-close details" onclick="_togglePreclosePanel(this,'${panelId}','${safeId}','customer_sales','sale')">⋮</button>`
+  : '';
+const panelPlaceholder = t.isMerged ? `<div class="txn-preclose-panel" id="${panelId}"></div>` : '';
 let itemContent = '';
 if (isPartialPayment || isCollection) {
 itemContent = `
-<div class="cust-history-info">
-<div class="u-mono-bold" >${formatDisplayDate(t.date)}${_mergedBadgeHtml(t, {inline:true})}${(typeof _creatorBadgeHtml === 'function') ? _creatorBadgeHtml(t) : ''}</div>
-<div style="font-size:0.75rem; color:var(--accent-emerald);">
-Payment: ${await formatCurrency(t.totalValue)}
-</div>
-<div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">
-${isPartialPayment ? 'Partial Payment' : 'Bulk Payment'}
-</div>
-</div>
-<div class="cust-history-actions">
-${toggleBtnHtml}
-${deleteBtnHtml}
-</div>
-`;
+<div class="txn-card-row">
+  <div class="cust-history-info">
+    <div class="u-fs-sm2 u-text-muted">${formatDisplayDateTime(t.date, t.time || null)}${_mergedBadgeHtml(t, {inline:true})}${(typeof _creatorBadgeHtml === 'function') ? _creatorBadgeHtml(t) : ''}</div>
+    <div style="font-size:0.75rem;color:var(--accent-emerald);">Payment: ${await formatCurrency(t.totalValue)}</div>
+    <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">${isPartialPayment ? 'Partial Payment' : 'Bulk Payment'}</div>
+    ${(t.supplyDate && t.supplyDate !== t.date) ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;font-style:italic;">Supply Date: ${formatDisplayDate(t.supplyDate)}</div>` : ''}
+  </div>
+  <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+    ${toggleBtnHtml}${deleteBtnHtml}${kebabBtn}
+  </div>
+</div>${panelPlaceholder}`;
 } else if (isOldDebt) {
 itemContent = `
-<div class="cust-history-info">
-<div class="u-mono-bold" >
-${formatDisplayDate(t.date)}
-<span style="background:rgba(255, 159, 10, 0.15); color:var(--warning); padding:2px 6px; border-radius:4px; font-size:0.65rem; margin-left:6px; font-weight:600;">OLD DEBT</span>${_mergedBadgeHtml(t, {inline:true})}${(typeof _creatorBadgeHtml === 'function') ? _creatorBadgeHtml(t) : ''}
-</div>
-<div style="font-size:0.75rem; color:var(--warning);">
-Previous Balance: ${await formatCurrency(t.totalValue)}
-</div>
-<div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">
-${esc(t.notes || 'Brought forward from previous records')}
-</div>
-</div>
-<div class="cust-history-actions">
-${toggleBtnHtml}
-${deleteBtnHtml}
-</div>
-`;
+<div class="txn-card-row">
+  <div class="cust-history-info">
+    <div class="u-fs-sm2 u-text-muted">
+      ${formatDisplayDateTime(t.date, t.time || null)}
+      <span class="old-debt-badge">OLD DEBT</span>${_mergedBadgeHtml(t, {inline:true})}${(typeof _creatorBadgeHtml === 'function') ? _creatorBadgeHtml(t) : ''}
+    </div>
+    <div style="font-size:0.75rem;color:var(--warning);">Previous Balance: ${await formatCurrency(t.totalValue)}</div>
+    <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">${esc(t.notes || 'Brought forward from previous records')}</div>
+    ${(t.supplyDate && t.supplyDate !== t.date) ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;font-style:italic;">Supply Date: ${formatDisplayDate(t.supplyDate)}</div>` : ''}
+  </div>
+  <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+    ${toggleBtnHtml}${deleteBtnHtml}${kebabBtn}
+  </div>
+</div>${panelPlaceholder}`;
 } else {
 const _displayUnitPrice = (t.unitPrice && t.unitPrice > 0)
   ? t.unitPrice
-  : getEffectiveSalePriceForCustomer(t.customerName, t.supplyStore || 'STORE_A');
+  : await getEffectiveSalePriceForCustomer(t.customerName, t.supplyStore || 'STORE_A');
 itemContent = `
-<div class="cust-history-info">
-<div class="u-mono-bold" >${formatDisplayDate(t.date)}${_mergedBadgeHtml(t, {inline:true})}${(typeof _creatorBadgeHtml === 'function') ? _creatorBadgeHtml(t) : ''}</div>
-<div class="u-fs-sm2 u-text-muted" >
-${safeToFixed(t.quantity, 2)} kg @ ${await formatCurrency(_displayUnitPrice)} = ${await formatCurrency(_txValue)}
-</div>
-${hasPartialPayment ? `<div style="font-size:0.7rem; color:var(--accent-emerald); margin-top:2px;">Paid: ${await formatCurrency(partialPaid)} | Due: ${await formatCurrency(Math.max(0, _txValue - partialPaid))}</div>` : ''}
-<div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">
-${getStoreLabel(t.supplyStore)}
-</div>
-</div>
-<div class="cust-history-actions">
-${toggleBtnHtml}
-${deleteBtnHtml}
-</div>
-`;
+<div class="txn-card-row">
+  <div class="cust-history-info">
+    <div class="u-fs-sm2 u-text-muted">${formatDisplayDateTime(t.date, t.time || null)}${_mergedBadgeHtml(t, {inline:true})}${(typeof _creatorBadgeHtml === 'function') ? _creatorBadgeHtml(t) : ''}</div>
+    <div class="u-fs-sm2 u-text-muted">${safeToFixed(t.quantity, 2)} kg @ ${await formatCurrency(_displayUnitPrice)} = ${await formatCurrency(_txValue)}</div>
+    ${hasPartialPayment ? `<div style="font-size:0.7rem;color:var(--accent-emerald);margin-top:2px;">Paid: ${await formatCurrency(partialPaid)} | Due: ${await formatCurrency(Math.max(0, _txValue - partialPaid))}</div>` : ''}
+    <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">${getStoreLabel(t.supplyStore)}</div>
+    ${(t.supplyDate && t.supplyDate !== t.date) ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;font-style:italic;">Supply Date: ${formatDisplayDate(t.supplyDate)}</div>` : ''}
+  </div>
+  <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+    ${toggleBtnHtml}${deleteBtnHtml}${kebabBtn}
+  </div>
+</div>${panelPlaceholder}`;
 }
 item.innerHTML = itemContent;
+item.style.flexDirection = 'column';
+item.style.alignItems = 'stretch';
 _custFrag.appendChild(item);
 }
 list.replaceChildren(_custFrag);
 }
+
 async function toggleSingleTransactionStatus(id) {
 const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
 const record = customerSales.find(s => s.id === id);
@@ -533,6 +541,7 @@ await sqliteStore.set('customer_sales', customerSales).catch(() => {});
 showToast('Failed to update transaction status. Please try again.', 'error');
 }
 }
+
 async function toggleRepTransactionStatus(id) {
 const repSales = ensureArray(await sqliteStore.get('rep_sales'));
 const record = repSales.find(s => s.id === id);
@@ -558,6 +567,7 @@ await sqliteStore.set('rep_sales', repSales).catch(() => {});
 showToast('Failed to update transaction status. Please try again.', 'error');
 }
 }
+
 async function deleteTransactionFromOverlay(id) {
 const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
 const paymentTransactions = ensureArray(await sqliteStore.get('payment_transactions'));
@@ -636,6 +646,7 @@ await unifiedDelete('customer_sales', customerSalesFiltered, id, { strict: true 
 refreshAllCalculations();
 if (typeof refreshCustomerSales === 'function') await refreshCustomerSales();
 renderCustomersTable();
+if (currentManagingCustomer) renderCustomerTransactions(currentManagingCustomer);
 notifyDataChange('sales');
 triggerAutoSync();
 showToast(` Transaction deleted successfully.`, 'success');
@@ -643,6 +654,7 @@ showToast(` Transaction deleted successfully.`, 'success');
 showToast('Failed to delete transaction. Please try again.', 'error');
 }
 }
+
 async function deleteRepTransactionFromOverlay(id) {
 const repSales = ensureArray(await sqliteStore.get('rep_sales'));
 if (!id || !validateUUID(id)) {
@@ -724,6 +736,7 @@ showToast(` Transaction deleted successfully.`, 'success');
 showToast('Failed to delete transaction. Please try again.', 'error');
 }
 }
+
 async function processBulkPayment() {
 const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
 const paymentEntities = ensureArray(await sqliteStore.get('payment_entities'));
@@ -740,7 +753,7 @@ s.paymentType === 'CREDIT' && !s.creditReceived
 if (pending.length === 0) { showToast('No pending credit transactions found for this customer.', 'info', 4000); return; }
 const nowDate = new Date();
 const nowISODate = nowDate.toISOString().split('T')[0];
-const nowTime = nowDate.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+const nowTime = nowDate.toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', hour12: true});
 const nowEpoch = getTimestamp();
 for (const sale of pending) {
 if (remaining <= 0) break;
@@ -790,12 +803,7 @@ syncedAt: new Date().toISOString()
 if (updatedCount > 0 || partialPaymentMade) {
 const changedIds = new Set(pending.map(s => s.id));
 if (collId) changedIds.add(collId);
-await saveWithTracking('customer_sales', customerSales, null, Array.from(changedIds));
-void Promise.all(
-  customerSales
-    .filter(sale => changedIds.has(sale.id) || sale.paymentType === 'PARTIAL_PAYMENT' || sale.paymentType === 'COLLECTION')
-    .map(sale => saveRecordToFirestore('customer_sales', sale).catch(() => {}))
-).catch(() => {});
+await unifiedSave('customer_sales', customerSales, null, Array.from(changedIds));
 notifyDataChange('sales'); triggerAutoSync();
 let msg = `Payment of ${fmtAmt(amount)} processed successfully. `;
 msg += partialPaymentMade ? 'Partial payment applied.' : remaining === 0 ? `${updatedCount} transaction(s) fully cleared.` : `${updatedCount} cleared, ${fmtAmt(remaining)} extra.`;
@@ -810,12 +818,14 @@ await sqliteStore.set('customer_sales', customerSales).catch(() => {});
 showToast('Failed to process bulk payment. Please try again.', 'error');
 }
 }
+
 function filterCustomerManagementHistory() {
 const term = document.getElementById('cust-trans-search').value.toLowerCase();
 document.querySelectorAll('#customerManagementHistoryList .cust-history-item').forEach(item => {
 item.style.display = item.innerText.toLowerCase().includes(term) ? 'flex' : 'none';
 });
 }
+
 async function processRepBulkPayment() {
 const repSales = ensureArray(await sqliteStore.get('rep_sales'));
 const paymentEntities = ensureArray(await sqliteStore.get('payment_entities'));
@@ -833,7 +843,7 @@ s.paymentType === 'CREDIT' && !s.creditReceived
 if (pending.length === 0) { showToast('No pending credit transactions found for this customer.', 'info', 4000); return; }
 const nowDate = new Date();
 const nowISODate = nowDate.toISOString().split('T')[0];
-const nowTime = nowDate.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+const nowTime = nowDate.toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', hour12: true});
 const nowEpoch = getTimestamp();
 for (const sale of pending) {
 if (remaining <= 0) break;
@@ -881,12 +891,7 @@ syncedAt: new Date().toISOString()
 if (updatedCount > 0 || partialPaymentMade) {
 const changedIds = new Set(pending.map(s => s.id));
 if (collId) changedIds.add(collId);
-await saveWithTracking('rep_sales', repSales, null, Array.from(changedIds));
-void Promise.all(
-  repSales
-    .filter(sale => changedIds.has(sale.id) || sale.paymentType === 'PARTIAL_PAYMENT' || sale.paymentType === 'COLLECTION')
-    .map(sale => saveRecordToFirestore('rep_sales', sale).catch(() => {}))
-).catch(() => {});
+await unifiedSave('rep_sales', repSales, null, Array.from(changedIds));
 notifyDataChange('rep'); triggerAutoSync();
 let msg = `Payment of ${fmtAmt(amount)} processed successfully. `;
 msg += partialPaymentMade ? 'Partial payment applied.' : remaining === 0 ? `${updatedCount} transaction(s) fully cleared.` : `${updatedCount} cleared, ${fmtAmt(remaining)} extra.`;
@@ -901,12 +906,14 @@ await sqliteStore.set('rep_sales', repSales).catch(() => {});
 showToast('Failed to process bulk payment. Please try again.', 'error');
 }
 }
+
 function filterRepCustomerManagementHistory() {
 const term = document.getElementById('rep-cust-trans-search').value.toLowerCase();
 document.querySelectorAll('#repCustomerManagementHistoryList .cust-history-item').forEach(item => {
 item.style.display = item.innerText.toLowerCase().includes(term) ? 'flex' : 'none';
 });
 }
+
 function refreshAllCalculations() {
 calculateCashTracker();
 calculateNetCash();
@@ -929,10 +936,10 @@ if (_toastActive || _toastQueue.length === 0) return;
 _toastActive = true;
 const { message, type, duration } = _toastQueue.shift();
 const icons = {
-success: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
-warning: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
-error: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
-info: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`,
+success: `<svg width="13" height="13" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="18" cy="18" r="13" fill="var(--success)" fill-opacity="0.18" stroke="var(--success)" stroke-width="1.5"/><polyline points="10,18 15,23 26,12" stroke="var(--success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`,
+warning: `<svg width="13" height="13" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M27 10 H33 L29 17 H31 L27 24 H33 L29 17 H31 Z" fill="var(--warning)" opacity="0.6" stroke="var(--warning)" stroke-width="1" stroke-linejoin="round"/><rect x="5" y="10" width="18" height="18" rx="2.5" fill="var(--warning)" fill-opacity="0.12" stroke="var(--warning)" stroke-width="1.4"/><line x1="14" y1="15" x2="14" y2="21" stroke="var(--warning)" stroke-width="1.4" stroke-linecap="round"/><circle cx="14" cy="24" r="1" fill="var(--warning)"/></svg>`,
+error: `<svg width="13" height="13" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="18" cy="18" r="13" fill="var(--danger)" fill-opacity="0.15" stroke="var(--danger)" stroke-width="1.5"/><line x1="13" y1="13" x2="23" y2="23" stroke="var(--danger)" stroke-width="2" stroke-linecap="round"/><line x1="23" y1="13" x2="13" y2="23" stroke="var(--danger)" stroke-width="2" stroke-linecap="round"/></svg>`,
+info: `<svg width="13" height="13" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="18" cy="18" r="13" fill="var(--accent)" fill-opacity="0.15" stroke="var(--accent)" stroke-width="1.5"/><line x1="18" y1="22" x2="18" y2="17" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/><circle cx="18" cy="13" r="1.2" fill="var(--accent)"/></svg>`,
 };
 const msgStr = String(message);
 const isLong = msgStr.length > 48;
@@ -976,6 +983,7 @@ _playNextToast();
 setTimeout(dismiss, duration);
 toast.addEventListener('click', dismiss, { once: true });
 }
+
 function showToast(message, type = 'info', duration = 3000) {
 const typeMap = { danger: 'error', warn: 'warning', ok: 'success' };
 type = typeMap[type] || (['success','warning','error','info'].includes(type) ? type : 'info');
@@ -983,20 +991,20 @@ _toastQueue.push({ message, type, duration });
 _playNextToast();
 }
 window.showToast = showToast;
-/* SVG icon library — sidebar-style (24×24, stroke, no fill) */
+
 const _gcIcons = {
-  delete:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>',
-  remove:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
-  warning:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
-  restore:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>',
-  backup:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
-  upload:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>',
-  sync:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
-  calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
-  user:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
-  device:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12" y2="18"/></svg>',
-  credit:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>',
-  confirm:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+  delete:   '<svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 11 L10 31 A2 2 0 0 0 12 33 H24 A2 2 0 0 0 26 31 L28 11 Z" fill="var(--danger)" fill-opacity="0.12" stroke="var(--danger)" stroke-width="1.5" stroke-linejoin="round"/><line x1="6" y1="11" x2="30" y2="11" stroke="var(--danger)" stroke-width="1.6" stroke-linecap="round"/><path d="M14 8 H22 M14 8 A1 1 0 0 1 15 7 H21 A1 1 0 0 1 22 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity="0.65"/><line x1="14" y1="17" x2="14" y2="27" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity="0.6"/><line x1="22" y1="17" x2="22" y2="27" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity="0.6"/></svg>',
+  remove:   '<svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="18" cy="18" r="13" fill="var(--danger)" fill-opacity="0.12" stroke="var(--danger)" stroke-width="1.5"/><line x1="13" y1="13" x2="23" y2="23" stroke="var(--danger)" stroke-width="2" stroke-linecap="round"/><line x1="23" y1="13" x2="13" y2="23" stroke="var(--danger)" stroke-width="2" stroke-linecap="round"/></svg>',
+  warning:  '<svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M27 10 H33 L29 17 H31 L27 24 H33 L29 17 H31 Z" fill="var(--warning)" opacity="0.6" stroke="var(--warning)" stroke-width="1" stroke-linejoin="round"/><rect x="5" y="10" width="18" height="18" rx="2.5" fill="var(--warning)" fill-opacity="0.12" stroke="var(--warning)" stroke-width="1.4"/><line x1="14" y1="15" x2="14" y2="21" stroke="var(--warning)" stroke-width="1.4" stroke-linecap="round"/><circle cx="14" cy="24" r="1" fill="var(--warning)"/></svg>',
+  restore:  '<svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 8 A10 10 0 0 1 28 18" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" fill="none"/><polyline points="25,6 28,10 24,11" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M26 28 A10 10 0 0 1 8 18" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" fill="none"/><polyline points="11,30 8,26 12,25" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18" cy="18" r="3" fill="var(--accent)" opacity="0.3" stroke="var(--accent)" stroke-width="1.2"/></svg>',
+  backup:   '<svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="6" width="24" height="24" rx="4" fill="var(--accent)" fill-opacity="0.10" stroke="var(--accent)" stroke-width="1.6"/><circle cx="17" cy="18" r="6" stroke="var(--accent)" stroke-width="1.4" fill="var(--accent)" fill-opacity="0.15"/><circle cx="17" cy="18" r="2.5" fill="var(--accent)" opacity="0.7"/><line x1="17" y1="12" x2="17" y2="14.5" stroke="var(--accent)" stroke-width="1.4" stroke-linecap="round"/><line x1="17" y1="21.5" x2="17" y2="24" stroke="var(--accent)" stroke-width="1.4" stroke-linecap="round"/><line x1="11" y1="18" x2="13.5" y2="18" stroke="var(--accent)" stroke-width="1.4" stroke-linecap="round"/><line x1="20.5" y1="18" x2="23" y2="18" stroke="var(--accent)" stroke-width="1.4" stroke-linecap="round"/></svg>',
+  upload:   '<svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="6" width="24" height="24" rx="4" fill="var(--accent)" fill-opacity="0.08" stroke="var(--accent)" stroke-width="1.6"/><line x1="18" y1="24" x2="18" y2="14" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round"/><polyline points="13,18 18,13 23,18" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><line x1="12" y1="27" x2="24" y2="27" stroke="var(--accent)" stroke-width="1.4" stroke-linecap="round" opacity="0.65"/></svg>',
+  sync:     '<svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M10 8 A10 10 0 0 1 28 18" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" fill="none"/><polyline points="25,6 28,10 24,11" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M26 28 A10 10 0 0 1 8 18" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" fill="none"/><polyline points="11,30 8,26 12,25" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18" cy="18" r="3" fill="var(--accent)" opacity="0.3" stroke="var(--accent)" stroke-width="1.2"/></svg>',
+  calendar: '<svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="8" width="28" height="22" rx="3" fill="var(--accent)" fill-opacity="0.10" stroke="var(--accent)" stroke-width="1.5"/><line x1="4" y1="15" x2="32" y2="15" stroke="var(--accent)" stroke-width="1.4"/><line x1="12" y1="4" x2="12" y2="11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity="0.65"/><line x1="24" y1="4" x2="24" y2="11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity="0.65"/><circle cx="12" cy="22" r="1.5" fill="var(--accent)" opacity="0.8"/><circle cx="18" cy="22" r="1.5" fill="var(--accent)" opacity="0.8"/><circle cx="24" cy="22" r="1.5" fill="var(--accent)" opacity="0.8"/></svg>',
+  user:     '<svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="18" cy="13" r="6" fill="var(--accent)" fill-opacity="0.18" stroke="var(--accent)" stroke-width="1.5"/><path d="M5 32 C5 25 31 25 31 32" fill="var(--accent)" fill-opacity="0.12" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round"/></svg>',
+  device:   '<svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="10" y="3" width="16" height="30" rx="4" fill="var(--accent)" fill-opacity="0.10" stroke="var(--accent)" stroke-width="1.6"/><line x1="14" y1="7.5" x2="22" y2="7.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity="0.6"/><rect x="13" y="11" width="10" height="14" rx="1.5" fill="var(--accent)" fill-opacity="0.20"/><circle cx="18" cy="29" r="1.5" fill="var(--accent)" opacity="0.8"/></svg>',
+  credit:   '<svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="10" width="28" height="18" rx="3" fill="var(--accent-gold)" fill-opacity="0.10" stroke="var(--accent-gold)" stroke-width="1.5"/><line x1="4" y1="17" x2="32" y2="17" stroke="var(--accent-gold)" stroke-width="1.4"/><rect x="8" y="21" width="8" height="3" rx="1" fill="var(--accent-gold)" opacity="0.55"/><ellipse cx="28" cy="16" rx="4" ry="1.5" fill="var(--accent-gold)" opacity="0.4" stroke="var(--accent-gold)" stroke-width="1"/></svg>',
+  confirm:  '<svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="18" cy="18" r="13" fill="var(--success)" fill-opacity="0.15" stroke="var(--success)" stroke-width="1.5"/><polyline points="10,18 15,23 26,12" stroke="var(--success)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>',
 };
 function _gcPickIcon(title, confirmText, danger) {
   const t = (title || '').toLowerCase();
@@ -1014,6 +1022,7 @@ function _gcPickIcon(title, confirmText, danger) {
   if (danger) return _gcIcons.warning;
   return _gcIcons.confirm;
 }
+
 function showGlassConfirm(message, {
 title = 'Confirm',
 confirmText = 'Confirm',
@@ -1071,17 +1080,52 @@ window.showGlassConfirm = showGlassConfirm;
 if (typeof window._onShowGlassConfirmReady === 'function') {
 window._onShowGlassConfirmReady();
 }
+
 async function filterCustomers() {
 const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
 const salesCustomers = ensureArray(await sqliteStore.get('sales_customers'));
 renderCustomersTable();
 }
+
 async function openCustomerEditModal(customerName) {
+customerName = customerName || '';
+const isAddMode = !customerName;
+const titleEl = document.getElementById('cust-edit-screen-title');
+const saveBtn = document.getElementById('cust-edit-save-btn');
+const nameInput = document.getElementById('edit-cust-name');
+const nameHint = document.getElementById('cust-name-hint');
+const nameLabel = document.getElementById('cust-name-label');
+if (titleEl) titleEl.textContent = isAddMode ? 'Add Customer' : 'Edit Customer';
+if (saveBtn) saveBtn.textContent = isAddMode ? 'Add Customer' : 'Update Details';
+if (isAddMode) {
+nameInput.placeholder = 'Type name to search or add...';
+nameInput.oninput = function() {
+handleUniversalSearch('edit-cust-name', 'cust-add-search-results', 'customers');
+};
+if (nameLabel) nameLabel.textContent = 'Customer Name';
+if (nameHint) nameHint.textContent = 'Search existing customers or type a new name to add.';
+const searchResults = document.getElementById('cust-add-search-results');
+if (searchResults) searchResults.classList.add('hidden');
+} else {
+nameInput.placeholder = 'Customer name';
+nameInput.oninput = null;
+if (nameLabel) nameLabel.textContent = 'Customer Name';
+if (nameHint) nameHint.textContent = 'Editing the name will update all records for this customer';
+}
 const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
 const salesCustomers = ensureArray(await sqliteStore.get('sales_customers'));
-const nameInput = document.getElementById('edit-cust-name');
 nameInput.value = customerName;
 nameInput.dataset.originalName = customerName;
+if (!customerName) {
+document.getElementById('edit-cust-phone').value = '';
+document.getElementById('edit-cust-address').value = '';
+document.getElementById('edit-cust-old-debit').value = '';
+const editPriceInput = document.getElementById('edit-cust-custom-price');
+if (editPriceInput) editPriceInput.value = '';
+await loadPersonPhotoIntoEditor('cust', '');
+if (typeof openStandaloneScreen === 'function') openStandaloneScreen('customer-edit-screen');
+return;
+}
 const contact = salesCustomers.find(c => c && c.name && c.name.toLowerCase() === customerName.toLowerCase());
 const saleRecord = customerSales.find(s =>
 s && s.customerName === customerName &&
@@ -1099,11 +1143,14 @@ const editPriceInput = document.getElementById('edit-cust-custom-price');
 if (editPriceInput) {
 editPriceInput.value = (contact?.customSalePrice > 0) ? contact.customSalePrice : '';
 }
+await loadPersonPhotoIntoEditor('cust', 'cust:' + customerName.toLowerCase());
 if (typeof openStandaloneScreen === 'function') openStandaloneScreen('customer-edit-screen');
 }
+
 function closeCustomerEditModal() {
 if (typeof closeStandaloneScreen === 'function') closeStandaloneScreen('customer-edit-screen');
 }
+
 async function saveCustomerDetails() {
 const customerSales = ensureArray(await sqliteStore.get('customer_sales'));
 const salesCustomers = ensureArray(await sqliteStore.get('sales_customers'));
@@ -1115,6 +1162,8 @@ const address = document.getElementById('edit-cust-address').value.trim();
 const oldDebit = parseFloat(document.getElementById('edit-cust-old-debit').value) || 0;
 const customSalePrice = parseFloat(document.getElementById('edit-cust-custom-price').value) || 0;
 if (!name) { showToast('Customer name is required', 'error'); return; }
+if (oldDebit < 0) { showToast('Old debt balance cannot be negative. Enter 0 to clear the balance.', 'warning', 4000); return; }
+if (customSalePrice < 0) { showToast('Custom sale price cannot be negative.', 'warning', 4000); return; }
 try {
 const nameChanged = name.toLowerCase() !== originalName.toLowerCase();
 const freshContacts = await sqliteStore.get('sales_customers', []);
@@ -1136,8 +1185,7 @@ contact = { id: generateUUID('cust'), name, phone, address, oldDebit, customSale
 createdAt: getTimestamp(), updatedAt: getTimestamp(), timestamp: getTimestamp() };
 salesCustomers.push(contact);
 }
-await saveWithTracking('sales_customers', salesCustomers, contact);
-saveRecordToFirestore('sales_customers', contact).catch(() => {});
+await unifiedSave('sales_customers', salesCustomers, contact);
 notifyDataChange('sales');
 let salesArray = await sqliteStore.get('customer_sales', []);
 if (!Array.isArray(salesArray)) salesArray = [];
@@ -1169,7 +1217,7 @@ tx.totalValue = oldDebit; tx.customerPhone = phone; tx.timestamp = getTimestamp(
 tx.updatedAt = getTimestamp();
 tx.currentRepProfile = 'admin';
 if (amountChanged) { tx.creditReceived = false; tx.partialPaymentReceived = 0; }
-if (!tx.time) tx.time = new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+if (!tx.time) tx.time = new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', hour12: true});
 ensureRecordIntegrity(tx, true);
 oldDebtModified = true; oldDebtRecord = tx;
 } else {
@@ -1178,7 +1226,7 @@ customerName: name, customerPhone: phone, salesRep: 'ADMIN', quantity: 0,
 supplyStore: 'N/A', paymentType: 'CREDIT', transactionType: 'OLD_DEBT',
 currentRepProfile: 'admin',
 totalValue: oldDebit, creditReceived: false, partialPaymentReceived: 0,
-time: new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}),
+time: new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', hour12: true}),
 timestamp: getTimestamp(), createdAt: getTimestamp(), updatedAt: getTimestamp(),
 notes: 'Previous balance brought forward' };
 salesArray.push(tx); oldDebtModified = true; oldDebtRecord = tx;
@@ -1193,22 +1241,43 @@ let phoneUpdated = false;
 salesArray.forEach(s => { if (s && s.customerName === name && s.customerPhone !== phone) { s.customerPhone = phone; phoneUpdated = true; } });
 customerSales.length = 0; customerSales.push(...salesArray);
 if (nameChanged || oldDebtModified || phoneUpdated) {
-await saveWithTracking('customer_sales', salesArray, oldDebtModified && !phoneUpdated && !nameChanged ? oldDebtRecord : null);
-if (oldDebtRecord) saveRecordToFirestore('customer_sales', oldDebtRecord).catch(() => {});
 if (deletedOldDebtId) {
-await registerDeletion(deletedOldDebtId, 'sales', window._oldDebtRecordForDeletion || null);
+const _deletedRecord = window._oldDebtRecordForDeletion || null;
 window._oldDebtRecordForDeletion = null;
-deleteRecordFromFirestore('customer_sales', deletedOldDebtId).catch(() => {});
+await unifiedDelete('customer_sales', salesArray, deletedOldDebtId, { strict: true }, _deletedRecord);
+} else {
+await unifiedSave('customer_sales', salesArray, oldDebtModified && !phoneUpdated && !nameChanged ? oldDebtRecord : null);
 }
 if (nameChanged && renamedRecords.length > 0) {
-const cloudPushes = renamedRecords.map(r => saveRecordToFirestore('customer_sales', r));
-await Promise.allSettled(cloudPushes);
+await unifiedSave('customer_sales', salesArray, null, renamedRecords.map(r => r.id));
 }
 }
 const message = nameChanged ? `Customer renamed to "${name}" and details updated`
 : oldDebit > 0 ? `Customer updated with old debt of ₨${oldDebit.toLocaleString()}`
 : (oldDebit === 0 && previousOldDebit > 0) ? 'Customer updated and old debt cleared'
 : 'Customer details updated successfully';
+if (nameChanged) {
+const _oldPhoto = await getPersonPhoto('cust:' + originalName.toLowerCase());
+if (_oldPhoto) {
+const _photos = await sqliteStore.get('person_photos') || {};
+_photos['cust:' + name.toLowerCase()] = _oldPhoto;
+delete _photos['cust:' + originalName.toLowerCase()];
+await sqliteStore.set('person_photos', _photos);
+const _dk = (await sqliteStore.get('person_photos_dirty_keys')) || [];
+const _newKey = 'cust:' + name.toLowerCase();
+const _oldKey = 'cust:' + originalName.toLowerCase();
+if (!_dk.includes(_newKey)) _dk.push(_newKey);
+if (!_dk.includes(_oldKey)) _dk.push(_oldKey);
+await sqliteStore.set('person_photos_dirty_keys', _dk);
+await sqliteStore.set('person_photos_timestamp', Date.now());
+const _preview = document.getElementById('cust-photo-preview');
+if (_preview) _preview.dataset.pendingPhoto = undefined;
+} else {
+await savePersonPhoto('cust', 'cust:' + name.toLowerCase());
+}
+} else {
+await savePersonPhoto('cust', 'cust:' + name.toLowerCase());
+}
 showToast(message, 'success');
 closeCustomerEditModal();
 await new Promise(r => setTimeout(r, 350));
@@ -1224,6 +1293,7 @@ triggerAutoSync();
 showToast('Failed to save customer details. Please try again.', 'error');
 }
 }
+
 async function fetchDeviceLocation() {
 const statusDiv = document.getElementById('location-status');
 const addressInput = document.getElementById('edit-cust-address');
@@ -1237,17 +1307,21 @@ if(btn) btn.disabled = true;
 statusDiv.innerHTML = '<span class="update-indicator"></span> Pinpointing satellite location...';
 statusDiv.style.color = "var(--accent)";
 addressInput.placeholder = "Fetching location...";
-const gpsOptions = {
-enableHighAccuracy: true,
-timeout: 20000,
-maximumAge: 0
-};
-navigator.geolocation.getCurrentPosition(async (position) => {
+const gpsOptions = { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 };
+const GPS_ACCURACY_THRESHOLD = 50;
+const GPS_MAX_WAIT_MS = 25000;
+await new Promise((resolve) => {
+let watchId = null;
+let best = null;
+let settled = false;
+const finish = async (position) => {
+if (settled) return;
+settled = true;
+if (watchId !== null) navigator.geolocation.clearWatch(watchId);
 const lat = position.coords.latitude;
 const lon = position.coords.longitude;
 const accuracy = position.coords.accuracy;
-const googleMapsLink = `https://www.google.com/maps?q=${lat},${lon}`;
-const coordsText = `${safeNumber(lat, 0).toFixed(2)}, ${safeNumber(lon, 0).toFixed(2)}`;
+const coordsText = `${safeNumber(lat, 0).toFixed(6)}, ${safeNumber(lon, 0).toFixed(6)}`;
 statusDiv.textContent = `GPS Accuracy: ±${Math.round(accuracy)}m. Decoding name...`;
 try {
 const controller = new AbortController();
@@ -1283,7 +1357,7 @@ const parts = data.display_name.split(', ');
 finalAddress = parts.slice(0, 3).join(', ');
 }
 addressInput.value = `${finalAddress} (${coordsText})`;
-statusDiv.textContent = `◆ Location Found: ${localArea || placeName || city}`;
+statusDiv.textContent = ` Location Found: ${localArea || placeName || city}`;
 statusDiv.style.color = "var(--accent-emerald)";
 if(typeof showToast === 'function') showToast("Address updated successfully", "success");
 } else {
@@ -1291,14 +1365,24 @@ throw new Error("Address not found");
 }
 } catch (error) {
 console.error('An unexpected error occurred.', _safeErr(error));
-showToast('An unexpected error occurred.', 'error');
+showToast('Address lookup failed: ' + (_safeErr(error).message || 'GPS coordinates saved instead'), 'error');
 addressInput.value = `GPS: ${coordsText}`;
 statusDiv.textContent = "Address lookup failed. Saved GPS Coordinates.";
 statusDiv.style.color = "var(--warning)";
 } finally {
 if(btn) btn.disabled = false;
+resolve();
 }
-}, (error) => {
+};
+watchId = navigator.geolocation.watchPosition(
+(position) => {
+if (!best || position.coords.accuracy < best.coords.accuracy) best = position;
+if (position.coords.accuracy <= GPS_ACCURACY_THRESHOLD) finish(position);
+},
+(error) => {
+if (settled) return;
+settled = true;
+if (watchId !== null) navigator.geolocation.clearWatch(watchId);
 let msg = "Location error.";
 switch(error.code) {
 case error.PERMISSION_DENIED: msg = " Permission denied. Check Phone Settings."; break;
@@ -1308,5 +1392,10 @@ case error.TIMEOUT: msg = " GPS timeout. Try again."; break;
 statusDiv.textContent = msg;
 statusDiv.style.color = "var(--danger)";
 if(btn) btn.disabled = false;
-}, gpsOptions);
+resolve();
+},
+gpsOptions
+);
+setTimeout(() => { if (!settled && best) finish(best); }, GPS_MAX_WAIT_MS);
+});
 }
